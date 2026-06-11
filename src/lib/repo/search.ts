@@ -6,7 +6,7 @@
  * scorer keeps search fully functional without external services.
  */
 
-import { store } from "@/lib/store";
+import { activeWorkspace } from "@/lib/store";
 
 export interface SearchHit {
   path: string;
@@ -23,7 +23,7 @@ interface Chunk {
 
 function chunkFiles(): Chunk[] {
   const chunks: Chunk[] = [];
-  for (const file of store().files) {
+  for (const file of activeWorkspace().files) {
     const lines = file.content.split("\n");
     for (let i = 0; i < lines.length; i += 8) {
       chunks.push({

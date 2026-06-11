@@ -8,9 +8,11 @@ import { NewProjectModal } from "./new-project-modal";
 
 export function AppShell({
   userInitials,
+  activeProjectName,
   children,
 }: {
   userInitials: string;
+  activeProjectName: string;
   children: React.ReactNode;
 }) {
   return (
@@ -18,7 +20,7 @@ export function AppShell({
       <div className="grid h-screen grid-cols-[56px_1fr] overflow-hidden">
         <Rail userInitials={userInitials} />
         <div className="flex min-w-0 flex-col">
-          <Topbar />
+          <Topbar activeProjectName={activeProjectName} />
           <main className="scroll-area min-h-0 flex-1 overflow-auto">{children}</main>
         </div>
       </div>

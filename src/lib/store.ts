@@ -39,11 +39,17 @@ import type {
   WorkspaceStats,
 } from "./types";
 
+/** Per-project working copy: file tree, contents, and the latest analysis. */
+export interface ProjectWorkspace {
+  tree: FileNode[];
+  files: SourceFile[];
+  analysis: AnalysisReport;
+}
+
 interface WorkspaceData {
   projects: Project[];
   activity: ActivityItem[];
   stats: WorkspaceStats;
-  analysis: AnalysisReport;
   environments: DeployEnvironment[];
   deployments: DeploymentRecord[];
   memory: MemoryEntry[];
@@ -51,8 +57,8 @@ interface WorkspaceData {
   invites: TeamInvite[];
   audit: AuditEvent[];
   agents: AgentInfo[];
-  tree: FileNode[];
-  files: SourceFile[];
+  workspaces: Map<string, ProjectWorkspace>;
+  activeProjectId: string;
   disabledSkills: Set<string>;
 }
 
@@ -61,7 +67,6 @@ function createStore(): WorkspaceData {
     projects: [...seedProjects],
     activity: [...seedActivity],
     stats: { ...seedStats },
-    analysis: structuredClone(seedAnalysis),
     environments: structuredClone(seedEnvironments),
     deployments: [...seedDeployments],
     memory: [...seedMemory],
@@ -69,8 +74,17 @@ function createStore(): WorkspaceData {
     invites: [...seedInvites],
     audit: [...seedAudit],
     agents: structuredClone(seedAgents),
-    tree: structuredClone(seedTree),
-    files: [...seedFiles],
+    workspaces: new Map([
+      [
+        "acme-web",
+        {
+          tree: structuredClone(seedTree),
+          files: [...seedFiles],
+          analysis: structuredClone(seedAnalysis),
+        },
+      ],
+    ]),
+    activeProjectId: "acme-web",
     disabledSkills: new Set(),
   };
 }
@@ -109,6 +123,52 @@ export function addProject(input: { name: string; repoUrl: string; description?:
   store().stats.repositories += 1;
   addActivity({ kind: "analysis", text: "Repository queued for indexing:", highlight: input.name });
   return project;
+}
+
+/** The working copy backing the Editor, Analysis, search, and terminal. */
+export function activeWorkspace(): ProjectWorkspace {
+  const s = store();
+  return s.workspaces.get(s.activeProjectId) ?? s.workspaces.get("acme-web")!;
+}
+
+export function activeProject(): Project | undefined {
+  const s = store();
+  return s.projects.find((p) => p.id === s.activeProjectId);
+}
+
+/** Register a fully imported repository and make it the active workspace. */
+export function addImportedProject(input: {
+  name: string;
+  repoUrl: string;
+  language: string;
+  workspace: ProjectWorkspace;
+}): Project {
+  const s = store();
+  const project: Project = {
+    id: `${input.name}-${id()}`,
+    name: input.name,
+    repoUrl: input.repoUrl,
+    description: input.workspace.analysis.overview[0]?.v ?? "Imported repository.",
+    language: input.language,
+    files: input.workspace.files.length,
+    progress: 100,
+    health: input.workspace.analysis.risks.some((r) => r.severity === "high") ? "issues" : "healthy",
+    indexedAt: new Date().toISOString(),
+  };
+  input.workspace.analysis.projectId = project.id;
+  s.projects.unshift(project);
+  s.stats.repositories += 1;
+  s.workspaces.set(project.id, input.workspace);
+  s.activeProjectId = project.id;
+  addActivity({ kind: "analysis", text: "Repository indexed:", highlight: `${input.name} · ${input.workspace.files.length} files` });
+  return project;
+}
+
+export function setActiveProject(projectId: string): boolean {
+  const s = store();
+  if (!s.workspaces.has(projectId)) return false;
+  s.activeProjectId = projectId;
+  return true;
 }
 
 export function upsertMemory(input: { id?: string; scope: MemoryScope; title: string; content: string }): MemoryEntry {
@@ -175,5 +235,5 @@ export function setMemberRole(memberId: string, role: TeamRole, actor: string): 
 }
 
 export function getFile(path: string): SourceFile | undefined {
-  return store().files.find((f) => f.path === path);
+  return activeWorkspace().files.find((f) => f.path === path);
 }

@@ -10,7 +10,7 @@ import {
   Package,
   Server,
 } from "lucide-react";
-import { store } from "@/lib/store";
+import { activeProject, activeWorkspace, setActiveProject } from "@/lib/store";
 import { timeAgo } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
@@ -34,9 +34,15 @@ function riskIcon(risk: AnalysisRisk) {
   return <Package className="h-[18px] w-[18px]" strokeWidth={1.7} />;
 }
 
-export default function AnalysisPage() {
-  const { analysis, projects } = store();
-  const project = projects.find((p) => p.id === analysis.projectId);
+export default async function AnalysisPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ project?: string }>;
+}) {
+  const { project: requestedProject } = await searchParams;
+  if (requestedProject) setActiveProject(requestedProject);
+  const { analysis } = activeWorkspace();
+  const project = activeProject();
 
   return (
     <div className="pad-screen">

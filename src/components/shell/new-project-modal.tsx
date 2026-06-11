@@ -40,8 +40,10 @@ export function NewProjectModal() {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? `Import failed (${res.status})`);
       }
+      const data = (await res.json()) as { indexed?: number };
       setNewProjectOpen(false);
-      toast("Repository queued for indexing");
+      toast(`Indexed ${data.indexed ?? 0} files — workspace ready`);
+      router.push("/editor");
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");

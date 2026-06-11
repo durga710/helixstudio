@@ -16,10 +16,10 @@
 - [x] Chat interface + model routing (Haiku/Sonnet/Opus via Anthropic SDK; mock fallback)
 
 ## Phase 2 — Repository intelligence
-- [x] Repo import (GitHub URL → indexing queue)
+- [x] **Real** repo import — public GitHub tarball fetch, parse, index (`src/lib/repo/import.ts`)
 - [ ] Folder upload
-- [x] Parsing, chunking + search (`/api/search`; in-memory scorer with Qdrant swap point)
-- [x] Static analysis → Repository Analysis screen
+- [x] Parsing, chunking + search over imported repos (`/api/search`; Qdrant swap point)
+- [x] **Real** static analysis of imported repos (languages, deps, risks) → Analysis screen
 
 ## Phase 3 — Agents
 - [x] Planner, Architect, Engineer, Reviewer, Security, Performance (SSE pipeline)
