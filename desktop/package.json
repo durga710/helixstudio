@@ -1,7 +1,7 @@
 {
   "name": "helix-studio-desktop",
   "productName": "Helix Studio",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "Helix Studio desktop \u2014 the AI coding platform with real local shell access",
   "main": "main.js",
@@ -34,6 +34,20 @@
       "category": "Development"
     },
     "publish": null,
-    "afterPack": "./scripts/adhoc-sign.js"
+    "afterPack": "./scripts/adhoc-sign.js",
+    "extraResources": [
+      {
+        "from": "../.next/standalone",
+        "to": "app-server"
+      },
+      {
+        "from": "../.next/static",
+        "to": "app-server/.next/static"
+      },
+      {
+        "from": "../public",
+        "to": "app-server/public"
+      }
+    ]
   }
 }

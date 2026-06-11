@@ -6,9 +6,15 @@ choose, with more native powers coming (local folder editing, git, file watch).
 
 ## Architecture
 
-- `desktop/main.js` — hardened BrowserWindow loading `https://helixstudio.org`
-  (override with `HELIX_DESKTOP_URL` for local dev). Navigation is locked to
-  the app origin; external links open in the OS browser.
+- **The engine runs locally (v0.2).** The packaged app bundles the Next.js
+  standalone server (`extraResources` → `app-server/`); on launch `main.js`
+  boots it on `127.0.0.1` (Electron's binary doubles as Node via
+  `ELECTRON_RUN_AS_NODE`) and points the window at it. Instant startup,
+  offline-capable, data stays on the machine; the cloud is reached only for
+  the Claude API (your key) and GitHub imports. Dev fallback order:
+  `HELIX_DESKTOP_URL` → bundled server → helixstudio.org.
+- `desktop/main.js` — hardened BrowserWindow. Navigation is locked to the app
+  origin; external links open in the OS browser.
 - `desktop/preload.js` — the only bridge between web and native, via
   `contextBridge`: `platform()`, `chooseFolder()`, `runCommand()`. Context
   isolation on, node integration off, command origin re-checked in the main

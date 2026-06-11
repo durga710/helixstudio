@@ -47,7 +47,8 @@
 - [ ] SSO (SAML/OIDC via Auth.js — config-gated)
 
 ## Phase 8 — Desktop (like Cursor)
-- [x] Electron shell (`desktop/`) loading helixstudio.org with a hardened native bridge
+- [x] Electron shell (`desktop/`) with a hardened native bridge
+- [x] **Local engine**: the full Next.js server is bundled into the binary and runs on 127.0.0.1 (v0.2)
 - [x] Real local shell in the editor (folder picker + time-boxed command execution)
 - [x] CI installers: dmg / exe / AppImage on `desktop-v*` tags (draft GitHub Release)
 - [ ] Open local folders in the Editor (read/write via the bridge)

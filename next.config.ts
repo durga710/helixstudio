@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Standalone server output — bundled into the desktop app (see docs/DESKTOP.md).
+  // Vercel uses its own build output, so production hosting is unaffected.
+  output: "standalone",
   async redirects() {
     return [
       // Canonical domain: www.helixstudio.org -> helixstudio.org (backstop for the

@@ -1,25 +1,90 @@
-// Helix Studio desktop shell.
+// Helix Studio desktop shell — v0.2: the full engine runs locally.
 //
-// Loads the hosted app (helixstudio.org) inside a hardened BrowserWindow and
-// exposes a narrow native bridge (see preload.js): a real local shell and a
-// folder picker — the powers a browser tab can't have. Navigation is locked
-// to the app origin so no other site can ever reach the bridge.
+// The packaged app bundles the Next.js standalone server (extraResources →
+// app-server/). On launch we boot it on 127.0.0.1 and point the window at it:
+// instant startup, works offline, your data stays on your machine. The cloud
+// is only reached for what is genuinely remote (Claude API via your key,
+// GitHub repo imports). If no bundled server is present (dev), the shell
+// falls back to HELIX_DESKTOP_URL or helixstudio.org.
 
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const { spawn } = require("node:child_process");
+const fs = require("node:fs");
+const http = require("node:http");
+const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
-
-const APP_URL = process.env.HELIX_DESKTOP_URL || "https://helixstudio.org";
-const APP_ORIGIN = new URL(APP_URL).origin;
 
 const COMMAND_TIMEOUT_MS = 30_000;
 const OUTPUT_CAP_BYTES = 200 * 1024;
 
 /** Working directory for the local shell — set via the folder picker. */
 let workspaceDir = os.homedir();
+let appOrigin = null;
+let serverProcess = null;
 
-function createWindow() {
+function bundledServerPath() {
+  const candidate = path.join(process.resourcesPath ?? "", "app-server", "server.js");
+  return fs.existsSync(candidate) ? candidate : null;
+}
+
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.listen(0, "127.0.0.1", () => {
+      const { port } = srv.address();
+      srv.close(() => resolve(port));
+    });
+    srv.on("error", reject);
+  });
+}
+
+function waitForServer(url, timeoutMs = 20_000) {
+  const started = Date.now();
+  return new Promise((resolve, reject) => {
+    (function probe() {
+      const req = http.get(`${url}/api/health`, (res) => {
+        res.resume();
+        resolve();
+      });
+      req.on("error", () => {
+        if (Date.now() - started > timeoutMs) reject(new Error("local server did not start"));
+        else setTimeout(probe, 250);
+      });
+    })();
+  });
+}
+
+async function startLocalServer() {
+  const serverJs = bundledServerPath();
+  if (!serverJs) return null;
+
+  const port = await freePort();
+  const origin = `http://127.0.0.1:${port}`;
+  // Electron's binary doubles as Node when ELECTRON_RUN_AS_NODE is set.
+  serverProcess = spawn(process.execPath, [serverJs], {
+    cwd: path.dirname(serverJs),
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: "1",
+      NODE_ENV: "production",
+      PORT: String(port),
+      HOSTNAME: "127.0.0.1",
+      AUTH_URL: origin,
+      AUTH_TRUST_HOST: "true",
+      NEXT_PUBLIC_APP_URL: origin,
+    },
+    stdio: "ignore",
+  });
+  serverProcess.on("exit", () => {
+    serverProcess = null;
+  });
+
+  await waitForServer(origin);
+  return origin;
+}
+
+function createWindow(url) {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -36,18 +101,18 @@ function createWindow() {
   });
 
   // Lock navigation to the app origin; external links open in the OS browser.
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (new URL(url).origin !== APP_ORIGIN) shell.openExternal(url);
+  win.webContents.setWindowOpenHandler(({ url: target }) => {
+    if (new URL(target).origin !== appOrigin) shell.openExternal(target);
     return { action: "deny" };
   });
-  win.webContents.on("will-navigate", (event, url) => {
-    if (new URL(url).origin !== APP_ORIGIN) {
+  win.webContents.on("will-navigate", (event, target) => {
+    if (new URL(target).origin !== appOrigin) {
       event.preventDefault();
-      shell.openExternal(url);
+      shell.openExternal(target);
     }
   });
 
-  win.loadURL(APP_URL);
+  win.loadURL(url);
   return win;
 }
 
@@ -56,6 +121,7 @@ ipcMain.handle("helix:platform", () => ({
   arch: process.arch,
   version: app.getVersion(),
   cwd: workspaceDir,
+  localEngine: serverProcess !== null,
 }));
 
 ipcMain.handle("helix:choose-folder", async (event) => {
@@ -76,7 +142,7 @@ ipcMain.handle("helix:run-command", async (event, command) => {
     return { ok: false, output: "invalid command", code: -1 };
   }
   const senderOrigin = new URL(event.sender.getURL()).origin;
-  if (senderOrigin !== APP_ORIGIN) {
+  if (senderOrigin !== appOrigin) {
     return { ok: false, output: "blocked: untrusted origin", code: -1 };
   }
 
@@ -121,13 +187,25 @@ ipcMain.handle("helix:run-command", async (event, command) => {
   });
 });
 
-app.whenReady().then(() => {
-  createWindow();
+app.whenReady().then(async () => {
+  let url;
+  try {
+    url = process.env.HELIX_DESKTOP_URL || (await startLocalServer()) || "https://helixstudio.org";
+  } catch {
+    url = "https://helixstudio.org";
+  }
+  appOrigin = new URL(url).origin;
+
+  createWindow(url);
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) createWindow(url);
   });
 });
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("quit", () => {
+  if (serverProcess) serverProcess.kill();
 });
