@@ -7,7 +7,7 @@ import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Segmented } from "@/components/ui/segmented";
-import { useToast } from "@/components/ui/toast";
+import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { useShell } from "@/components/shell/shell-context";
 import {
   ALL_ENTRIES,
@@ -48,8 +48,8 @@ export function SkillsScreen() {
   const [query, setQuery] = useState("");
   const [source, setSource] = useState<SourceFilter>("all");
   const [disabled, setDisabled] = useState<Set<string>>(new Set());
+  const [detail, setDetail] = useState<CatalogEntry | null>(null);
   const { setNewProjectOpen } = useShell();
-  const { toast } = useToast();
 
   const visible = useMemo(() => {
     const q = query.toLowerCase();
@@ -154,7 +154,7 @@ export function SkillsScreen() {
                   <Card
                     key={entry.id}
                     className="flex cursor-pointer flex-col gap-[7px] p-3.5 transition-all duration-150 hover:-translate-y-px hover:border-accent"
-                    onClick={() => toast(`${entry.name} — ${entry.kind} from ${SOURCE_LABELS[entry.source]}`)}
+                    onClick={() => setDetail(entry)}
                   >
                     <div className="flex items-center gap-[9px]">
                       <div className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] font-mono text-[11px] font-bold uppercase tracking-[0.02em] text-accent">
@@ -181,6 +181,64 @@ export function SkillsScreen() {
           </div>
         );
       })}
+
+      {/* Skill detail view (Phase 0) */}
+      <Dialog open={detail !== null} onOpenChange={(open) => !open && setDetail(null)}>
+        <DialogContent>
+          {detail && (
+            <>
+              <DialogHeader title={detail.name} description={SOURCE_LABELS[detail.source]} />
+              <div className="flex flex-col gap-3.5 p-5">
+                <div className="flex items-center gap-2.5">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] font-mono text-xs font-bold uppercase text-accent">
+                    {detail.code}
+                  </div>
+                  <Pill tone={detail.source === "ecc" ? "accent" : "green"}>{detail.source}</Pill>
+                  <Pill tone="neutral">{detail.kind}</Pill>
+                  <Pill tone="neutral">{detail.group}</Pill>
+                  <span className="ml-auto font-mono text-[10.5px] text-txt3">{detail.tag}</span>
+                </div>
+                <p className="text-[13px] leading-relaxed text-txt2">{detail.description}</p>
+                <div className="rounded-[9px] border border-border2 bg-panel2 px-3.5 py-3 text-xs text-txt2">
+                  {detail.source === "helix" ? (
+                    <>
+                      Bundled with Helix at{" "}
+                      <code className="rounded bg-panel px-1 font-mono text-[11px] text-txt">
+                        skills/{detail.name}/
+                      </code>{" "}
+                      — loaded on demand when a task matches its trigger.
+                    </>
+                  ) : detail.kind === "command" ? (
+                    <>
+                      Slash command from the Everything Claude Code plugin — type{" "}
+                      <code className="rounded bg-panel px-1 font-mono text-[11px] text-txt">{detail.name}</code>{" "}
+                      in chat once the ECC marketplace is added.
+                    </>
+                  ) : (
+                    <>
+                      Part of the Everything Claude Code plugin — install via{" "}
+                      <code className="rounded bg-panel px-1 font-mono text-[11px] text-txt">
+                        /plugin marketplace add
+                      </code>{" "}
+                      using ECC&apos;s <code className="rounded bg-panel px-1 font-mono text-[11px] text-txt">.claude-plugin/marketplace.json</code>.
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-txt2">
+                    {disabled.has(detail.id) ? "Disabled for this workspace" : "Enabled for this workspace"}
+                  </span>
+                  <Switch
+                    checked={!disabled.has(detail.id)}
+                    onCheckedChange={() => toggle(detail)}
+                    aria-label={`Toggle ${detail.name}`}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
