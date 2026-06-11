@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" role="img" aria-labelledby="title desc">
+  <title id="title">Helix Studio Circuit Core mark</title>
+  <desc id="desc">Circuit Core H mark for icons, avatars, and compact brand use.</desc>
+  <defs>
+    <linearGradient id="cc-frame" x1="72" y1="64" x2="350" y2="342" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00ffd1"/>
+      <stop offset="0.48" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#c084fc"/>
+    </linearGradient>
+    <linearGradient id="cc-h" x1="124" y1="116" x2="270" y2="286" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#a7f3d0"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="420" rx="92" fill="#070b12"/>
+  <rect x="68" y="60" width="284" height="284" rx="62" fill="#0d1626" stroke="url(#cc-frame)" stroke-width="10"/>
+  <path d="M135 116v172M285 116v172M135 202h150" fill="none" stroke="url(#cc-h)" stroke-width="24" stroke-linecap="round"/>
+  <path d="M135 144H88M285 262h56M210 202v-78h44M210 202v76h-44M285 144h38M135 262h-29" fill="none" stroke="#00ffd1" stroke-width="8" stroke-linecap="round"/>
+  <g fill="#f8fbff">
+    <circle cx="88" cy="144" r="10"/>
+    <circle cx="341" cy="262" r="10"/>
+    <circle cx="254" cy="124" r="9"/>
+    <circle cx="166" cy="278" r="9"/>
+    <circle cx="323" cy="144" r="8"/>
+    <circle cx="106" cy="262" r="8"/>
+  </g>
+</svg>

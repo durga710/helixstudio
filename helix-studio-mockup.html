@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" data-density="comfortable">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" type="image/svg+xml" href="assets/brand/circuit-core-favicon.svg" />
+<title>Helix Studio — AI Coding Platform</title>
+<style>
+  /* ===================== THEME TOKENS ===================== */
+  :root{
+    --accent:#3b82f6;
+    --accent-ink:#ffffff;
+    --radius:10px; --radius-sm:7px; --radius-lg:14px;
+    --mono:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,sans-serif;
+    --ft:13px;
+    --u:8px;
+  }
+  :root[data-theme="dark"]{
+    --bg:#0b0d11; --bg-2:#0e1116; --panel:#13161c; --panel-2:#181c24; --panel-3:#1e232c;
+    --border:#1f242d; --border-2:#2a313c;
+    --txt:#e9ebf0; --txt-2:#a0a8b6; --txt-3:#69717f;
+    --green:#34d399; --amber:#fbbf24; --red:#f87171; --shadow:0 10px 34px rgba(0,0,0,.5); --shadow-sm:0 1px 3px rgba(0,0,0,.4);
+    --code-bg:#0a0c10; --hl:rgba(99,102,241,.08);
+  }
+  :root[data-theme="light"]{
+    --bg:#f6f7f9; --bg-2:#ffffff; --panel:#ffffff; --panel-2:#f4f5f8; --panel-3:#eceef2;
+    --border:#e5e7eb; --border-2:#d6dae1;
+    --txt:#161922; --txt-2:#4b5563; --txt-3:#8b93a1;
+    --green:#059669; --amber:#d97706; --red:#dc2626; --shadow:0 10px 30px rgba(20,24,40,.1); --shadow-sm:0 1px 2px rgba(20,24,40,.06);
+    --code-bg:#fbfbfd; --hl:rgba(99,102,241,.06);
+  }
+  :root[data-density="compact"]{ --u:6px; }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--sans);background:var(--bg);color:var(--txt);font-size:13.5px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow:hidden}
+  ::selection{background:color-mix(in srgb,var(--accent) 30%,transparent)}
+  svg{display:block}
+  .ico{width:18px;height:18px;stroke:currentColor;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .ico.sm{width:15px;height:15px}
+  .ico.xs{width:13px;height:13px}
+  button{font-family:inherit}
+
+  /* ===================== APP GRID ===================== */
+  .app{display:grid;grid-template-columns:56px 1fr;height:100vh}
+
+  /* ----- Rail ----- */
+  .rail{background:var(--bg-2);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:3px}
+  .brand{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;margin-bottom:12px;cursor:pointer;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+  .brand svg{width:34px;height:34px}
+  .rail-btn{width:40px;height:38px;border-radius:9px;border:none;background:transparent;color:var(--txt-3);cursor:pointer;display:grid;place-items:center;position:relative;transition:.13s}
+  .rail-btn:hover{color:var(--txt);background:var(--panel-2)}
+  .rail-btn.active{color:var(--txt);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+  .rail-btn.active::before{content:"";position:absolute;left:-12px;top:8px;height:22px;width:2.5px;border-radius:2px;background:var(--accent)}
+  .rail-btn .ico{width:19px;height:19px}
+  .rail-sp{flex:1}
+  .avatar{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-weight:650;font-size:11px;color:#fff;background:linear-gradient(135deg,#8b5cf6,var(--accent));cursor:pointer;margin-top:4px}
+
+  /* ----- Main ----- */
+  .main{display:flex;flex-direction:column;min-width:0}
+  .topbar{height:48px;border-bottom:1px solid var(--border);background:var(--bg-2);display:flex;align-items:center;gap:12px;padding:0 14px;flex-shrink:0}
+  .crumbs{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--txt-2)}
+  .crumbs b{color:var(--txt);font-weight:600}
+  .crumbs .sep{color:var(--txt-3)}
+  .repo-pick{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid var(--border-2);border-radius:7px;font-size:12px;color:var(--txt);cursor:pointer;background:var(--panel)}
+  .repo-pick:hover{border-color:var(--accent)}
+  .branch{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border:1px solid var(--border-2);border-radius:20px;font-size:11.5px;color:var(--txt-2)}
+  .branch .d{width:6px;height:6px;border-radius:50%;background:var(--green)}
+  .cmdk{margin-left:auto;display:flex;align-items:center;gap:8px;width:300px;max-width:30vw;background:var(--panel);border:1px solid var(--border-2);border-radius:8px;padding:6px 10px;color:var(--txt-3);font-size:12.5px;cursor:pointer;transition:.13s}
+  .cmdk:hover{border-color:var(--accent);color:var(--txt-2)}
+  .cmdk .kbd{margin-left:auto;display:flex;gap:3px}
+  .kbd span{background:var(--panel-2);border:1px solid var(--border);border-radius:4px;padding:0 5px;font-size:10.5px;font-family:var(--mono);color:var(--txt-2)}
+  .tb-btn{background:transparent;border:1px solid transparent;color:var(--txt-2);width:32px;height:32px;border-radius:8px;cursor:pointer;display:grid;place-items:center;transition:.13s}
+  .tb-btn:hover{color:var(--txt);background:var(--panel-2)}
+  .ghost{background:var(--panel);border:1px solid var(--border-2);color:var(--txt-2);padding:6px 11px;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.13s}
+  .ghost:hover{color:var(--txt);border-color:var(--accent)}
+  .solid{background:var(--accent);border:1px solid var(--accent);color:var(--accent-ink);padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.13s}
+  .solid:hover{filter:brightness(1.08)}
+  .accent-pop{position:absolute;top:46px;right:96px;z-index:40;background:var(--panel);border:1px solid var(--border-2);border-radius:12px;box-shadow:var(--shadow);padding:12px;display:none}
+  .accent-pop.show{display:block}
+  .accent-pop .lbl{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-3);font-weight:700;margin-bottom:8px}
+  .sw-row{display:flex;gap:8px}
+  .sw{width:24px;height:24px;border-radius:7px;cursor:pointer;border:2px solid transparent;transition:.12s}
+  .sw:hover{transform:scale(1.1)}
+  .sw.on{border-color:var(--txt)}
+
+  /* ----- View ----- */
+  .view{flex:1;overflow:auto;min-height:0}
+  .view::-webkit-scrollbar{width:11px;height:11px}
+  .view::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:8px;border:3px solid var(--bg)}
+  .hidden{display:none!important}
+  .pad{padding:calc(var(--u)*3) calc(var(--u)*4)}
+  .eyebrow{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:7px}
+  h1.page{font-size:22px;font-weight:680;letter-spacing:-.02em}
+  .sub{color:var(--txt-2);font-size:13px;margin-top:3px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+  .muted{color:var(--txt-2)} .faint{color:var(--txt-3)}
+  .pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:600;border:1px solid var(--border-2);color:var(--txt-2)}
+  .pill.green{color:var(--green);border-color:color-mix(in srgb,var(--green) 35%,transparent);background:color-mix(in srgb,var(--green) 9%,transparent)}
+  .pill.amber{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 35%,transparent);background:color-mix(in srgb,var(--amber) 9%,transparent)}
+  .pill.red{color:var(--red);border-color:color-mix(in srgb,var(--red) 35%,transparent);background:color-mix(in srgb,var(--red) 9%,transparent)}
+  .pill.accent{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 9%,transparent)}
+  .section-title{display:flex;align-items:center;justify-content:space-between;margin:calc(var(--u)*3) 0 calc(var(--u)*1.5)}
+  .section-title h3{font-size:14px;font-weight:620}
+
+  /* ===================== DASHBOARD ===================== */
+  .hero{border:1px solid var(--border);border-radius:var(--radius-lg);padding:26px 28px;position:relative;overflow:hidden;background:var(--panel)}
+  .hero::after{content:"";position:absolute;inset:0;background:radial-gradient(900px 240px at 8% -40%,color-mix(in srgb,var(--accent) 16%,transparent),transparent);pointer-events:none}
+  .hero h2{font-size:23px;font-weight:700;letter-spacing:-.02em;position:relative}
+  .hero p{color:var(--txt-2);max-width:560px;margin-top:6px;position:relative}
+  .hero-actions{display:flex;gap:9px;margin-top:18px;position:relative;flex-wrap:wrap}
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+  .stat .n{font-size:21px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:baseline;gap:6px}
+  .stat .n .up{font-size:11px;color:var(--green);font-weight:600}
+  .stat .l{font-size:11.5px;color:var(--txt-2);margin-top:1px}
+  .proj-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .proj{padding:16px;cursor:pointer;transition:.14s}
+  .proj:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .proj .top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .proj .logos{display:flex;align-items:center;gap:4px}
+  .proj .nm{font-weight:620;font-size:13.5px}
+  .proj .rp{font-size:11px;color:var(--txt-3);font-family:var(--mono);display:flex;align-items:center;gap:4px}
+  .proj .meta{display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--txt-2);margin-top:11px}
+  .bar{height:4px;border-radius:4px;background:var(--panel-3);overflow:hidden;margin-top:12px}
+  .bar i{display:block;height:100%;background:var(--accent)}
+  .feed .it{display:flex;align-items:center;gap:11px;padding:11px 16px;border-bottom:1px solid var(--border);font-size:12.5px}
+  .feed .it:last-child{border:none}
+  .feed .it .ico{color:var(--txt-3);flex-shrink:0}
+  .feed .tm{margin-left:auto;color:var(--txt-3);font-size:11.5px;white-space:nowrap}
+
+  /* ===================== IDE ===================== */
+  #view-ide{overflow:hidden}
+  .ide{display:grid;grid-template-columns:236px 1fr 372px;height:100%;min-height:0}
+  .explorer{background:var(--bg-2);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+  .ex-head{padding:10px 13px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--txt-3);font-weight:700;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+  .ex-head .hbtns{display:flex;gap:2px}
+  .ex-head .hb{width:22px;height:22px;border-radius:5px;display:grid;place-items:center;color:var(--txt-3);cursor:pointer}
+  .ex-head .hb:hover{background:var(--panel-2);color:var(--txt)}
+  .ex-tree{padding:6px;overflow:auto;flex:1}
+  .node{display:flex;align-items:center;gap:6px;padding:4px 7px;border-radius:6px;font-size:12.5px;color:var(--txt-2);cursor:pointer;user-select:none}
+  .node:hover{background:var(--panel-2);color:var(--txt)}
+  .node.active{background:color-mix(in srgb,var(--accent) 13%,transparent);color:var(--txt)}
+  .node .tw{width:13px;height:13px;color:var(--txt-3);flex-shrink:0}
+  .node .fi{width:14px;height:14px;flex-shrink:0}
+  .node .chg{margin-left:auto;font-size:10px;font-weight:700;font-family:var(--mono)}
+  .chg.m{color:var(--amber)} .chg.a{color:var(--green)}
+
+  .editor{display:flex;flex-direction:column;min-width:0;background:var(--code-bg)}
+  .tabs{display:flex;background:var(--bg-2);border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0}
+  .tab{display:flex;align-items:center;gap:7px;padding:8px 13px;font-size:12.5px;color:var(--txt-2);border-right:1px solid var(--border);cursor:pointer;white-space:nowrap;position:relative}
+  .tab:hover{color:var(--txt)}
+  .tab.active{background:var(--code-bg);color:var(--txt)}
+  .tab.active::after{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent)}
+  .tab .x{color:var(--txt-3);font-size:15px;line-height:1;margin-left:2px}
+  .tab .x:hover{color:var(--txt)}
+  .tab .dt{width:7px;height:7px;border-radius:50%;background:var(--amber)}
+  .code{flex:1;overflow:auto;padding:14px 0;font-family:var(--mono);font-size:var(--ft);line-height:1.7}
+  .ln{display:flex} .ln .g{width:46px;text-align:right;padding-right:16px;color:var(--txt-3);user-select:none;flex-shrink:0;opacity:.7}
+  .ln .c{white-space:pre;padding-right:24px}
+  .ln.hl{background:var(--hl)} .ln.add{background:color-mix(in srgb,var(--green) 9%,transparent)}
+  .ln.add .g{color:var(--green);opacity:1}
+  .k{color:#c792ea}.s{color:#9ccc65}.f{color:#82aaff}.t{color:#ffcb6b}.cm{color:var(--txt-3);font-style:italic}.nu{color:#f78c6c}.p{color:#89ddff}
+  :root[data-theme="light"] .k{color:#8250df}:root[data-theme="light"] .s{color:#0a7d33}:root[data-theme="light"] .f{color:#0550ae}:root[data-theme="light"] .t{color:#953800}:root[data-theme="light"] .nu{color:#bc4c00}:root[data-theme="light"] .p{color:#0969da}
+  .estatus{height:25px;background:var(--bg-2);border-top:1px solid var(--border);display:flex;align-items:center;gap:14px;padding:0 13px;font-size:11px;color:var(--txt-2);flex-shrink:0}
+  .estatus .it{display:inline-flex;align-items:center;gap:5px}
+  .estatus .it .ico{width:12px;height:12px}
+
+  .chat{background:var(--bg-2);border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+  .chat-head{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px}
+  .chat-head .ai{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;background:linear-gradient(160deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#000))}
+  .chat-head .t{font-weight:620;font-size:13px}
+  .chat-head .md{margin-left:auto;font-size:10.5px;color:var(--txt-2);border:1px solid var(--border-2);padding:3px 8px;border-radius:6px;cursor:pointer}
+  .chat-body{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:14px}
+  .msg{display:flex;gap:9px;font-size:12.5px}
+  .msg .who{width:22px;height:22px;border-radius:6px;flex-shrink:0;display:grid;place-items:center;font-size:10px;font-weight:700;color:#fff}
+  .msg.u .who{background:linear-gradient(135deg,#8b5cf6,var(--accent))}
+  .msg.a .who{background:linear-gradient(160deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#000))}
+  .msg .bub{flex:1;min-width:0} .msg .bub p{margin-bottom:5px} .msg.u .bub p{color:var(--txt-2)}
+  .plan{background:var(--panel);border:1px solid var(--border-2);border-radius:9px;padding:11px 13px;margin-top:7px}
+  .plan .ph{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);font-weight:700;margin-bottom:7px}
+  .plan ul{list-style:none;display:flex;flex-direction:column;gap:6px}
+  .plan li{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--txt-2)}
+  .plan li .ck{width:15px;height:15px;border-radius:5px;display:grid;place-items:center;flex-shrink:0}
+  .ck.done{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green)}
+  .ck.now{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent);border:1px solid var(--accent)}
+  .ck.wait{background:var(--panel-2);color:var(--txt-3)}
+  .ck .ico{width:10px;height:10px;stroke-width:2.4}
+  .diffcard{background:var(--panel);border:1px solid var(--border-2);border-radius:9px;margin-top:7px;overflow:hidden}
+  .diffcard .dh{padding:7px 11px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--txt-2);display:flex;align-items:center;gap:7px}
+  .diffcard pre{font-family:var(--mono);font-size:11px;line-height:1.55;padding:6px 0}
+  .dl{display:flex;padding:0 11px}.dl.p{background:color-mix(in srgb,var(--green) 8%,transparent)}
+  .dl .sgn{width:13px;color:var(--txt-3)}.dl.p .sgn{color:var(--green)}
+  .diffcard .da{display:flex;gap:7px;padding:8px 11px;border-top:1px solid var(--border)}
+  .mini{font-size:11px;padding:5px 10px;border-radius:7px;border:1px solid var(--border-2);background:var(--panel-2);color:var(--txt-2);cursor:pointer}
+  .mini.acc{background:color-mix(in srgb,var(--green) 13%,transparent);color:var(--green);border-color:color-mix(in srgb,var(--green) 35%,transparent)}
+  .chat-input{padding:11px;border-top:1px solid var(--border)}
+  .chat-box{background:var(--panel);border:1px solid var(--border-2);border-radius:10px;padding:9px 11px}
+  .chat-box:focus-within{border-color:var(--accent)}
+  .chat-box textarea{width:100%;background:transparent;border:none;resize:none;color:var(--txt);font-family:var(--sans);font-size:12.5px;outline:none;height:36px}
+  .chat-box textarea::placeholder{color:var(--txt-3)}
+  .cb-foot{display:flex;align-items:center;gap:7px;margin-top:5px}
+  .cb-chip{font-size:10.5px;color:var(--txt-2);border:1px solid var(--border);border-radius:6px;padding:3px 7px;display:inline-flex;gap:5px;align-items:center}
+  .cb-send{margin-left:auto;width:28px;height:28px;border-radius:7px;background:var(--accent);border:none;display:grid;place-items:center;cursor:pointer;color:var(--accent-ink)}
+
+  /* ===================== ANALYSIS ===================== */
+  .two-col{display:grid;grid-template-columns:1.35fr 1fr;gap:14px}
+  .anly h4{font-size:12.5px;font-weight:620;margin-bottom:11px;display:flex;align-items:center;gap:7px}
+  .anly h4 .ico{color:var(--accent);width:15px;height:15px}
+  .kv{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px}
+  .kv:last-child{border:none} .kv .k{color:var(--txt-2)}
+  .dep{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)}
+  .dep:last-child{border:none} .dep .nm{font-family:var(--mono);font-size:12px;display:flex;align-items:center;gap:7px}
+  .risk{display:flex;gap:11px;padding:12px;border-radius:9px;border:1px solid var(--border-2);background:var(--panel-2);margin-bottom:9px;align-items:center}
+  .risk .ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex-shrink:0}
+  .risk h5{font-size:12.5px;font-weight:600;margin-bottom:1px} .risk p{font-size:12px;color:var(--txt-2)}
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px}
+  .flow .step{background:var(--panel-2);border:1px solid var(--border-2);border-radius:8px;padding:8px 11px;font-size:12px;display:flex;align-items:center;gap:7px}
+  .flow .step .ico{width:14px;height:14px;color:var(--accent)}
+  .flow .arr{color:var(--txt-3)}
+
+  /* ===================== AGENTS ===================== */
+  .pipeline{display:flex;margin:16px 0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--panel)}
+  .pstep{flex:1;padding:14px 12px;border-right:1px solid var(--border);text-align:center;transition:.2s}
+  .pstep:last-child{border:none}
+  .pstep.done{background:color-mix(in srgb,var(--green) 7%,transparent)}
+  .pstep.active{background:color-mix(in srgb,var(--accent) 9%,transparent)}
+  .pstep .pi{width:30px;height:30px;border-radius:9px;margin:0 auto 8px;display:grid;place-items:center;background:var(--panel-2);color:var(--txt-2)}
+  .pstep.done .pi{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+  .pstep.active .pi{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
+  .pstep .pn{font-size:12px;font-weight:600} .pstep .ps{font-size:10.5px;margin-top:2px;color:var(--txt-3)}
+  .pstep.done .ps{color:var(--green)} .pstep.active .ps{color:var(--accent)}
+  .agent-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:13px}
+  .agent{padding:16px}
+  .agent .top{display:flex;align-items:center;gap:11px;margin-bottom:10px}
+  .agent .av{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;flex-shrink:0;background:var(--panel-2);color:var(--accent)}
+  .agent .nm{font-weight:620;font-size:13.5px} .agent .role{font-size:11.5px;color:var(--txt-3)}
+  .agent .log{font-size:12px;color:var(--txt-2);border-left:2px solid var(--border-2);padding-left:11px;margin-top:9px;display:flex;flex-direction:column;gap:5px}
+  .agent .log .li{display:flex;gap:7px} .agent .log .li .d{color:var(--txt-3);font-family:var(--mono);font-size:11px}
+
+  /* ===================== SKILLS ===================== */
+  .skill-toolbar{display:flex;align-items:center;gap:10px;margin:16px 0 4px}
+  .skill-search{flex:1;max-width:340px;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border-2);border-radius:8px;padding:7px 11px}
+  .skill-search input{background:transparent;border:none;outline:none;color:var(--txt);font-size:12.5px;width:100%;font-family:var(--sans)}
+  .skill-search .ico{color:var(--txt-3)}
+  .skill-grp{font-size:12.5px;font-weight:620;margin:20px 0 11px;display:flex;align-items:center;gap:8px}
+  .skill-grp .gi{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+  .skill-grp .ct{font-size:10.5px;color:var(--txt-3);font-weight:600;border:1px solid var(--border-2);border-radius:20px;padding:0 8px;margin-left:2px}
+  .skill-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}
+  .skill{padding:14px;cursor:pointer;transition:.13s;display:flex;flex-direction:column;gap:7px}
+  .skill:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .skill .sh{display:flex;align-items:center;gap:9px}
+  .skill .si{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex-shrink:0;font-family:var(--mono);font-size:11px;font-weight:700;text-transform:uppercase;color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);letter-spacing:.02em}
+  .skill .snm{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--txt)}
+  .skill .sd{font-size:12px;color:var(--txt-2);line-height:1.45;flex:1}
+  .skill .sf{display:flex;align-items:center;gap:6px}
+  .skill .stag{font-size:10px;color:var(--txt-3);font-family:var(--mono)}
+  .swt{margin-left:auto;width:34px;height:19px;border-radius:11px;background:var(--accent);position:relative;cursor:pointer;flex-shrink:0;transition:.15s}
+  .swt.off{background:var(--panel-3)}
+  .swt i{position:absolute;top:2px;left:17px;width:15px;height:15px;border-radius:50%;background:#fff;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+  .swt.off i{left:2px}
+
+  /* ===================== DEPLOYMENTS ===================== */
+  .dep-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+  .env{padding:16px}
+  .env .eh{display:flex;align-items:center;gap:8px;margin-bottom:11px}
+  .env .eh .nm{font-weight:620;font-size:13px}
+  .env .st{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .st.ok{background:var(--green)} .st.build{background:var(--accent);animation:pulse 1.3s infinite} .st.fail{background:var(--red)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .env .url{font-family:var(--mono);font-size:11.5px;color:var(--accent);word-break:break-all;display:flex;align-items:center;gap:6px}
+  .env .row{display:flex;justify-content:space-between;font-size:12px;color:var(--txt-2);padding:6px 0;border-bottom:1px solid var(--border)}
+  .env .row:last-child{border:none}
+  .deploy-list .item{display:flex;align-items:center;gap:13px;padding:12px 16px;border-bottom:1px solid var(--border)}
+  .deploy-list .item:last-child{border:none}
+  .deploy-list .st{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .deploy-list .sha{font-family:var(--mono);font-size:12px;color:var(--txt);width:70px}
+  .deploy-list .m2{font-size:12.5px;color:var(--txt-2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .deploy-list .w2{font-size:11.5px;color:var(--txt-3)} .deploy-list .tm{font-size:11.5px;color:var(--txt-3);width:74px;text-align:right}
+  .logbox{background:var(--code-bg);border:1px solid var(--border);border-radius:9px;font-family:var(--mono);font-size:11.5px;line-height:1.8;padding:13px 15px;margin-top:7px;max-height:220px;overflow:auto}
+  .logbox .ok2{color:var(--green)}.logbox .dim{color:var(--txt-3)}.logbox .warn{color:var(--amber)}
+
+  /* ===================== SETTINGS ===================== */
+  .set-wrap{max-width:760px}
+  .set-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px 0;border-bottom:1px solid var(--border)}
+  .set-row:last-child{border:none}
+  .set-row .lbl{font-size:13px;font-weight:560} .set-row .dsc{font-size:12px;color:var(--txt-2);margin-top:1px;max-width:420px}
+  .seg{display:flex;background:var(--panel-2);border:1px solid var(--border-2);border-radius:8px;padding:3px}
+  .seg button{background:transparent;border:none;color:var(--txt-2);font-size:12px;padding:6px 12px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:5px}
+  .seg button.on{background:var(--panel);color:var(--txt);box-shadow:var(--shadow-sm)}
+  .toggle{width:40px;height:23px;border-radius:13px;background:var(--accent);position:relative;cursor:pointer;flex-shrink:0}
+  .toggle.off{background:var(--panel-3)}
+  .toggle i{position:absolute;top:2px;left:19px;width:17px;height:17px;border-radius:50%;background:#fff;transition:.16s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+  .toggle.off i{left:2px}
+  .swatches{display:flex;gap:8px} .range{width:160px}
+  input[type=range]{accent-color:var(--accent)}
+  .file-chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border-2);border-radius:7px;padding:6px 10px;font-family:var(--mono);font-size:11.5px;color:var(--txt-2)}
+  .file-chip .g{width:6px;height:6px;border-radius:2px;background:var(--accent)}
+
+  /* ===================== OVERLAYS ===================== */
+  .overlay{position:fixed;inset:0;background:color-mix(in srgb,#04060a 55%,transparent);backdrop-filter:blur(3px);display:none;align-items:flex-start;justify-content:center;z-index:60}
+  .overlay.show{display:flex}
+  .palette{margin-top:11vh;width:560px;max-width:92vw;background:var(--panel);border:1px solid var(--border-2);border-radius:13px;box-shadow:var(--shadow);overflow:hidden}
+  .palette .pin{display:flex;align-items:center;gap:9px;padding:13px 16px;border-bottom:1px solid var(--border)}
+  .palette .pin .ico{color:var(--txt-3)}
+  .palette .pin input{flex:1;background:transparent;border:none;outline:none;color:var(--txt);font-size:14.5px;font-family:var(--sans)}
+  .palette .grp{padding:7px;max-height:50vh;overflow:auto}
+  .palette .gl{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--txt-3);font-weight:700;padding:7px 9px 3px}
+  .pitem{display:flex;align-items:center;gap:10px;padding:8px 9px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--txt-2)}
+  .pitem:hover,.pitem.sel{background:var(--panel-2);color:var(--txt)}
+  .pitem .ico{color:var(--txt-3);width:15px;height:15px} .pitem .k2{margin-left:auto;font-size:10.5px;color:var(--txt-3);font-family:var(--mono)}
+  .modal{margin-top:13vh;width:500px;max-width:92vw;background:var(--panel);border:1px solid var(--border-2);border-radius:13px;box-shadow:var(--shadow);overflow:hidden}
+  .modal .mh{padding:16px 18px 13px;border-bottom:1px solid var(--border)}
+  .modal .mh h3{font-size:15px;font-weight:660} .modal .mh p{font-size:12px;color:var(--txt-2);margin-top:2px}
+  .modal .mb{padding:16px 18px}
+  .opt{display:flex;gap:11px;align-items:flex-start;padding:13px;border:1px solid var(--border-2);border-radius:10px;cursor:pointer;margin-bottom:9px;transition:.13s}
+  .opt:hover{border-color:var(--accent);background:var(--panel-2)}
+  .opt .oic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex-shrink:0;background:var(--panel-2);color:var(--accent)}
+  .opt h5{font-size:13px;font-weight:600} .opt p{font-size:12px;color:var(--txt-2);margin-top:1px}
+  .field{display:flex;gap:8px;margin-top:8px} .field input{flex:1;background:var(--panel-2);border:1px solid var(--border-2);border-radius:8px;padding:9px 11px;color:var(--txt);font-size:12.5px;outline:none;font-family:var(--mono)}
+  .field input:focus{border-color:var(--accent)}
+  .modal .mf{display:flex;gap:8px;justify-content:flex-end;padding:13px 18px;border-top:1px solid var(--border)}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--panel);border:1px solid var(--border-2);border-radius:10px;box-shadow:var(--shadow);padding:10px 16px;font-size:12.5px;color:var(--txt);display:flex;align-items:center;gap:8px;opacity:0;transition:.25s;z-index:70;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .ico{color:var(--green)}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ RAIL ============ -->
+  <nav class="rail">
+    <div class="brand" title="Helix Studio" onclick="go('dashboard')">
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bframe" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffd1"/><stop offset="0.48" stop-color="#3b82f6"/><stop offset="1" stop-color="#c084fc"/></linearGradient><linearGradient id="bh" x1="21" y1="18" x2="43" y2="46" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#a7f3d0"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#070b12"/><rect x="9" y="9" width="46" height="46" rx="11" fill="#0d1626" stroke="url(#bframe)" stroke-width="3"/><path d="M22 20v24M42 20v24M22 32h20" fill="none" stroke="url(#bh)" stroke-width="5" stroke-linecap="round"/><path d="M22 25h-7M42 39h7M32 32V20h6M32 32v12h-6" fill="none" stroke="#00ffd1" stroke-width="2" stroke-linecap="round"/><g fill="#f8fbff"><circle cx="15" cy="25" r="2"/><circle cx="49" cy="39" r="2"/><circle cx="38" cy="20" r="1.8"/><circle cx="26" cy="44" r="1.8"/></g></svg>
+    </div>
+    <button class="rail-btn active" data-view="dashboard" title="Home"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg></button>
+    <button class="rail-btn" data-view="ide" title="Editor"><svg class="ico" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></button>
+    <button class="rail-btn" data-view="analysis" title="Repository Analysis"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></button>
+    <button class="rail-btn" data-view="agents" title="Agents"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><path d="M8 16h.01M16 16h.01"/></svg></button>
+    <button class="rail-btn" data-view="skills" title="Skills"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg></button>
+    <button class="rail-btn" data-view="deployments" title="Deployments"><svg class="ico" viewBox="0 0 24 24"><path d="M4 13a8 8 0 0 1 7-7l5-2-2 5a8 8 0 0 1-7 7z"/><path d="M11 13 6 18"/><circle cx="14.5" cy="9.5" r="1.4"/></svg></button>
+    <div class="rail-sp"></div>
+    <button class="rail-btn" data-view="settings" title="Settings"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg></button>
+    <div class="avatar" title="Durga">DG</div>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs"><b id="crumbProduct">Helix</b><span class="sep">/</span><span id="crumbView" class="muted">Home</span></div>
+      <button class="repo-pick" onclick="openModal()">
+        <svg class="ico xs" viewBox="0 0 16 16" fill="currentColor" stroke="none"><path d="M8 0a8 8 0 0 0-2.5 15.6c.4.07.55-.17.55-.38v-1.34c-2.2.48-2.67-1.06-2.67-1.06-.36-.92-.88-1.16-.88-1.16-.72-.49.05-.48.05-.48.8.06 1.22.82 1.22.82.71 1.21 1.86.86 2.31.66.07-.52.28-.86.5-1.06-1.75-.2-3.6-.88-3.6-3.9 0-.86.31-1.56.82-2.11-.08-.2-.36-1 .08-2.09 0 0 .67-.21 2.2.8a7.6 7.6 0 0 1 4 0c1.53-1.01 2.2-.8 2.2-.8.44 1.09.16 1.89.08 2.09.51.55.82 1.25.82 2.11 0 3.03-1.85 3.7-3.61 3.89.29.24.54.72.54 1.45v2.15c0 .21.15.45.55.38A8 8 0 0 0 8 0z"/></svg>
+        <span id="repoName">acme-web</span>
+        <svg class="ico xs" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <span class="branch"><span class="d"></span>main</span>
+      <div class="cmdk" id="cmdkBar"><svg class="ico sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>Search or ask Helix…<span class="kbd"><span>⌘</span><span>K</span></span></div>
+      <button class="tb-btn" id="accentBtn" title="Accent color"><svg class="ico sm" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 22a10 10 0 1 1 0-20 8 8 0 0 1 8 8 4 4 0 0 1-4 4h-2a2 2 0 0 0-1 3.7A2 2 0 0 1 12 22z"/></svg></button>
+      <button class="tb-btn" id="themeBtn" title="Toggle theme"><svg class="ico sm" id="themeIco" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></button>
+      <button class="solid" onclick="openModal()"><svg class="ico sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New</button>
+    </header>
+
+    <div class="accent-pop" id="accentPop"><div class="lbl">Accent</div><div class="sw-row" id="swRow"></div></div>
+
+    <!-- ===== DASHBOARD ===== -->
+    <section class="view" id="view-dashboard">
+      <div class="pad">
+        <div class="hero">
+          <div class="eyebrow">Workspace</div>
+          <h2>Good evening, Durga.</h2>
+          <p>One unified system for building, reviewing, and shipping software. Helix indexed 3 repositories and has 5 tasks ready for your review.</p>
+          <div class="hero-actions">
+            <button class="solid" onclick="go('ide')"><svg class="ico sm" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Open editor</button>
+            <button class="ghost" onclick="go('analysis')"><svg class="ico sm" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>Analyze a repo</button>
+            <button class="ghost" onclick="openModal()"><svg class="ico sm" viewBox="0 0 16 16" fill="currentColor" stroke="none"><path d="M8 0a8 8 0 0 0-2.5 15.6c.4.07.55-.17.55-.38v-1.34c-2.2.48-2.67-1.06-2.67-1.06-.36-.92-.88-1.16-.88-1.16-.72-.49.05-.48.05-.48.8.06 1.22.82 1.22.82.71 1.21 1.86.86 2.31.66.07-.52.28-.86.5-1.06-1.75-.2-3.6-.88-3.6-3.9 0-.86.31-1.56.82-2.11-.08-.2-.36-1 .08-2.09 0 0 .67-.21 2.2.8a7.6 7.6 0 0 1 4 0c1.53-1.01 2.2-.8 2.2-.8.44 1.09.16 1.89.08 2.09.51.55.82 1.25.82 2.11 0 3.03-1.85 3.7-3.61 3.89.29.24.54.72.54 1.45v2.15c0 .21.15.45.55.38A8 8 0 0 0 8 0z"/></svg>Import from GitHub</button>
+          </div>
+          <div class="stat-row">
+            <div class="stat"><div class="n">3</div><div class="l">Active repositories</div></div>
+            <div class="stat"><div class="n">5 <span class="up">ready</span></div><div class="l">Tasks awaiting review</div></div>
+            <div class="stat"><div class="n">94<span style="font-size:13px">%</span></div><div class="l">Test coverage</div></div>
+            <div class="stat"><div class="n">2</div><div class="l">Security findings</div></div>
+          </div>
+        </div>
+
+        <div class="section-title"><h3>Recent projects</h3><button class="ghost">View all</button></div>
+        <div class="proj-grid">
+          <div class="card proj" onclick="go('ide')">
+            <div class="top"><div class="logos" id="logo-ts"></div><div style="flex:1"><div class="nm">acme-web</div><div class="rp">github.com/acme/web</div></div></div>
+            <div class="muted" style="font-size:12px">Multi-tenant SaaS dashboard. Next.js · Prisma · PostgreSQL.</div>
+            <div class="bar"><i style="width:94%"></i></div>
+            <div class="meta"><span>TypeScript</span><span class="faint">· 1,284 files</span><span class="pill green" style="margin-left:auto">healthy</span></div>
+          </div>
+          <div class="card proj" onclick="go('analysis')">
+            <div class="top"><div class="logos" id="logo-react"></div><div style="flex:1"><div class="nm">design-system</div><div class="rp">github.com/acme/design-system</div></div></div>
+            <div class="muted" style="font-size:12px">Shared component library. Design tokens + 80+ React components.</div>
+            <div class="bar"><i style="width:61%"></i></div>
+            <div class="meta"><span>React</span><span class="faint">· 412 files</span><span class="pill amber" style="margin-left:auto">in review</span></div>
+          </div>
+          <div class="card proj">
+            <div class="top"><div class="logos" id="logo-node"></div><div style="flex:1"><div class="nm">api-gateway</div><div class="rp">github.com/acme/api-gateway</div></div></div>
+            <div class="muted" style="font-size:12px">Edge API gateway. Rate limiting, auth, and request routing.</div>
+            <div class="bar"><i style="width:38%"></i></div>
+            <div class="meta"><span>Node</span><span class="faint">· 209 files</span><span class="pill red" style="margin-left:auto">2 issues</span></div>
+          </div>
+        </div>
+
+        <div class="section-title"><h3>Activity</h3></div>
+        <div class="card feed">
+          <div class="it"><svg class="ico sm" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span><span class="pill green">merged</span> &nbsp;Reviewer agent approved <b>team invitations flow</b></span><span class="tm">2m ago</span></div>
+          <div class="it"><svg class="ico sm" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg><span><span class="pill accent">task</span> &nbsp;Engineer agent scaffolded <b>team invite + join-code flow</b></span><span class="tm">18m ago</span></div>
+          <div class="it"><svg class="ico sm" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6z"/></svg><span><span class="pill amber">review</span> &nbsp;Security agent flagged a missing auth check in <b>/api/exports</b></span><span class="tm">1h ago</span></div>
+          <div class="it"><svg class="ico sm" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span><span class="pill">analysis</span> &nbsp;Repository scan completed for <b>design-system</b></span><span class="tm">3h ago</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== IDE ===== -->
+    <section class="view hidden" id="view-ide">
+      <div class="ide">
+        <aside class="explorer">
+          <div class="ex-head"><span>Explorer</span><div class="hbtns"><span class="hb" id="collapseAll" title="Collapse folders"><svg class="ico xs" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg></span><span class="hb" onclick="openModal()" title="New file"><svg class="ico xs" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></div></div>
+          <div class="ex-tree" id="tree"></div>
+        </aside>
+        <div class="editor">
+          <div class="tabs" id="tabs"></div>
+          <div class="code" id="code"></div>
+          <div class="estatus">
+            <span class="it"><svg class="ico" viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>main</span>
+            <span class="it" id="stLang">TypeScript</span>
+            <span class="it" id="stPos">Ln 11, Col 42</span>
+            <span class="it">UTF-8</span>
+            <span class="it" style="margin-left:auto;color:var(--accent)"><svg class="ico" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>Helix connected</span>
+          </div>
+        </div>
+        <aside class="chat">
+          <div class="chat-head"><div class="ai"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M7 4c0 4 10 4 10 8s-10 4-10 8"/><path d="M17 4c0 4-10 4-10 8s10 4 10 8"/></svg></div><div class="t">Helix</div><div class="md" id="modelChip">Opus · Deep</div></div>
+          <div class="chat-body" id="chatBody">
+            <div class="msg u"><div class="who">DG</div><div class="bub"><p>Add team invitations — emailed invite plus a single-use join code, with admin resend / revoke / copy-link controls.</p></div></div>
+            <div class="msg a"><div class="who"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M7 4c0 4 10 4 10 8s-10 4-10 8"/><path d="M17 4c0 4-10 4-10 8s10 4 10 8"/></svg></div><div class="bub">
+              <p>Here's my plan before touching any code:</p>
+              <div class="plan"><div class="ph">Implementation plan</div><ul>
+                <li><span class="ck done"><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>Add <b>Invite</b> model to schema.prisma</li>
+                <li><span class="ck done"><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>Create <b>createInvite</b> + email w/ join code</li>
+                <li><span class="ck now"></span>Build admin <b>resend / revoke / copy-link</b></li>
+                <li><span class="ck wait"></span>Private acceptance flow (<b>/accept/[token]</b>)</li>
+                <li><span class="ck wait"></span>Unit tests + security review</li>
+              </ul></div>
+              <div class="diffcard"><div class="dh"><span class="pill green">+12</span><span class="pill">−0</span>app/api/invites.ts</div>
+                <pre><div class="dl p"><span class="sgn">+</span>export async function createInvite(</div><div class="dl p"><span class="sgn">+</span>  orgId, email) {</div><div class="dl p"><span class="sgn">+</span>  const code = randomCode(8)</div><div class="dl p"><span class="sgn">+</span>  // …emails invite + code</div></pre>
+                <div class="da"><button class="mini acc">Accept</button><button class="mini">Accept all</button><button class="mini">Reject</button></div>
+              </div>
+              <p style="margin-top:9px">Wiring the admin controls now — confirm before I run the migration?</p>
+            </div></div>
+          </div>
+          <div class="chat-input"><div class="chat-box"><textarea id="chatInput" placeholder="Ask Helix, @-mention a file, or describe a change…"></textarea>
+            <div class="cb-foot"><span class="cb-chip">@ invites.ts</span><span class="cb-chip">Agent: Full workflow</span><button class="cb-send" id="chatSend"><svg class="ico sm" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg></button></div>
+          </div></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ===== ANALYSIS ===== -->
+    <section class="view hidden" id="view-analysis">
+      <div class="pad">
+        <div class="eyebrow">Repository analysis</div>
+        <h1 class="page">acme-web</h1>
+        <p class="sub">Static scan completed in 4.2s · 1,284 files · last commit 2 minutes ago</p>
+        <div class="two-col" style="margin-top:18px">
+          <div class="card anly" style="padding:18px">
+            <h4><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>Project overview</h4>
+            <div class="kv"><span class="k">Purpose</span><span>Multi-tenant SaaS dashboard</span></div>
+            <div class="kv"><span class="k">Architecture</span><span>Next.js App Router · API routes · Prisma</span></div>
+            <div class="kv"><span class="k">Database</span><span>PostgreSQL (multi-tenant by org)</span></div>
+            <div class="kv"><span class="k">Auth</span><span>Auth.js · email + OAuth</span></div>
+            <div class="kv"><span class="k">Entry points</span><span>app/layout.tsx · app/api/*</span></div>
+            <h4 style="margin-top:20px"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/></svg>Data flow</h4>
+            <div class="flow">
+              <div class="step"><svg class="ico" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/></svg>Web client</div><span class="arr">→</span>
+              <div class="step"><svg class="ico" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>/api/orders</div><span class="arr">→</span>
+              <div class="step"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4"/></svg>Business logic</div><span class="arr">→</span>
+              <div class="step"><svg class="ico" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/></svg>PostgreSQL</div>
+            </div>
+          </div>
+          <div class="card anly" style="padding:18px">
+            <h4><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8l-9-5-9 5v8l9 5z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg>Dependencies</h4>
+            <div class="dep"><span class="nm" id="dep-next"></span><span class="pill green">15.2.0</span></div>
+            <div class="dep"><span class="nm" id="dep-prisma"></span><span class="pill green">6.4.1</span></div>
+            <div class="dep"><span class="nm">next-auth</span><span class="pill amber">5.0.0-beta</span></div>
+            <div class="dep"><span class="nm">tailwindcss</span><span class="pill green">3.4.0</span></div>
+            <div class="dep"><span class="nm">zod</span><span class="pill green">3.23.0</span></div>
+          </div>
+        </div>
+        <div class="section-title"><h3>Potential risks</h3><span class="faint" style="font-size:11.5px">Surfaced by Security &amp; Performance agents</span></div>
+        <div class="card" style="padding:18px">
+          <div class="risk"><div class="ic" style="background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red)"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+            <div><h5>Missing authorization check</h5><p><span style="font-family:var(--mono);color:var(--accent)">/api/exports/[id]</span> downloads aren't scoped to the requesting org — a tenant could read another tenant's exports.</p></div><span class="pill red" style="margin-left:auto">High</span></div>
+          <div class="risk"><div class="ic" style="background:color-mix(in srgb,var(--amber) 12%,transparent);color:var(--amber)"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg></div>
+            <div><h5>N+1 query on orders dashboard</h5><p>OrderTable loads the customer per-row. Suggest a single <span style="font-family:var(--mono)">include</span> on the orders query.</p></div><span class="pill amber" style="margin-left:auto">Medium</span></div>
+          <div class="risk"><div class="ic" style="background:color-mix(in srgb,var(--amber) 12%,transparent);color:var(--amber)"><svg class="ico" viewBox="0 0 24 24"><path d="M21 16V8l-9-5-9 5v8l9 5z"/></svg></div>
+            <div><h5>Pre-release dependency</h5><p><span style="font-family:var(--mono)">next-auth@5.0.0-beta</span> pinned in production. Track for breaking changes before GA.</p></div><span class="pill amber" style="margin-left:auto">Medium</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== AGENTS ===== -->
+    <section class="view hidden" id="view-agents">
+      <div class="pad">
+        <div class="eyebrow">Multi-agent workflow</div>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between">
+          <div><h1 class="page">Agents</h1><p class="sub">Five specialists collaborate on every task — each confirms before it acts.</p></div>
+          <button class="solid" id="runPipeline"><svg class="ico sm" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>Run workflow</button>
+        </div>
+        <div class="pipeline" id="pipeline">
+          <div class="pstep" data-i="0"><div class="pi"><svg class="ico" viewBox="0 0 24 24"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg></div><div class="pn">Architect</div><div class="ps">Idle</div></div>
+          <div class="pstep" data-i="1"><div class="pi"><svg class="ico" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18v3h3l6.4-6.4a4 4 0 0 0 5.3-5.4l-2.8 2.8-2.1-2.1z"/></svg></div><div class="pn">Engineer</div><div class="ps">Idle</div></div>
+          <div class="pstep" data-i="2"><div class="pi"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg></div><div class="pn">Reviewer</div><div class="ps">Idle</div></div>
+          <div class="pstep" data-i="3"><div class="pi"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6z"/></svg></div><div class="pn">Security</div><div class="ps">Idle</div></div>
+          <div class="pstep" data-i="4"><div class="pi"><svg class="ico" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg></div><div class="pn">Performance</div><div class="ps">Idle</div></div>
+        </div>
+        <div class="agent-grid">
+          <div class="card agent"><div class="top"><div class="av"><svg class="ico sm" viewBox="0 0 24 24"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg></div><div style="flex:1"><div class="nm">Architect</div><div class="role">Designs the solution &amp; trade-offs</div></div><span class="pill" data-ag="0">idle</span></div><div class="log"><div class="li"><span class="d">—</span>Chose invite-token table over JWT-only — supports revoke.</div><div class="li"><span class="d">—</span>Join code stored hashed; compared on accept.</div></div></div>
+          <div class="card agent"><div class="top"><div class="av"><svg class="ico sm" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18v3h3l6.4-6.4a4 4 0 0 0 5.3-5.4l-2.8 2.8-2.1-2.1z"/></svg></div><div style="flex:1"><div class="nm">Engineer</div><div class="role">Builds production code</div></div><span class="pill" data-ag="1">idle</span></div><div class="log"><div class="li"><span class="d">—</span>Add Invite model + migration.</div><div class="li"><span class="d">—</span>Write createInvite / revokeInvite + email.</div></div></div>
+          <div class="card agent"><div class="top"><div class="av"><svg class="ico sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg></div><div style="flex:1"><div class="nm">Reviewer</div><div class="role">Finds logic &amp; type errors</div></div><span class="pill" data-ag="2">idle</span></div><div class="log"><div class="li"><span class="d">—</span>Verify token expiry handling.</div><div class="li"><span class="d">—</span>Flag: copy-link should expire with the invite.</div></div></div>
+          <div class="card agent"><div class="top"><div class="av"><svg class="ico sm" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6z"/></svg></div><div style="flex:1"><div class="nm">Security Auditor</div><div class="role">Finds vulnerabilities</div></div><span class="pill" data-ag="3">idle</span></div><div class="log"><div class="li"><span class="d">—</span>Scan diff for auth, injection, secret leaks.</div></div></div>
+          <div class="card agent"><div class="top"><div class="av"><svg class="ico sm" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg></div><div style="flex:1"><div class="nm">Performance Engineer</div><div class="role">Optimizes queries &amp; render</div></div><span class="pill" data-ag="4">idle</span></div><div class="log"><div class="li"><span class="d">—</span>Check query plans and render cost.</div></div></div>
+          <div class="card agent" style="background:radial-gradient(360px 110px at 100% 0,color-mix(in srgb,var(--accent) 9%,transparent),transparent)"><div class="top"><div class="av" style="background:linear-gradient(160deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#000));color:#fff"><svg class="ico sm" viewBox="0 0 24 24" stroke="#fff"><path d="M7 4c0 4 10 4 10 8s-10 4-10 8"/><path d="M17 4c0 4-10 4-10 8s10 4 10 8"/></svg></div><div style="flex:1"><div class="nm">Final output</div><div class="role">Combined recommendation</div></div></div><div class="muted" style="font-size:12px;margin-top:5px">Understanding · Plan · Implementation · Review · Security · Performance · Next steps.</div><button class="ghost" style="margin-top:11px" id="finalBtn" disabled>Awaiting agents…</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SKILLS ===== -->
+    <section class="view hidden" id="view-skills">
+      <div class="pad">
+        <div class="eyebrow">Capabilities</div>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between">
+          <div><h1 class="page">Skills</h1><p class="sub">24 software-engineering skills bundled with Helix · loaded on demand · MIT</p></div>
+          <button class="ghost" onclick="openModal()"><svg class="ico sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add skill</button>
+        </div>
+        <div class="skill-toolbar"><div class="skill-search"><svg class="ico sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg><input id="skillSearch" placeholder="Filter skills…" autocomplete="off"/></div><span class="pill green" id="skillCount">24 enabled</span></div>
+        <div id="skillsHost"></div>
+      </div>
+    </section>
+
+    <!-- ===== DEPLOYMENTS ===== -->
+    <section class="view hidden" id="view-deployments">
+      <div class="pad">
+        <div class="eyebrow">Deployments</div>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between">
+          <div><h1 class="page">Deployments</h1><p class="sub" id="depSub"></p></div>
+          <button class="solid"><svg class="ico sm" viewBox="0 0 24 24"><path d="M12 3v12M8 9l4-4 4 4M4 19h16"/></svg>Deploy main</button>
+        </div>
+        <div class="dep-grid">
+          <div class="card env"><div class="eh"><span class="st ok"></span><span class="nm">Production</span><span class="pill green" style="margin-left:auto">live</span></div><div class="url"><svg class="ico xs" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>app.acme.dev</div><div class="row"><span>Commit</span><span style="font-family:var(--mono)">a1f9c2e</span></div><div class="row"><span>Deployed</span><span>2h ago</span></div><div class="row"><span>Region</span><span>iad1 · us-east</span></div></div>
+          <div class="card env"><div class="eh"><span class="st build"></span><span class="nm">Preview</span><span class="pill accent" style="margin-left:auto">building</span></div><div class="url"><svg class="ico xs" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>team-invites-acme.vercel.app</div><div class="row"><span>Commit</span><span style="font-family:var(--mono)">7d3e0b1</span></div><div class="row"><span>Branch</span><span>feat/team-invites</span></div><div class="row"><span>Started</span><span>40s ago</span></div></div>
+          <div class="card env"><div class="eh"><span class="st ok"></span><span class="nm">Staging</span><span class="pill green" style="margin-left:auto">ready</span></div><div class="url"><svg class="ico xs" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>staging.acme.dev</div><div class="row"><span>Commit</span><span style="font-family:var(--mono)">c5b8a44</span></div><div class="row"><span>Deployed</span><span>yesterday</span></div><div class="row"><span>Coverage</span><span>94%</span></div></div>
+        </div>
+        <div class="section-title"><h3>Build log · Preview</h3><span class="pill accent">building</span></div>
+        <div class="logbox">
+          <div class="dim">$ next build</div><div class="ok2">✓ Compiled successfully in 18.3s</div><div class="dim">▲ Collecting page data …</div><div class="dim">▲ Generating static pages (42/42)</div><div class="warn">⚠ next-auth@5.0.0-beta — pre-release in production</div><div class="dim">▲ Running Security agent pre-deploy scan …</div><div class="ok2">✓ 0 secrets leaked · 0 injection risks</div><div class="dim">▲ Uploading build outputs … <span style="color:var(--accent)">████████░░ 80%</span></div>
+        </div>
+        <div class="section-title"><h3>Recent deployments</h3></div>
+        <div class="card deploy-list">
+          <div class="item"><span class="st build"></span><span class="sha">7d3e0b1</span><span class="m2">feat: team invitations</span><span class="w2">Engineer agent</span><span class="tm">40s ago</span></div>
+          <div class="item"><span class="st ok"></span><span class="sha">a1f9c2e</span><span class="m2">fix: scope export download to tenant</span><span class="w2">durga</span><span class="tm">2h ago</span></div>
+          <div class="item"><span class="st ok"></span><span class="sha">c5b8a44</span><span class="m2">feat: bulk actions on orders table</span><span class="w2">durga</span><span class="tm">1d ago</span></div>
+          <div class="item"><span class="st fail"></span><span class="sha">9b1d77a</span><span class="m2">chore: bump prisma — migration failed</span><span class="w2">durga</span><span class="tm">2d ago</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SETTINGS ===== -->
+    <section class="view hidden" id="view-settings">
+      <div class="pad set-wrap">
+        <div class="eyebrow">Workspace</div>
+        <h1 class="page">Settings</h1>
+        <p class="sub">Appearance, model, agents, and project guidance.</p>
+
+        <div class="section-title"><h3>Appearance</h3></div>
+        <div class="card" style="padding:4px 18px">
+          <div class="set-row"><div><div class="lbl">Theme</div><div class="dsc">Switch between dark and light. Also in the top bar.</div></div>
+            <div class="seg" id="segTheme"><button data-theme="dark" class="on"><svg class="ico xs" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>Dark</button><button data-theme="light"><svg class="ico xs" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>Light</button></div></div>
+          <div class="set-row"><div><div class="lbl">Accent color</div><div class="dsc">Applied live across the whole interface.</div></div><div class="swatches" id="setSwatches"></div></div>
+          <div class="set-row"><div><div class="lbl">Density</div><div class="dsc">Comfortable spacing, or compact to fit more on screen.</div></div>
+            <div class="seg" id="segDensity"><button data-density="comfortable" class="on">Comfortable</button><button data-density="compact">Compact</button></div></div>
+          <div class="set-row"><div><div class="lbl">Editor font size</div><div class="dsc"><span id="ftLabel">13</span>px monospace in the code editor.</div></div><input type="range" min="11" max="18" value="13" class="range" id="ftRange"/></div>
+        </div>
+
+        <div class="section-title"><h3>Model &amp; reasoning</h3></div>
+        <div class="card" style="padding:4px 18px">
+          <div class="set-row"><div><div class="lbl">Default model</div><div class="dsc">Used for code generation and agent reasoning.</div></div><div class="seg" id="segModel"><button>Haiku</button><button>Sonnet</button><button class="on">Opus</button></div></div>
+          <div class="set-row"><div><div class="lbl">Reasoning depth</div><div class="dsc">Fast for quick edits, Deep for multi-file work.</div></div><div class="seg" id="segDepth"><button>Fast</button><button class="on">Deep</button></div></div>
+          <div class="set-row"><div><div class="lbl">Confirm before every action</div><div class="dsc">Agents pause for approval before writing files or running migrations.</div></div><div class="toggle" data-toggle></div></div>
+        </div>
+
+        <div class="section-title"><h3>Agents</h3></div>
+        <div class="card" style="padding:4px 18px">
+          <div class="set-row"><div><div class="lbl">Full multi-agent workflow</div><div class="dsc">Architect → Engineer → Reviewer → Security → Performance on each task.</div></div><div class="toggle" data-toggle></div></div>
+          <div class="set-row"><div><div class="lbl">Auto-run security review</div><div class="dsc">Always scan diffs for auth, injection, and secret-leak risks.</div></div><div class="toggle" data-toggle></div></div>
+        </div>
+
+        <div class="section-title"><h3>Project guidance files</h3></div>
+        <div class="card" style="padding:18px">
+          <p class="muted" style="font-size:12px;margin-bottom:13px">Helix reads these at the repo root as project context.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <span class="file-chip"><span class="g"></span>CLAUDE.md</span><span class="file-chip"><span class="g"></span>PRODUCT.md</span><span class="file-chip"><span class="g"></span>ARCHITECTURE.md</span><span class="file-chip"><span class="g"></span>DESIGN_SYSTEM.md</span><span class="file-chip"><span class="g"></span>TASKS.md</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- ===== PALETTE ===== -->
+<div class="overlay" id="palette-overlay">
+  <div class="palette" role="dialog">
+    <div class="pin"><svg class="ico sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg><input id="palette-input" placeholder="Search files, run a command, or ask Helix…" autocomplete="off"/><span class="kbd"><span>esc</span></span></div>
+    <div class="grp" id="palette-list">
+      <div class="gl">Navigate</div>
+      <div class="pitem" data-go="dashboard"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Go to Home<span class="k2">G H</span></div>
+      <div class="pitem" data-go="ide"><svg class="ico" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Open Editor<span class="k2">G E</span></div>
+      <div class="pitem" data-go="analysis"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>Repository Analysis</div>
+      <div class="pitem" data-go="agents"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/></svg>Agents</div>
+      <div class="pitem" data-go="skills"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6z"/></svg>Skills</div>
+      <div class="pitem" data-go="deployments"><svg class="ico" viewBox="0 0 24 24"><path d="M4 13a8 8 0 0 1 7-7l5-2-2 5a8 8 0 0 1-7 7z"/></svg>Deployments</div>
+      <div class="gl">Customize</div>
+      <div class="pitem" data-cmd="theme"><svg class="ico" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>Toggle dark / light theme<span class="k2">⌘ ⇧ L</span></div>
+      <div class="pitem" data-cmd="accent"><svg class="ico" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 22a10 10 0 1 1 0-20 8 8 0 0 1 8 8 4 4 0 0 1-4 4h-2a2 2 0 0 0-1 3.7A2 2 0 0 1 12 22z"/></svg>Change accent color</div>
+      <div class="pitem" data-go="settings"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/></svg>Open Settings</div>
+      <div class="gl">Actions</div>
+      <div class="pitem" data-cmd="new"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New project / import repo</div>
+      <div class="pitem" data-cmd="run"><svg class="ico" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>Run full agent workflow</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL ===== -->
+<div class="overlay" id="modal-overlay">
+  <div class="modal" role="dialog">
+    <div class="mh"><h3>New project</h3><p>Import an existing repository or start from a blank workspace.</p></div>
+    <div class="mb">
+      <div class="opt"><div class="oic"><svg class="ico sm" viewBox="0 0 16 16" fill="currentColor" stroke="none"><path d="M8 0a8 8 0 0 0-2.5 15.6c.4.07.55-.17.55-.38v-1.34c-2.2.48-2.67-1.06-2.67-1.06-.36-.92-.88-1.16-.88-1.16-.72-.49.05-.48.05-.48.8.06 1.22.82 1.22.82.71 1.21 1.86.86 2.31.66.07-.52.28-.86.5-1.06-1.75-.2-3.6-.88-3.6-3.9 0-.86.31-1.56.82-2.11-.08-.2-.36-1 .08-2.09 0 0 .67-.21 2.2.8a7.6 7.6 0 0 1 4 0c1.53-1.01 2.2-.8 2.2-.8.44 1.09.16 1.89.08 2.09.51.55.82 1.25.82 2.11 0 3.03-1.85 3.7-3.61 3.89.29.24.54.72.54 1.45v2.15c0 .21.15.45.55.38A8 8 0 0 0 8 0z"/></svg></div><div style="flex:1"><h5>Import from GitHub</h5><p>Index a repo so Helix understands the whole codebase.</p><div class="field"><input value="github.com/durga710/ChatDPS"/></div></div></div>
+      <div class="opt"><div class="oic"><svg class="ico sm" viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4M4 21h16"/></svg></div><div style="flex:1"><h5>Upload a folder</h5><p>Drag in a local project to analyze offline.</p></div></div>
+      <div class="opt"><div class="oic"><svg class="ico sm" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/></svg></div><div style="flex:1"><h5>Start from scratch</h5><p>Scaffold a new Next.js · TypeScript · Tailwind · shadcn/ui app.</p></div></div>
+    </div>
+    <div class="mf"><button class="ghost" onclick="closeModal()">Cancel</button><button class="solid" onclick="closeModal();toast('Repository queued for indexing')">Import &amp; index</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><svg class="ico sm" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span id="toastMsg"></span></div>
+
+<script>
+/* ================= BRAND LOGOS ================= */
+const LOGOS={
+  ts:'<svg width="20" height="20" viewBox="0 0 24 24"><rect width="24" height="24" rx="4" fill="#3178c6"/><text x="12" y="17" font-family="Arial" font-weight="700" font-size="11" fill="#fff" text-anchor="middle">TS</text></svg>',
+  next:'<svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#000"/><path d="M9 7v10M9 7l8.5 11" stroke="#fff" stroke-width="1.4" fill="none"/><path d="M16 7v6" stroke="#fff" stroke-width="1.4"/></svg>',
+  react:'<svg width="22" height="22" viewBox="-11.5 -10.23 23 20.46"><circle r="2.05" fill="#61dafb"/><g stroke="#61dafb" stroke-width="1" fill="none"><ellipse rx="11" ry="4.2"/><ellipse rx="11" ry="4.2" transform="rotate(60)"/><ellipse rx="11" ry="4.2" transform="rotate(120)"/></g></svg>',
+  node:'<svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 1.6 2.9 6.9v10.2L12 22.4l9.1-5.3V6.9z" fill="#5fa04e"/><text x="12" y="15.5" font-family="Arial" font-weight="700" font-size="6.5" fill="#fff" text-anchor="middle">node</text></svg>',
+  prisma:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4.5 17.3 12 2.5l7 17-9.5 4z" stroke="#5b8cff" stroke-width="1.6" stroke-linejoin="round"/></svg>'
+};
+document.getElementById('logo-ts').innerHTML=LOGOS.ts+LOGOS.next;
+document.getElementById('logo-react').innerHTML=LOGOS.react;
+document.getElementById('logo-node').innerHTML=LOGOS.node;
+document.getElementById('dep-next').innerHTML=LOGOS.next+'next';
+document.getElementById('dep-prisma').innerHTML=LOGOS.prisma+'@prisma/client';
+document.getElementById('depSub').textContent='acme-web · connected to Vercel';
+
+/* ================= STATE / CUSTOMIZATION ================= */
+const ACCENTS=[['#3b82f6','Electric Blue'],['#0fd6c0','Circuit Cyan'],['#c084fc','Violet'],['#6366f1','Indigo'],['#10b981','Emerald'],['#f43f5e','Rose']];
+const LS=k=>'helix_'+k;
+function load(k,d){try{return localStorage.getItem(LS(k))??d}catch(e){return d}}
+function save(k,v){try{localStorage.setItem(LS(k),v)}catch(e){}}
+function setTheme(t){document.documentElement.dataset.theme=t;save('theme',t);
+  document.getElementById('themeIco').innerHTML = t==='dark'
+    ? '<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>'
+    : '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/>';
+  document.querySelectorAll('#segTheme button').forEach(b=>b.classList.toggle('on',b.dataset.theme===t));}
+function setAccent(hex){document.documentElement.style.setProperty('--accent',hex);
+  document.documentElement.style.setProperty('--accent-ink','#fff');save('accent',hex);
+  document.querySelectorAll('#swRow .sw,#setSwatches .sw').forEach(s=>s.classList.toggle('on',s.dataset.hex===hex));}
+function setDensity(d){document.documentElement.dataset.density=d;save('density',d);
+  document.querySelectorAll('#segDensity button').forEach(b=>b.classList.toggle('on',b.dataset.density===d));}
+function setFont(px){document.documentElement.style.setProperty('--ft',px+'px');save('ft',px);
+  document.getElementById('ftLabel').textContent=px;document.getElementById('ftRange').value=px;}
+['swRow','setSwatches'].forEach(id=>{const host=document.getElementById(id);
+  ACCENTS.forEach(([hex,name])=>{const s=document.createElement('div');s.className='sw';s.dataset.hex=hex;s.style.background=hex;s.title=name;s.onclick=()=>setAccent(hex);host.appendChild(s);});});
+setTheme(load('theme','dark'));setAccent(load('accent','#3b82f6'));setDensity(load('density','comfortable'));setFont(load('ft','13'));
+
+/* ================= NAV ================= */
+const titles={dashboard:'Home',ide:'Editor',analysis:'Repository Analysis',agents:'Agents',skills:'Skills',deployments:'Deployments',settings:'Settings'};
+function go(v){document.querySelectorAll('.view').forEach(x=>x.classList.add('hidden'));
+  document.getElementById('view-'+v).classList.remove('hidden');
+  document.querySelectorAll('.rail-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  document.getElementById('crumbView').textContent=titles[v]||'';
+  const cur=document.querySelector('.view:not(.hidden)');if(cur)cur.scrollTop=0;}
+document.querySelectorAll('.rail-btn').forEach(b=>b.addEventListener('click',()=>go(b.dataset.view)));
+
+/* ================= ACCENT POPOVER + THEME ================= */
+const accentPop=document.getElementById('accentPop');
+document.getElementById('accentBtn').addEventListener('click',e=>{e.stopPropagation();accentPop.classList.toggle('show');});
+document.getElementById('themeBtn').addEventListener('click',()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
+document.addEventListener('click',e=>{if(!accentPop.contains(e.target)&&e.target.id!=='accentBtn'&&!e.target.closest('#accentBtn'))accentPop.classList.remove('show');});
+document.getElementById('segTheme').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setTheme(b.dataset.theme);});
+document.getElementById('segDensity').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setDensity(b.dataset.density);});
+document.getElementById('ftRange').addEventListener('input',e=>setFont(e.target.value));
+document.querySelectorAll('#segModel,#segDepth').forEach(seg=>seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');const m=document.querySelector('#segModel .on').textContent;const d=document.querySelector('#segDepth .on').textContent;document.getElementById('modelChip').textContent=m+' · '+d;}));
+document.querySelectorAll('[data-toggle]').forEach(t=>t.addEventListener('click',()=>t.classList.toggle('off')));
+
+/* ================= FILE TREE + TABS ================= */
+const FILES={
+ 'invites.ts':{lang:'TypeScript',lines:[
+  ['cm','// Team invitations — emailed invite + single-use join code'],
+  [null,[['k','import'],[null,' { prisma } '],['k','from'],[null,' '],['s',"'@/lib/db'"]]],
+  [null,[['k','import'],[null,' { sendInviteEmail } '],['k','from'],[null,' '],['s',"'@/lib/mail'"]]],
+  [null,[['k','import'],[null,' { randomCode } '],['k','from'],[null,' '],['s',"'@/lib/crypto'"]]],
+  [null,''],
+  ['add',[['k','export async function'],[null,' '],['f','createInvite'],[null,'('],['p','orgId'],[null,': '],['t','string'],[null,', '],['p','email'],[null,': '],['t','string'],[null,') {']]],
+  ['add',[[null,'  '],['k','const'],[null,' code = '],['f','randomCode'],[null,'('],['nu','8'],[null,')']]],
+  ['add',[[null,'  '],['k','const'],[null,' invite = '],['k','await'],[null,' prisma.invite.'],['f','create'],[null,'({']]],
+  ['add',[[null,'    data: { orgId, email, code, status: '],['s',"'PENDING'"],[null,' },']]],
+  ['add',[[null,'  })']]],
+  ['hl',[[null,'  '],['k','await'],[null,' '],['f','sendInviteEmail'],[null,'(email, { code, inviteId: invite.id })']]],
+  [null,[[null,'  '],['k','return'],[null,' invite']]],
+  [null,[[null,'}']]],
+  [null,''],
+  ['cm','// Admin controls: resend · revoke · copy-link'],
+  [null,[['k','export async function'],[null,' '],['f','revokeInvite'],[null,'('],['p','id'],[null,': '],['t','string'],[null,') {']]],
+  [null,[[null,'  '],['k','return'],[null,' prisma.invite.'],['f','update'],[null,'({ where: { id }, data: { status: '],['s',"'REVOKED'"],[null,' } })']]],
+  [null,[[null,'}']]]
+ ]},
+ 'orders.ts':{lang:'TypeScript',lines:[
+  ['cm','// Orders API — list, with tenant scoping'],
+  [null,[['k','import'],[null,' { prisma } '],['k','from'],[null,' '],['s',"'@/lib/db'"]]],
+  [null,[['k','import'],[null,' { auth } '],['k','from'],[null,' '],['s',"'@/lib/auth'"]]],
+  [null,''],
+  [null,[['k','export async function'],[null,' '],['f','listOrders'],[null,'('],['p','req'],[null,': '],['t','Request'],[null,') {']]],
+  [null,[[null,'  '],['k','const'],[null,' session = '],['k','await'],[null,' '],['f','auth'],[null,'(req)']]],
+  ['hl',[[null,'  '],['k','return'],[null,' prisma.order.'],['f','findMany'],[null,'({']]],
+  [null,[[null,'    where: { orgId: session.orgId },']]],
+  [null,[[null,'    include: { customer: '],['k','true'],[null,' },   '],['cm','// avoids N+1']]],
+  [null,[[null,'    orderBy: { createdAt: '],['s',"'desc'"],[null,' },']]],
+  [null,[[null,'  })']]],
+  [null,[[null,'}']]]
+ ]},
+ 'DataTable.tsx':{lang:'TSX',lines:[
+  ['cm','// Generic, accessible data table'],
+  [null,[['k','import'],[null,' { useState } '],['k','from'],[null,' '],['s',"'react'"]]],
+  [null,''],
+  [null,[['k','export function'],[null,' '],['f','DataTable'],[null,'<T>({ rows, columns }: '],['t','Props'],[null,'<T>) {']]],
+  [null,[[null,'  '],['k','const'],[null,' ['],['p','sort'],[null,', setSort] = '],['f','useState'],[null,'<'],['t','SortState'],[null,'>()']]],
+  ['hl',[[null,'  '],['k','return'],[null,' (']]],
+  [null,[[null,'    <table role='],['s','"grid"'],[null,' className='],['s','"w-full"'],[null,'>']]],
+  [null,[[null,'      {/* header + virtualized rows */}']]],
+  [null,[[null,'    </table>']]],
+  [null,[[null,'  )']]],
+  [null,[[null,'}']]]
+ ]}
+};
+const TREE=[
+ {t:'folder',name:'app',open:true,children:[
+   {t:'folder',name:'api',open:true,children:[
+     {t:'file',name:'auth.ts'},{t:'file',name:'orders.ts',chg:'M'},{t:'file',name:'invites.ts',chg:'A',active:true}
+   ]},
+   {t:'folder',name:'components',open:true,children:[
+     {t:'file',name:'InviteCard.tsx',chg:'A'},{t:'file',name:'DataTable.tsx'}
+   ]}
+ ]},
+ {t:'folder',name:'prisma',open:false,children:[{t:'file',name:'schema.prisma'}]},
+ {t:'file',name:'CLAUDE.md'},{t:'file',name:'ARCHITECTURE.md'},{t:'file',name:'TASKS.md'}
+];
+const fileIco='<svg class="fi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+function tri(open){return '<svg class="tw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transform:rotate('+(open?90:0)+'deg)"><path d="m9 6 6 6-6 6"/></svg>';}
+const folderIco='<svg class="fi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7l2-2h5l2 2h9v12H3z"/></svg>';
+let openTabs=['orders.ts','invites.ts','InviteCard.tsx'];let activeTab='invites.ts';
+function renderTree(){const host=document.getElementById('tree');host.innerHTML='';
+  function row(node,depth){const el=document.createElement('div');el.className='node'+(node.active?' active':'');el.style.paddingLeft=(6+depth*12)+'px';
+    if(node.t==='folder'){el.innerHTML=tri(node.open)+folderIco+'<span>'+node.name+'</span>';el.onclick=()=>{node.open=!node.open;renderTree();};}
+    else{el.innerHTML='<span style="width:13px;flex-shrink:0"></span>'+fileIco+'<span>'+node.name+'</span>'+(node.chg?'<span class="chg '+node.chg.toLowerCase()+'">'+node.chg+'</span>':'');
+      el.onclick=()=>{document.querySelectorAll('#tree .node').forEach(n=>n.classList.remove('active'));el.classList.add('active');if(FILES[node.name])openFile(node.name);};}
+    host.appendChild(el);
+    if(node.t==='folder'&&node.open&&node.children)node.children.forEach(c=>row(c,depth+1));}
+  TREE.forEach(n=>row(n,0));}
+function renderTabs(){const host=document.getElementById('tabs');host.innerHTML='';
+  openTabs.forEach(name=>{const t=document.createElement('div');t.className='tab'+(name===activeTab?' active':'');
+    const dirty=name==='orders.ts';
+    t.innerHTML='<span style="width:7px;height:7px;border-radius:2px;background:#3178c6;display:inline-block"></span>'+name+(dirty?'<span class="dt"></span>':'<span class="x">×</span>');
+    t.onclick=(e)=>{if(e.target.classList.contains('x')){openTabs=openTabs.filter(n=>n!==name);if(activeTab===name)activeTab=openTabs[0];renderTabs();renderCode();return;}activeTab=name;renderTabs();renderCode();};
+    host.appendChild(t);});}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function renderCode(){const host=document.getElementById('code');const f=FILES[activeTab];if(!f){host.innerHTML='<div style="padding:18px;color:var(--txt-3)">No file open.</div>';document.getElementById('stLang').textContent='';return;}
+  host.innerHTML=f.lines.map((ln,i)=>{let cls=(ln[0]==='add'||ln[0]==='hl')?ln[0]:'';let content;
+    if(ln[0]==='cm'){content='<span class="cm">'+esc(ln[1])+'</span>';}
+    else{let c=ln[1];if(typeof c==='string')content=esc(c);else content=c.map(seg=>seg[0]?'<span class="'+seg[0]+'">'+esc(seg[1])+'</span>':esc(seg[1])).join('');}
+    return '<div class="ln '+cls+'"><span class="g">'+(i+1)+'</span><span class="c">'+content+'</span></div>';}).join('');
+  document.getElementById('stLang').textContent=f.lang;}
+function openFile(name){if(!openTabs.includes(name))openTabs.push(name);activeTab=name;renderTabs();renderCode();}
+renderTree();renderTabs();renderCode();
+document.getElementById('collapseAll').onclick=()=>{(function w(ns){ns.forEach(n=>{if(n.t==='folder'){n.open=false;if(n.children)w(n.children);}})})(TREE);renderTree();};
+
+/* ================= PALETTE ================= */
+const pOverlay=document.getElementById('palette-overlay'),pInput=document.getElementById('palette-input');
+function openPalette(){pOverlay.classList.add('show');pInput.value='';filterPalette();pInput.focus();}
+function closePalette(){pOverlay.classList.remove('show');}
+function filterPalette(){const q=pInput.value.toLowerCase();const items=[...document.querySelectorAll('#palette-list .pitem')];
+  items.forEach(i=>i.style.display=i.textContent.toLowerCase().includes(q)?'':'none');
+  items.forEach(i=>i.classList.remove('sel'));const f=items.find(i=>i.style.display!=='none');if(f)f.classList.add('sel');}
+pInput.addEventListener('input',filterPalette);
+function runCmd(it){closePalette();
+  if(it.dataset.go)go(it.dataset.go);
+  else if(it.dataset.cmd==='theme')setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
+  else if(it.dataset.cmd==='accent')accentPop.classList.add('show');
+  else if(it.dataset.cmd==='new')openModal();
+  else if(it.dataset.cmd==='run'){go('agents');setTimeout(runPipeline,250);}}
+document.querySelectorAll('#palette-list .pitem').forEach(it=>it.addEventListener('click',()=>runCmd(it)));
+pInput.addEventListener('keydown',e=>{if(e.key==='Enter'){const s=document.querySelector('#palette-list .pitem.sel');if(s)runCmd(s);}});
+document.getElementById('cmdkBar').addEventListener('click',openPalette);
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openPalette();}
+  if((e.metaKey||e.ctrlKey)&&e.shiftKey&&e.key.toLowerCase()==='l'){e.preventDefault();setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');}
+  if(e.key==='Escape'){closePalette();closeModal();accentPop.classList.remove('show');}});
+
+/* ================= MODAL + TOAST ================= */
+const mOverlay=document.getElementById('modal-overlay');
+function openModal(){mOverlay.classList.add('show');}
+function closeModal(){mOverlay.classList.remove('show');}
+[pOverlay,mOverlay].forEach(o=>o.addEventListener('click',e=>{if(e.target===o){closePalette();closeModal();}}));
+let toastT;function toast(msg){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2200);}
+
+/* ================= CHAT ================= */
+const aiAvatar='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M7 4c0 4 10 4 10 8s-10 4-10 8"/><path d="M17 4c0 4-10 4-10 8s10 4 10 8"/></svg>';
+function sendChat(){const i=document.getElementById('chatInput');const v=i.value.trim();if(!v)return;
+  const body=document.getElementById('chatBody');
+  body.insertAdjacentHTML('beforeend','<div class="msg u"><div class="who">DG</div><div class="bub"><p>'+esc(v)+'</p></div></div>');
+  i.value='';body.scrollTop=body.scrollHeight;
+  setTimeout(()=>{body.insertAdjacentHTML('beforeend','<div class="msg a"><div class="who">'+aiAvatar+'</div><div class="bub"><p>On it — I\'ll plan this out, make the change, and run the review agents before anything ships.</p></div></div>');body.scrollTop=body.scrollHeight;},500);}
+document.getElementById('chatSend').addEventListener('click',sendChat);
+document.getElementById('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}});
+
+/* ================= AGENT PIPELINE ================= */
+const AG=[['Architect','Designed'],['Engineer','Built'],['Reviewer','Reviewed'],['Security','Cleared'],['Performance','Optimized']];
+let running=false;
+function runPipeline(){if(running)return;running=true;
+  const steps=document.querySelectorAll('#pipeline .pstep');const pills=document.querySelectorAll('[data-ag]');
+  steps.forEach(s=>{s.classList.remove('done','active');s.querySelector('.ps').textContent='Idle';});
+  pills.forEach(p=>{p.className='pill';p.textContent='idle';});
+  const fb=document.getElementById('finalBtn');fb.disabled=true;fb.textContent='Running…';
+  let i=0;(function next(){if(i>=AG.length){running=false;fb.disabled=false;fb.textContent='View final output';toast('Workflow complete — 0 blocking issues');return;}
+    const s=steps[i],p=pills[i];s.classList.add('active');s.querySelector('.ps').textContent='Running…';p.className='pill accent';p.textContent='active';
+    setTimeout(()=>{s.classList.remove('active');s.classList.add('done');s.querySelector('.ps').textContent=AG[i][1];p.className='pill green';p.textContent='done';i++;next();},760);})();}
+document.getElementById('runPipeline').addEventListener('click',runPipeline);
+
+/* ================= SKILLS ================= */
+const SKILLS={
+ 'Plan & Spec':[
+  ['PL','planning-and-task-breakdown','Breaks work into ordered, dependency-aware tasks.','plan'],
+  ['SP','spec-driven-development','Creates a spec before any code is written.','plan'],
+  ['SD','source-driven-development','Grounds every decision in official documentation.','plan'],
+  ['DD','doubt-driven-development','Adversarially reviews each non-trivial decision.','plan'],
+  ['CE','context-engineering','Optimizes what context the agent loads and when.','plan'],
+  ['ID','idea-refine','Refines raw ideas via divergent then convergent thinking.','plan'],
+  ['IN','interview-me','Draws out what you actually want before building.','plan'],
+  ['US','using-agent-skills','Discovers and invokes the right skill for a task.','meta']
+ ],
+ 'Build & Ship':[
+  ['FE','frontend-ui-engineering','Builds production-quality UIs, not AI-aesthetic ones.','build'],
+  ['II','incremental-implementation','Delivers changes in small, verifiable increments.','build'],
+  ['AP','api-and-interface-design','Designs stable APIs and module boundaries.','build'],
+  ['SH','shipping-and-launch','Prepares safe production launches.','ship'],
+  ['CI','ci-cd-and-automation','Automates build, test, and deploy pipelines.','ship']
+ ],
+ 'Quality & Safety':[
+  ['CR','code-review-and-quality','Multi-axis review for correctness and clarity.','quality'],
+  ['TD','test-driven-development','Drives implementation from failing tests.','quality'],
+  ['SE','security-and-hardening','Hardens code against common vulnerabilities.','security'],
+  ['PE','performance-optimization','Finds and fixes real performance bottlenecks.','perf'],
+  ['DB','debugging-and-error-recovery','Systematic root-cause debugging, not guessing.','debug'],
+  ['BT','browser-testing-with-devtools','Tests in real browsers via Chrome DevTools.','test']
+ ],
+ 'Maintain':[
+  ['CS','code-simplification','Simplifies code for clarity and maintainability.','maintain'],
+  ['DM','deprecation-and-migration','Plans and executes safe migrations.','maintain'],
+  ['DO','documentation-and-adrs','Records decisions and keeps docs current.','docs'],
+  ['GI','git-workflow-and-versioning','Structures branching, commits, and releases.','git'],
+  ['OB','observability-and-instrumentation','Instruments code so prod behavior is visible.','ops']
+ ]
+};
+const GRP_ICONS={
+ 'Plan & Spec':'<svg class="ico sm" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="3"/></svg>',
+ 'Build & Ship':'<svg class="ico sm" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18v3h3l6.4-6.4a4 4 0 0 0 5.3-5.4l-2.8 2.8-2.1-2.1z"/></svg>',
+ 'Quality & Safety':'<svg class="ico sm" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6z"/></svg>',
+ 'Maintain':'<svg class="ico sm" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h12"/></svg>'
+};
+function renderSkills(){const host=document.getElementById('skillsHost');host.innerHTML='';
+  Object.entries(SKILLS).forEach(([grp,arr])=>{
+    const h=document.createElement('div');h.className='skill-grp';h.innerHTML='<span class="gi">'+GRP_ICONS[grp]+'</span>'+grp+'<span class="ct">'+arr.length+'</span>';host.appendChild(h);
+    const g=document.createElement('div');g.className='skill-grid';
+    arr.forEach(([code,name,desc,tag])=>{const c=document.createElement('div');c.className='card skill';
+      c.innerHTML='<div class="sh"><div class="si">'+code+'</div><div class="snm">'+name+'</div></div><div class="sd">'+desc+'</div><div class="sf"><span class="stag">'+tag+'</span><span class="swt"><i></i></span></div>';
+      c.querySelector('.swt').addEventListener('click',e=>{e.stopPropagation();e.currentTarget.classList.toggle('off');updateSkillCount();});
+      g.appendChild(c);});
+    host.appendChild(g);});}
+function updateSkillCount(){const on=document.querySelectorAll('#skillsHost .swt:not(.off)').length;document.getElementById('skillCount').textContent=on+' enabled';}
+renderSkills();
+document.getElementById('skillSearch').addEventListener('input',e=>{const q=e.target.value.toLowerCase();
+  document.querySelectorAll('#skillsHost .skill').forEach(c=>c.style.display=c.textContent.toLowerCase().includes(q)?'':'none');
+  document.querySelectorAll('#skillsHost .skill-grp').forEach(g=>{const grid=g.nextElementSibling;const any=[...grid.querySelectorAll('.skill')].some(s=>s.style.display!=='none');g.style.display=any?'':'none';grid.style.display=any?'':'none';});});
+</script>
+</body>
+</html>

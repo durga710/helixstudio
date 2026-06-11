@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="icon" type="image/svg+xml" href="assets/brand/circuit-core-favicon.svg"/>
+<title>Helix Studio — The AI coding platform</title>
+<style>
+  :root{
+    --accent:#3b82f6;
+    --bg:#070b12;--bg-2:#0c0f15;--panel:#11151c;--panel-2:#161b23;
+    --border:#1c2230;--border-2:#283040;
+    --txt:#eef0f5;--txt-2:#a3acbb;--txt-3:#6a7280;
+    --green:#34d399;--amber:#fbbf24;
+    --mono:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,sans-serif;
+    --max:1120px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--sans);background:var(--bg);color:var(--txt);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:color-mix(in srgb,var(--accent) 32%,transparent)}
+  a{color:inherit;text-decoration:none}
+  svg{display:block}
+  .ico{width:20px;height:20px;stroke:currentColor;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
+  .accent{color:var(--accent)}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:.15s}
+  .btn-solid{background:var(--accent);color:#fff}
+  .btn-solid:hover{filter:brightness(1.1);transform:translateY(-1px)}
+  .btn-ghost{background:transparent;border-color:var(--border-2);color:var(--txt-2)}
+  .btn-ghost:hover{color:var(--txt);border-color:var(--accent)}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+  .nav-in{display:flex;align-items:center;gap:24px;height:64px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:-.01em}
+  .logo .mark{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+  .logo .mark svg{width:100%;height:100%}
+  .nav-links{display:flex;gap:26px;margin-left:18px;font-size:14px;color:var(--txt-2)}
+  .nav-links a:hover{color:var(--txt)}
+  .nav-cta{margin-left:auto;display:flex;gap:10px;align-items:center}
+  @media(max-width:760px){.nav-links{display:none}}
+
+  /* hero */
+  .hero{position:relative;padding:90px 0 70px;text-align:center;overflow:hidden}
+  .hero::before{content:"";position:absolute;inset:0;background:
+    radial-gradient(800px 360px at 50% -10%,color-mix(in srgb,var(--accent) 22%,transparent),transparent),
+    radial-gradient(600px 300px at 85% 10%,color-mix(in srgb,#8b5cf6 14%,transparent),transparent);
+    pointer-events:none}
+  .hero .badge{display:inline-flex;align-items:center;gap:8px;padding:6px 13px;border:1px solid var(--border-2);border-radius:30px;font-size:12.5px;color:var(--txt-2);background:var(--panel);position:relative}
+  .hero .badge .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+  .hero h1{font-size:clamp(34px,6vw,60px);line-height:1.05;font-weight:760;letter-spacing:-.03em;margin:22px auto 0;max-width:840px;position:relative}
+  .hero h1 .grad{background:linear-gradient(120deg,var(--accent),#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p.lead{font-size:clamp(16px,2.2vw,20px);color:var(--txt-2);max-width:600px;margin:20px auto 0;position:relative}
+  .hero .cta{display:flex;gap:12px;justify-content:center;margin-top:30px;position:relative;flex-wrap:wrap}
+  .hero .note{margin-top:14px;font-size:12.5px;color:var(--txt-3);position:relative}
+
+  /* app shot */
+  .shot{max-width:1000px;margin:46px auto 0;position:relative}
+  .shot-frame{border:1px solid var(--border-2);border-radius:16px;overflow:hidden;background:var(--bg-2);box-shadow:0 40px 120px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.02)}
+  .shot-bar{height:38px;display:flex;align-items:center;gap:7px;padding:0 14px;border-bottom:1px solid var(--border);background:var(--panel)}
+  .shot-bar .d{width:11px;height:11px;border-radius:50%}
+  .shot-bar .u{margin-left:14px;font-family:var(--mono);font-size:11.5px;color:var(--txt-3);display:flex;align-items:center;gap:6px}
+  .shot-body{display:grid;grid-template-columns:150px 1fr 230px;height:340px;font-size:12px}
+  .shot-body .col{padding:12px;overflow:hidden}
+  .shot-body .l{background:var(--bg-2);border-right:1px solid var(--border);color:var(--txt-3)}
+  .shot-body .l .f{padding:4px 6px;border-radius:5px;color:var(--txt-2)}
+  .shot-body .l .f.on{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--txt)}
+  .shot-body .m{background:#0a0c10;font-family:var(--mono);line-height:1.75;color:var(--txt-2)}
+  .shot-body .r{background:var(--bg-2);border-left:1px solid var(--border)}
+  .shot-body .r .ai{font-size:11px;color:var(--txt-3);margin-bottom:8px;display:flex;gap:7px;align-items:center}
+  .shot-body .r .bub{background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:9px;color:var(--txt-2);font-size:11.5px}
+  .k{color:#c792ea}.s{color:#9ccc65}.f2{color:#82aaff}.cm{color:var(--txt-3)}
+  @media(max-width:760px){.shot-body{grid-template-columns:1fr;height:auto}.shot-body .l,.shot-body .r{display:none}}
+
+  /* logos strip */
+  .strip{padding:40px 0 10px;text-align:center}
+  .strip .lab{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-3)}
+  .strip .row{display:flex;gap:30px;justify-content:center;align-items:center;flex-wrap:wrap;margin-top:18px;opacity:.85}
+  .strip .row .t{display:flex;align-items:center;gap:8px;color:var(--txt-2);font-size:13.5px;font-weight:600}
+
+  /* sections */
+  section.block{padding:70px 0}
+  .sec-head{text-align:center;max-width:640px;margin:0 auto 44px}
+  .sec-head h2{font-size:clamp(26px,4vw,38px);font-weight:720;letter-spacing:-.02em;margin-top:10px}
+  .sec-head p{color:var(--txt-2);margin-top:12px;font-size:16px}
+
+  .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  @media(max-width:880px){.feat-grid{grid-template-columns:1fr}}
+  .feat{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;transition:.15s}
+  .feat:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .feat .fi{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 13%,transparent);color:var(--accent);margin-bottom:14px}
+  .feat h3{font-size:16px;font-weight:640}
+  .feat p{color:var(--txt-2);font-size:13.5px;margin-top:6px}
+
+  /* pipeline */
+  .pipe{display:flex;align-items:stretch;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--panel);max-width:920px;margin:0 auto}
+  .pipe .st{flex:1;padding:22px 14px;border-right:1px solid var(--border);text-align:center}
+  .pipe .st:last-child{border:none}
+  .pipe .st .pi{width:38px;height:38px;border-radius:11px;margin:0 auto 11px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 13%,transparent);color:var(--accent)}
+  .pipe .st .n{font-size:13.5px;font-weight:620}
+  .pipe .st .r{font-size:11.5px;color:var(--txt-3);margin-top:3px}
+  @media(max-width:760px){.pipe{flex-wrap:wrap}.pipe .st{flex:1 1 40%;border-bottom:1px solid var(--border)}}
+
+  /* skills */
+  .skill-cloud{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;max-width:860px;margin:0 auto}
+  .schip{display:inline-flex;align-items:center;gap:8px;padding:8px 13px;border:1px solid var(--border-2);border-radius:30px;font-size:13px;color:var(--txt-2);background:var(--panel);transition:.14s}
+  .schip:hover{border-color:var(--accent);color:var(--txt)}
+  .schip .c{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);border-radius:5px;padding:2px 5px}
+
+  /* pricing */
+  .price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:960px;margin:0 auto}
+  @media(max-width:880px){.price-grid{grid-template-columns:1fr;max-width:420px}}
+  .plan{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:26px;display:flex;flex-direction:column}
+  .plan.pop{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 20px 60px color-mix(in srgb,var(--accent) 16%,transparent);position:relative}
+  .plan.pop .tag{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:3px 11px;border-radius:20px}
+  .plan .nm{font-size:14px;font-weight:640;color:var(--txt-2)}
+  .plan .pr{font-size:38px;font-weight:760;letter-spacing:-.02em;margin:8px 0}
+  .plan .pr span{font-size:14px;color:var(--txt-3);font-weight:500}
+  .plan ul{list-style:none;margin:16px 0 22px;display:flex;flex-direction:column;gap:9px;flex:1}
+  .plan li{display:flex;gap:9px;font-size:13.5px;color:var(--txt-2)}
+  .plan li .ico{width:16px;height:16px;color:var(--green);flex-shrink:0;margin-top:3px}
+
+  /* cta */
+  .cta-band{text-align:center;padding:70px 24px;border:1px solid var(--border-2);border-radius:22px;background:
+    radial-gradient(700px 240px at 50% 0,color-mix(in srgb,var(--accent) 18%,transparent),transparent),var(--panel);max-width:var(--max);margin:0 auto}
+  .cta-band h2{font-size:clamp(26px,4vw,38px);font-weight:740;letter-spacing:-.02em}
+  .cta-band p{color:var(--txt-2);margin-top:12px}
+
+  footer{border-top:1px solid var(--border);margin-top:70px;padding:40px 0}
+  .foot{display:flex;align-items:center;gap:18px;flex-wrap:wrap;color:var(--txt-3);font-size:13px}
+  .foot .logo{font-size:14px;color:var(--txt-2)}
+  .foot .links{margin-left:auto;display:flex;gap:20px}
+  .foot .links a:hover{color:var(--txt)}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap nav-in">
+    <a class="logo" href="#top"><span class="mark"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="nf" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffd1"/><stop offset="0.48" stop-color="#3b82f6"/><stop offset="1" stop-color="#c084fc"/></linearGradient><linearGradient id="nh" x1="21" y1="18" x2="43" y2="46" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#a7f3d0"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#070b12"/><rect x="9" y="9" width="46" height="46" rx="11" fill="#0d1626" stroke="url(#nf)" stroke-width="3"/><path d="M22 20v24M42 20v24M22 32h20" fill="none" stroke="url(#nh)" stroke-width="5" stroke-linecap="round"/><path d="M22 25h-7M42 39h7M32 32V20h6M32 32v12h-6" fill="none" stroke="#00ffd1" stroke-width="2" stroke-linecap="round"/><g fill="#f8fbff"><circle cx="15" cy="25" r="2"/><circle cx="49" cy="39" r="2"/><circle cx="38" cy="20" r="1.8"/><circle cx="26" cy="44" r="1.8"/></g></svg></span>Helix Studio</a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#agents">Agents</a>
+      <a href="#skills">Skills</a>
+      <a href="#pricing">Pricing</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-ghost" href="#">Sign in</a>
+      <a class="btn btn-solid" href="#pricing">Start free</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-lockup" style="display:inline-flex;align-items:center;gap:12px;margin-bottom:22px;position:relative">
+      <span style="width:48px;height:48px;border-radius:13px;overflow:hidden;box-shadow:0 8px 26px rgba(0,0,0,.55)"><svg viewBox="0 0 64 64" width="48" height="48" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="hf" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffd1"/><stop offset="0.48" stop-color="#3b82f6"/><stop offset="1" stop-color="#c084fc"/></linearGradient><linearGradient id="hh" x1="21" y1="18" x2="43" y2="46" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#a7f3d0"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#070b12"/><rect x="9" y="9" width="46" height="46" rx="11" fill="#0d1626" stroke="url(#hf)" stroke-width="3"/><path d="M22 20v24M42 20v24M22 32h20" fill="none" stroke="url(#hh)" stroke-width="5" stroke-linecap="round"/><path d="M22 25h-7M42 39h7M32 32V20h6M32 32v12h-6" fill="none" stroke="#00ffd1" stroke-width="2" stroke-linecap="round"/><g fill="#f8fbff"><circle cx="15" cy="25" r="2"/><circle cx="49" cy="39" r="2"/><circle cx="38" cy="20" r="1.8"/><circle cx="26" cy="44" r="1.8"/></g></svg></span>
+      <span style="text-align:left;line-height:1"><span style="display:block;font-size:20px;font-weight:820;letter-spacing:-.01em">HELIX</span><span style="display:block;font-size:10px;font-weight:650;letter-spacing:.32em;color:var(--txt-2);margin-top:3px">STUDIO</span></span>
+    </div>
+    <br/>
+    <span class="badge"><span class="dot"></span>Now in preview · helixstudio.org</span>
+    <h1>The AI coding platform that <span class="grad">plans, builds, and ships</span> with you.</h1>
+    <p class="lead">A real editor, a repository-aware assistant, and a five-agent review pipeline — so you go from idea to production without leaving one workspace.</p>
+    <div class="cta">
+      <a class="btn btn-solid" href="#pricing"><svg class="ico" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>Start building free</a>
+      <a class="btn btn-ghost" href="#features"><svg class="ico" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>See it in action</a>
+    </div>
+    <div class="note">No credit card · works with your GitHub repos</div>
+
+    <!-- product shot -->
+    <div class="shot">
+      <div class="shot-frame">
+        <div class="shot-bar"><span class="d" style="background:#ff5f57"></span><span class="d" style="background:#febc2e"></span><span class="d" style="background:#28c840"></span><span class="u"><svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" stroke="none"><path d="M8 0a8 8 0 0 0-2.5 15.6c.4.07.55-.17.55-.38v-1.2c-2.1.46-2.6-1-2.6-1-.35-.9-.86-1.13-.86-1.13-.7-.48.05-.47.05-.47.78.06 1.2.8 1.2.8.69 1.2 1.82.85 2.27.65.07-.5.27-.85.5-1.04-1.72-.2-3.53-.86-3.53-3.82 0-.85.3-1.54.8-2.08-.08-.2-.35-1 .08-2.05 0 0 .66-.2 2.15.8a7.5 7.5 0 0 1 3.9 0c1.5-1 2.15-.8 2.15-.8.43 1.06.16 1.85.08 2.05.5.54.8 1.23.8 2.08 0 2.97-1.82 3.62-3.55 3.81.28.24.53.71.53 1.43v2.12c0 .2.15.45.55.38A8 8 0 0 0 8 0z"/></svg>helixstudio.org/acme-web</span></div>
+        <div class="shot-body">
+          <div class="col l">
+            <div style="color:var(--txt-3);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Explorer</div>
+            <div class="f">app/</div>
+            <div class="f" style="padding-left:16px">api/</div>
+            <div class="f on" style="padding-left:26px">invites.ts</div>
+            <div class="f" style="padding-left:26px">orders.ts</div>
+            <div class="f" style="padding-left:16px">components/</div>
+            <div class="f" style="padding-left:26px">DataTable.tsx</div>
+            <div class="f">prisma/</div>
+          </div>
+          <div class="col m">
+<div><span class="cm">// Team invitations</span></div>
+<div><span class="k">export async function</span> <span class="f2">createInvite</span>(</div>
+<div>&nbsp;&nbsp;orgId, email) {</div>
+<div>&nbsp;&nbsp;<span class="k">const</span> code = <span class="f2">randomCode</span>(<span class="s">8</span>)</div>
+<div>&nbsp;&nbsp;<span class="k">await</span> prisma.invite.<span class="f2">create</span>({</div>
+<div>&nbsp;&nbsp;&nbsp;&nbsp;data: { orgId, email, code }</div>
+<div>&nbsp;&nbsp;})</div>
+<div>&nbsp;&nbsp;<span class="k">await</span> <span class="f2">sendInviteEmail</span>(email, code)</div>
+<div>}</div>
+          </div>
+          <div class="col r">
+            <div class="ai"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round"><path d="M7 4c0 4 10 4 10 8s-10 4-10 8"/><path d="M17 4c0 4-10 4-10 8s10 4 10 8"/></svg>Helix · plan</div>
+            <div class="bub">Added <b style="color:var(--txt)">Invite</b> model, wrote <b style="color:var(--txt)">createInvite</b>, and queued the Security agent. Confirm before I run the migration?</div>
+            <div style="margin-top:10px;display:flex;gap:6px"><span style="font-size:10.5px;border:1px solid var(--border-2);border-radius:6px;padding:4px 9px;color:var(--green)">Accept</span><span style="font-size:10.5px;border:1px solid var(--border-2);border-radius:6px;padding:4px 9px;color:var(--txt-3)">Reject</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="strip wrap">
+  <div class="lab">Built on a stack you already trust</div>
+  <div class="row">
+    <span class="t"><svg width="20" height="20" viewBox="0 0 24 24"><rect width="24" height="24" rx="4" fill="#3178c6"/><text x="12" y="17" font-family="Arial" font-weight="700" font-size="11" fill="#fff" text-anchor="middle">TS</text></svg>TypeScript</span>
+    <span class="t"><svg width="18" height="18" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#fff"/><path d="M9 7v10M9 7l8.5 11M16 7v6" stroke="#000" stroke-width="1.4" fill="none"/></svg>Next.js</span>
+    <span class="t"><svg width="22" height="22" viewBox="-11.5 -10.23 23 20.46"><circle r="2.05" fill="#61dafb"/><g stroke="#61dafb" stroke-width="1" fill="none"><ellipse rx="11" ry="4.2"/><ellipse rx="11" ry="4.2" transform="rotate(60)"/><ellipse rx="11" ry="4.2" transform="rotate(120)"/></g></svg>React</span>
+    <span class="t"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 1.6 2.9 6.9v10.2L12 22.4l9.1-5.3V6.9z" fill="#5fa04e"/></svg>Node</span>
+    <span class="t"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4.5 17.3 12 2.5l7 17-9.5 4z" stroke="#9aa4f2" stroke-width="1.6" stroke-linejoin="round"/></svg>Prisma</span>
+    <span class="t"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 1l7 13H1z" fill="#fff"/></svg>Vercel</span>
+  </div>
+</div>
+
+<!-- features -->
+<section class="block" id="features">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Everything in one workspace</span><h2>A complete environment, not a chat box.</h2><p>Helix understands your whole repository and gives you the tools to act on it — edit, analyze, review, and deploy.</p></div>
+    <div class="feat-grid">
+      <div class="feat"><div class="fi"><svg class="ico" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div><h3>Real editor</h3><p>File tree, tabs, syntax highlighting, and inline diffs — a proper editor, not a textarea.</p></div>
+      <div class="feat"><div class="fi"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><h3>Repo-aware chat</h3><p>The assistant reads your entire codebase, plans before it edits, and shows reviewable diffs.</p></div>
+      <div class="feat"><div class="fi"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></div><h3>Repository analysis</h3><p>Instant map of architecture, dependencies, data flow, and risk — the moment you connect a repo.</p></div>
+      <div class="feat"><div class="fi"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg></div><h3>Multi-agent review</h3><p>Architect, Engineer, Reviewer, Security, and Performance agents — each confirms before acting.</p></div>
+      <div class="feat"><div class="fi"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg></div><h3>24 built-in skills</h3><p>Opinionated engineering skills — TDD, security hardening, performance, and more — invoked on demand.</p></div>
+      <div class="feat"><div class="fi"><svg class="ico" viewBox="0 0 24 24"><path d="M4 13a8 8 0 0 1 7-7l5-2-2 5a8 8 0 0 1-7 7z"/><path d="M11 13 6 18"/></svg></div><h3>One-click deploy</h3><p>Ship to production with build logs, environment status, and rollback — wired to Vercel.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- agents -->
+<section class="block" id="agents" style="background:var(--bg-2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Multi-agent workflow</span><h2>Every change reviewed by five specialists.</h2><p>Helix runs each task through a pipeline that catches bugs, vulnerabilities, and slow paths before you ship.</p></div>
+    <div class="pipe">
+      <div class="st"><div class="pi"><svg class="ico" viewBox="0 0 24 24"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg></div><div class="n">Architect</div><div class="r">Designs the solution</div></div>
+      <div class="st"><div class="pi"><svg class="ico" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18v3h3l6.4-6.4a4 4 0 0 0 5.3-5.4l-2.8 2.8-2.1-2.1z"/></svg></div><div class="n">Engineer</div><div class="r">Writes the code</div></div>
+      <div class="st"><div class="pi"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg></div><div class="n">Reviewer</div><div class="r">Finds logic errors</div></div>
+      <div class="st"><div class="pi"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6z"/></svg></div><div class="n">Security</div><div class="r">Catches vulnerabilities</div></div>
+      <div class="st"><div class="pi"><svg class="ico" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg></div><div class="n">Performance</div><div class="r">Optimizes hot paths</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- skills -->
+<section class="block" id="skills">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">24 skills, loaded on demand</span><h2>Senior-engineer instincts, built in.</h2><p>Helix invokes the right skill for the moment — from spec-driven planning to security hardening.</p></div>
+    <div class="skill-cloud" id="cloud"></div>
+  </div>
+</section>
+
+<!-- pricing -->
+<section class="block" id="pricing" style="background:var(--bg-2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Pricing</span><h2>Start free. Scale when you ship.</h2><p>Every plan includes the editor, repo-aware chat, and all 24 skills.</p></div>
+    <div class="price-grid">
+      <div class="plan">
+        <div class="nm">Hobby</div><div class="pr">$0<span> / mo</span></div>
+        <ul>
+          <li><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>1 repository</li>
+          <li><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Editor + repo-aware chat</li>
+          <li><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>All 24 skills</li>
+          <li><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Community support</li>
+        </ul>
+        <a class="btn btn-ghost" href="#" style="justify-content:center">Start free</a>
+      </div>
+      <div class="plan pop">
+        <span class="tag">Most popular</span>
+        <div class="nm">Pro</div><div class="pr">$20<span> / mo</span></div>
+        <ul>
+          <li><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Unlimited repositories</li>
+          <li><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Full multi-agent pipeline</li>
+          <li><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>One-click deploys</li>
+          <li><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Project memory</li>
+          <li><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Priority support</li>
+        </ul>
+        <a class="btn btn-solid" href="#" style="justify-content:center">Start Pro trial</a>
+      </div>
+      <div class="plan">
+        <div class="nm">Team</div><div class="pr">$60<span> / user</span></div>
+        <ul>
+          <li><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Everything in Pro</li>
+          <li><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Shared workspaces + RBAC</li>
+          <li><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Audit logs</li>
+          <li><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>SSO</li>
+        </ul>
+        <a class="btn btn-ghost" href="#" style="justify-content:center">Contact sales</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- cta -->
+<section class="block">
+  <div class="cta-band">
+    <h2>Ship your next feature with Helix.</h2>
+    <p>Connect a repo and let the agents handle the rest.</p>
+    <div style="margin-top:24px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+      <a class="btn btn-solid" href="#">Start building free</a>
+      <a class="btn btn-ghost" href="#">Book a demo</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <a class="logo" href="#top"><span class="mark" style="width:26px;height:26px"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="ff" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse"><stop stop-color="#00ffd1"/><stop offset="0.48" stop-color="#3b82f6"/><stop offset="1" stop-color="#c084fc"/></linearGradient><linearGradient id="fh" x1="21" y1="18" x2="43" y2="46" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#a7f3d0"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#070b12"/><rect x="9" y="9" width="46" height="46" rx="11" fill="#0d1626" stroke="url(#ff)" stroke-width="3"/><path d="M22 20v24M42 20v24M22 32h20" fill="none" stroke="url(#fh)" stroke-width="5" stroke-linecap="round"/><path d="M22 25h-7M42 39h7M32 32V20h6M32 32v12h-6" fill="none" stroke="#00ffd1" stroke-width="2" stroke-linecap="round"/><g fill="#f8fbff"><circle cx="15" cy="25" r="2"/><circle cx="49" cy="39" r="2"/><circle cx="38" cy="20" r="1.8"/><circle cx="26" cy="44" r="1.8"/></g></svg></span>Helix Studio</a>
+    <span>© 2026 Helix Studio · helixstudio.org</span>
+    <div class="links"><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="#">Docs</a><a href="#">GitHub</a></div>
+  </div>
+</footer>
+
+<script>
+const SKILLS=[['PL','planning'],['SP','spec-driven'],['SD','source-driven'],['DD','doubt-driven'],['CE','context-eng'],['ID','idea-refine'],['IN','interview-me'],['FE','frontend-ui'],['II','incremental'],['AP','api-design'],['SH','shipping'],['CI','ci-cd'],['CR','code-review'],['TD','test-driven'],['SE','security'],['PE','performance'],['DB','debugging'],['BT','browser-testing'],['CS','simplification'],['DM','migration'],['DO','documentation'],['GI','git-workflow'],['OB','observability'],['US','using-skills']];
+document.getElementById('cloud').innerHTML=SKILLS.map(([c,n])=>'<span class="schip"><span class="c">'+c+'</span>'+n+'</span>').join('');
+</script>
+</body>
+</html>

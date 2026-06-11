@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 220" role="img" aria-labelledby="title desc">
+  <title id="title">Helix Studio Circuit Core wordmark</title>
+  <desc id="desc">Wordmark-only Circuit Core logo for Helix Studio.</desc>
+  <rect width="780" height="220" rx="28" fill="#070b12"/>
+  <g transform="translate(74 94)">
+    <text x="0" y="0" fill="#f8fbff" font-family="Inter, Arial, sans-serif" font-size="80" font-weight="820">HELIX</text>
+    <text x="2" y="62" fill="#9cadc4" font-family="Inter, Arial, sans-serif" font-size="26" font-weight="650" letter-spacing="8">STUDIO</text>
+    <path d="M2 93h84v22h74v-22h330" fill="none" stroke="#00ffd1" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
