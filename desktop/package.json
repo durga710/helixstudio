@@ -1,9 +1,9 @@
 {
   "name": "helix-studio-desktop",
   "productName": "Helix Studio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
-  "description": "Helix Studio desktop — the AI coding platform with real local shell access",
+  "description": "Helix Studio desktop \u2014 the AI coding platform with real local shell access",
   "main": "main.js",
   "author": "Helix Studio <hello@helixstudio.org>",
   "homepage": "https://helixstudio.org",
@@ -18,10 +18,22 @@
   "build": {
     "appId": "org.helixstudio.desktop",
     "productName": "Helix Studio",
-    "files": ["main.js", "preload.js", "icon.png"],
-    "mac": { "target": "dmg", "category": "public.app-category.developer-tools" },
-    "win": { "target": "nsis" },
-    "linux": { "target": "AppImage", "category": "Development" },
-    "publish": null
+    "files": [
+      "main.js",
+      "preload.js"
+    ],
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Development"
+    },
+    "publish": null,
+    "afterPack": "./scripts/adhoc-sign.js"
   }
 }
