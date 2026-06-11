@@ -2,7 +2,7 @@ import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
-import { db, dbEnabled } from "@/lib/db";
+import { db, dbEnabled, schemaReady } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
 
 /** Demo workspace account — available until a database is connected. */
@@ -45,6 +45,7 @@ const providers: NextAuthConfig["providers"] = [
 
       // Real accounts (DATABASE_URL configured): Prisma lookup + scrypt verify.
       if (dbEnabled()) {
+        await schemaReady();
         const user = await db().user.findUnique({ where: { email } });
         if (user?.passwordHash && verifyPassword(password, user.passwordHash)) {
           return { id: user.id, name: user.name, email: user.email };
@@ -79,6 +80,7 @@ const config: NextAuthConfig = {
       try {
         const email = user.email?.toLowerCase();
         if (!email) return true;
+        await schemaReady();
         const dbUser = await db().user.upsert({
           where: { email },
           update: { name: user.name ?? undefined, image: user.image ?? undefined },
@@ -117,6 +119,7 @@ const config: NextAuthConfig = {
     async jwt({ token, account, user }) {
       // Pin the JWT to the database user id so lookups are stable.
       if (dbEnabled() && account && user?.email) {
+        await schemaReady();
         const dbUser = await db().user.findUnique({ where: { email: user.email.toLowerCase() } });
         if (dbUser) token.sub = dbUser.id;
       }

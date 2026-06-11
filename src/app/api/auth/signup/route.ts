@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { dbEnabled, db } from "@/lib/db";
+import { dbEnabled, db, schemaReady } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { name, email, password } = parsed.data;
+  await schemaReady();
   const existing = await db().user.findUnique({ where: { email } });
   if (existing) {
     return Response.json({ error: "An account with that email already exists" }, { status: 409 });
