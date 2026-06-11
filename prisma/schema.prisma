@@ -9,9 +9,10 @@ generator client {
   output   = "../src/generated/prisma"
 }
 
+// Prisma 7: the connection URL lives in prisma.config.ts (DATABASE_URL),
+// not in the schema file.
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // ---------- Phase 1 · Users & auth (Auth.js) ----------
