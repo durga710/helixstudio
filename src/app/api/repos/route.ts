@@ -4,12 +4,13 @@ import { auth } from "@/lib/auth";
 import { addImportedProject, logAudit, setActiveProject, store } from "@/lib/store";
 import { importGitHubRepo, RepoImportError } from "@/lib/repo/import";
 import { analyzeRepo } from "@/lib/repo/analyze";
-import { db, dbEnabled } from "@/lib/db";
+import { db, dbEnabled, schemaReady } from "@/lib/db";
 
 /** The signed-in user's GitHub access token, if they linked GitHub (DB only). */
 async function githubToken(userId: string | undefined): Promise<string | undefined> {
   if (!dbEnabled() || !userId) return undefined;
   try {
+    await schemaReady();
     const account = await db().account.findFirst({
       where: { userId, provider: "github" },
       select: { access_token: true },
