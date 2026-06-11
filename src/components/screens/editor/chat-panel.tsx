@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, SendHorizontal } from "lucide-react";
 import { HelixGlyph } from "@/components/brand";
+import { Markdown } from "@/components/ui/markdown";
 import { useToast } from "@/components/ui/toast";
 import { usePrefs, MODEL_LABELS, DEPTH_LABELS } from "@/hooks/use-prefs";
 import { cn } from "@/lib/utils";
@@ -24,28 +25,6 @@ const SEED_MESSAGES: Message[] = [
   },
   { id: 2, role: "assistant", content: "", seeded: true },
 ];
-
-/** Minimal inline markdown: **bold** and `code`. */
-function Inline({ text }: { text: string }) {
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
-  return (
-    <>
-      {parts.map((part, i) => {
-        if (part.startsWith("**") && part.endsWith("**")) {
-          return <b key={i} className="font-semibold text-txt">{part.slice(2, -2)}</b>;
-        }
-        if (part.startsWith("`") && part.endsWith("`")) {
-          return (
-            <code key={i} className="rounded bg-panel2 px-1 font-mono text-[11.5px]">
-              {part.slice(1, -1)}
-            </code>
-          );
-        }
-        return part;
-      })}
-    </>
-  );
-}
 
 function SeededAssistantMessage() {
   const { toast } = useToast();
@@ -214,12 +193,10 @@ export function ChatPanel() {
               <div className={cn("min-w-0 flex-1 whitespace-pre-wrap", m.role === "user" && "text-txt2")}>
                 {m.content === "" && m.role === "assistant" ? (
                   <span className="text-txt3">Thinking…</span>
+                ) : m.role === "assistant" ? (
+                  <Markdown content={m.content} />
                 ) : (
-                  m.content.split("\n").map((line, i) => (
-                    <p key={i} className="mb-[5px] min-h-[1em]">
-                      <Inline text={line} />
-                    </p>
-                  ))
+                  m.content
                 )}
               </div>
             )}
