@@ -25,7 +25,7 @@ export const oauthProviders = {
  * those public credentials already do, so the app can run with zero env vars.
  * The moment OAuth or DATABASE_URL is configured, AUTH_SECRET becomes
  * mandatory in production (real sessions must not be forgeable). */
-const demoMode = !process.env.DATABASE_URL && !oauthProviders.github && !oauthProviders.google;
+export const demoMode = !process.env.DATABASE_URL && !oauthProviders.github && !oauthProviders.google;
 
 const fallbackSecret =
   demoMode || process.env.NODE_ENV !== "production"
