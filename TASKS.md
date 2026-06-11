@@ -5,8 +5,8 @@
 - [x] Interactive UI prototype (`helix-studio-mockup.html`) — 7 screens
 - [x] Bundle 24 agent skills (`skills/`)
 - [x] Live theming: dark/light, accent, density, font size
-- [ ] Marketing landing page for helixstudio.org
-- [ ] Skill detail view
+- [x] Marketing landing page for helixstudio.org (`/welcome` — signed-out visitors land here)
+- [x] Skill detail view (dialog on the Skills screen)
 
 ## Phase 1 — Foundation
 - [x] Next.js + TypeScript + Tailwind + shadcn/ui scaffold (repo root)

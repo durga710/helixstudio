@@ -4,7 +4,8 @@ import { AppShell } from "@/components/shell/app-shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  if (!session?.user) redirect("/login");
+  // Signed-out visitors land on the public marketing page (Phase 0).
+  if (!session?.user) redirect("/welcome");
 
   const initials =
     (session.user.name ?? session.user.email ?? "U")

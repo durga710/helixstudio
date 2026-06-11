@@ -18,6 +18,18 @@ export const oauthProviders = {
   google: Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET),
 };
 
+/* Demo mode: no database and no real identity providers — the only sign-in is
+ * the public demo account. A baked-in JWT secret grants nothing beyond what
+ * those public credentials already do, so the app can run with zero env vars.
+ * The moment OAuth or DATABASE_URL is configured, AUTH_SECRET becomes
+ * mandatory in production (real sessions must not be forgeable). */
+const demoMode = !process.env.DATABASE_URL && !oauthProviders.github && !oauthProviders.google;
+
+const fallbackSecret =
+  demoMode || process.env.NODE_ENV !== "production"
+    ? "helix-demo-mode-secret-set-AUTH_SECRET-before-adding-real-users"
+    : undefined;
+
 const providers: NextAuthConfig["providers"] = [
   Credentials({
     name: "Email",
@@ -46,9 +58,7 @@ const config: NextAuthConfig = {
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   trustHost: true,
-  secret:
-    process.env.AUTH_SECRET ??
-    (process.env.NODE_ENV !== "production" ? "helix-dev-secret-do-not-use-in-production" : undefined),
+  secret: process.env.AUTH_SECRET ?? fallbackSecret,
   callbacks: {
     session({ session, token }) {
       if (session.user && token.sub) session.user.id = token.sub;
