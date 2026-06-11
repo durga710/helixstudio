@@ -100,9 +100,25 @@ export const FINAL_OUTPUT = {
   ],
 };
 
+const AGENT_PROMPTS: Record<PipelineStep, string> = {
+  planner:
+    "You are the Planner. Break the most valuable next piece of work for this repository into 3 ordered, dependency-aware tasks.",
+  architect:
+    "You are the Architect. Identify the key design decision this repository implies and state the trade-off you would choose.",
+  engineer:
+    "You are the Engineer. Name the specific files you would change first and what the change is.",
+  reviewer:
+    "You are the Reviewer. Point at the most likely logic or type defect risk in this code.",
+  security:
+    "You are the Security Auditor. Report concrete auth/injection/secret risks in this repository, or state it scans clean.",
+  performance:
+    "You are the Performance Engineer. Identify the most expensive path (queries, IO, render) and one optimization.",
+};
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export async function* runStep(step: PipelineStep): AsyncGenerator<StepEvent> {
+/** Scripted demo run — used when no AI key is available. */
+async function* runStepScripted(step: PipelineStep): AsyncGenerator<StepEvent> {
   const script = STEP_SCRIPTS[step];
   yield { type: "start", step };
   for (const log of script.logs) {
@@ -111,4 +127,47 @@ export async function* runStep(step: PipelineStep): AsyncGenerator<StepEvent> {
   }
   await sleep(300);
   yield { type: "done", step, result: script.result };
+}
+
+/** Real run — the agent analyzes the active workspace with Claude (BYOK or
+ * platform key) and streams its findings line by line. */
+async function* runStepReal(step: PipelineStep, apiKey: string): AsyncGenerator<StepEvent> {
+  const { streamCompletion } = await import("@/lib/ai/provider");
+  const { workspaceContext } = await import("@/lib/repo/context");
+
+  yield { type: "start", step };
+  const system = `${AGENT_PROMPTS[step]} Respond with exactly 3 short bullet lines (no preamble, no markdown headers), each a concrete finding about THIS repository.\n\n${workspaceContext(AGENT_PROMPTS[step])}`;
+
+  let buffer = "";
+  let emitted = 0;
+  try {
+    for await (const chunk of streamCompletion({
+      messages: [{ role: "user", content: "Run your analysis on the active repository." }],
+      system,
+      tier: "sonnet",
+      depth: "fast",
+      apiKey,
+    })) {
+      buffer += chunk;
+      let nl: number;
+      while ((nl = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, nl).replace(/^[-*\u2022]\s*/, "").trim();
+        buffer = buffer.slice(nl + 1);
+        if (line && emitted < 5) {
+          emitted += 1;
+          yield { type: "log", step, message: line };
+        }
+      }
+    }
+    const tail = buffer.replace(/^[-*\u2022]\s*/, "").trim();
+    if (tail && emitted < 5) yield { type: "log", step, message: tail };
+    yield { type: "done", step, result: STEP_SCRIPTS[step].result };
+  } catch {
+    yield { type: "log", step, message: "AI call failed — check your API key in Settings; falling back to demo." };
+    yield { type: "done", step, result: STEP_SCRIPTS[step].result };
+  }
+}
+
+export function runStep(step: PipelineStep, apiKey?: string): AsyncGenerator<StepEvent> {
+  return apiKey ? runStepReal(step, apiKey) : runStepScripted(step);
 }

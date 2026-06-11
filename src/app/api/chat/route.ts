@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { HELIX_SYSTEM_PROMPT, streamCompletion } from "@/lib/ai/provider";
+import { workspaceContext } from "@/lib/repo/context";
 import { BYOK_COOKIE } from "@/lib/byok";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,9 @@ export async function POST(req: NextRequest) {
   // BYOK: the user's own Anthropic key, sent via httpOnly cookie. Used
   // transiently for this request only — never persisted or logged.
   const userKey = req.cookies.get(BYOK_COOKIE)?.value || undefined;
+  // Repo-aware: ground the model in the active workspace's real files.
+  const lastUser = messages.filter((m) => m.role === "user").at(-1)?.content ?? "";
+  const system = `${HELIX_SYSTEM_PROMPT}\n\n${workspaceContext(lastUser)}`;
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -41,7 +45,7 @@ export async function POST(req: NextRequest) {
       try {
         for await (const chunk of streamCompletion({
           messages,
-          system: HELIX_SYSTEM_PROMPT,
+          system,
           tier,
           depth,
           apiKey: userKey,
