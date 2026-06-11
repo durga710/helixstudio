@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { PIPELINE_STEPS, runStep, type PipelineStep } from "@/lib/agents/pipeline";
 import { addActivity } from "@/lib/store";
+import { BYOK_COOKIE } from "@/lib/byok";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,8 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Unknown pipeline step" }, { status: 400 });
   }
 
+  const apiKey = req.cookies.get(BYOK_COOKIE)?.value || process.env.ANTHROPIC_API_KEY || undefined;
+
   if (step === PIPELINE_STEPS[PIPELINE_STEPS.length - 1]) {
     addActivity({ kind: "task", text: "Agent workflow completed for", highlight: "acme-web" });
   }
@@ -22,7 +25,7 @@ export async function GET(req: NextRequest) {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const event of runStep(step)) {
+        for await (const event of runStep(step, apiKey)) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
         }
       } finally {

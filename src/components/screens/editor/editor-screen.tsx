@@ -25,11 +25,12 @@ function initialTabs(seeded: boolean, files: SourceFile[]): string[] {
   return first ? [first.path] : [];
 }
 
-export function EditorScreen({ tree, files, seeded }: EditorScreenProps) {
+export function EditorScreen({ tree, files: initialFiles, seeded }: EditorScreenProps) {
   const DIRTY_PATHS = seeded ? new Set(["app/api/orders.ts"]) : new Set<string>();
-  const [openTabs, setOpenTabs] = useState<string[]>(() => initialTabs(seeded, files));
+  const [files, setFiles] = useState(initialFiles);
+  const [openTabs, setOpenTabs] = useState<string[]>(() => initialTabs(seeded, initialFiles));
   const [activePath, setActivePath] = useState<string | null>(
-    () => (seeded ? "app/api/invites.ts" : initialTabs(seeded, files)[0] ?? null)
+    () => (seeded ? "app/api/invites.ts" : initialTabs(seeded, initialFiles)[0] ?? null)
   );
 
   const activeFile = files.find((f) => f.path === activePath) ?? null;
@@ -94,7 +95,12 @@ export function EditorScreen({ tree, files, seeded }: EditorScreenProps) {
             <div className="px-[13px] py-2 text-[12.5px] text-txt3">No files open</div>
           )}
         </div>
-        <CodeView file={activeFile} />
+        <CodeView
+          file={activeFile}
+          onSaved={(path, content) =>
+            setFiles((prev) => prev.map((f) => (f.path === path ? { ...f, content } : f)))
+          }
+        />
         <DevPanel />
         <EditorStatusBar file={activeFile} />
       </div>

@@ -14,6 +14,7 @@
 - [x] Prisma + PostgreSQL schema (`prisma/schema.prisma`)
 - [x] App shell, sidebar, command palette (⌘K)
 - [x] Chat interface + model routing (Haiku/Sonnet/Opus via Anthropic SDK; mock fallback)
+- [x] **Repo-aware chat** — active workspace context (analysis + relevant files) grounds every answer
 
 ## Phase 2 — Repository intelligence
 - [x] **Real** repo import — public GitHub tarball fetch, parse, index (`src/lib/repo/import.ts`)
@@ -23,6 +24,7 @@
 
 ## Phase 3 — Agents
 - [x] Planner, Architect, Engineer, Reviewer, Security, Performance (SSE pipeline)
+- [x] **Real AI agents** — with a key (BYOK/platform), each step runs a live Claude analysis of the workspace
 - [x] Confirm-before-action gating (pauses before the Engineer step)
 - [x] Final combined output
 
@@ -31,7 +33,7 @@
 - [x] Diff viewer (inline diff cards in chat with accept/reject)
 - [x] Sandboxed terminal (allowlisted commands against the workspace copy)
 - [x] Test runner (staged vitest-style output)
-- [ ] Inline editing (writes back to workspace)
+- [x] Inline editing — edit/save/create files in the active workspace (`/api/files`)
 
 ## Phase 5 — Memory
 - [x] User preferences (localStorage + memory API)
