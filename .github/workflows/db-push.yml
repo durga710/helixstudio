@@ -1,0 +1,33 @@
+name: Database push
+
+# Creates/updates all tables from prisma/schema.prisma against the production
+# database. Run it manually (Actions tab or API) after setting the repository
+# secrets DATABASE_URL and DIRECT_URL (Settings -> Secrets and variables ->
+# Actions). Safe to re-run: `db push` is idempotent for additive changes.
+
+on: workflow_dispatch
+
+jobs:
+  push-schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Verify secrets are configured
+        run: |
+          if [ -z "$DIRECT_URL" ] && [ -z "$DATABASE_URL" ]; then
+            echo "::error::Set the DATABASE_URL and DIRECT_URL repository secrets first (Settings -> Secrets and variables -> Actions)."
+            exit 1
+          fi
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      - name: Push schema to the database
+        run: npx prisma db push --skip-generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
