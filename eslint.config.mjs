@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "desktop/**",
     // Dev tooling — CommonJS scripts run with plain node.
     "scripts/**",
+    // Generated Prisma client (built by postinstall).
+    "src/generated/**",
   ]),
 ]);
 
