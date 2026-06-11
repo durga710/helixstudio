@@ -5,14 +5,14 @@ Helix Studio runs in two modes:
 ## Demo mode (default)
 
 Without `DATABASE_URL`, the app uses a seeded in-memory store
-(`helix-studio/src/lib/store.ts`). Every feature works — projects, chat,
+(`src/lib/store.ts`). Every feature works — projects, chat,
 agents, memory, deployments, team — but data resets when the server restarts.
 This is what runs on a fresh deploy of helixstudio.org until a database is
 attached.
 
 ## PostgreSQL mode
 
-`helix-studio/prisma/schema.prisma` models every entity across the roadmap
+`prisma/schema.prisma` models every entity across the roadmap
 phases:
 
 | Phase | Models |
@@ -27,7 +27,7 @@ phases:
 ### Setup
 
 ```bash
-cd helix-studio
+# from the repo root:
 # point DATABASE_URL at PostgreSQL in .env, then:
 npx prisma migrate dev --name init
 npx prisma generate

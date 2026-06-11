@@ -9,9 +9,9 @@
 - [ ] Skill detail view
 
 ## Phase 1 — Foundation
-- [x] Next.js + TypeScript + Tailwind + shadcn/ui scaffold (`helix-studio/`)
+- [x] Next.js + TypeScript + Tailwind + shadcn/ui scaffold (repo root)
 - [x] Auth.js authentication (demo credentials + conditional GitHub/Google OAuth)
-- [x] Prisma + PostgreSQL schema (`helix-studio/prisma/schema.prisma`)
+- [x] Prisma + PostgreSQL schema (`prisma/schema.prisma`)
 - [x] App shell, sidebar, command palette (⌘K)
 - [x] Chat interface + model routing (Haiku/Sonnet/Opus via Anthropic SDK; mock fallback)
 
