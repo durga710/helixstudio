@@ -32,6 +32,8 @@ jobs:
       - name: Build installers
         working-directory: desktop
         run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"  # ad-hoc signing via afterPack hook
       - uses: actions/upload-artifact@v4
         with:
           name: helix-studio-${{ matrix.os }}
