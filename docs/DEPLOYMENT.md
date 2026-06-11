@@ -1,12 +1,12 @@
 # Deployment — helixstudio.org on Vercel
 
-The production app lives in `helix-studio/` (Next.js App Router) and deploys to Vercel
+The production app lives at the repository root (Next.js App Router) and deploys to Vercel
 with `helixstudio.org` as the canonical domain.
 
 ## 1. Create the Vercel project
 
 1. Vercel dashboard → **Add New → Project** → import `durga710/helixstudio`.
-2. **Root Directory:** set to `helix-studio` (the repo root holds docs + prototypes, not the app).
+2. **Root Directory:** leave **empty** — the app lives at the repo root, so Vercel auto-detects Next.js with no configuration.
 3. Framework preset: Next.js (auto-detected). Build command and output: defaults.
 4. Deploy once to get the `*.vercel.app` URL working before attaching the domain.
 
