@@ -46,6 +46,14 @@
 - [x] Audit log
 - [ ] SSO (SAML/OIDC via Auth.js — config-gated)
 
+## Phase 8 — Desktop (like Cursor)
+- [x] Electron shell (`desktop/`) loading helixstudio.org with a hardened native bridge
+- [x] Real local shell in the editor (folder picker + time-boxed command execution)
+- [x] CI installers: dmg / exe / AppImage on `desktop-v*` tags (draft GitHub Release)
+- [ ] Open local folders in the Editor (read/write via the bridge)
+- [ ] Apply AI diffs to local files; local git operations
+- [ ] Auto-updates (electron-updater) + code signing
+
 ## Production notes
 - Demo mode runs everything in-memory; connect `DATABASE_URL` for PostgreSQL
   persistence (see `docs/DATABASE.md`) and `ANTHROPIC_API_KEY` for live AI.

@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Electron shell — plain CommonJS, built separately (see docs/DESKTOP.md).
+    "desktop/**",
   ]),
 ]);
 
