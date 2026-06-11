@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AlertCircle, ArrowRight, DraftingCompass, Search, Wrench } from "lucide-react";
-import { auth, oauthProviders, signIn, DEMO_USER } from "@/lib/auth";
+import { auth, demoMode, oauthProviders, signIn, DEMO_USER } from "@/lib/auth";
 import { BrandMark } from "@/components/brand";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -90,7 +90,9 @@ export default async function LoginPage({
               className="mb-4 mt-5 flex items-center gap-2 rounded-[10px] border border-[color-mix(in_srgb,#f87171_40%,transparent)] bg-[color-mix(in_srgb,#f87171_10%,transparent)] px-3 py-2.5 text-xs text-[#fca5a5]"
             >
               <AlertCircle className="h-4 w-4 shrink-0" />
-              That email and password didn&apos;t match. Try the demo credentials below.
+              {demoMode
+                ? "That email and password didn't match. Try the demo credentials below."
+                : "That email and password didn't match. Check them and try again."}
             </div>
           )}
 
@@ -126,10 +128,12 @@ export default async function LoginPage({
             </button>
           </form>
 
-          <div className="mt-5 rounded-[10px] border border-[#1d2940] bg-[#0d1626] px-3.5 py-3 text-xs text-[#9cadc4]">
-            Demo workspace: <span className="font-mono text-[#f8fbff]">{DEMO_USER.email}</span> ·{" "}
-            <span className="font-mono text-[#f8fbff]">helix-demo</span>
-          </div>
+          {demoMode && (
+            <div className="mt-5 rounded-[10px] border border-[#1d2940] bg-[#0d1626] px-3.5 py-3 text-xs text-[#9cadc4]">
+              Demo workspace: <span className="font-mono text-[#f8fbff]">{DEMO_USER.email}</span> ·{" "}
+              <span className="font-mono text-[#f8fbff]">helix-demo</span>
+            </div>
+          )}
 
           <div className="mt-5 text-center text-[13px] text-[#9cadc4]">
             New to Helix Studio?{" "}
