@@ -36,7 +36,7 @@ export function Rail({ userInitials }: { userInitials: string }) {
     cn(
       "relative grid h-[38px] w-10 cursor-pointer place-items-center rounded-[9px] border-none bg-transparent text-txt3 transition-colors",
       active
-        ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-txt before:absolute before:-left-3 before:top-2 before:h-[22px] before:w-[2.5px] before:rounded-sm before:bg-accent"
+        ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-txt before:absolute before:-left-3 before:top-2 before:h-[22px] before:w-[2.5px] before:rounded-sm before:brand-gradient-fill before:[background:linear-gradient(180deg,var(--brand-cyan),var(--accent)_60%,var(--brand-violet))]"
         : "hover:bg-panel2 hover:text-txt"
     );
 

@@ -162,7 +162,7 @@ export function AgentsScreen({ agents }: { agents: AgentInfo[] }) {
                 className={cn(
                   "mx-auto mb-2 grid h-[30px] w-[30px] place-items-center rounded-[9px]",
                   state === "done" && "bg-[color-mix(in_srgb,var(--green)_16%,transparent)] text-ok",
-                  state === "active" && "bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] text-accent",
+                  state === "active" && "brand-gradient-fill text-white shadow-[0_0_14px_color-mix(in_srgb,var(--accent)_45%,transparent)]",
                   state === "idle" && "bg-panel2 text-txt2"
                 )}
               >

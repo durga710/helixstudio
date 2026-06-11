@@ -192,7 +192,12 @@ export function ChatPanel() {
             ) : (
               <div className={cn("min-w-0 flex-1 whitespace-pre-wrap", m.role === "user" && "text-txt2")}>
                 {m.content === "" && m.role === "assistant" ? (
-                  <span className="text-txt3">Thinking…</span>
+                  <span className="flex items-center gap-2 text-txt3">
+                    <span className="helix-thinking grid h-5 w-5 place-items-center rounded-md bg-gradient-to-br from-[var(--brand-cyan)] via-accent to-[var(--brand-violet)]">
+                      <HelixGlyph size={11} />
+                    </span>
+                    Helix is thinking…
+                  </span>
                 ) : m.role === "assistant" ? (
                   <Markdown content={m.content} />
                 ) : (
