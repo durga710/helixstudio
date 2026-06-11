@@ -26,6 +26,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Build the Helix Studio engine (Next.js standalone)
+        run: |
+          npm ci
+          npm run build
       - name: Install desktop dependencies
         working-directory: desktop
         run: npm install
