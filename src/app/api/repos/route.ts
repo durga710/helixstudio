@@ -4,6 +4,21 @@ import { auth } from "@/lib/auth";
 import { addImportedProject, logAudit, setActiveProject, store } from "@/lib/store";
 import { importGitHubRepo, RepoImportError } from "@/lib/repo/import";
 import { analyzeRepo } from "@/lib/repo/analyze";
+import { db, dbEnabled } from "@/lib/db";
+
+/** The signed-in user's GitHub access token, if they linked GitHub (DB only). */
+async function githubToken(userId: string | undefined): Promise<string | undefined> {
+  if (!dbEnabled() || !userId) return undefined;
+  try {
+    const account = await db().account.findFirst({
+      where: { userId, provider: "github" },
+      select: { access_token: true },
+    });
+    return account?.access_token ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -51,8 +66,10 @@ export async function POST(req: NextRequest) {
   const [, owner, repo] = match;
 
   try {
-    // Real import: fetch the public tarball, parse text files, analyze (Phase 2).
-    const imported = await importGitHubRepo(owner!, repo!);
+    // Real import (Phase 2). With GitHub linked, the user's token also
+    // unlocks their private repositories.
+    const token = await githubToken(session.user.id);
+    const imported = await importGitHubRepo(owner!, repo!, token);
     const analysis = analyzeRepo(`${repo}-pending`, repo!, imported.files);
     const langCounts = new Map<string, number>();
     for (const f of imported.files) {

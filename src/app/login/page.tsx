@@ -131,6 +131,13 @@ export default async function LoginPage({
             <span className="font-mono text-[#f8fbff]">helix-demo</span>
           </div>
 
+          <div className="mt-5 text-center text-[13px] text-[#9cadc4]">
+            New to Helix Studio?{" "}
+            <a href="/signup" className="font-medium text-accent hover:underline">
+              Create an account
+            </a>
+          </div>
+
           <div className="mt-7 text-center text-[11.5px] leading-relaxed text-[#5f6f86]">
             By continuing you agree to our Terms and Privacy Policy.
             <br />

@@ -96,17 +96,31 @@ export class RepoImportError extends Error {
   }
 }
 
-export async function importGitHubRepo(owner: string, repo: string): Promise<ImportedRepo> {
+export async function importGitHubRepo(owner: string, repo: string, token?: string): Promise<ImportedRepo> {
+  // With a token (the user signed in with GitHub), use the API tarball
+  // endpoint — it serves private repos too. Public fallback: codeload.
+  const url = token
+    ? `https://api.github.com/repos/${owner}/${repo}/tarball`
+    : `https://codeload.github.com/${owner}/${repo}/tar.gz/HEAD`;
   let res: Response;
   try {
-    res = await fetch(`https://codeload.github.com/${owner}/${repo}/tar.gz/HEAD`, {
+    res = await fetch(url, {
       signal: AbortSignal.timeout(20_000),
-      headers: { "User-Agent": "helix-studio" },
+      headers: {
+        "User-Agent": "helix-studio",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
     });
   } catch {
     throw new RepoImportError("Couldn't reach GitHub — check the URL and try again", 502);
   }
-  if (res.status === 404) throw new RepoImportError("Repository not found (private repos need a token — coming soon)");
+  if (res.status === 404) {
+    throw new RepoImportError(
+      token
+        ? "Repository not found — check the URL (and that your GitHub account can access it)"
+        : "Repository not found — private repos need GitHub sign-in"
+    );
+  }
   if (!res.ok) throw new RepoImportError(`GitHub returned ${res.status} for that repository`);
 
   const gz = Buffer.from(await res.arrayBuffer());
