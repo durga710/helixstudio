@@ -4,6 +4,10 @@
 :root {
   --accent: #3b82f6;
   --accent-ink: #ffffff;
+  /* Circuit Core brand endpoints — the accent is the middle stop, so the
+     signature gradient adapts to the user's accent choice. */
+  --brand-cyan: #00ffd1;
+  --brand-violet: #c084fc;
   --radius: 10px;
   --radius-sm: 7px;
   --radius-lg: 14px;
@@ -12,23 +16,23 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #0b0d11;
-  --bg-2: #0e1116;
-  --panel: #13161c;
-  --panel-2: #181c24;
-  --panel-3: #1e232c;
-  --border: #1f242d;
-  --border-2: #2a313c;
-  --txt: #e9ebf0;
-  --txt-2: #a0a8b6;
-  --txt-3: #69717f;
+  --bg: #070b12;
+  --bg-2: #0a101c;
+  --panel: #0d1626;
+  --panel-2: #121d30;
+  --panel-3: #17243a;
+  --border: #1d2940;
+  --border-2: #28364f;
+  --txt: #f8fbff;
+  --txt-2: #9cadc4;
+  --txt-3: #5f6f86;
   --green: #34d399;
   --amber: #fbbf24;
   --red: #f87171;
   --shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --code-bg: #0a0c10;
-  --hl: rgba(99, 102, 241, 0.08);
+  --code-bg: #060a11;
+  --hl: rgba(59, 130, 246, 0.1);
   color-scheme: dark;
 }
 
@@ -140,6 +144,25 @@ input[type="range"] {
 :root[data-theme="light"] .tok-f { color: #0550ae; }
 :root[data-theme="light"] .tok-t { color: #953800; }
 :root[data-theme="light"] .tok-nu { color: #bc4c00; }
+
+/* Signature gradient: cyan -> accent -> violet (the Circuit Core mark) */
+.brand-gradient-text {
+  background: linear-gradient(120deg, var(--brand-cyan), var(--accent) 55%, var(--brand-violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.brand-gradient-fill {
+  background: linear-gradient(90deg, var(--brand-cyan), var(--accent) 60%, var(--brand-violet));
+}
+
+@keyframes helix-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.82); opacity: 0.55; }
+}
+.helix-thinking {
+  animation: helix-breathe 1.1s ease-in-out infinite;
+}
 
 @keyframes pulse-dot {
   0%,

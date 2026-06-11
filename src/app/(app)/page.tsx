@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { store } from "@/lib/store";
 import { timeAgo } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { CircuitTraces } from "@/components/brand";
 import { Pill } from "@/components/ui/pill";
 import { ProjectLogos } from "@/components/logos";
 import { DashboardActions } from "@/components/screens/dashboard-actions";
@@ -42,8 +43,9 @@ export default async function DashboardPage() {
       {/* Hero */}
       <div className="relative overflow-hidden rounded-card-lg border border-border bg-panel px-7 py-[26px] after:pointer-events-none after:absolute after:inset-0 after:bg-[radial-gradient(900px_240px_at_8%_-40%,color-mix(in_srgb,var(--accent)_16%,transparent),transparent)]">
         <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Workspace</div>
+        <CircuitTraces className="pointer-events-none absolute -right-6 -top-8 h-[210px] w-[440px] text-[color-mix(in_srgb,var(--brand-cyan)_55%,var(--accent))] opacity-[0.08]" />
         <h2 className="relative text-[23px] font-bold tracking-tight">
-          {greeting()}, {firstName}.
+          {greeting()}, <span className="brand-gradient-text">{firstName}</span>.
         </h2>
         <p className="relative mt-1.5 max-w-[560px] text-txt2">
           One unified system for building, reviewing, and shipping software. Helix indexed{" "}
@@ -62,7 +64,8 @@ export default async function DashboardPage() {
                 {stat.n}
                 {stat.up && <span className="text-[11px] font-semibold text-ok">{stat.up}</span>}
               </div>
-              <div className="text-[11.5px] text-txt2">{stat.l}</div>
+              <div className="mt-1 h-[2px] w-6 rounded-full brand-gradient-fill opacity-80" />
+              <div className="mt-1 text-[11.5px] text-txt2">{stat.l}</div>
             </div>
           ))}
         </div>
@@ -88,7 +91,7 @@ export default async function DashboardPage() {
                 </div>
                 <div className="text-xs text-txt2">{p.description}</div>
                 <div className="mt-3 h-1 overflow-hidden rounded bg-panel3">
-                  <i className="block h-full bg-accent" style={{ width: `${p.progress}%` }} />
+                  <i className="brand-gradient-fill block h-full" style={{ width: `${p.progress}%` }} />
                 </div>
                 <div className="mt-[11px] flex items-center gap-2.5 text-[11.5px] text-txt2">
                   <span>{p.language}</span>
