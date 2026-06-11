@@ -39,6 +39,7 @@ export function usePrefs() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULTS);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time post-hydration sync with localStorage; SSR can't read it
     setPrefs(read());
   }, []);
 

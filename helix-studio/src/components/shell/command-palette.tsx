@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bot,
@@ -31,12 +31,18 @@ interface PaletteItem {
 }
 
 export function CommandPalette() {
-  const { paletteOpen, setPaletteOpen, setNewProjectOpen, setAccentPopOpen } = useShell();
+  const { paletteOpen, setPaletteOpen } = useShell();
+  // Mounted only while open, so query/selection state starts fresh each time.
+  if (!paletteOpen) return null;
+  return <PaletteDialog onClose={() => setPaletteOpen(false)} />;
+}
+
+function PaletteDialog({ onClose }: { onClose: () => void }) {
+  const { setNewProjectOpen, setAccentPopOpen } = useShell();
   const { toggleTheme } = useTheme();
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const [query, setQueryState] = useState("");
   const [selected, setSelected] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const items = useMemo<PaletteItem[]>(() => {
     const go = (href: string) => () => router.push(href);
@@ -61,20 +67,16 @@ export function CommandPalette() {
     [items, query]
   );
 
-  useEffect(() => {
-    if (paletteOpen) {
-      setQuery("");
-      setSelected(0);
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
-  }, [paletteOpen]);
+  // Selection resets alongside query edits and is clamped to the result count.
+  const activeIndex = Math.min(selected, Math.max(filtered.length - 1, 0));
 
-  useEffect(() => setSelected(0), [query]);
-
-  if (!paletteOpen) return null;
+  function setQuery(q: string) {
+    setQueryState(q);
+    setSelected(0);
+  }
 
   function runItem(item: PaletteItem) {
-    setPaletteOpen(false);
+    onClose();
     item.run();
   }
 
@@ -84,7 +86,7 @@ export function CommandPalette() {
     <div
       className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px]"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) setPaletteOpen(false);
+        if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
@@ -95,20 +97,20 @@ export function CommandPalette() {
         <div className="flex items-center gap-2.5 border-b border-border px-3.5 py-3">
           <Search className="h-[15px] w-[15px] text-txt3" strokeWidth={1.7} />
           <input
-            ref={inputRef}
+            autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Escape") setPaletteOpen(false);
+              if (e.key === "Escape") onClose();
               if (e.key === "ArrowDown") {
                 e.preventDefault();
-                setSelected((s) => Math.min(s + 1, filtered.length - 1));
+                setSelected(Math.min(activeIndex + 1, filtered.length - 1));
               }
               if (e.key === "ArrowUp") {
                 e.preventDefault();
-                setSelected((s) => Math.max(s - 1, 0));
+                setSelected(Math.max(activeIndex - 1, 0));
               }
-              if (e.key === "Enter" && filtered[selected]) runItem(filtered[selected]);
+              if (e.key === "Enter" && filtered[activeIndex]) runItem(filtered[activeIndex]);
             }}
             placeholder="Search files, run a command, or ask Helix…"
             autoComplete="off"
@@ -137,7 +139,9 @@ export function CommandPalette() {
                       onMouseEnter={() => setSelected(idx)}
                       className={cn(
                         "flex w-full cursor-pointer items-center gap-2.5 rounded-lg border-none px-3 py-2 text-left text-[12.5px] transition-colors",
-                        idx === selected ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-txt" : "bg-transparent text-txt2"
+                        idx === activeIndex
+                          ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-txt"
+                          : "bg-transparent text-txt2"
                       )}
                     >
                       <item.icon className="h-[18px] w-[18px]" strokeWidth={1.7} />

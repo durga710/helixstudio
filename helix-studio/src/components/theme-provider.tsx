@@ -55,6 +55,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Hydrate from localStorage (the inline script in layout.tsx already applied
   // these to the DOM before paint; this syncs React state with it).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time post-hydration sync with localStorage; SSR can't read it
     setThemeState(load("theme", "dark") === "light" ? "light" : "dark");
     setAccentState(load("accent", "#3b82f6"));
     setDensityState(load("density", "comfortable") === "compact" ? "compact" : "comfortable");

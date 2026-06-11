@@ -6,6 +6,7 @@ import type { FileNode, SourceFile } from "@/lib/types";
 import { Explorer } from "./explorer";
 import { CodeView, EditorStatusBar } from "./code-view";
 import { ChatPanel } from "./chat-panel";
+import { DevPanel } from "./dev-panel";
 import { cn } from "@/lib/utils";
 
 interface EditorScreenProps {
@@ -86,6 +87,7 @@ export function EditorScreen({ tree, files }: EditorScreenProps) {
           )}
         </div>
         <CodeView file={activeFile} />
+        <DevPanel />
         <EditorStatusBar file={activeFile} />
       </div>
 
