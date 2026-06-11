@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { getFile, store } from "@/lib/store";
+import { activeWorkspace, getFile } from "@/lib/store";
 import type { FileNode } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -51,7 +51,7 @@ const TEST_OUTPUT: Line[] = [
 
 function execute(command: string): Line[] {
   const [cmd, ...args] = command.split(/\s+/);
-  const s = store();
+  const ws = activeWorkspace();
 
   switch (cmd) {
     case "help":
@@ -61,7 +61,7 @@ function execute(command: string): Line[] {
     case "pwd":
       return [{ text: "/workspace/acme-web", tone: "out" }];
     case "ls":
-      return listPaths(s.tree).map((p) => ({ text: p, tone: "out" as const }));
+      return listPaths(ws.tree).map((p) => ({ text: p, tone: "out" as const }));
     case "cat": {
       if (!args[0]) return [{ text: "cat: missing path", tone: "err" }];
       const file = getFile(args[0]);
@@ -76,7 +76,7 @@ function execute(command: string): Line[] {
       return [{ text: "node: only -v is available in the sandbox", tone: "err" }];
     case "git": {
       if (args[0] !== "status") return [{ text: "git: only `git status` is available in the sandbox", tone: "err" }];
-      const changes = collectChanges(s.tree);
+      const changes = collectChanges(ws.tree);
       return [
         { text: "On branch main", tone: "out" },
         { text: "Changes staged by Helix:", tone: "out" },

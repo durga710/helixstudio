@@ -77,7 +77,7 @@ export default async function DashboardPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {projects.slice(0, 6).map((p) => (
-            <Link key={p.id} href={p.id === "acme-web" ? "/editor" : "/analysis"} className="block">
+            <Link key={p.id} href={p.indexedAt ? `/editor?project=${encodeURIComponent(p.id)}` : `/analysis?project=${encodeURIComponent(p.id)}`} className="block">
               <Card className="cursor-pointer p-4 transition-all duration-150 hover:-translate-y-px hover:border-accent">
                 <div className="mb-3 flex items-center gap-2.5">
                   <ProjectLogos language={p.language} />

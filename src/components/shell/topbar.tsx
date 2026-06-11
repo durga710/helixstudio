@@ -26,7 +26,7 @@ function GitHubMark({ className }: { className?: string }) {
   );
 }
 
-export function Topbar() {
+export function Topbar({ activeProjectName }: { activeProjectName: string }) {
   const pathname = usePathname();
   const { theme, toggleTheme, accent, setAccent } = useTheme();
   const { setPaletteOpen, setNewProjectOpen, accentPopOpen, setAccentPopOpen } = useShell();
@@ -63,7 +63,7 @@ export function Topbar() {
         className="inline-flex cursor-pointer items-center gap-1.5 rounded-card-sm border border-border2 bg-panel px-[9px] py-1 text-xs text-txt transition-colors hover:border-accent"
       >
         <GitHubMark className="h-[13px] w-[13px]" />
-        acme-web
+        {activeProjectName}
         <ChevronDown className="h-[13px] w-[13px]" strokeWidth={1.7} />
       </button>
 

@@ -12,17 +12,25 @@ import { cn } from "@/lib/utils";
 interface EditorScreenProps {
   tree: FileNode[];
   files: SourceFile[];
+  /** The seeded acme-web demo workspace gets its scripted tabs + diff badges. */
+  seeded: boolean;
 }
 
-const DIRTY_PATHS = new Set(["app/api/orders.ts"]);
+const SEED_TABS = ["app/api/orders.ts", "app/api/invites.ts", "app/components/InviteCard.tsx"];
 
-export function EditorScreen({ tree, files }: EditorScreenProps) {
-  const [openTabs, setOpenTabs] = useState<string[]>([
-    "app/api/orders.ts",
-    "app/api/invites.ts",
-    "app/components/InviteCard.tsx",
-  ]);
-  const [activePath, setActivePath] = useState<string | null>("app/api/invites.ts");
+function initialTabs(seeded: boolean, files: SourceFile[]): string[] {
+  if (seeded) return SEED_TABS;
+  const readme = files.find((f) => /^readme\./i.test(f.path));
+  const first = readme ?? files[0];
+  return first ? [first.path] : [];
+}
+
+export function EditorScreen({ tree, files, seeded }: EditorScreenProps) {
+  const DIRTY_PATHS = seeded ? new Set(["app/api/orders.ts"]) : new Set<string>();
+  const [openTabs, setOpenTabs] = useState<string[]>(() => initialTabs(seeded, files));
+  const [activePath, setActivePath] = useState<string | null>(
+    () => (seeded ? "app/api/invites.ts" : initialTabs(seeded, files)[0] ?? null)
+  );
 
   const activeFile = files.find((f) => f.path === activePath) ?? null;
 
