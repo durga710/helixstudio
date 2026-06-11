@@ -31,3 +31,5 @@ yarn-error.log*
 
 # generated prisma client
 /src/generated/
+desktop/node_modules/
+desktop/dist/

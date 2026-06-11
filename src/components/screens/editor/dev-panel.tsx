@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, FlaskConical, Play, SquareTerminal } from "lucide-react";
+import { ChevronDown, ChevronUp, FlaskConical, FolderOpen, Play, SquareTerminal } from "lucide-react";
+import { desktopBridge } from "@/lib/desktop";
 import { cn } from "@/lib/utils";
 
 /* Phase 4 dev tools: sandboxed terminal + test runner, docked under the editor. */
@@ -23,11 +24,41 @@ export function DevPanel() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [testsRunning, setTestsRunning] = useState(false);
+  const [desktopCwd, setDesktopCwd] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isDesktop = desktopCwd !== null;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [lines, testLines, tab, open]);
+
+  // Desktop shell detection: upgrade the sandbox to a real local terminal.
+  useEffect(() => {
+    const bridge = desktopBridge();
+    if (!bridge) return;
+    const t = setTimeout(() => {
+      bridge
+        .platform()
+        .then((info) => {
+          setDesktopCwd(info.cwd);
+          setLines([
+            { text: `Helix Studio desktop — real shell on ${info.platform} (v${info.version}). Commands run in ${info.cwd}.`, tone: "dim" },
+          ]);
+        })
+        .catch(() => undefined);
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  async function chooseFolder() {
+    const bridge = desktopBridge();
+    if (!bridge) return;
+    const result = await bridge.chooseFolder();
+    setDesktopCwd(result.cwd);
+    if (result.changed) {
+      setLines((prev) => [...prev, { text: `cwd → ${result.cwd}`, tone: "dim" }]);
+    }
+  }
 
   async function run(commandRaw: string) {
     const command = commandRaw.trim();
@@ -40,16 +71,25 @@ export function DevPanel() {
     setLines((prev) => [...prev, { text: `$ ${command}`, tone: "cmd" }]);
     setBusy(true);
     try {
-      const res = await fetch("/api/terminal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command }),
-      });
-      if (!res.ok) throw new Error();
-      const data = (await res.json()) as { lines: Line[] };
-      setLines((prev) => [...prev, ...data.lines]);
+      const bridge = desktopBridge();
+      if (bridge && isDesktop) {
+        // Desktop: the user's real shell, in their chosen folder.
+        const result = await bridge.runCommand(command);
+        const tone = result.ok ? "out" : "err";
+        const text = result.output.trim() || (result.ok ? "(no output)" : `exit ${result.code}`);
+        setLines((prev) => [...prev, ...text.split("\n").map((l) => ({ text: l, tone: tone as Line["tone"] }))]);
+      } else {
+        const res = await fetch("/api/terminal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command }),
+        });
+        if (!res.ok) throw new Error();
+        const data = (await res.json()) as { lines: Line[] };
+        setLines((prev) => [...prev, ...data.lines]);
+      }
     } catch {
-      setLines((prev) => [...prev, { text: "sandbox error — try again", tone: "err" }]);
+      setLines((prev) => [...prev, { text: "terminal error — try again", tone: "err" }]);
     } finally {
       setBusy(false);
     }
@@ -92,7 +132,7 @@ export function DevPanel() {
       <div className="flex h-8 items-center gap-1 px-2">
         {(
           [
-            { id: "terminal" as Tab, label: "Terminal", icon: SquareTerminal },
+            { id: "terminal" as Tab, label: isDesktop ? "Local shell" : "Terminal", icon: SquareTerminal },
             { id: "tests" as Tab, label: "Tests", icon: FlaskConical },
           ]
         ).map((t) => (
@@ -111,6 +151,16 @@ export function DevPanel() {
             {t.label}
           </button>
         ))}
+        {tab === "terminal" && open && isDesktop && (
+          <button
+            onClick={chooseFolder}
+            title={desktopCwd ?? undefined}
+            className="ml-2 flex max-w-[260px] cursor-pointer items-center gap-1 truncate rounded-md border border-border2 bg-panel px-2 py-0.5 text-[11px] text-txt2 hover:border-accent hover:text-txt"
+          >
+            <FolderOpen className="h-3 w-3 shrink-0" strokeWidth={2} />
+            <span className="truncate">{desktopCwd}</span>
+          </button>
+        )}
         {tab === "tests" && open && (
           <button
             onClick={runTests}
