@@ -1,7 +1,9 @@
 import { NextRequest } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { HELIX_SYSTEM_PROMPT, streamCompletion } from "@/lib/ai/provider";
+import { BYOK_COOKIE } from "@/lib/byok";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +31,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { messages, tier, depth } = parsed.data;
+  // BYOK: the user's own Anthropic key, sent via httpOnly cookie. Used
+  // transiently for this request only — never persisted or logged.
+  const userKey = req.cookies.get(BYOK_COOKIE)?.value || undefined;
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -39,11 +44,20 @@ export async function POST(req: NextRequest) {
           system: HELIX_SYSTEM_PROMPT,
           tier,
           depth,
+          apiKey: userKey,
         })) {
           controller.enqueue(encoder.encode(chunk));
         }
-      } catch {
-        controller.enqueue(encoder.encode("\n\n[Helix hit a provider error — try again.]"));
+      } catch (error) {
+        if (error instanceof Anthropic.AuthenticationError) {
+          controller.enqueue(
+            encoder.encode("\n\n[Your Anthropic API key was rejected — update it in Settings → AI provider.]")
+          );
+        } else if (error instanceof Anthropic.RateLimitError) {
+          controller.enqueue(encoder.encode("\n\n[Anthropic rate limit hit — wait a moment and try again.]"));
+        } else {
+          controller.enqueue(encoder.encode("\n\n[Helix hit a provider error — try again.]"));
+        }
       } finally {
         controller.close();
       }
