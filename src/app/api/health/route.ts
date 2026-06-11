@@ -14,7 +14,17 @@ export async function GET() {
     region: process.env.VERCEL_REGION ?? null,
     demoMode: !process.env.DATABASE_URL && !oauthProviders.github && !oauthProviders.google,
     aiProvider: aiProviderName("anthropic"),
-    authSecretConfigured: Boolean(process.env.AUTH_SECRET),
+    // Presence booleans only — never values. One glance shows which env vars
+    // reached this deployment.
+    configured: {
+      DATABASE_URL: Boolean(process.env.DATABASE_URL),
+      DIRECT_URL: Boolean(process.env.DIRECT_URL),
+      AUTH_SECRET: Boolean(process.env.AUTH_SECRET),
+      AUTH_GITHUB: oauthProviders.github,
+      AUTH_GOOGLE: oauthProviders.google,
+      OPENAI_API_KEY: Boolean(process.env.OPENAI_API_KEY),
+      ANTHROPIC_API_KEY: Boolean(process.env.ANTHROPIC_API_KEY),
+    },
     time: new Date().toISOString(),
   });
 }
