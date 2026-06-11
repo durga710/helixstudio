@@ -57,6 +57,10 @@ export function SettingsScreen() {
 
   const [memory, setMemory] = useState<MemoryEntry[]>([]);
   const [memLoading, setMemLoading] = useState(true);
+  const [byok, setByok] = useState<{ byok: boolean; platformKey: boolean } | null>(null);
+  const [keyInput, setKeyInput] = useState("");
+  const [keySaving, setKeySaving] = useState(false);
+  const [keyError, setKeyError] = useState<string | null>(null);
   const [memError, setMemError] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -77,9 +81,43 @@ export function SettingsScreen() {
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(loadMemory, 0);
+    const t = setTimeout(() => {
+      loadMemory();
+      fetch("/api/keys")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => d && setByok(d as { byok: boolean; platformKey: boolean }))
+        .catch(() => undefined);
+    }, 0);
     return () => clearTimeout(t);
   }, [loadMemory]);
+
+  async function saveKey() {
+    if (!keyInput.trim()) return;
+    setKeySaving(true);
+    setKeyError(null);
+    const res = await fetch("/api/keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey: keyInput.trim() }),
+    });
+    if (res.ok) {
+      setKeyInput("");
+      setByok((b) => ({ byok: true, platformKey: b?.platformKey ?? false }));
+      toast("API key saved — chat now streams real Claude");
+    } else {
+      const err = (await res.json().catch(() => null)) as { error?: string } | null;
+      setKeyError(err?.error ?? "Couldn't save the key");
+    }
+    setKeySaving(false);
+  }
+
+  async function removeKey() {
+    const res = await fetch("/api/keys", { method: "DELETE" });
+    if (res.ok) {
+      setByok((b) => ({ byok: false, platformKey: b?.platformKey ?? false }));
+      toast("API key removed");
+    }
+  }
 
   async function addMemory() {
     if (!newTitle.trim() || !newContent.trim()) return;
@@ -171,6 +209,54 @@ export function SettingsScreen() {
               className="w-40"
             />
           </SettingRow>
+        </Card>
+
+        {/* AI provider (BYOK) */}
+        <h3 className="mb-[11px] mt-6 text-sm font-semibold">AI provider</h3>
+        <Card className="p-[18px]">
+          <div className="mb-3 flex items-center gap-2">
+            <Pill tone={byok?.byok || byok?.platformKey ? "green" : "amber"}>
+              {byok === null
+                ? "checking…"
+                : byok.byok
+                  ? "using your key"
+                  : byok.platformKey
+                    ? "platform key"
+                    : "demo mode"}
+            </Pill>
+            <span className="text-xs text-txt2">
+              {byok?.byok
+                ? "Chat streams real Claude with your Anthropic API key."
+                : byok?.platformKey
+                  ? "Chat streams real Claude with the workspace key."
+                  : "Add your Anthropic API key to stream real Claude — without one, chat uses simulated responses."}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              type="password"
+              value={keyInput}
+              onChange={(e) => setKeyInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && saveKey()}
+              placeholder="sk-ant-…"
+              aria-label="Anthropic API key"
+              autoComplete="off"
+              className="font-mono text-xs"
+            />
+            <Button onClick={saveKey} disabled={keySaving || keyInput.trim().length < 12}>
+              {keySaving ? "Saving…" : byok?.byok ? "Replace key" : "Save key"}
+            </Button>
+            {byok?.byok && (
+              <Button variant="ghost" onClick={removeKey}>
+                Remove
+              </Button>
+            )}
+          </div>
+          {keyError && <p className="mt-2 text-xs text-bad">{keyError}</p>}
+          <p className="mt-2.5 text-[11px] text-txt3">
+            Stored as an httpOnly cookie in your browser only — sent with your requests, never saved or
+            logged on the server. Get a key at console.anthropic.com.
+          </p>
         </Card>
 
         {/* Model & reasoning */}

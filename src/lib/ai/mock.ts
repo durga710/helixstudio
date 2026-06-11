@@ -18,7 +18,7 @@ function buildResponse(req: ChatRequest): string {
     `4. Run Reviewer, Security, and Performance agents on the diff\n`,
     `5. Hand you a reviewed diff to accept or reject\n\n`,
     `I'm running in demo mode (no AI provider key configured), so this is a `,
-    `simulated response — connect \`ANTHROPIC_API_KEY\` in Settings to stream `,
+    `simulated response — add your Anthropic API key in Settings → AI provider to stream `,
     `real ${req.tier === "opus" ? "Opus" : req.tier === "sonnet" ? "Sonnet" : "Haiku"} output. `,
     `The plan-first workflow, diff cards, and agent review pipeline behave exactly the same either way.\n\n`,
     `Want me to proceed with step 1?`,

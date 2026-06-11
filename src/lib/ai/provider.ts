@@ -2,8 +2,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { mockCompletion } from "./mock";
 
 /* Model routing: the Settings screen exposes three tiers + a reasoning depth.
- * With ANTHROPIC_API_KEY set, requests stream from the Claude API; without it
- * Helix degrades to a deterministic mock provider so the product runs anywhere. */
+ * Requests stream from the Claude API when a key is available — either the
+ * user's own key (BYOK, sent per request via an httpOnly cookie) or the
+ * platform's ANTHROPIC_API_KEY. Without either, Helix degrades to a
+ * deterministic mock provider so the product runs anywhere. */
 
 export type ModelTier = "haiku" | "sonnet" | "opus";
 export type ReasoningDepth = "fast" | "deep";
@@ -24,19 +26,22 @@ export interface ChatRequest {
   system?: string;
   tier: ModelTier;
   depth: ReasoningDepth;
+  /** The user's own Anthropic key (BYOK). Takes precedence over the platform key. */
+  apiKey?: string;
 }
 
-export function aiProviderName(): "anthropic" | "mock" {
-  return process.env.ANTHROPIC_API_KEY ? "anthropic" : "mock";
+export function aiProviderName(userKey?: string): "anthropic" | "mock" {
+  return userKey || process.env.ANTHROPIC_API_KEY ? "anthropic" : "mock";
 }
 
 export async function* streamCompletion(req: ChatRequest): AsyncGenerator<string> {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const apiKey = req.apiKey || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
     yield* mockCompletion(req);
     return;
   }
 
-  const client = new Anthropic();
+  const client = new Anthropic({ apiKey });
   const stream = client.messages.stream({
     model: MODEL_IDS[req.tier],
     max_tokens: 64000,
