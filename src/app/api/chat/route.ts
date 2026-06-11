@@ -18,6 +18,7 @@ const bodySchema = z.object({
     )
     .min(1)
     .max(60),
+  provider: z.enum(["anthropic", "openai", "local"]).default("anthropic"),
   tier: z.enum(["haiku", "sonnet", "opus"]).default("opus"),
   depth: z.enum(["fast", "deep"]).default("deep"),
 });
@@ -31,9 +32,10 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const { messages, tier, depth } = parsed.data;
-  // BYOK: the user's own Anthropic key, sent via httpOnly cookie. Used
-  // transiently for this request only — never persisted or logged.
+  const { messages, provider, tier, depth } = parsed.data;
+  // BYOK: the user's own key, sent via httpOnly cookie. Used transiently for
+  // this request only — never persisted or logged. (Anthropic key today; the
+  // editor's model picker selects the provider per request.)
   const userKey = req.cookies.get(BYOK_COOKIE)?.value || undefined;
   // Repo-aware: ground the model in the active workspace's real files.
   const lastUser = messages.filter((m) => m.role === "user").at(-1)?.content ?? "";
@@ -46,6 +48,7 @@ export async function POST(req: NextRequest) {
         for await (const chunk of streamCompletion({
           messages,
           system,
+          provider,
           tier,
           depth,
           apiKey: userKey,

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import type { FileNode, SourceFile } from "@/lib/types";
 import { Explorer } from "./explorer";
-import { CodeView, EditorStatusBar } from "./code-view";
+import { MonacoView, EditorStatusBar } from "./monaco-view";
 import { ChatPanel } from "./chat-panel";
 import { DevPanel } from "./dev-panel";
 import { cn } from "@/lib/utils";
@@ -95,7 +95,7 @@ export function EditorScreen({ tree, files: initialFiles, seeded }: EditorScreen
             <div className="px-[13px] py-2 text-[12.5px] text-txt3">No files open</div>
           )}
         </div>
-        <CodeView
+        <MonacoView
           file={activeFile}
           onSaved={(path, content) =>
             setFiles((prev) => prev.map((f) => (f.path === path ? { ...f, content } : f)))

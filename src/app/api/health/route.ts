@@ -13,7 +13,7 @@ export async function GET() {
     env: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
     region: process.env.VERCEL_REGION ?? null,
     demoMode: !process.env.DATABASE_URL && !oauthProviders.github && !oauthProviders.google,
-    aiProvider: aiProviderName(),
+    aiProvider: aiProviderName("anthropic"),
     authSecretConfigured: Boolean(process.env.AUTH_SECRET),
     time: new Date().toISOString(),
   });
