@@ -24,14 +24,20 @@ phases:
 | 6 — Deployments | `Deployment` |
 | 7 — Enterprise | `Team`, `TeamMember` (RBAC roles), `Invite` (hashed join codes), `AuditEvent` |
 
-### Setup
+### Setup (first time)
 
 ```bash
-# from the repo root:
-# point DATABASE_URL at PostgreSQL in .env, then:
-npx prisma migrate dev --name init
-npx prisma generate
+# From the repo root, with DATABASE_URL + DIRECT_URL in a gitignored .env
+# (Supabase: DATABASE_URL = pooler :6543, DIRECT_URL = direct :5432):
+npx prisma db push      # creates all tables from schema.prisma
 ```
+
+Then set the same two vars in Vercel and redeploy. What switches on:
+
+- /signup creates real accounts (scrypt-hashed passwords)
+- Credentials sign-in checks the database (demo account stays available)
+- GitHub/Google sign-ins upsert User + Account rows; the stored GitHub
+  token unlocks private-repo import server-side
 
 ### Swap point
 
