@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helix — Chat Context Engine</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #0d1626; color: #f8fbff;
+    width: 1123px; /* A4 landscape @96dpi */
+    padding: 36px 44px;
+  }
+  h1 { font-size: 26px; letter-spacing: -0.5px; }
+  h1 span { color: #34d399; }
+  .sub { color: #9cadc4; font-size: 12.5px; margin-top: 4px; margin-bottom: 22px; }
+  .row { display: flex; gap: 18px; align-items: stretch; }
+  .col { display: flex; flex-direction: column; gap: 10px; }
+  .box {
+    border: 1px solid #28364f; border-radius: 10px; background: #121d30;
+    padding: 10px 14px; font-size: 11.5px; line-height: 1.45;
+  }
+  .box b { font-size: 12.5px; display: block; margin-bottom: 3px; }
+  .accent { border-color: rgba(52,211,153,.5); background: rgba(52,211,153,.07); }
+  .accent b { color: #34d399; }
+  .blue { border-color: rgba(96,165,250,.5); background: rgba(96,165,250,.07); }
+  .blue b { color: #60a5fa; }
+  .amber { border-color: rgba(251,191,36,.5); background: rgba(251,191,36,.07); }
+  .amber b { color: #fbbf24; }
+  .red { border-color: rgba(248,113,113,.45); background: rgba(248,113,113,.06); }
+  .red b { color: #f87171; }
+  .muted { color: #9cadc4; }
+  .mono { font-family: Consolas, monospace; font-size: 10.5px; color: #9cadc4; }
+  .arrow { display: flex; align-items: center; color: #5f6f86; font-size: 20px; padding: 0 2px; }
+  .tag { display: inline-block; border: 1px solid #28364f; border-radius: 99px; padding: 1px 8px; font-size: 10px; color: #9cadc4; margin-top: 5px; }
+  .big { font-size: 21px; font-weight: 700; }
+  .vs { display: flex; gap: 18px; margin-top: 20px; }
+  .vs .box { flex: 1; }
+  .bar { height: 10px; border-radius: 5px; margin-top: 6px; }
+  .footer { margin-top: 18px; font-size: 10px; color: #5f6f86; display: flex; justify-content: space-between; }
+  ul { padding-left: 16px; }
+  li { margin: 2px 0; }
+</style>
+</head>
+<body>
+  <h1>Helix Chat <span>Context Engine</span></h1>
+  <div class="sub">How each editor-chat turn is assembled to minimize tokens and latency — fully deterministic, zero extra AI calls. Shipped 2026-06-12 (commit 73d2e5a).</div>
+
+  <div class="row">
+    <div class="col" style="width:200px">
+      <div class="box">
+        <b>1 · Request</b>
+        POST /api/workspaces/[id]/chat<br/>
+        <span class="muted">auth guard · rate limit · guest meter</span>
+        <div class="mono">chat/route.ts</div>
+      </div>
+      <div class="box">
+        <b>2 · Raw inputs</b>
+        <ul>
+          <li>file tree (1 fetch)</li>
+          <li>package.json</li>
+          <li>last 40 messages<br/><span class="muted">+ stored tool actions</span></li>
+          <li>Workspace.notes</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="arrow">→</div>
+
+    <div class="col" style="flex:1">
+      <div class="box accent" style="height:100%">
+        <b>3 · Context engine — src/lib/chat-context.ts (pure functions, no AI)</b>
+        <div class="row" style="gap:10px; margin-top:8px">
+          <div class="box" style="flex:1"><b>stackLine()</b>Detects the stack from package.json<div class="mono">"Stack: Next.js + tailwindcss"</div><span class="tag">~10 tokens</span></div>
+          <div class="box" style="flex:1"><b>treeOutline()</b>Dirs collapsed to counts, entry files surfaced — replaces 200-path dump<div class="mono">src/components/ (14 files)</div><span class="tag">~30–300 tokens</span></div>
+        </div>
+        <div class="row" style="gap:10px; margin-top:10px">
+          <div class="box" style="flex:1"><b>historyContext()</b>Older turns → 1-line digest each (uses stored tool labels) · last 8 messages stay verbatim<div class="mono">assistant: built navbar [wrote 2 file(s)]</div><span class="tag">digest ≤ 1.5k chars</span></div>
+          <div class="box" style="flex:1"><b>PROJECT NOTES</b>Agent-curated memory via the <b style="display:inline">remember</b> tool — Workspace.notes, ≤2k chars, replace-on-write, invisible to users<span class="tag">durable memory</span></div>
+        </div>
+        <div class="box amber" style="margin-top:10px"><b>fitBudget() — guardrail</b>
+          Hard ceiling 24,000 input chars. Trim order: digest → tree (depth 1) → verbatim window (min 4 msgs). Rules, notes &amp; current message never trimmed.</div>
+      </div>
+    </div>
+
+    <div class="arrow">→</div>
+
+    <div class="col" style="width:230px">
+      <div class="box blue">
+        <b>4 · Agent loop (≤6 tool hops)</b>
+        OpenAI / Anthropic / local
+        <ul style="margin-top:4px">
+          <li>list_files <span class="muted">← request-scoped tree cache (no refetch)</span></li>
+          <li>read_file <span class="muted">(on demand, ≤24k)</span></li>
+          <li>write_files / delete_file <span class="muted">(invalidate cache)</span></li>
+          <li>remember <span class="muted">(update notes)</span></li>
+        </ul>
+        <div class="mono">workspace-tools.ts · ai-agent.ts</div>
+      </div>
+      <div class="box">
+        <b>5 · Persist &amp; respond</b>
+        user + assistant messages, tool actions, honest token count (full-input fallback estimate)<br/>
+        <span class="muted">→ change manifest updates the editor live</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="vs">
+    <div class="box red">
+      <b>Before — turn 15, imported 100-file repo</b>
+      Full path list every turn (≤200 paths) + 30 verbatim messages, no summarization, tree refetched per tool call.
+      <div class="big" style="color:#f87171">≈ 9,000–10,500 input tokens</div>
+      <div class="bar" style="background:#f87171; width:100%"></div>
+      <span class="muted">guest allowance (15k) gone in ~1.5 turns</span>
+    </div>
+    <div class="box accent">
+      <b>After — same turn, measured in verification</b>
+      Stack line + tree outline + notes + digest + 8 verbatim messages, budget-capped.
+      <div class="big" style="color:#34d399">≈ 900–1,800 input tokens &nbsp;(−80–90%)</div>
+      <div class="bar" style="background:#34d399; width:14%"></div>
+      <span class="muted">faster first token · ~10× more guest turns · zero added AI calls</span>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Source: src/lib/chat-context.ts · src/lib/workspace-tools.ts · src/app/api/workspaces/[id]/chat/route.ts</span>
+    <span>Regenerate: edit docs/diagrams/chat-context-engine.html → node docs/diagrams/render-pdf.mjs</span>
+  </div>
+</body>
+</html>
