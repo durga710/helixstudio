@@ -16,6 +16,7 @@ import { getGitAuth } from "@/lib/git";
 import { fetchPullFiles, alreadyReviewed, postPullReview } from "@/lib/git/github";
 import { runReviewer, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
 import { OPENAI_MODEL } from "@/lib/openai";
+import { reportError } from "@/lib/observability";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -115,7 +116,7 @@ export async function POST(req: Request) {
         await postPullReview(repo, prNumber, { body, comments });
       });
     } catch (e) {
-      console.error("[helix-webhook] review failed", e);
+      reportError(e, { at: "git-webhook.review", repo, prNumber });
     }
   });
 

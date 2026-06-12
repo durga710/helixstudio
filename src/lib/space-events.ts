@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { reportError } from "@/lib/observability";
 
 /**
  * Space activity feed writes. Fire-and-forget by design: an event is never
@@ -41,7 +42,7 @@ export async function recordSpaceEvent(event: {
       },
     });
   } catch (e) {
-    console.error("[helix-space-events] write failed", e);
+    reportError(e, { at: "space-events.write", spaceId: event.spaceId, action: event.action });
   }
 }
 

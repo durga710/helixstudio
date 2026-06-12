@@ -17,6 +17,7 @@ import { ok, err, apiErrors } from "@/lib/api-response";
 import { auth } from "@/lib/auth";
 import { runAgentTurn } from "@/lib/agent-turn";
 import { guardWorkspace } from "@/lib/route-helpers";
+import { reportError } from "@/lib/observability";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -83,7 +84,7 @@ export async function POST(req: Request, { params }: Params) {
         });
       }
     } catch (e) {
-      console.error("[helix-task] crashed", e);
+      reportError(e, { at: "task.run", taskId: task.id, workspaceId: ws.id });
       await db()
         .workspaceTask.update({
           where: { id: task.id },

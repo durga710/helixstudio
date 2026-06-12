@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   // Throttle account creation per IP to blunt signup spam / enumeration.
   // (In-memory + per-instance for now; becomes global once the limiter moves
   // to a shared store — see docs/AUDIT-2026-06.md.)
-  const rl = rateLimit(`signup:${clientIp(req)}`, { limit: 8, windowMs: 60 * 60 * 1000 });
+  const rl = await rateLimit(`signup:${clientIp(req)}`, { limit: 8, windowMs: 60 * 60 * 1000 });
   if (!rl.success) {
     return Response.json(
       { error: "Too many sign-up attempts. Try again later." },

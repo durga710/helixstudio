@@ -27,7 +27,7 @@ export async function guard(
     if (e instanceof AuthError) return { response: apiErrors.unauthorized() };
     throw e;
   }
-  const rl = rateLimit(`${bucket}:${user.id}`, opts);
+  const rl = await rateLimit(`${bucket}:${user.id}`, opts);
   if (!rl.success) return { response: apiErrors.rateLimit(rl.reset) };
   return { user };
 }

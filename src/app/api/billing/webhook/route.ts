@@ -12,6 +12,7 @@
 import type Stripe from "stripe";
 import { db, dbEnabled, schemaReady } from "@/lib/db";
 import { billingEnabled, getStripe, applySubscriptionToSpace, syncSubscriptionById, type SubscriptionLike } from "@/lib/billing";
+import { reportError } from "@/lib/observability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +38,16 @@ export async function POST(req: Request) {
   // No guard() here, so warm the schema ourselves before any query.
   await schemaReady();
 
+  try {
+    return await handleEvent(event);
+  } catch (e) {
+    // Report and 500 so Stripe retries (handlers are idempotent).
+    reportError(e, { at: "billing.webhook", type: event.type });
+    return new Response("handler error", { status: 500 });
+  }
+}
+
+async function handleEvent(event: Stripe.Event): Promise<Response> {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object;

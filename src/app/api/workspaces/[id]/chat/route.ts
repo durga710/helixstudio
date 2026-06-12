@@ -15,6 +15,7 @@ import { z } from "zod";
 import { apiErrors } from "@/lib/api-response";
 import { runAgentTurn } from "@/lib/agent-turn";
 import { guardWorkspace } from "@/lib/route-helpers";
+import { reportError } from "@/lib/observability";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -77,7 +78,7 @@ export async function POST(req: Request, { params }: Params) {
             });
           }
         } catch (e) {
-          console.error("[helix-chat] turn crashed", e);
+          reportError(e, { at: "chat.turn", workspaceId: ws.id, userId: user.id });
           write({ type: "error", message: "Something went wrong. Try again." });
         } finally {
           closed = true;
