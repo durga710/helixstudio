@@ -47,4 +47,67 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "Workspace" ADD CONSTRAINT "Workspace_spaceId_fkey" FOREIGN KEY ("spaceId") REFERENCES "Space"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- 2026-06 · Space v2 (classroom kind, assignments, billing)
+ALTER TABLE "Space" ADD COLUMN IF NOT EXISTS "kind" TEXT NOT NULL DEFAULT 'team';
+ALTER TABLE "Space" ADD COLUMN IF NOT EXISTS "plan" TEXT NOT NULL DEFAULT 'free';
+ALTER TABLE "Space" ADD COLUMN IF NOT EXISTS "seats" INTEGER NOT NULL DEFAULT 5;
+ALTER TABLE "Space" ADD COLUMN IF NOT EXISTS "stripeCustomerId" TEXT;
+ALTER TABLE "Space" ADD COLUMN IF NOT EXISTS "stripeSubscriptionId" TEXT;
+ALTER TABLE "Space" ADD COLUMN IF NOT EXISTS "currentPeriodEnd" TIMESTAMP(3);
+
+CREATE TABLE IF NOT EXISTS "Assignment" (
+    "id" TEXT NOT NULL,
+    "spaceId" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "instructions" TEXT NOT NULL,
+    "dueAt" TIMESTAMP(3),
+    "starterWorkspaceId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Assignment_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "AssignmentSubmission" (
+    "id" TEXT NOT NULL,
+    "assignmentId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "workspaceId" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'in_progress',
+    "submittedAt" TIMESTAMP(3),
+    "grade" TEXT,
+    "feedback" TEXT,
+    "aiReview" TEXT,
+    "reviewedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "AssignmentSubmission_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "Space_stripeCustomerId_key" ON "Space"("stripeCustomerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "Space_stripeSubscriptionId_key" ON "Space"("stripeSubscriptionId");
+CREATE INDEX IF NOT EXISTS "Assignment_spaceId_createdAt_idx" ON "Assignment"("spaceId", "createdAt");
+CREATE INDEX IF NOT EXISTS "AssignmentSubmission_workspaceId_idx" ON "AssignmentSubmission"("workspaceId");
+CREATE UNIQUE INDEX IF NOT EXISTS "AssignmentSubmission_assignmentId_userId_key" ON "AssignmentSubmission"("assignmentId", "userId");
+
+DO $$ BEGIN
+  ALTER TABLE "Assignment" ADD CONSTRAINT "Assignment_spaceId_fkey" FOREIGN KEY ("spaceId") REFERENCES "Space"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "Assignment" ADD CONSTRAINT "Assignment_starterWorkspaceId_fkey" FOREIGN KEY ("starterWorkspaceId") REFERENCES "Workspace"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "AssignmentSubmission" ADD CONSTRAINT "AssignmentSubmission_assignmentId_fkey" FOREIGN KEY ("assignmentId") REFERENCES "Assignment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "AssignmentSubmission" ADD CONSTRAINT "AssignmentSubmission_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "AssignmentSubmission" ADD CONSTRAINT "AssignmentSubmission_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 `;

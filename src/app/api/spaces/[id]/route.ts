@@ -20,7 +20,7 @@ type Params = { params: Promise<{ id: string }> };
 async function memberSpace(spaceId: string, userId: string) {
   const member = await db().spaceMember.findUnique({
     where: { spaceId_userId: { spaceId, userId } },
-    select: { space: { select: { id: true, name: true, ownerId: true, joinCode: true } } },
+    select: { space: { select: { id: true, name: true, kind: true, ownerId: true, joinCode: true } } },
   });
   return member?.space ?? null;
 }
@@ -60,6 +60,7 @@ export async function GET(_req: Request, { params }: Params) {
   return ok({
     id: space.id,
     name: space.name,
+    kind: space.kind,
     isOwner,
     joinCode: space.joinCode,
     members: members.map((m) => ({

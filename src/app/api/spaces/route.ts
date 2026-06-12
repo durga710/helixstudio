@@ -13,7 +13,10 @@ import { guard } from "@/lib/route-helpers";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const CreateSchema = z.object({ name: z.string().min(1).max(60) });
+const CreateSchema = z.object({
+  name: z.string().min(1).max(60),
+  kind: z.enum(["team", "classroom"]).default("team"),
+});
 
 export async function GET() {
   const g = await guard("spaces.read", { limit: 300, windowMs: 60 * 60 * 1000 });
@@ -25,7 +28,7 @@ export async function GET() {
     select: {
       role: true,
       space: {
-        select: { id: true, name: true, ownerId: true, joinCode: true, _count: { select: { members: true, workspaces: true } } },
+        select: { id: true, name: true, kind: true, ownerId: true, joinCode: true, _count: { select: { members: true, workspaces: true } } },
       },
     },
   });
@@ -34,6 +37,7 @@ export async function GET() {
     spaces: memberships.map((m) => ({
       id: m.space.id,
       name: m.space.name,
+      kind: m.space.kind,
       isOwner: m.space.ownerId === g.user.id,
       joinCode: m.space.joinCode,
       memberCount: m.space._count.members,
@@ -52,6 +56,7 @@ export async function POST(req: Request) {
   const space = await db().space.create({
     data: {
       name: parsed.data.name.trim(),
+      kind: parsed.data.kind,
       ownerId: g.user.id,
       joinCode: randomBytes(9).toString("base64url"),
       members: { create: { userId: g.user.id, role: "owner" } },

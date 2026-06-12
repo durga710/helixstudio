@@ -19,18 +19,23 @@ import {
   LogOut,
   X,
   ArrowRight,
+  GraduationCap,
 } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Input } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
 import { useToast } from "@/components/ui/toast";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
+
+type SpaceKind = "team" | "classroom";
 
 interface SpaceSummary {
   id: string;
   name: string;
+  kind: SpaceKind;
   isOwner: boolean;
   joinCode: string;
   memberCount: number;
@@ -61,6 +66,7 @@ interface SharedWorkspace {
 interface SpaceDetail {
   id: string;
   name: string;
+  kind: SpaceKind;
   isOwner: boolean;
   joinCode: string;
   members: Member[];
@@ -94,6 +100,7 @@ export function SpaceScreen({ youName }: { youName?: string | null }) {
 
   // Create / join forms (empty state + sidebar).
   const [newName, setNewName] = useState("");
+  const [newKind, setNewKind] = useState<SpaceKind>("team");
   const [creating, setCreating] = useState(false);
   const [joinValue, setJoinValue] = useState("");
   const [joining, setJoining] = useState(false);
@@ -143,7 +150,7 @@ export function SpaceScreen({ youName }: { youName?: string | null }) {
       const res = await fetch("/api/spaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, kind: newKind }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
@@ -242,6 +249,8 @@ export function SpaceScreen({ youName }: { youName?: string | null }) {
           <EmptyState
             newName={newName}
             setNewName={setNewName}
+            newKind={newKind}
+            setNewKind={setNewKind}
             creating={creating}
             onCreate={createSpace}
             joinValue={joinValue}
@@ -262,6 +271,8 @@ export function SpaceScreen({ youName }: { youName?: string | null }) {
               onJoin={joinSpace}
               newName={newName}
               setNewName={setNewName}
+              newKind={newKind}
+              setNewKind={setNewKind}
               creating={creating}
               onCreate={createSpace}
               error={formError}
@@ -292,9 +303,16 @@ export function SpaceScreen({ youName }: { youName?: string | null }) {
 
 /* ------------------------------ empty state ----------------------------- */
 
+const KIND_OPTIONS = [
+  { value: "team", label: "Team" },
+  { value: "classroom", label: "Classroom" },
+] as const;
+
 function EmptyState({
   newName,
   setNewName,
+  newKind,
+  setNewKind,
   creating,
   onCreate,
   joinValue,
@@ -305,6 +323,8 @@ function EmptyState({
 }: {
   newName: string;
   setNewName: (v: string) => void;
+  newKind: SpaceKind;
+  setNewKind: (v: SpaceKind) => void;
   creating: boolean;
   onCreate: () => void;
   joinValue: string;
@@ -321,26 +341,35 @@ function EmptyState({
         </span>
         <h2 className="mb-1 text-base font-medium text-txt">Create a Space</h2>
         <p className="mb-4 text-xs leading-relaxed text-txt3">
-          Start a group, then share an invite link. Everyone you invite can view and open the
-          workspaces you share.
+          Start a group, then share an invite link. A team shares work with everyone; a
+          classroom adds assignments the owner hands out and reviews.
         </p>
         <form
-          className="flex gap-2"
+          className="flex flex-col gap-2.5"
           onSubmit={(e) => {
             e.preventDefault();
             onCreate();
           }}
         >
-          <Input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Space name"
-            aria-label="Space name"
-            className="text-[13px]"
+          <Segmented
+            options={KIND_OPTIONS}
+            value={newKind}
+            onChange={setNewKind}
+            aria-label="Space type"
+            className="self-start"
           />
-          <Button type="submit" disabled={creating || !newName.trim()}>
-            {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Create"}
-          </Button>
+          <div className="flex gap-2">
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder={newKind === "classroom" ? "Classroom name" : "Space name"}
+              aria-label="Space name"
+              className="text-[13px]"
+            />
+            <Button type="submit" disabled={creating || !newName.trim()}>
+              {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Create"}
+            </Button>
+          </div>
         </form>
       </Card>
 
@@ -389,6 +418,8 @@ function SpaceList({
   onJoin,
   newName,
   setNewName,
+  newKind,
+  setNewKind,
   creating,
   onCreate,
   error,
@@ -402,6 +433,8 @@ function SpaceList({
   onJoin: () => void;
   newName: string;
   setNewName: (v: string) => void;
+  newKind: SpaceKind;
+  setNewKind: (v: SpaceKind) => void;
   creating: boolean;
   onCreate: () => void;
   error: string | null;
@@ -440,7 +473,12 @@ function SpaceList({
                 {initials(s.name)}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium text-txt">{s.name}</span>
+                <span className="flex items-center gap-1.5 truncate text-[13px] font-medium text-txt">
+                  <span className="truncate">{s.name}</span>
+                  {s.kind === "classroom" && (
+                    <GraduationCap className="h-3.5 w-3.5 shrink-0 text-txt3" aria-label="Classroom" />
+                  )}
+                </span>
                 <span className="block text-[11px] text-txt3">
                   {s.memberCount} {s.memberCount === 1 ? "member" : "members"} ·{" "}
                   {s.sharedCount} shared
@@ -459,22 +497,31 @@ function SpaceList({
       {adding && (
         <Card className="mt-1 space-y-3 p-3">
           <form
-            className="flex gap-2"
+            className="flex flex-col gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               onCreate();
             }}
           >
-            <Input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="New space name"
-              aria-label="New space name"
-              className="text-[12.5px]"
+            <Segmented
+              options={KIND_OPTIONS}
+              value={newKind}
+              onChange={setNewKind}
+              aria-label="Space type"
+              className="self-start"
             />
-            <Button type="submit" disabled={creating || !newName.trim()} className="shrink-0">
-              {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Create"}
-            </Button>
+            <div className="flex gap-2">
+              <Input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="New space name"
+                aria-label="New space name"
+                className="text-[12.5px]"
+              />
+              <Button type="submit" disabled={creating || !newName.trim()} className="shrink-0">
+                {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Create"}
+              </Button>
+            </div>
           </form>
           <form
             className="flex gap-2"
@@ -685,10 +732,11 @@ function SpaceDetailPanel({
           ) : (
             <>
               <h2 className="truncate text-lg font-semibold text-txt">{detail.name}</h2>
+              {detail.kind === "classroom" && <Pill tone="neutral">classroom</Pill>}
               {detail.isOwner ? (
-                <Pill tone="accent">owner</Pill>
+                <Pill tone="accent">{detail.kind === "classroom" ? "instructor" : "owner"}</Pill>
               ) : (
-                <Pill tone="neutral">member</Pill>
+                <Pill tone="neutral">{detail.kind === "classroom" ? "student" : "member"}</Pill>
               )}
               {detail.isOwner && (
                 <button
@@ -749,7 +797,9 @@ function SpaceDetailPanel({
               <span className="text-[12px] text-txt2">
                 {m.isYou ? `${youName ?? m.name} (you)` : m.name}
               </span>
-              {m.role === "owner" && <Pill tone="accent">owner</Pill>}
+              {m.role === "owner" && (
+                <Pill tone="accent">{detail.kind === "classroom" ? "instructor" : "owner"}</Pill>
+              )}
             </span>
           ))}
         </div>

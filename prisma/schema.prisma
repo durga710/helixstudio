@@ -40,8 +40,9 @@ model User {
   workspaces    Workspace[]
   repoWatches   RepoWatch[]
   preferences   UserPreferences?
-  ownedSpaces      Space[]       @relation("SpaceOwner")
+  ownedSpaces      Space[]                @relation("SpaceOwner")
   spaceMemberships SpaceMember[]
+  submissions      AssignmentSubmission[]
 }
 
 // ---------- Helix Space · lightweight team collaboration ----------
@@ -57,6 +58,73 @@ model Space {
   createdAt  DateTime      @default(now())
   members    SpaceMember[]
   workspaces Workspace[]
+
+  // "team" (default, peer collaboration) | "classroom" (the owner is the
+  // instructor: can create assignments and view linked submission workspaces).
+  kind String @default("team")
+
+  // Billing — one subscription per Space, so the fields live inline.
+  // plan "free" caps members/assignments; "active" unlocks up to `seats`.
+  plan                 String    @default("free") // free | active
+  seats                Int       @default(5)
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  currentPeriodEnd     DateTime?
+
+  assignments Assignment[]
+}
+
+// ---------- Helix Space v2 · classroom assignments ----------
+// An Assignment belongs to a classroom Space. Students start it (the starter
+// workspace's files are copied into a workspace they own), work in the normal
+// editor, then submit. The instructor reviews each submission read-only,
+// optionally runs an AI review, and records feedback + a grade.
+model Assignment {
+  id      String @id @default(cuid())
+  spaceId String
+  space   Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  title        String
+  instructions String // markdown
+  dueAt        DateTime?
+
+  // Template the student copy starts from; null = empty scratch workspace.
+  starterWorkspaceId String?
+  starterWorkspace   Workspace? @relation("AssignmentStarter", fields: [starterWorkspaceId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  submissions AssignmentSubmission[]
+
+  @@index([spaceId, createdAt])
+}
+
+// One row per (assignment, student). Created when the student starts the
+// assignment; the unique constraint doubles as the double-start race guard.
+// Feedback/grade live here (NOT in WorkspaceMessage — that is the student's
+// AI chat history and feeds the agent's context).
+model AssignmentSubmission {
+  id           String     @id @default(cuid())
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  userId       String // the student
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // The student's copy. SetNull so the grade record survives workspace deletion.
+  workspaceId String?
+  workspace   Workspace? @relation("SubmissionWorkspace", fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  status      String    @default("in_progress") // in_progress | submitted | reviewed
+  submittedAt DateTime?
+
+  grade      String? // free text: "92/100", "A-"
+  feedback   String? // instructor's written feedback (markdown)
+  aiReview   String? // persisted output of an instructor-run AI review
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([assignmentId, userId])
+  @@index([workspaceId])
 }
 
 model SpaceMember {
@@ -181,6 +249,11 @@ model Workspace {
   files    WorkspaceFile[]
   messages WorkspaceMessage[]
   tasks    WorkspaceTask[]
+
+  // Classroom assignments (v2): this workspace as a starter template, and as
+  // a student's submission copy.
+  starterFor            Assignment[]           @relation("AssignmentStarter")
+  assignmentSubmissions AssignmentSubmission[] @relation("SubmissionWorkspace")
 
   @@index([userId, updatedAt])
   @@index([spaceId])

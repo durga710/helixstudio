@@ -47,8 +47,45 @@ CREATE TABLE "Space" (
     "ownerId" TEXT NOT NULL,
     "joinCode" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "kind" TEXT NOT NULL DEFAULT 'team',
+    "plan" TEXT NOT NULL DEFAULT 'free',
+    "seats" INTEGER NOT NULL DEFAULT 5,
+    "stripeCustomerId" TEXT,
+    "stripeSubscriptionId" TEXT,
+    "currentPeriodEnd" TIMESTAMP(3),
 
     CONSTRAINT "Space_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Assignment" (
+    "id" TEXT NOT NULL,
+    "spaceId" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "instructions" TEXT NOT NULL,
+    "dueAt" TIMESTAMP(3),
+    "starterWorkspaceId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Assignment_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AssignmentSubmission" (
+    "id" TEXT NOT NULL,
+    "assignmentId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "workspaceId" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'in_progress',
+    "submittedAt" TIMESTAMP(3),
+    "grade" TEXT,
+    "feedback" TEXT,
+    "aiReview" TEXT,
+    "reviewedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "AssignmentSubmission_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -375,6 +412,21 @@ CREATE INDEX "SpaceMember_userId_idx" ON "SpaceMember"("userId");
 CREATE UNIQUE INDEX "SpaceMember_spaceId_userId_key" ON "SpaceMember"("spaceId", "userId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Space_stripeCustomerId_key" ON "Space"("stripeCustomerId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Space_stripeSubscriptionId_key" ON "Space"("stripeSubscriptionId");
+
+-- CreateIndex
+CREATE INDEX "Assignment_spaceId_createdAt_idx" ON "Assignment"("spaceId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "AssignmentSubmission_workspaceId_idx" ON "AssignmentSubmission"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AssignmentSubmission_assignmentId_userId_key" ON "AssignmentSubmission"("assignmentId", "userId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Account_provider_providerAccountId_key" ON "Account"("provider", "providerAccountId");
 
 -- CreateIndex
@@ -454,6 +506,21 @@ ALTER TABLE "SpaceMember" ADD CONSTRAINT "SpaceMember_spaceId_fkey" FOREIGN KEY 
 
 -- AddForeignKey
 ALTER TABLE "SpaceMember" ADD CONSTRAINT "SpaceMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Assignment" ADD CONSTRAINT "Assignment_spaceId_fkey" FOREIGN KEY ("spaceId") REFERENCES "Space"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Assignment" ADD CONSTRAINT "Assignment_starterWorkspaceId_fkey" FOREIGN KEY ("starterWorkspaceId") REFERENCES "Workspace"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AssignmentSubmission" ADD CONSTRAINT "AssignmentSubmission_assignmentId_fkey" FOREIGN KEY ("assignmentId") REFERENCES "Assignment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AssignmentSubmission" ADD CONSTRAINT "AssignmentSubmission_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AssignmentSubmission" ADD CONSTRAINT "AssignmentSubmission_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
