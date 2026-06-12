@@ -54,12 +54,21 @@ function freshSandboxName(workspaceId: string): string {
 }
 
 /** The workspace's live VM, found by the name stored on the row (envSandbox). */
-async function findSandbox(ws: { envSandbox: string | null }): Promise<Sandbox | null> {
+async function findSandbox(ws: { id?: string; envSandbox: string | null }): Promise<Sandbox | null> {
   if (!ws.envSandbox) return null;
   try {
     const sandbox = await Sandbox.get({ name: ws.envSandbox, resume: false });
-    // A sandbox past its life (stopped/failed/expired) counts as no run.
-    if (["stopped", "failed", "aborted"].includes(sandbox.status)) return null;
+    // A sandbox past its life (stopped/failed/expired) counts as no run. Clear
+    // the dead pointer off the row so we don't keep reporting a ghost env (only
+    // on a CONFIRMED-dead status — never in the catch below, where the cause
+    // could be a transient hiccup and clearing would orphan a live VM).
+    if (["stopped", "failed", "aborted"].includes(sandbox.status)) {
+      if (ws.id) {
+        await db().workspace.update({ where: { id: ws.id }, data: { envSandbox: null } }).catch(() => {});
+        ws.envSandbox = null;
+      }
+      return null;
+    }
     return sandbox;
   } catch {
     return null; // not found (or auth hiccup — surfaces on the next action)

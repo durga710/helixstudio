@@ -25,7 +25,9 @@
   --border-2: #28364f;
   --txt: #f8fbff;
   --txt-2: #9cadc4;
-  --txt-3: #5f6f86;
+  /* txt-3 lightened from #5f6f86 to clear WCAG AA (4.5:1) for small text on all
+     panels (was ~3:1); still well below txt-2 so the hierarchy holds. */
+  --txt-3: #7d8ca6;
   --green: #34d399;
   --amber: #fbbf24;
   --red: #f87171;
@@ -46,7 +48,8 @@
   --border-2: #d6dae1;
   --txt: #161922;
   --txt-2: #4b5563;
-  --txt-3: #8b93a1;
+  /* darkened from #8b93a1 to clear WCAG AA (4.5:1) on light panels (was ~2.7:1). */
+  --txt-3: #646b7d;
   --green: #059669;
   --amber: #d97706;
   --red: #dc2626;

@@ -26,6 +26,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
   const session = await auth();
   const to = (path: string) => NextResponse.redirect(new URL(path, req.url));
 
+  // CSRF guard: only a real top-level navigation (clicking the invite link)
+  // should join. A forged cross-site sub-resource — <img src=".../join/CODE">,
+  // a background fetch — would otherwise silently add a signed-in user to a
+  // space. Modern browsers tag the request: Sec-Fetch-Dest is "document" for a
+  // navigation and "image"/"empty"/etc. for a sub-resource. If the header is
+  // present and says this is NOT a navigation, bounce to /space without
+  // mutating. (Header absent = old browser → fall through, unchanged.)
+  const fetchDest = req.headers.get("sec-fetch-dest");
+  if (fetchDest && fetchDest !== "document") {
+    return to("/space");
+  }
+
   if (!session?.user?.id || session.user.isGuest) {
     const res = to("/login");
     res.cookies.set(JOIN_COOKIE, code, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 600 });
