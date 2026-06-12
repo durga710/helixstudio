@@ -28,6 +28,7 @@ import { Pill } from "@/components/ui/pill";
 import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { useToast } from "@/components/ui/toast";
+import { AssignmentsSection } from "@/components/screens/assignments-section";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 
 type SpaceKind = "team" | "classroom";
@@ -804,6 +805,15 @@ function SpaceDetailPanel({
           ))}
         </div>
       </Card>
+
+      {/* Assignments (classrooms only) */}
+      {detail.kind === "classroom" && (
+        <AssignmentsSection
+          spaceId={detail.id}
+          isOwner={detail.isOwner}
+          onUpgradeNeeded={(msg) => toast(msg)}
+        />
+      )}
 
       {/* Shared workspaces */}
       <div>

@@ -44,6 +44,8 @@ export const apiErrors = {
   badRequest: (msg: string, details?: unknown) => err("BAD_REQUEST", msg, 400, details),
   validation: (zErr: ZodError) => err("VALIDATION_ERROR", "Invalid input", 400, z.flattenError(zErr)),
   conflict: (msg: string) => err("CONFLICT", msg, 409),
+  // A free-tier cap was hit; the client offers the Space upgrade flow.
+  upgradeRequired: (msg: string) => err("UPGRADE_REQUIRED", msg, 402),
   internal: () => err("INTERNAL_ERROR", "Something went wrong", 500),
   // GitHub not connected, or the token was revoked/expired. The client shows
   // a "Connect GitHub" prompt on this code.

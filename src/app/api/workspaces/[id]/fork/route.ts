@@ -6,10 +6,7 @@
  */
 
 import { ok } from "@/lib/api-response";
-import { db } from "@/lib/db";
-import { getGitAuth, withGitAuth } from "@/lib/git";
-import { listWorkspaceFiles, readWorkspaceFile } from "@/lib/workspace";
-import { MAX_WORKSPACE_FILES } from "@/lib/repo-files";
+import { copyWorkspaceAsScratch } from "@/lib/workspace";
 import { guardWorkspace } from "@/lib/route-helpers";
 
 export const runtime = "nodejs";
@@ -22,25 +19,6 @@ export async function POST(_req: Request, { params }: Params) {
   const g = await guardWorkspace("ws.fork", id, { limit: 30, windowMs: 60 * 60 * 1000 }, "read");
   if ("response" in g) return g.response;
 
-  // Read the source's effective files as the OWNER (covers imported repos).
-  const ownerAuth = await getGitAuth(g.ws.userId, g.ws.provider);
-  const tree = await withGitAuth(ownerAuth, () => listWorkspaceFiles(g.ws)).catch(() => []);
-  const files: { path: string; content: string }[] = [];
-  for (const f of tree.slice(0, MAX_WORKSPACE_FILES)) {
-    const content = await withGitAuth(ownerAuth, () => readWorkspaceFile(g.ws, f.path)).catch(() => null);
-    if (content !== null) files.push({ path: f.path, content });
-  }
-
-  // A fork is a fresh SCRATCH workspace owned by the requester — the copy is
-  // independent (no link to the source's repo or Space).
-  const fork = await db().workspace.create({
-    data: {
-      userId: g.user.id,
-      name: `Copy of ${g.ws.name}`.slice(0, 80),
-      mode: "SCRATCH",
-      files: { create: files.map((f) => ({ path: f.path, content: f.content })) },
-    },
-    select: { id: true },
-  });
-  return ok({ id: fork.id, fileCount: files.length });
+  const fork = await copyWorkspaceAsScratch(g.ws, g.user.id, `Copy of ${g.ws.name}`);
+  return ok(fork);
 }

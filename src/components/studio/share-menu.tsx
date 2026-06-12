@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Users, Check, Loader2, Globe, Lock } from "lucide-react";
+import { Users, Check, Loader2, Globe, Lock, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SpaceOption {
@@ -21,20 +21,26 @@ export function ShareMenu({
   workspaceId,
   currentSpaceId,
   onChanged,
+  promptOnMount = false,
 }: {
   workspaceId: string;
   currentSpaceId?: string | null;
   onChanged?: (spaceId: string | null) => void;
+  /** Freshly created workspace: if the user belongs to a Space, nudge them
+   * to share it (one dismissible hint under the button). */
+  promptOnMount?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [spaces, setSpaces] = useState<SpaceOption[] | null>(null);
   const [current, setCurrent] = useState<string | null>(currentSpaceId ?? null);
   const [busy, setBusy] = useState(false);
+  const [hintDismissed, setHintDismissed] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Load the user's spaces the first time the menu opens.
+  // Load the user's spaces the first time the menu opens (or right away when
+  // the share-this-new-project hint may be due).
   useEffect(() => {
-    if (!open || spaces !== null) return;
+    if ((!open && !promptOnMount) || spaces !== null) return;
     let cancelled = false;
     (async () => {
       try {
@@ -58,7 +64,7 @@ export function ShareMenu({
     return () => {
       cancelled = true;
     };
-  }, [open, spaces]);
+  }, [open, promptOnMount, spaces]);
 
   // Close on outside click / Escape.
   useEffect(() => {
@@ -100,12 +106,17 @@ export function ShareMenu({
   }
 
   const sharedName = current ? spaces?.find((s) => s.id === current)?.name ?? null : null;
+  const showHint =
+    promptOnMount && !hintDismissed && !open && !current && (spaces?.length ?? 0) > 0;
 
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setHintDismissed(true);
+          setOpen((v) => !v);
+        }}
         title="Add this workspace to a Space"
         className={cn(
           "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors",
@@ -117,6 +128,22 @@ export function ShareMenu({
         <Users className="h-3.5 w-3.5" />
         {current ? "In Space" : "Add to Space"}
       </button>
+
+      {showHint && (
+        <div className="fade-up absolute right-0 z-40 mt-2 flex w-60 items-start gap-2 rounded-card border border-accent/40 bg-panel p-3 shadow-pop">
+          <p className="flex-1 text-[11.5px] leading-snug text-txt2">
+            New project — add it to one of your Spaces so the others can see it.
+          </p>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setHintDismissed(true)}
+            className="text-txt3 transition-colors hover:text-txt"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {open && (
         <div className="fade-up absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-card border border-border2 bg-panel shadow-pop">

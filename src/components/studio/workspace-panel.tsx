@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Code2,
   Copy,
@@ -124,6 +124,7 @@ export function WorkspacePanel({
   ownerName?: string;
 }) {
   const router = useRouter();
+  const isNew = useSearchParams().get("new") === "1";
   const { toast } = useToast();
   const [forking, setForking] = useState(false);
   const [files, setFiles] = useState<TreeFile[]>([]);
@@ -715,7 +716,11 @@ export function WorkspacePanel({
 
           {isOwner ? (
             <>
-              <ShareMenu workspaceId={workspace.id} currentSpaceId={workspace.spaceId ?? null} />
+              <ShareMenu
+                workspaceId={workspace.id}
+                currentSpaceId={workspace.spaceId ?? null}
+                promptOnMount={isNew}
+              />
               <Button
                 variant="ghost"
                 onClick={() => void save()}

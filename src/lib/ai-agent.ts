@@ -242,12 +242,15 @@ export async function runReviewer(opts: {
   apiKey?: string;
   baseUrl?: string;
   diffText: string;
+  /** Override the default code-review framing (e.g. assignment grading). */
+  system?: string;
 }): Promise<{ text: string; tokensUsed: number } | { error: string }> {
   const system =
+    opts.system ??
     "You are a senior code reviewer. Review the pending workspace changes below. " +
-    "Flag ONLY real problems — correctness bugs, security issues, data loss, broken builds — with file and line " +
-    "references. Skip style nits. Be concise (bullets). End with exactly one line: 'Verdict: ship it' or " +
-    "'Verdict: hold — <one-line reason>'.";
+      "Flag ONLY real problems — correctness bugs, security issues, data loss, broken builds — with file and line " +
+      "references. Skip style nits. Be concise (bullets). End with exactly one line: 'Verdict: ship it' or " +
+      "'Verdict: hold — <one-line reason>'.";
   const user = `PENDING CHANGES:\n\n${opts.diffText}`;
 
   try {

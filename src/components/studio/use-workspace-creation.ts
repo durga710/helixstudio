@@ -32,7 +32,8 @@ export function useWorkspaceCreation(onNavigate?: () => void) {
 
   function go(workspaceId: string) {
     onNavigate?.();
-    router.push(`/editor/${workspaceId}`);
+    // ?new=1 → the editor offers a one-time "add it to a Space" hint.
+    router.push(`/editor/${workspaceId}?new=1`);
   }
 
   async function createScratch(name: string): Promise<void> {

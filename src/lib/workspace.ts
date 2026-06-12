@@ -15,7 +15,7 @@ import "server-only";
 
 import type { Workspace } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
-import { getProvider } from "@/lib/git";
+import { getProvider, getGitAuth, withGitAuth } from "@/lib/git";
 import {
   isSafeRepoPath,
   MAX_FILE_CHARS,
@@ -67,6 +67,37 @@ export async function getWorkspaceForViewer(
   });
   if (submission) return { ws, isOwner: false };
   return null;
+}
+
+/**
+ * Copy a workspace's effective files into a NEW scratch workspace owned by
+ * `newOwnerId`. The copy is independent: no link to the source's repo, Space,
+ * or git connection (files are read with the SOURCE owner's git auth so
+ * imported repos work). Used by workspace fork and assignment start.
+ */
+export async function copyWorkspaceAsScratch(
+  src: Workspace,
+  newOwnerId: string,
+  name: string,
+): Promise<{ id: string; fileCount: number }> {
+  const ownerAuth = await getGitAuth(src.userId, src.provider);
+  const tree = await withGitAuth(ownerAuth, () => listWorkspaceFiles(src)).catch(() => []);
+  const files: { path: string; content: string }[] = [];
+  for (const f of tree.slice(0, MAX_WORKSPACE_FILES)) {
+    const content = await withGitAuth(ownerAuth, () => readWorkspaceFile(src, f.path)).catch(() => null);
+    if (content !== null) files.push({ path: f.path, content });
+  }
+
+  const copy = await db().workspace.create({
+    data: {
+      userId: newOwnerId,
+      name: name.slice(0, 80),
+      mode: "SCRATCH",
+      files: { create: files.map((f) => ({ path: f.path, content: f.content })) },
+    },
+    select: { id: true },
+  });
+  return { id: copy.id, fileCount: files.length };
 }
 
 /**
