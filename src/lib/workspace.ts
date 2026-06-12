@@ -21,6 +21,7 @@ import {
   MAX_FILE_CHARS,
   MAX_WORKSPACE_FILES,
 } from "@/lib/repo-files";
+import { cachedJson } from "@/lib/server-cache";
 
 export interface WorkspaceFileEntry {
   path: string;
@@ -32,29 +33,25 @@ export interface WorkspaceFileEntry {
  * Short-TTL cache for IMPORT-mode repo trees. The base branch is pinned, so
  * the tree only changes when the remote moves — without this, EVERY file
  * list (tree load, chat context, search) pays a full GitHub recursive-tree
- * round-trip. Process-local; survives HMR via globalThis.
+ * round-trip. Two-level (memory + shared Redis) so fresh serverless
+ * instances start warm too; trees are paths+sizes only, no contents.
  */
 const REPO_TREE_TTL_MS = 60_000;
-const globalTreeCache = globalThis as unknown as {
-  __helixRepoTreeCache?: Map<string, { at: number; files: { path: string; size: number }[] }>;
-};
 
 async function fetchRepoTreeCached(
   ws: Workspace,
 ): Promise<{ path: string; size: number }[]> {
-  const cache = (globalTreeCache.__helixRepoTreeCache ??= new Map());
-  const key = `${ws.provider}:${ws.repo}@${ws.baseBranch ?? ""}`;
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < REPO_TREE_TTL_MS) return hit.files;
-
-  const tree = await getProvider(ws.provider).fetchRepoTree(ws.repo!, ws.baseBranch ?? undefined);
-  const files = (tree?.files ?? []).map((f) => ({ path: f.path, size: f.size }));
-  cache.set(key, { at: Date.now(), files });
-  if (cache.size > 200) {
-    // Cheap bound: drop the oldest entries.
-    for (const k of Array.from(cache.keys()).slice(0, 100)) cache.delete(k);
-  }
-  return files;
+  return cachedJson(
+    `repotree:${ws.provider}:${ws.repo}@${ws.baseBranch ?? ""}`,
+    REPO_TREE_TTL_MS,
+    async () => {
+      const tree = await getProvider(ws.provider).fetchRepoTree(ws.repo!, ws.baseBranch ?? undefined);
+      return (tree?.files ?? []).map((f) => ({ path: f.path, size: f.size }));
+    },
+    // A null/empty tree usually means the fetch failed — don't let a blip
+    // present an empty repo for a whole TTL.
+    { cacheIf: (files) => files.length > 0 },
+  );
 }
 
 /** Ownership check — write routes and AI tools go through this. */

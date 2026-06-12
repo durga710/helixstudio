@@ -37,6 +37,9 @@ export function isProviderName(name: string): name is GitProviderName {
  * Only POSITIVE results are cached: a user who just connected a host must
  * see it work immediately, while a revoked cached token simply fails at the
  * provider and ages out. Process-local; survives HMR via globalThis.
+ * Deliberately NOT in the shared Redis layer (src/lib/server-cache.ts):
+ * tokens don't belong in a second store — a cold instance just pays the two
+ * DB reads once per minute.
  */
 const GIT_AUTH_TTL_MS = 60_000;
 const globalAuthCache = globalThis as unknown as {
