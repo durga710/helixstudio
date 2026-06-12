@@ -18,12 +18,17 @@ import { guardWorkspace } from "@/lib/route-helpers";
 import { reportError } from "@/lib/observability";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+// Verify can add a sandbox build (~30-90s) + a fix turn on top of the build, so
+// allow up to 300s (Fluid Compute ceiling). Plain build/plan turns finish fast.
+export const maxDuration = 300;
 
 const ChatSchema = z.object({
   message: z.string().min(1).max(8000),
   // "plan": read-only agent turn that replies with an implementation plan.
   mode: z.enum(["plan", "build"]).default("build"),
+  // When true, a build turn that writes files runs + verifies in the sandbox
+  // (auto-fixing once). Off by default while we're testing.
+  verify: z.boolean().default(false),
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -64,6 +69,7 @@ export async function POST(req: Request, { params }: Params) {
             userId: user.id,
             message,
             mode: parsed.data.mode,
+            verify: parsed.data.verify,
             onEvent: (e) => write(e),
           });
           if ("error" in result) {
@@ -74,6 +80,7 @@ export async function POST(req: Request, { params }: Params) {
               text: result.text,
               actions: result.actions,
               changes: result.changes,
+              verify: result.verify,
               guestRemaining: result.guestRemaining,
             });
           }

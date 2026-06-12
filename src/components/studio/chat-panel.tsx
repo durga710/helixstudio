@@ -18,6 +18,10 @@ import {
   Check,
   PencilLine,
   Map,
+  CircleCheck,
+  TriangleAlert,
+  ShieldCheck,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,6 +32,7 @@ import { ModelPicker } from "@/components/studio/model-picker";
 interface Action {
   tool: string;
   label: string;
+  log?: string; // present on verify markers
 }
 interface Msg {
   role: "user" | "assistant";
@@ -115,6 +120,11 @@ export function ChatPanel({
   const [messages, setMessages] = useState<Msg[] | null>(null); // null = loading history
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<"plan" | "build">("build");
+  // Auto-verify build turns in the sandbox. Off by default (testing phase);
+  // the per-message "Verify" button works regardless.
+  const [verifyOn, setVerifyOn] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [openLog, setOpenLog] = useState<number | null>(null); // message index with expanded log
   const [busy, setBusy] = useState(false);
   const [activity, setActivity] = useState<string | null>(null);
   // null until the first chat turn reports it; counts down to 0.
@@ -240,7 +250,7 @@ export function ChatPanel({
     setQueuingTask(false);
   }
 
-  async function send(text: string, sendMode: "plan" | "build" = mode) {
+  async function send(text: string, sendMode: "plan" | "build" = mode, sendVerify: boolean = verifyOn) {
     const content = text.trim();
     if (!content || busy || messages === null) return;
     setMessages((m) => [...(m ?? []), { role: "user", content }]);
@@ -268,7 +278,7 @@ export function ChatPanel({
       const res = await fetch(`/api/workspaces/${workspace.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content, mode: sendMode }),
+        body: JSON.stringify({ message: content, mode: sendMode, verify: sendVerify }),
       });
 
       const isNdjson = res.headers.get("content-type")?.includes("application/x-ndjson");
@@ -331,6 +341,40 @@ export function ChatPanel({
     setBusy(false);
   }
 
+  // Manual "Verify build": runs the current build in the sandbox (check only —
+  // no auto-fix) and appends the result as a verify-badge message.
+  async function verifyNow() {
+    if (verifying || busy || messages === null) return;
+    setVerifying(true);
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}/verify`, { method: "POST" });
+      const json = await res.json().catch(() => null);
+      const v = json?.data?.verify as { status: string; command?: string; log?: string; reason?: string } | undefined;
+      if (res.ok && v) {
+        const tool = v.status === "passed" ? "verified" : v.status === "failed" ? "verify_failed" : "verify_skipped";
+        const label =
+          v.status === "passed"
+            ? "verified"
+            : v.status === "failed"
+              ? "couldn't verify"
+              : `verify skipped — ${v.reason ?? "nothing to verify"}`;
+        const content =
+          v.status === "passed"
+            ? `Verified — \`${v.command}\` ran clean.`
+            : v.status === "failed"
+              ? `Couldn't verify — \`${v.command}\` failed. See the log, then ask me to fix it.`
+              : `Verify skipped — ${v.reason ?? "nothing to verify"}.`;
+        setMessages((m) => [...(m ?? []), { role: "assistant", content, actions: [{ tool, label, log: v.log }] }]);
+      } else {
+        setMessages((m) => [...(m ?? []), { role: "assistant", content: json?.error?.message ?? "Couldn't verify." }]);
+      }
+    } catch {
+      setMessages((m) => [...(m ?? []), { role: "assistant", content: "Couldn't reach the verifier. Try again." }]);
+    }
+    setVerifying(false);
+  }
+
+  const VERIFY_TOOLS = ["verified", "verify_failed", "verify_skipped"];
   const uniqueLabels = (actions?: Action[]) =>
     actions?.length ? Array.from(new Set(actions.map((a) => a.label))) : [];
 
@@ -403,13 +447,20 @@ export function ChatPanel({
         ) : (
           <>
             {messages.map((m, i) => {
-              const labels = uniqueLabels(m.actions?.filter((a) => a.tool !== "plan"));
+              const labels = uniqueLabels(
+                m.actions?.filter((a) => a.tool !== "plan" && !VERIFY_TOOLS.includes(a.tool)),
+              );
               const isPlan = Boolean(m.actions?.some((a) => a.tool === "plan"));
+              const verifyAction = m.actions?.find((a) => VERIFY_TOOLS.includes(a.tool));
               const lastAssistantIdx = messages.reduce(
                 (last, msg, idx) => (msg.role === "assistant" ? idx : last),
                 -1,
               );
               const showPlanButtons = isPlan && i === lastAssistantIdx && isOwner && !busy;
+              // Manual "Verify build" on the latest assistant turn (when not a
+              // plan and it doesn't already carry a verify result).
+              const showVerifyBtn =
+                m.role === "assistant" && i === lastAssistantIdx && isOwner && !isPlan && !verifyAction && !isGuest;
               return (
                 <div key={i} className={cn("flex gap-2.5", m.role === "user" ? "justify-end" : "justify-start")}>
                   {m.role === "assistant" && (
@@ -462,6 +513,61 @@ export function ChatPanel({
                           className="px-3 py-1.5 text-xs"
                         >
                           <PencilLine className="h-3.5 w-3.5" /> Revise
+                        </Button>
+                      </div>
+                    )}
+                    {/* Verify result badge + expandable run log */}
+                    {verifyAction && (
+                      <div className="mt-2 pl-1">
+                        <button
+                          type="button"
+                          onClick={() => verifyAction.log && setOpenLog((cur) => (cur === i ? null : i))}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium",
+                            verifyAction.tool === "verified"
+                              ? "border-ok/40 bg-ok/10 text-ok"
+                              : verifyAction.tool === "verify_failed"
+                                ? "border-warn/40 bg-warn/10 text-warn"
+                                : "border-border2 bg-panel2 text-txt3",
+                            verifyAction.log ? "cursor-pointer" : "cursor-default",
+                          )}
+                        >
+                          {verifyAction.tool === "verified" ? (
+                            <CircleCheck className="h-3.5 w-3.5" />
+                          ) : verifyAction.tool === "verify_failed" ? (
+                            <TriangleAlert className="h-3.5 w-3.5" />
+                          ) : (
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                          )}
+                          {verifyAction.label}
+                          {verifyAction.log && (
+                            <ChevronDown
+                              className={cn("h-3 w-3 transition-transform", openLog === i && "rotate-180")}
+                            />
+                          )}
+                        </button>
+                        {openLog === i && verifyAction.log && (
+                          <pre className="scroll-area mt-1.5 max-h-48 overflow-auto rounded-lg border border-border bg-codebg px-3 py-2 font-mono text-[10.5px] leading-relaxed text-txt2">
+                            {verifyAction.log}
+                          </pre>
+                        )}
+                      </div>
+                    )}
+                    {showVerifyBtn && (
+                      <div className="mt-2 pl-1">
+                        <Button
+                          variant="ghost"
+                          onClick={() => void verifyNow()}
+                          disabled={verifying}
+                          className="px-3 py-1.5 text-xs"
+                          title="Run the build in the sandbox and check it works"
+                        >
+                          {verifying ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                          )}
+                          {verifying ? "Verifying…" : "Verify build"}
                         </Button>
                       </div>
                     )}
@@ -585,6 +691,27 @@ export function ChatPanel({
             aria-label="Agent mode"
             className="shrink-0"
           />
+          {mode === "build" && !isGuest && (
+            <button
+              type="button"
+              onClick={() => setVerifyOn((v) => !v)}
+              aria-pressed={verifyOn}
+              title={
+                verifyOn
+                  ? "Auto-verify ON — builds run in the sandbox and auto-fix"
+                  : "Auto-verify OFF — turn on to run + fix builds automatically"
+              }
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs transition-colors",
+                verifyOn
+                  ? "border-accent/50 bg-hl text-accent"
+                  : "border-border2 bg-panel text-txt3 hover:border-accent hover:text-txt2",
+              )}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Verify</span>
+            </button>
+          )}
           <input
             ref={inputRef}
             value={input}

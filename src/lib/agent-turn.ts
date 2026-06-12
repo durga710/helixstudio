@@ -30,6 +30,8 @@ import {
 } from "@/lib/workspace-tools";
 import { listWorkspaceFiles, readWorkspaceFile } from "@/lib/workspace";
 import { setProgress, clearProgress } from "@/lib/progress";
+import { usingSandboxBackend, runnerEnabled } from "@/lib/app-runner";
+import { verifyBuild, verifyMarker } from "@/lib/verify";
 import { runAnthropicAgent, runLocalAgent, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
 import {
   stackLine,
@@ -49,12 +51,17 @@ export interface TurnEvent {
   label: string;
 }
 
+/** A tool/marker shown under a message. `log` rides on verify markers only. */
+export type TurnAction = { tool: string; label: string; log?: string };
+
 export interface TurnResult {
   text: string;
-  actions: { tool: string; label: string }[];
+  actions: TurnAction[];
   changes: ChangeManifest;
   tokensUsed: number;
   guestRemaining: number | null;
+  /** Set when the build was verified (ran in the sandbox). */
+  verify?: { status: "passed" | "failed" | "skipped"; command?: string; log?: string };
 }
 
 export type TurnError = { error: string; code?: "GUEST_LIMIT" };
@@ -69,6 +76,12 @@ export async function runAgentTurn(opts: {
   /** "plan": read-only tools + the agent replies with a numbered plan the
    * user approves before a normal build turn executes it. Default "build". */
   mode?: "plan" | "build";
+  /** After a build that wrote files, run + verify it in the sandbox (auto-fix
+   * up to maxAttempts). Default false. Nested fix turns MUST pass false to
+   * stop infinite verify recursion. */
+  verify?: boolean;
+  /** Fix attempts for the verify loop (only meaningful when verify is true). */
+  verifyMaxAttempts?: number;
 }): Promise<TurnResult | TurnError> {
   const { ws, userId, onEvent } = opts;
   const persist = opts.persist ?? true;
@@ -250,7 +263,7 @@ export async function runAgentTurn(opts: {
   emit("thinking…");
 
   let text: string;
-  let actions: { tool: string; label: string }[];
+  let actions: TurnAction[];
   let changes: ChangeManifest;
   let tokensUsed = 0;
   try {
@@ -399,6 +412,49 @@ export async function runAgentTurn(opts: {
       actions.push({ tool: "plan", label: "proposed a plan" });
     }
 
+    // Verify phase: when asked, run the freshly-built project in the sandbox,
+    // read errors, and (best-effort) fix + re-run. Gated to real build turns
+    // that wrote files, non-guests, and an available runner. Always degrades to
+    // a skip — it never fails the turn.
+    let verify: TurnResult["verify"];
+    if (
+      opts.verify &&
+      mode === "build" &&
+      changes.written.length > 0 &&
+      !dbUser?.isGuest &&
+      (usingSandboxBackend() || runnerEnabled())
+    ) {
+      const result = await verifyBuild({
+        ws,
+        treePaths,
+        pkgJson,
+        changes,
+        actions,
+        emit,
+        maxAttempts: opts.verifyMaxAttempts ?? 1,
+        // Injected fix runner — a build-mode turn with verify OFF (the guard
+        // that prevents infinite verify recursion). Not persisted; its changes
+        // and tokens fold into this turn.
+        runFix: async (fixMessage) => {
+          const r = await runAgentTurn({
+            ws,
+            userId,
+            message: fixMessage,
+            onEvent,
+            persist: false,
+            mode: "build",
+            verify: false,
+          });
+          if ("error" in r) return null;
+          return { changes: r.changes, actions: r.actions, tokensUsed: r.tokensUsed };
+        },
+      });
+      tokensUsed += result.extraTokens;
+      const marker = verifyMarker(result);
+      actions.push({ tool: marker.tool, label: marker.label, ...(marker.log ? { log: marker.log } : {}) });
+      verify = { status: result.status, command: result.command, log: result.log };
+    }
+
     // Persist the turn (best-effort — the reply still goes out if this fails).
     if (persist) {
       try {
@@ -423,7 +479,7 @@ export async function runAgentTurn(opts: {
       ? Math.max(0, GUEST_TOKEN_LIMIT - (dbUser.tokensUsed + tokensUsed))
       : null;
 
-    return { text, actions, changes, tokensUsed, guestRemaining };
+    return { text, actions, changes, tokensUsed, guestRemaining, verify };
   } finally {
     clearProgress(ws.id);
   }
