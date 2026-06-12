@@ -6,6 +6,7 @@ import { BrainCircuit, Check, ChevronDown, Loader2, RefreshCw } from "lucide-rea
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MODEL_PRESETS } from "@/lib/model-presets";
+import { KeyStatusDot, validateAiKey, type KeyState } from "@/components/studio/key-status";
 
 interface Prefs {
   aiProvider: string;
@@ -46,6 +47,24 @@ export function ModelPicker() {
   const [liveError, setLiveError] = useState<string | null>(null);
   const [listing, setListing] = useState(false);
 
+  // Key validity for the saved provider (so the user knows the AI works
+  // before chatting). Checked on open and after a save.
+  const [keyState, setKeyState] = useState<KeyState>("idle");
+  const [keyMsg, setKeyMsg] = useState<string | null>(null);
+  const checkKey = useCallback(async (p: string) => {
+    if (p !== "openai" && p !== "anthropic" && p !== "local") return;
+    setKeyState("checking");
+    setKeyMsg(null);
+    const v = await validateAiKey(p);
+    if (!v) {
+      setKeyState("invalid");
+      setKeyMsg("Couldn't check the key");
+      return;
+    }
+    setKeyState(v.valid ? "valid" : "invalid");
+    setKeyMsg(v.reason ?? null);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -60,6 +79,8 @@ export function ModelPicker() {
         // Default to "own key" only if the user already saved one.
         const ks = json.data.keySet as Prefs["keySet"];
         setKeyMode(ks[json.data.aiProvider as keyof Prefs["keySet"]] ? "own" : "shared");
+        // Surface key status on the chip without needing to open the picker.
+        void checkKey(json.data.aiProvider);
       } catch {
         // chip just shows defaults
       }
@@ -67,6 +88,8 @@ export function ModelPicker() {
     return () => {
       cancelled = true;
     };
+    // checkKey is a stable useCallback; this runs once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const listLocalModels = useCallback(
@@ -105,6 +128,12 @@ export function ModelPicker() {
   // When the picker opens on the local provider, fetch what's running.
   useEffect(() => {
     if (open && provider === "local") void listLocalModels(baseUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, provider]);
+
+  // Check the saved key whenever the picker opens or the provider changes.
+  useEffect(() => {
+    if (open) void checkKey(provider);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, provider]);
 
@@ -176,6 +205,7 @@ export function ModelPicker() {
           };
         });
         setApiKey("");
+        void checkKey(provider); // verify the just-saved key
         setOpen(false);
       }
     } catch {
@@ -198,6 +228,12 @@ export function ModelPicker() {
           {chipProvider && <span className="text-txt3">{chipProvider} · </span>}
           {chipModel}
         </span>
+        {(keyState === "valid" || keyState === "invalid") && (
+          <span
+            className={cn("h-1.5 w-1.5 shrink-0 rounded-full", keyState === "valid" ? "bg-ok" : "bg-bad")}
+            title={keyState === "valid" ? "AI key works" : keyMsg ?? "Invalid API key"}
+          />
+        )}
         <ChevronDown className="h-3 w-3 shrink-0 text-txt3" />
       </button>
 
@@ -366,6 +402,18 @@ export function ModelPicker() {
             <p className="text-[10px] leading-relaxed text-txt3">{preset.hint}</p>
 
             {note && <p className="text-[11px] text-warn">{note}</p>}
+
+            <div className="flex min-h-[16px] items-center justify-between">
+              <KeyStatusDot state={keyState} message={keyMsg} />
+              <button
+                type="button"
+                onClick={() => void checkKey(provider)}
+                disabled={keyState === "checking"}
+                className="text-[10.5px] text-txt3 transition-colors hover:text-txt disabled:opacity-50"
+              >
+                re-check
+              </button>
+            </div>
 
             <Button
               onClick={() => void save()}

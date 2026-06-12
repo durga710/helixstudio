@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { MODEL_PRESETS } from "@/lib/model-presets";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
+import { KeyStatusDot, validateAiKey, type KeyState } from "@/components/studio/key-status";
 
 type ProviderId = "openai" | "anthropic" | "local";
 const KEY_FIELD: Record<ProviderId, "openaiKey" | "anthropicKey" | "localKey"> = {
@@ -76,6 +77,22 @@ export function AiSection() {
   const [apiKey, setApiKey] = useState("");
   const [keySet, setKeySet] = useState({ openai: false, anthropic: false, local: false });
   const [aiSaving, setAiSaving] = useState(false);
+  const [keyState, setKeyState] = useState<KeyState>("idle");
+  const [keyMsg, setKeyMsg] = useState<string | null>(null);
+
+  // Validate the saved config for a provider and reflect it in the dot.
+  async function checkKey(p: ProviderId) {
+    setKeyState("checking");
+    setKeyMsg(null);
+    const v = await validateAiKey(p);
+    if (!v) {
+      setKeyState("invalid");
+      setKeyMsg("Couldn't check the key");
+      return;
+    }
+    setKeyState(v.valid ? "valid" : "invalid");
+    setKeyMsg(v.reason ?? null);
+  }
 
   const [tokenSet, setTokenSet] = useState(false);
   const [token, setToken] = useState("");
@@ -95,6 +112,8 @@ export function AiSection() {
         setKeySet(d.keySet);
         setTokenSet(d.githubTokenSet);
         setGitConn(d.gitConnections ?? {});
+        // Show the saved provider's key status on load.
+        void checkKey(p);
       })
       .catch(() => setUnavailable(true));
   }, []);
@@ -122,6 +141,8 @@ export function AiSection() {
     }
     toast(err ?? "Saved — editor chats use this model from now on.");
     setAiSaving(false);
+    // Verify the just-saved key against the provider.
+    if (!err) void checkKey(provider);
   }
 
   async function removeKey() {
@@ -161,6 +182,7 @@ export function AiSection() {
             onChange={(p) => {
               setProvider(p);
               setModel(MODEL_PRESETS[p].models[0]);
+              void checkKey(p); // reflect the newly-selected provider's saved key
             }}
             options={(Object.entries(MODEL_PRESETS) as [ProviderId, (typeof MODEL_PRESETS)[string]][]).map(
               ([value, p]) => ({ value, label: p.label }),
@@ -228,10 +250,11 @@ export function AiSection() {
             No {preset.label} key on the server — paste yours above to use this provider.
           </p>
         )}
-        <div className="mt-3">
+        <div className="mt-3 flex items-center gap-3">
           <Button onClick={saveAi} disabled={aiSaving || prefs === null}>
             {aiSaving ? "Saving…" : "Save model"}
           </Button>
+          <KeyStatusDot state={keyState} message={keyMsg} />
         </div>
       </Card>
 
