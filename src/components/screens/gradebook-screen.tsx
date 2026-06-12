@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { readCache, writeCache } from "@/lib/client-cache";
 import { ArrowLeft, GraduationCap, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -31,20 +32,29 @@ function initials(name: string): string {
 /** Instructor-only grid: every student × every assignment. */
 export function GradebookScreen({ spaceId }: { spaceId: string }) {
   const router = useRouter();
-  const [data, setData] = useState<GradebookData | null>(null);
+  // Seeded from the last visit's cache — paints on first render, refreshed
+  // by the effect below.
+  const [data, setData] = useState<GradebookData | null>(() =>
+    readCache<GradebookData>(`space:${spaceId}:gradebook`),
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    const cached = readCache<GradebookData>(`space:${spaceId}:gradebook`);
     (async () => {
       try {
         const res = await fetch(`/api/spaces/${spaceId}/gradebook`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         if (cancelled) return;
-        if (res.ok && json?.ok) setData(json.data as GradebookData);
-        else setError(json?.error?.message ?? "Couldn't load the gradebook.");
+        if (res.ok && json?.ok) {
+          setData(json.data as GradebookData);
+          writeCache(`space:${spaceId}:gradebook`, json.data);
+        } else if (!cached) {
+          setError(json?.error?.message ?? "Couldn't load the gradebook.");
+        }
       } catch {
-        if (!cancelled) setError("Couldn't load the gradebook.");
+        if (!cancelled && !cached) setError("Couldn't load the gradebook.");
       }
     })();
     return () => {

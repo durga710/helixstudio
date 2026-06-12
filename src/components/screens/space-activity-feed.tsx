@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { readCache, writeCache } from "@/lib/client-cache";
 import {
   Activity,
   CheckCircle2,
@@ -46,18 +47,29 @@ const COLLAPSED_COUNT = 8;
 
 /** Recent activity inside a Space's detail panel. */
 export function SpaceActivityFeed({ spaceId }: { spaceId: string }) {
-  const [events, setEvents] = useState<FeedEvent[] | null>(null);
+  // Seeded from the last visit's cache — the feed paints on first render
+  // and the effect below refreshes it in the background.
+  const [events, setEvents] = useState<FeedEvent[] | null>(() =>
+    readCache<FeedEvent[]>(`space:${spaceId}:activity`),
+  );
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    const cached = readCache<FeedEvent[]>(`space:${spaceId}:activity`);
     (async () => {
       try {
         const res = await fetch(`/api/spaces/${spaceId}/activity`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
-        if (!cancelled) setEvents(res.ok && json?.ok ? (json.data.events as FeedEvent[]) : []);
+        if (cancelled) return;
+        if (res.ok && json?.ok) {
+          setEvents(json.data.events as FeedEvent[]);
+          writeCache(`space:${spaceId}:activity`, json.data.events);
+        } else if (!cached) {
+          setEvents([]);
+        }
       } catch {
-        if (!cancelled) setEvents([]);
+        if (!cancelled && !cached) setEvents([]);
       }
     })();
     return () => {

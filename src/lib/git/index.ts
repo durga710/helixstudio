@@ -32,12 +32,45 @@ export function isProviderName(name: string): name is GitProviderName {
 }
 
 /**
+ * Short-TTL cache for resolved credentials — nearly every workspace API call
+ * pays this lookup (2 DB round-trips for GitHub), and tokens change rarely.
+ * Only POSITIVE results are cached: a user who just connected a host must
+ * see it work immediately, while a revoked cached token simply fails at the
+ * provider and ages out. Process-local; survives HMR via globalThis.
+ */
+const GIT_AUTH_TTL_MS = 60_000;
+const globalAuthCache = globalThis as unknown as {
+  __helixGitAuthCache?: Map<string, { at: number; auth: GitAuth }>;
+};
+
+/** Drop a user's cached credentials (call after token settings change). */
+export function invalidateGitAuth(userId: string): void {
+  const cache = globalAuthCache.__helixGitAuthCache;
+  if (!cache) return;
+  for (const key of cache.keys()) {
+    if (key.startsWith(`${userId}:`)) cache.delete(key);
+  }
+}
+
+/**
  * The signed-in user's credentials for a provider, or null when not
  * connected. GitHub keeps its priority order (pasted PAT → OAuth token);
  * the other hosts are pasted-token only, plus their config (base URL, org).
  */
 export async function getGitAuth(userId: string, provider: string): Promise<GitAuth | null> {
   if (!dbEnabled() || !isProviderName(provider)) return null;
+
+  const cache = (globalAuthCache.__helixGitAuthCache ??= new Map());
+  const cacheKey = `${userId}:${provider}`;
+  const hit = cache.get(cacheKey);
+  if (hit && Date.now() - hit.at < GIT_AUTH_TTL_MS) return hit.auth;
+
+  const auth = await getGitAuthUncached(userId, provider as GitProviderName);
+  if (auth) cache.set(cacheKey, { at: Date.now(), auth });
+  return auth;
+}
+
+async function getGitAuthUncached(userId: string, provider: GitProviderName): Promise<GitAuth | null> {
   await schemaReady();
 
   if (provider === "github") {

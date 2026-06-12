@@ -8,9 +8,10 @@
 import { z } from "zod";
 import { ok, apiErrors } from "@/lib/api-response";
 import { getGitAuth, withGitAuth } from "@/lib/git";
-import { listWorkspaceFiles, writeWorkspaceFiles, deleteWorkspaceFile } from "@/lib/workspace";
+import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFiles, deleteWorkspaceFile } from "@/lib/workspace";
 import { validateFiles, MAX_PUSH_FILES } from "@/lib/repo-files";
 import { guardWorkspace } from "@/lib/route-helpers";
+import { createManualIntent } from "@/lib/intent-ledger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,7 +54,27 @@ export async function POST(req: Request, { params }: Params) {
   const check = validateFiles(parsed.data.files, MAX_PUSH_FILES);
   if (!check.ok) return apiErrors.badRequest(check.error);
 
-  const result = await writeWorkspaceFiles(g.ws, parsed.data.files);
+  // Intent ledger: drop no-op saves so re-saving an unchanged file doesn't
+  // mint junk intents, then record the rest as one manual-edit intent.
+  // withGitAuth lets capture read the repo base for IMPORT-mode files.
+  const auth = await getGitAuth(g.ws.userId, g.ws.provider);
+  const changed = await withGitAuth(auth, async () => {
+    const out: { path: string; content: string }[] = [];
+    for (const f of parsed.data.files) {
+      const current = await readWorkspaceFile(g.ws, f.path).catch(() => null);
+      if (current !== f.content) out.push(f);
+    }
+    return out;
+  });
+  if (changed.length === 0) return ok({ saved: true, writtenPaths: [] });
+
+  const intentId = await createManualIntent(
+    g.ws,
+    changed.length === 1 ? `Manual edit: ${changed[0].path}` : `Manual edit: ${changed.length} files`,
+  );
+  const result = await withGitAuth(auth, () =>
+    writeWorkspaceFiles(g.ws, changed, intentId ? { intentId } : undefined),
+  );
   if ("error" in result) return apiErrors.badRequest(result.error);
   return ok({ saved: true, writtenPaths: result.writtenPaths });
 }
@@ -66,7 +87,11 @@ export async function DELETE(req: Request, { params }: Params) {
   const path = new URL(req.url).searchParams.get("path") ?? "";
   if (!path) return apiErrors.badRequest("path is required");
 
-  const result = await deleteWorkspaceFile(g.ws, path);
+  const auth = await getGitAuth(g.ws.userId, g.ws.provider);
+  const intentId = await createManualIntent(g.ws, `Deleted ${path} in the editor`);
+  const result = await withGitAuth(auth, () =>
+    deleteWorkspaceFile(g.ws, path, intentId ? { intentId } : undefined),
+  );
   if ("error" in result) return apiErrors.badRequest(result.error);
   return ok({ deleted: true, deletedPaths: result.deletedPaths });
 }

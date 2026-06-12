@@ -38,6 +38,7 @@ interface RunEntry {
   port: number | null;
   logs: string[];
   dir: string;
+  startedAt: number;
 }
 
 const globalForRuns = globalThis as unknown as { helixRuns?: Map<string, RunEntry> };
@@ -60,8 +61,16 @@ function freePort(): Promise<number> {
   });
 }
 
+/** Dev servers color their output — Vite even bolds the port mid-URL
+ * (`http://127.0.0.1:\x1b[1m5173\x1b[22m/`), which broke the port regex and
+ * littered the log panel. Strip ANSI before anything reads the lines. */
+const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]/g;
+
 function pushLog(entry: RunEntry, chunk: string) {
-  const lines = chunk.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  const lines = chunk
+    .replace(ANSI_RE, "")
+    .split(/\r?\n/)
+    .filter((l) => l.trim().length > 0);
   entry.logs.push(...lines);
   if (entry.logs.length > MAX_LOG_LINES) entry.logs.splice(0, entry.logs.length - MAX_LOG_LINES);
 
@@ -127,6 +136,7 @@ async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
     port: null,
     logs: [],
     dir,
+    startedAt: Date.now(),
   };
   runs.set(ws.id, entry);
 
@@ -208,6 +218,10 @@ async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
   }
 }
 
+/** A run that hasn't become reachable by now is wedged — surface it as an
+ * error with the logs instead of spinning the boot screen forever. */
+const BOOT_DEADLINE_MS = 4 * 60_000;
+
 /** Status + live reachability check (promotes starting→running). */
 async function status(ws: Workspace): Promise<RunInfo> {
   const entry = runs.get(ws.id);
@@ -220,6 +234,18 @@ async function status(ws: Workspace): Promise<RunInfo> {
     if (reachable) {
       entry.port = candidate;
       entry.status = "running";
+    } else if (Date.now() - entry.startedAt > BOOT_DEADLINE_MS && entry.status !== "running") {
+      entry.status = "error";
+      pushLog(
+        entry,
+        `[helix] the dev server didn't become reachable on port ${candidate} within ${BOOT_DEADLINE_MS / 60_000} minutes — ` +
+          "check the logs above, then Stop and Run again.",
+      );
+      try {
+        entry.proc?.kill();
+      } catch {
+        /* already gone */
+      }
     }
   }
   return {

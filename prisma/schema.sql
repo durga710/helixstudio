@@ -102,6 +102,37 @@ CREATE TABLE "SpaceTask" (
 );
 
 -- CreateTable
+CREATE TABLE "WorkspaceIntent" (
+    "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "kind" TEXT NOT NULL DEFAULT 'agent',
+    "status" TEXT NOT NULL DEFAULT 'open',
+    "title" TEXT NOT NULL DEFAULT '',
+    "userRequest" TEXT NOT NULL DEFAULT '',
+    "planText" TEXT,
+    "reasoning" TEXT,
+    "alternatives" TEXT,
+    "revertsIntentId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "WorkspaceIntent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "WorkspaceChange" (
+    "id" TEXT NOT NULL,
+    "intentId" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "path" TEXT NOT NULL,
+    "beforeContent" TEXT,
+    "afterContent" TEXT,
+    "baseUnknown" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "WorkspaceChange_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "AssignmentSubmission" (
     "id" TEXT NOT NULL,
     "assignmentId" TEXT NOT NULL,
@@ -463,6 +494,15 @@ CREATE INDEX "SpaceEvent_spaceId_createdAt_idx" ON "SpaceEvent"("spaceId", "crea
 CREATE INDEX "SpaceTask_spaceId_status_order_idx" ON "SpaceTask"("spaceId", "status", "order");
 
 -- CreateIndex
+CREATE INDEX "WorkspaceIntent_workspaceId_createdAt_idx" ON "WorkspaceIntent"("workspaceId", "createdAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkspaceChange_intentId_path_key" ON "WorkspaceChange"("intentId", "path");
+
+-- CreateIndex
+CREATE INDEX "WorkspaceChange_workspaceId_path_createdAt_idx" ON "WorkspaceChange"("workspaceId", "path", "createdAt");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Account_provider_providerAccountId_key" ON "Account"("provider", "providerAccountId");
 
 -- CreateIndex
@@ -569,6 +609,12 @@ ALTER TABLE "SpaceTask" ADD CONSTRAINT "SpaceTask_spaceId_fkey" FOREIGN KEY ("sp
 
 -- AddForeignKey
 ALTER TABLE "SpaceTask" ADD CONSTRAINT "SpaceTask_assigneeId_fkey" FOREIGN KEY ("assigneeId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkspaceIntent" ADD CONSTRAINT "WorkspaceIntent_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkspaceChange" ADD CONSTRAINT "WorkspaceChange_intentId_fkey" FOREIGN KEY ("intentId") REFERENCES "WorkspaceIntent"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

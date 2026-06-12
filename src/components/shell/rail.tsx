@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -25,6 +26,12 @@ export const NAV_ITEMS = [
 export function Rail({ userInitials, userImage }: { userInitials: string; userImage?: string | null }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  // The avatar dropdown navigates with router.push (no <Link> prefetch) —
+  // warm its destination once so Settings opens instantly.
+  useEffect(() => {
+    router.prefetch("/settings");
+  }, [router]);
 
   const railBtn = (active: boolean) =>
     cn(

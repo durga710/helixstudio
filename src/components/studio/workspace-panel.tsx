@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Check,
   Code2,
   Copy,
   Eye,
@@ -14,6 +15,7 @@ import {
   FolderGit2,
   GitBranch,
   GitCompare,
+  History,
   Loader2,
   Maximize2,
   Minimize2,
@@ -21,6 +23,7 @@ import {
   Play,
   RefreshCw,
   Save,
+  ScrollText,
   Settings2,
   Sparkles,
   Square,
@@ -39,6 +42,12 @@ import { PushDialog } from "@/components/studio/push-dialog";
 import { EnvDialog } from "@/components/studio/env-dialog";
 import { ShareMenu } from "@/components/studio/share-menu";
 import { FileTree, type TreeFile } from "@/components/studio/file-tree";
+import { readCache, writeCache } from "@/lib/client-cache";
+import { LedgerPanel, type LedgerDto } from "@/components/studio/ledger-panel";
+import { IntentsPanel } from "@/components/studio/intents-panel";
+import { UndoDialog } from "@/components/studio/undo-dialog";
+import { IntentPopover } from "@/components/studio/intent-popover";
+import type { OnMount } from "@monaco-editor/react";
 
 const editorLoading = (
   <div className="grid h-full place-items-center text-sm text-txt3">
@@ -137,7 +146,7 @@ export function WorkspacePanel({
   const [dirty, setDirty] = useState<Record<string, string>>({});
   const [loadingFile, setLoadingFile] = useState(false);
 
-  const [tab, setTab] = useState<"code" | "preview" | "diff">("code");
+  const [tab, setTab] = useState<"code" | "preview" | "diff" | "intents">("code");
   const [fullscreen, setFullscreen] = useState(false);
   const [newFileOpen, setNewFileOpen] = useState(false);
   const [newFilePath, setNewFilePath] = useState("");
@@ -153,6 +162,37 @@ export function WorkspacePanel({
   const [previewNonce, setPreviewNonce] = useState(0);
   const composeSeq = useRef(0);
   const monacoTheme = useMonacoTheme();
+
+  // Intent ledger: per-line provenance in the Code tab + the Intents tab's
+  // change timeline + intentional undo.
+  const [ledgerOn, setLedgerOn] = useState(false);
+  const [ledger, setLedger] = useState<LedgerDto | null>(null);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerLine, setLedgerLine] = useState<number | null>(null);
+  const [ledgerNonce, setLedgerNonce] = useState(0); // bumps when files change
+  const [undoIntent, setUndoIntent] = useState<{ id: string; title: string } | null>(null);
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
+  const monacoRef = useRef<Parameters<OnMount>[1] | null>(null);
+  const ledgerDecoRef = useRef<{ clear(): void } | null>(null);
+  const [editorMounted, setEditorMounted] = useState(0);
+
+  // Fresh-change highlight: paths from the latest change manifest get their
+  // new lines highlighted in the Code tab, with a hover/click provenance
+  // card anchored next to them. Works without the Ledger toggle.
+  const [recentPaths, setRecentPaths] = useState<string[]>([]);
+  const [popover, setPopover] = useState<{
+    line: number;
+    /** First line of the highlighted block — the card's identity (prevents
+     * re-anchoring jitter while the mouse moves within the block). */
+    anchor: number;
+    intentId: string;
+    top: number;
+    left: number;
+    placeAbove: boolean;
+    pinned: boolean;
+  } | null>(null);
+  const recentRangesRef = useRef<{ start: number; end: number; intentId: string }[]>([]);
+  const popoverHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Framework app runner (Next.js/Vite/Flask… on this machine in dev, in a
   // cloud VM with a public preview URL on the hosted site)
@@ -208,18 +248,22 @@ export function WorkspacePanel({
   /* ------------------------------ data ------------------------------ */
 
   const loadTree = useCallback(async () => {
-    setLoadingTree(true);
+    // Paint the last-known tree instantly; the fetch below refreshes it.
+    const cached = readCache<TreeFile[]>(`ws:${workspace.id}:tree`);
+    if (cached) setFiles(cached);
+    else setLoadingTree(true);
     setTreeError(null);
     try {
       const res = await fetch(`/api/workspaces/${workspace.id}/files`, { cache: "no-store" });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
-        setTreeError(json?.error?.message ?? "Couldn't load the workspace files.");
+        if (!cached) setTreeError(json?.error?.message ?? "Couldn't load the workspace files.");
       } else {
         setFiles(json.data.files);
+        writeCache(`ws:${workspace.id}:tree`, json.data.files);
       }
     } catch {
-      setTreeError("Couldn't load the workspace files.");
+      if (!cached) setTreeError("Couldn't load the workspace files.");
     }
     setLoadingTree(false);
   }, [workspace.id]);
@@ -258,12 +302,10 @@ export function WorkspacePanel({
     [dirty, contents, fetchContent],
   );
 
-  // AI changes from the chat turn: merge new paths into the tree, invalidate
-  // their cached content, refresh the open file, drop deleted paths.
-  useEffect(() => {
-    if (!changes) return;
-    const { written, deleted } = changes;
-
+  // A change manifest landed (AI chat turn or an applied undo): merge new
+  // paths into the tree, invalidate their cached content, refresh the open
+  // file, drop deleted paths.
+  const applyChangesManifest = useCallback((written: string[], deleted: string[]) => {
     setFiles((f) => {
       const next = f.filter((e) => !deleted.includes(e.path));
       for (const p of written) {
@@ -288,9 +330,18 @@ export function WorkspacePanel({
       return sel;
     });
     setPreviewNonce((n) => n + 1); // recompose the preview with fresh files
+    setLedgerNonce((n) => n + 1); // refetch blame + the intents timeline
+    setRecentPaths(written); // highlight the fresh lines in the Code tab
+    setPopover(null);
+  }, [openFile]);
+
+  useEffect(() => {
+    if (!changes) return;
+    const { written, deleted } = changes;
+    applyChangesManifest(written, deleted);
     setNote(
       [
-        written.length ? `AI wrote ${written.length} file(s)` : null,
+        written.length ? `AI wrote ${written.length} file(s) · saved` : null,
         deleted.length ? `deleted ${deleted.length}` : null,
       ]
         .filter(Boolean)
@@ -298,6 +349,184 @@ export function WorkspacePanel({
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [changes?.nonce]);
+
+  /* --------------------------- intent ledger ------------------------ */
+
+  // Clicking a different file resets the line selection + popover.
+  useEffect(() => {
+    setLedgerLine(null);
+    setPopover(null);
+  }, [selected]);
+
+  // Blame for the open file — while the ledger panel is on, or when the file
+  // was just changed (the fresh-change highlight + popover need attribution).
+  useEffect(() => {
+    const wanted = ledgerOn || (!!selected && recentPaths.includes(selected));
+    if (!wanted || !selected || tab !== "code") return;
+    let alive = true;
+    setLedgerLoading(true);
+    fetch(`/api/workspaces/${workspace.id}/ledger?path=${encodeURIComponent(selected)}`, {
+      cache: "no-store",
+    })
+      .then((res) => res.json().catch(() => null))
+      .then((json) => {
+        if (!alive) return;
+        setLedger(json?.ok ? (json.data as LedgerDto) : null);
+        setLedgerLoading(false);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setLedger(null);
+        setLedgerLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [ledgerOn, selected, tab, workspace.id, ledgerNonce, recentPaths]);
+
+  // The intent that "just happened" for the open file — its lines get the
+  // background highlight + popover. Newest intent still owning a line wins.
+  const recentIntentId = useMemo(() => {
+    if (!ledger || !selected || !recentPaths.includes(selected)) return null;
+    let best: { id: string; t: number } | null = null;
+    for (const it of Object.values(ledger.intents)) {
+      const t = new Date(it.createdAt).getTime();
+      if (!best || t > best.t) best = { id: it.id, t };
+    }
+    return best?.id ?? null;
+  }, [ledger, selected, recentPaths]);
+
+  const scheduleHidePopover = useCallback(() => {
+    if (popoverHideTimer.current) clearTimeout(popoverHideTimer.current);
+    popoverHideTimer.current = setTimeout(() => {
+      setPopover((p) => (p?.pinned ? p : null));
+    }, 300);
+  }, []);
+
+  const cancelHidePopover = useCallback(() => {
+    if (popoverHideTimer.current) {
+      clearTimeout(popoverHideTimer.current);
+      popoverHideTimer.current = null;
+    }
+  }, []);
+
+  // Anchor the card just under (or above) the hovered/clicked line.
+  const openPopoverAt = useCallback((line: number, pinned: boolean) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const range = recentRangesRef.current.find((r) => line >= r.start && line <= r.end);
+    if (!range) return;
+    const pos = editor.getScrolledVisiblePosition({ lineNumber: line, column: 1 });
+    if (!pos) return;
+    const height = editor.getLayoutInfo().height;
+    const placeAbove = pos.top > height * 0.6;
+    setPopover((p) => {
+      if (p && p.anchor === range.start) {
+        // Same block — keep the card where it is; a click just pins it.
+        return pinned && !p.pinned ? { ...p, pinned: true, line } : p;
+      }
+      if (p?.pinned && !pinned) return p; // a pinned card stays put
+      return {
+        line,
+        anchor: range.start,
+        intentId: range.intentId,
+        top: placeAbove ? pos.top - 6 : pos.top + pos.height + 6,
+        left: 72,
+        placeAbove,
+        pinned,
+      };
+    });
+  }, []);
+
+  const handleEditorMount: OnMount = useCallback(
+    (editor, monaco) => {
+      editorRef.current = editor;
+      monacoRef.current = monaco;
+      editor.onMouseDown((e: { target?: { position?: { lineNumber?: number } | null } }) => {
+        const line = e.target?.position?.lineNumber;
+        if (!line) return;
+        setLedgerLine(line);
+        const inRecent = recentRangesRef.current.some((r) => line >= r.start && line <= r.end);
+        if (inRecent) {
+          cancelHidePopover();
+          openPopoverAt(line, true);
+        } else {
+          setPopover((p) => (p?.pinned ? null : p)); // click elsewhere closes a pinned card
+        }
+      });
+      editor.onMouseMove((e: { target?: { position?: { lineNumber?: number } | null } }) => {
+        const line = e.target?.position?.lineNumber;
+        const inRecent = !!line && recentRangesRef.current.some((r) => line >= r.start && line <= r.end);
+        if (inRecent) {
+          cancelHidePopover();
+          openPopoverAt(line!, false);
+        } else {
+          scheduleHidePopover();
+        }
+      });
+      editor.onDidScrollChange(() => setPopover(null)); // anchors go stale
+      setEditorMounted((n) => n + 1);
+    },
+    [openPopoverAt, scheduleHidePopover, cancelHidePopover],
+  );
+
+  // Editor decorations: gutter bars per attributed range while the Ledger
+  // toggle is on (accent = agent, amber = manual, red = undo, dimmed =
+  // uncaptured; base lines unmarked), plus a background highlight on the
+  // lines the latest change introduced (always on — the hover card's target).
+  useEffect(() => {
+    try {
+      ledgerDecoRef.current?.clear();
+    } catch {
+      /* editor already disposed */
+    }
+    ledgerDecoRef.current = null;
+    recentRangesRef.current = [];
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco || !ledger || tab !== "code") return;
+
+    const classFor = (intentId: string | null): string | null => {
+      if (!intentId) return null;
+      if (intentId === "uncaptured") return "ledger-line-uncaptured";
+      const kind = ledger.intents[intentId]?.kind;
+      return kind === "manual"
+        ? "ledger-line-manual"
+        : kind === "undo"
+          ? "ledger-line-undo"
+          : "ledger-line-agent";
+    };
+    type Deco = { range: InstanceType<typeof monaco.Range>; options: Record<string, unknown> };
+    const decos: Deco[] = [];
+    for (const r of ledger.ranges) {
+      if (ledgerOn) {
+        const cls = classFor(r.intentId);
+        if (cls) {
+          decos.push({
+            range: new monaco.Range(r.start, 1, r.end, 1),
+            options: { isWholeLine: true, linesDecorationsClassName: cls },
+          });
+        }
+      }
+      if (recentIntentId && r.intentId === recentIntentId) {
+        recentRangesRef.current.push({ start: r.start, end: r.end, intentId: r.intentId });
+        decos.push({
+          range: new monaco.Range(r.start, 1, r.end, 1),
+          options: { isWholeLine: true, className: "ledger-line-recent-bg" },
+        });
+      }
+    }
+    if (decos.length) ledgerDecoRef.current = editor.createDecorationsCollection(decos);
+    return () => {
+      try {
+        ledgerDecoRef.current?.clear();
+      } catch {
+        /* editor already disposed */
+      }
+      ledgerDecoRef.current = null;
+      recentRangesRef.current = [];
+    };
+  }, [ledger, ledgerOn, tab, editorMounted, recentIntentId]);
 
   /* ----------------------------- actions ---------------------------- */
 
@@ -346,6 +575,7 @@ export function WorkspacePanel({
       });
       setSelected((sel) => (sel === path ? null : sel));
       setNote(`Deleted ${path}`);
+      setLedgerNonce((n) => n + 1);
     } catch {
       setNote("Delete failed.");
     }
@@ -371,6 +601,7 @@ export function WorkspacePanel({
         setDirty({});
         setNote("Saved ✓");
         setPreviewNonce((n) => n + 1);
+        setLedgerNonce((n) => n + 1); // the save is a new manual-edit intent
       }
     } catch {
       setNote("Save failed.");
@@ -645,6 +876,19 @@ export function WorkspacePanel({
                 </span>
               )}
             </button>
+            <button
+              type="button"
+              onClick={() => setTab("intents")}
+              title="Change history — every idea, inspectable and undoable"
+              className={cn(
+                "inline-flex items-center gap-1.5 border-l border-border px-3 py-1.5 text-xs transition-colors",
+                tab === "intents"
+                  ? "bg-hl text-accent"
+                  : "text-txt2 hover:bg-panel2 hover:text-txt",
+              )}
+            >
+              <History className="h-3.5 w-3.5" /> Intents
+            </button>
           </div>
 
           {isOwner && (
@@ -680,10 +924,21 @@ export function WorkspacePanel({
                 variant="ghost"
                 onClick={() => void save()}
                 disabled={!dirtyCount || saving}
+                title={
+                  dirtyCount
+                    ? `Save ${dirtyCount} edited file(s)`
+                    : "Everything is saved — AI edits write straight to the workspace. Save is for your own editor changes; Push ships to your repo."
+                }
                 className="px-3.5 py-1.5"
               >
-                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                Save {dirtyCount > 0 ? `(${dirtyCount})` : ""}
+                {saving ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : dirtyCount ? (
+                  <Save className="h-3.5 w-3.5" />
+                ) : (
+                  <Check className="h-3.5 w-3.5 text-ok" />
+                )}
+                {dirtyCount > 0 ? `Save (${dirtyCount})` : "Saved"}
               </Button>
               <Button onClick={() => setPushing(true)} className="px-3.5 py-1.5">
                 <UploadCloud className="h-3.5 w-3.5" />
@@ -759,47 +1014,95 @@ export function WorkspacePanel({
               <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
                 <FileCode2 className="h-3.5 w-3.5 text-txt3" />
                 <span className="truncate font-mono text-[11px] text-txt2">{selected}</span>
+                <button
+                  type="button"
+                  onClick={() => setLedgerOn((v) => !v)}
+                  title="Intent ledger — click any line and ask why it exists"
+                  className={cn(
+                    "ml-auto inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors",
+                    ledgerOn
+                      ? "border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl text-accent"
+                      : "border-border text-txt2 hover:border-accent hover:text-txt",
+                  )}
+                >
+                  <ScrollText className="h-3 w-3" /> Ledger
+                </button>
               </div>
             )}
-            <div className="min-h-0 flex-1">
-              {!selected ? (
-                <div className="grid h-full place-items-center px-6 text-center text-sm text-txt3">
-                  <div>
-                    <p>Select a file to view or edit it.</p>
-                    <p className="mt-1 text-xs text-txt3">
-                      Files Helix writes appear here the moment a chat turn finishes.
-                    </p>
+            <div className="flex min-h-0 flex-1">
+              <div className="relative min-h-0 min-w-0 flex-1">
+                {!selected ? (
+                  <div className="grid h-full place-items-center px-6 text-center text-sm text-txt3">
+                    <div>
+                      <p>Select a file to view or edit it.</p>
+                      <p className="mt-1 text-xs text-txt3">
+                        Files Helix writes appear here the moment a chat turn finishes.
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ) : loadingFile ? (
-                <div className="grid h-full place-items-center text-sm text-txt3">
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" /> loading file…
-                  </span>
-                </div>
-              ) : (
-                <Monaco
-                  key={selected}
-                  theme={monacoTheme}
-                  language={languageFor(selected)}
-                  value={currentContent}
-                  onChange={(value) => {
-                    const next = value ?? "";
-                    setDirty((d) => {
-                      if (next !== contents[selected]) return { ...d, [selected]: next };
-                      const rest = { ...d };
-                      delete rest[selected];
-                      return rest;
-                    });
-                  }}
-                  options={{
-                    readOnly: !isOwner,
-                    fontSize: 13,
-                    minimap: { enabled: false },
-                    scrollBeyondLastLine: false,
-                    automaticLayout: true,
-                    padding: { top: 12 },
-                  }}
+                ) : loadingFile ? (
+                  <div className="grid h-full place-items-center text-sm text-txt3">
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" /> loading file…
+                    </span>
+                  </div>
+                ) : (
+                  <Monaco
+                    key={selected}
+                    theme={monacoTheme}
+                    language={languageFor(selected)}
+                    value={currentContent}
+                    onMount={handleEditorMount}
+                    onChange={(value) => {
+                      const next = value ?? "";
+                      setDirty((d) => {
+                        if (next !== contents[selected]) return { ...d, [selected]: next };
+                        const rest = { ...d };
+                        delete rest[selected];
+                        return rest;
+                      });
+                    }}
+                    options={{
+                      readOnly: !isOwner,
+                      fontSize: 13,
+                      minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                      padding: { top: 12 },
+                    }}
+                  />
+                )}
+                {popover && selected && ledger?.intents[popover.intentId] && (
+                  <IntentPopover
+                    workspaceId={workspace.id}
+                    path={selected}
+                    line={popover.line}
+                    intent={ledger.intents[popover.intentId]}
+                    position={{ top: popover.top, left: popover.left, placeAbove: popover.placeAbove }}
+                    pinned={popover.pinned}
+                    isOwner={isOwner}
+                    onPin={() => setPopover((p) => (p ? { ...p, pinned: true } : p))}
+                    onClose={() => setPopover(null)}
+                    onUndo={(i) => {
+                      setPopover(null);
+                      setUndoIntent(i);
+                    }}
+                    onMouseEnter={cancelHidePopover}
+                    onMouseLeave={scheduleHidePopover}
+                  />
+                )}
+              </div>
+              {ledgerOn && selected && !loadingFile && (
+                <LedgerPanel
+                  workspaceId={workspace.id}
+                  path={selected}
+                  line={ledgerLine}
+                  ledger={ledger}
+                  loading={ledgerLoading}
+                  hasUnsavedEdits={dirty[selected] !== undefined}
+                  isOwner={isOwner}
+                  importMode={workspace.mode === "IMPORT"}
+                  onUndo={(i) => setUndoIntent(i)}
                 />
               )}
             </div>
@@ -941,6 +1244,14 @@ export function WorkspacePanel({
             </div>
           )}
         </div>
+      ) : tab === "intents" ? (
+        /* Intents tab — the change timeline + intentional undo */
+        <IntentsPanel
+          workspaceId={workspace.id}
+          isOwner={isOwner}
+          refreshKey={ledgerNonce}
+          onUndo={(i) => setUndoIntent(i)}
+        />
       ) : (
         /* Preview tab — framework apps run for real; static sites compose */
         <div className="flex min-h-0 flex-1 flex-col">
@@ -1136,6 +1447,25 @@ export function WorkspacePanel({
           </div>
         </div>
       )}
+
+      <UndoDialog
+        workspaceId={workspace.id}
+        intent={undoIntent}
+        monacoTheme={monacoTheme}
+        onClose={() => setUndoIntent(null)}
+        onApplied={(c) => {
+          applyChangesManifest(c.written, c.deleted);
+          setNote(
+            [
+              c.written.length ? `undo restored ${c.written.length} file(s)` : null,
+              c.deleted.length ? `removed ${c.deleted.length}` : null,
+            ]
+              .filter(Boolean)
+              .join(", ") || "undo applied",
+          );
+          if (tab === "diff") void loadDiff();
+        }}
+      />
 
       {envOpen && <EnvDialog workspaceId={workspace.id} onClose={() => setEnvOpen(false)} />}
       {pushing && (

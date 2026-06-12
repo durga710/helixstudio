@@ -24,6 +24,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { readCache, writeCache } from "@/lib/client-cache";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import type { WorkspaceMeta } from "@/components/studio/studio";
@@ -137,22 +138,26 @@ export function ChatPanel({
 
   useEffect(() => {
     let cancelled = false;
+    // Returning to a workspace paints the last-known conversation instantly;
+    // the fetch below replaces it with the fresh history.
+    const cached = readCache<Msg[]>(`ws:${workspace.id}:messages`);
+    if (cached) setMessages(cached);
     (async () => {
       try {
         const res = await fetch(`/api/workspaces/${workspace.id}`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         if (cancelled) return;
         if (res.ok && json?.ok) {
-          setMessages(
-            (json.data.messages as { role: "user" | "assistant"; content: string; actions: Action[] | null }[]).map(
-              (m) => ({ role: m.role, content: m.content, actions: m.actions ?? undefined }),
-            ),
-          );
-        } else {
+          const fresh = (
+            json.data.messages as { role: "user" | "assistant"; content: string; actions: Action[] | null }[]
+          ).map((m) => ({ role: m.role, content: m.content, actions: m.actions ?? undefined }));
+          setMessages(fresh);
+          writeCache(`ws:${workspace.id}:messages`, fresh);
+        } else if (!cached) {
           setMessages([]);
         }
       } catch {
-        if (!cancelled) setMessages([]);
+        if (!cancelled && !cached) setMessages([]);
       }
     })();
     return () => {
@@ -163,6 +168,12 @@ export function ChatPanel({
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
+
+  // Keep the cache current as turns land, so navigating away and back
+  // repaints the full conversation without a flash.
+  useEffect(() => {
+    if (messages) writeCache(`ws:${workspace.id}:messages`, messages);
+  }, [messages, workspace.id]);
 
   useEffect(() => {
     if (!busy) setActivity(null);

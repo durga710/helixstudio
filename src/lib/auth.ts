@@ -1,3 +1,4 @@
+import { cache } from "react";
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHub from "next-auth/providers/github";
@@ -213,7 +214,15 @@ const config: NextAuthConfig = {
   },
 };
 
-export const { handlers, auth, signIn, signOut } = NextAuth(config);
+const nextAuth = NextAuth(config);
+export const handlers = nextAuth.handlers;
+export const signIn = nextAuth.signIn;
+export const signOut = nextAuth.signOut;
+
+/** Session decode deduped per request with React cache() — the layout, the
+ * page, and helpers like requireUser() share ONE auth() call per navigation
+ * instead of each paying for their own. */
+export const auth = cache(() => nextAuth.auth());
 
 export interface SessionUser {
   id: string;

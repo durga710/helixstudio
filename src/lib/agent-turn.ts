@@ -33,6 +33,7 @@ import { setProgress, clearProgress } from "@/lib/progress";
 import { usingSandboxBackend, runnerEnabled } from "@/lib/app-runner";
 import { verifyBuild, verifyMarker } from "@/lib/verify";
 import { runAnthropicAgent, runLocalAgent, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
+import { createAgentIntent } from "@/lib/intent-ledger";
 import {
   stackLine,
   treeOutline,
@@ -82,6 +83,9 @@ export async function runAgentTurn(opts: {
   verify?: boolean;
   /** Fix attempts for the verify loop (only meaningful when verify is true). */
   verifyMaxAttempts?: number;
+  /** Intent-ledger: fold this turn's writes into an existing intent instead
+   * of creating a new one (verify fix turns pass the parent's). */
+  intentId?: string;
 }): Promise<TurnResult | TurnError> {
   const { ws, userId, onEvent } = opts;
   const persist = opts.persist ?? true;
@@ -250,6 +254,24 @@ export async function runAgentTurn(opts: {
     );
   }
 
+  // Intent ledger: the turn's intent is created lazily on the first mutating
+  // tool call, so read-only turns leave no trace. Verify fix turns inherit
+  // the parent's intent via opts.intentId; only the creator finalizes it.
+  let intentId: string | null = opts.intentId ?? null;
+  let createdIntentId: string | null = null;
+  const getIntentId =
+    mode === "build"
+      ? async () => {
+          if (intentId) return intentId;
+          const id = await createAgentIntent(ws, userMessage);
+          if (id) {
+            intentId = id;
+            createdIntentId = id;
+          }
+          return id;
+        }
+      : undefined;
+
   // Prime the tool cache with the tree we already fetched — list_files inside
   // this turn reuses it instead of refetching (writes invalidate).
   const ctx: ToolContext = {
@@ -258,6 +280,7 @@ export async function runAgentTurn(opts: {
     cache: { tree },
     onActivity: (label) => emit(label),
     mode,
+    getIntentId,
   };
   setProgress(ws.id, "reading your message…");
   emit("thinking…");
@@ -444,6 +467,7 @@ export async function runAgentTurn(opts: {
             persist: false,
             mode: "build",
             verify: false,
+            intentId: intentId ?? undefined,
           });
           if ("error" in r) return null;
           return { changes: r.changes, actions: r.actions, tokensUsed: r.tokensUsed };
@@ -453,6 +477,19 @@ export async function runAgentTurn(opts: {
       const marker = verifyMarker(result);
       actions.push({ tool: marker.tool, label: marker.label, ...(marker.log ? { log: marker.log } : {}) });
       verify = { status: result.status, command: result.command, log: result.log };
+    }
+
+    // Finalize the ledger intent this call created (fix turns inherit theirs
+    // and leave finalizing to the parent). Best-effort, like persist below.
+    if (createdIntentId) {
+      try {
+        await db().workspaceIntent.update({
+          where: { id: createdIntentId },
+          data: { status: "final", reasoning: text.slice(0, 8000) },
+        });
+      } catch (e) {
+        console.error("[ledger] intent finalize failed", e);
+      }
     }
 
     // Persist the turn (best-effort — the reply still goes out if this fails).

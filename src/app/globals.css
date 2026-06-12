@@ -217,3 +217,32 @@ input[type="range"] {
   letter-spacing: 0.08em;
   color: var(--txt-3);
 }
+
+/* Intent-ledger gutter bars (Monaco linesDecorations). Accent = AI change,
+   amber = manual edit, red = applied undo, dimmed = uncaptured drift. */
+.ledger-line-agent,
+.ledger-line-manual,
+.ledger-line-undo,
+.ledger-line-uncaptured {
+  width: 3px !important;
+  margin-left: 4px;
+  border-radius: 2px;
+}
+.ledger-line-agent {
+  background: var(--accent);
+}
+.ledger-line-manual {
+  background: var(--amber);
+}
+.ledger-line-undo {
+  background: var(--red);
+}
+.ledger-line-uncaptured {
+  background: var(--txt-3);
+  opacity: 0.45;
+}
+
+/* Fresh-change highlight: lines the latest AI turn / save introduced. */
+.ledger-line-recent-bg {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}

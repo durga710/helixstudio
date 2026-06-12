@@ -58,6 +58,13 @@ export interface ToolContext {
    * list AND hard-blocked in executeTool (lax local models may ignore the
    * declared list). Default "build". */
   mode?: "plan" | "build";
+  /**
+   * Intent-ledger hook: lazily creates this turn's intent on the first
+   * mutating tool call and returns its id. Null = creation failed (capture
+   * is skipped, never the write). Undefined = capture disabled (plan turns,
+   * callers that predate the ledger).
+   */
+  getIntentId?: () => Promise<string | null>;
 }
 
 const READ_CAP = 24_000;
@@ -262,7 +269,8 @@ async function executeToolInner(
       });
       const check = validateFiles(files, MAX_TOOL_FILES);
       if (!check.ok) return { error: check.error };
-      const result = await writeWorkspaceFiles(ws, files);
+      const intentId = ctx.getIntentId ? await ctx.getIntentId() : null;
+      const result = await writeWorkspaceFiles(ws, files, intentId ? { intentId } : undefined);
       if ("error" in result) return result;
       if (ctx.cache) ctx.cache.tree = undefined; // listing changed
       return { written: true, count: files.length, writtenPaths: result.writtenPaths };
@@ -270,7 +278,8 @@ async function executeToolInner(
     case "delete_file": {
       const path = s(args.path);
       if (!path) return { error: "path is required" };
-      const result = await deleteWorkspaceFile(ws, path);
+      const intentId = ctx.getIntentId ? await ctx.getIntentId() : null;
+      const result = await deleteWorkspaceFile(ws, path, intentId ? { intentId } : undefined);
       if ("error" in result) return result;
       if (ctx.cache) ctx.cache.tree = undefined; // listing changed
       return { deleted: true, deletedPaths: result.deletedPaths };

@@ -9,8 +9,7 @@ import { ok, apiErrors } from "@/lib/api-response";
 import { db } from "@/lib/db";
 import { getGitAuth, withGitAuth, getProvider } from "@/lib/git";
 import { getOverlay } from "@/lib/workspace";
-import { runReviewer, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
-import { OPENAI_MODEL } from "@/lib/openai";
+import { runReviewer, resolveAiPrefs } from "@/lib/ai-agent";
 import { guardWorkspace } from "@/lib/route-helpers";
 
 export const runtime = "nodejs";
@@ -53,22 +52,9 @@ export async function POST(_req: Request, { params }: Params) {
     diffText += `${header}\n${f.content.slice(0, 12_000)}\n\n`;
   }
 
-  const prefs = await db().userPreferences.findUnique({
-    where: { userId: user.id },
-    select: { aiProvider: true, aiModel: true, aiBaseUrl: true, openaiKey: true, anthropicKey: true, localKey: true },
-  });
-  const provider = prefs?.aiProvider ?? "openai";
-  const prefModel = prefs?.aiModel === "default" ? "" : (prefs?.aiModel ?? "");
-  const model = prefModel || PROVIDER_DEFAULT_MODEL[provider] || OPENAI_MODEL;
-  const apiKey =
-    (provider === "openai" ? prefs?.openaiKey : provider === "anthropic" ? prefs?.anthropicKey : prefs?.localKey) ||
-    undefined;
-
+  const ai = await resolveAiPrefs(user.id);
   const result = await runReviewer({
-    provider,
-    model,
-    apiKey,
-    baseUrl: prefs?.aiBaseUrl || "http://localhost:1234/v1",
+    ...ai,
     diffText: diffText.slice(0, DIFF_TEXT_CAP + 2_000),
   });
   if ("error" in result) return apiErrors.badRequest(result.error);

@@ -11,7 +11,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { ok, apiErrors } from "@/lib/api-response";
 import { guard } from "@/lib/route-helpers";
-import { sanitizeBaseUrl } from "@/lib/git";
+import { sanitizeBaseUrl, invalidateGitAuth } from "@/lib/git";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -131,5 +131,7 @@ export async function PATCH(req: Request) {
     create: { userId: g.user.id, ...data },
     update: data,
   });
+  // Token changes must take effect immediately, not after the auth cache TTL.
+  invalidateGitAuth(g.user.id);
   return ok({ saved: true });
 }

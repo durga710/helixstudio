@@ -158,4 +158,46 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "SpaceTask" ADD CONSTRAINT "SpaceTask_assigneeId_fkey" FOREIGN KEY ("assigneeId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- 2026-06 · Intent ledger (WorkspaceIntent, WorkspaceChange)
+CREATE TABLE IF NOT EXISTS "WorkspaceIntent" (
+    "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "kind" TEXT NOT NULL DEFAULT 'agent',
+    "status" TEXT NOT NULL DEFAULT 'open',
+    "title" TEXT NOT NULL DEFAULT '',
+    "userRequest" TEXT NOT NULL DEFAULT '',
+    "planText" TEXT,
+    "reasoning" TEXT,
+    "alternatives" TEXT,
+    "revertsIntentId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "WorkspaceIntent_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "WorkspaceChange" (
+    "id" TEXT NOT NULL,
+    "intentId" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "path" TEXT NOT NULL,
+    "beforeContent" TEXT,
+    "afterContent" TEXT,
+    "baseUnknown" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "WorkspaceChange_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "WorkspaceIntent_workspaceId_createdAt_idx" ON "WorkspaceIntent"("workspaceId", "createdAt");
+CREATE UNIQUE INDEX IF NOT EXISTS "WorkspaceChange_intentId_path_key" ON "WorkspaceChange"("intentId", "path");
+CREATE INDEX IF NOT EXISTS "WorkspaceChange_workspaceId_path_createdAt_idx" ON "WorkspaceChange"("workspaceId", "path", "createdAt");
+
+DO $$ BEGIN
+  ALTER TABLE "WorkspaceIntent" ADD CONSTRAINT "WorkspaceIntent_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "WorkspaceChange" ADD CONSTRAINT "WorkspaceChange_intentId_fkey" FOREIGN KEY ("intentId") REFERENCES "WorkspaceIntent"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 `;

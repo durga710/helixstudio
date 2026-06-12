@@ -25,15 +25,18 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   let ownerName: string | undefined;
   if (!isOwner) {
     if (!ws.spaceId) notFound();
-    const member = await db().spaceMember.findUnique({
-      where: { spaceId_userId: { spaceId: ws.spaceId, userId: session.user.id } },
-      select: { id: true },
-    });
+    // Membership check and owner identity are independent — one round-trip.
+    const [member, owner] = await Promise.all([
+      db().spaceMember.findUnique({
+        where: { spaceId_userId: { spaceId: ws.spaceId, userId: session.user.id } },
+        select: { id: true },
+      }),
+      db().user.findUnique({
+        where: { id: ws.userId },
+        select: { name: true, email: true },
+      }),
+    ]);
     if (!member) notFound();
-    const owner = await db().user.findUnique({
-      where: { id: ws.userId },
-      select: { name: true, email: true },
-    });
     ownerName = owner?.name ?? owner?.email ?? "a teammate";
   }
 

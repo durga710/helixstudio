@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Code2,
@@ -37,6 +37,12 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [query, setQueryState] = useState("");
   const [selected, setSelected] = useState(0);
+
+  // Warm every navigation target the moment the palette opens, so picking
+  // one lands on an already-prefetched route.
+  useEffect(() => {
+    for (const href of ["/", "/editor", "/settings"]) router.prefetch(href);
+  }, [router]);
 
   const items = useMemo<PaletteItem[]>(() => {
     const go = (href: string) => () => router.push(href);

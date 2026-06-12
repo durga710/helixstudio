@@ -296,6 +296,7 @@ model Workspace {
   files    WorkspaceFile[]
   messages WorkspaceMessage[]
   tasks    WorkspaceTask[]
+  intents  WorkspaceIntent[]
 
   // Classroom assignments (v2): this workspace as a starter template, and as
   // a student's submission copy.
@@ -338,6 +339,51 @@ model WorkspaceFile {
   updatedAt   DateTime  @updatedAt
 
   @@unique([workspaceId, path])
+}
+
+// ---------- Intent ledger ----------
+// One intent per user request that changed files: an agent build turn, a
+// manual editor save, or an applied undo. Per-file before/after snapshots
+// (WorkspaceChange) power line-level blame and intentional undo.
+model WorkspaceIntent {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  kind   String @default("agent") // agent | manual | undo
+  status String @default("open") // open | final | reverted
+
+  title        String  @default("")
+  userRequest  String  @default("")
+  planText     String? // approved plan text (Approve & build turns)
+  reasoning    String? // assistant's final reply for the turn
+  alternatives String? // AI-summarized rejected alternatives
+
+  revertsIntentId String? // kind="undo": the intent this reverses
+  createdAt       DateTime @default(now())
+
+  changes WorkspaceChange[]
+
+  @@index([workspaceId, createdAt])
+}
+
+// One row per file an intent touched: full content snapshots, not diffs —
+// bounded by the per-file size cap, and self-healing for blame (a write that
+// bypassed capture shows up as drift, not a broken diff chain).
+model WorkspaceChange {
+  id          String          @id @default(cuid())
+  intentId    String
+  intent      WorkspaceIntent @relation(fields: [intentId], references: [id], onDelete: Cascade)
+  workspaceId String // denormalized for the per-path blame query
+  path        String
+
+  beforeContent String? // null = file did not exist before this intent
+  afterContent  String? // null = this intent deleted the file
+  baseUnknown   Boolean  @default(false) // IMPORT base fetch failed
+  createdAt     DateTime @default(now())
+
+  @@unique([intentId, path])
+  @@index([workspaceId, path, createdAt])
 }
 
 // A repo the user has opted into automatic PR review on. Helix installs a

@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { readCache, writeCache } from "@/lib/client-cache";
 import { ChevronDown, ChevronLeft, ChevronRight, KanbanSquare, Loader2, Plus, Trash2, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -65,15 +66,23 @@ export function SpaceBoard({
     try {
       const res = await fetch(`/api/spaces/${spaceId}/tasks`, { cache: "no-store" });
       const json = await res.json().catch(() => null);
-      setTasks(res.ok && json?.ok ? (json.data.tasks as BoardTask[]) : []);
+      if (res.ok && json?.ok) {
+        setTasks(json.data.tasks as BoardTask[]);
+        writeCache(`space:${spaceId}:tasks`, json.data.tasks);
+      } else {
+        setTasks((prev) => prev ?? []);
+      }
     } catch {
-      setTasks([]);
+      setTasks((prev) => prev ?? []);
     }
   }, [spaceId]);
 
   useEffect(() => {
+    // Instant paint from the last visit; load() refreshes in the background.
+    const cached = readCache<BoardTask[]>(`space:${spaceId}:tasks`);
+    if (cached) setTasks(cached);
     void load();
-  }, [load]);
+  }, [load, spaceId]);
 
   async function addTask() {
     const title = newTitle.trim();

@@ -28,6 +28,35 @@ export interface WorkspaceFileEntry {
   source: "workspace" | "repo";
 }
 
+/**
+ * Short-TTL cache for IMPORT-mode repo trees. The base branch is pinned, so
+ * the tree only changes when the remote moves — without this, EVERY file
+ * list (tree load, chat context, search) pays a full GitHub recursive-tree
+ * round-trip. Process-local; survives HMR via globalThis.
+ */
+const REPO_TREE_TTL_MS = 60_000;
+const globalTreeCache = globalThis as unknown as {
+  __helixRepoTreeCache?: Map<string, { at: number; files: { path: string; size: number }[] }>;
+};
+
+async function fetchRepoTreeCached(
+  ws: Workspace,
+): Promise<{ path: string; size: number }[]> {
+  const cache = (globalTreeCache.__helixRepoTreeCache ??= new Map());
+  const key = `${ws.provider}:${ws.repo}@${ws.baseBranch ?? ""}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < REPO_TREE_TTL_MS) return hit.files;
+
+  const tree = await getProvider(ws.provider).fetchRepoTree(ws.repo!, ws.baseBranch ?? undefined);
+  const files = (tree?.files ?? []).map((f) => ({ path: f.path, size: f.size }));
+  cache.set(key, { at: Date.now(), files });
+  if (cache.size > 200) {
+    // Cheap bound: drop the oldest entries.
+    for (const k of Array.from(cache.keys()).slice(0, 100)) cache.delete(k);
+  }
+  return files;
+}
+
 /** Ownership check — write routes and AI tools go through this. */
 export async function getWorkspaceForUser(
   workspaceId: string,
@@ -113,8 +142,8 @@ export async function listWorkspaceFiles(ws: Workspace): Promise<WorkspaceFileEn
   const entries = new Map<string, WorkspaceFileEntry>();
 
   if (ws.mode === "IMPORT" && ws.repo) {
-    const tree = await getProvider(ws.provider).fetchRepoTree(ws.repo, ws.baseBranch ?? undefined);
-    for (const f of tree?.files ?? []) {
+    const repoFiles = await fetchRepoTreeCached(ws);
+    for (const f of repoFiles) {
       entries.set(f.path, { path: f.path, size: f.size, source: "repo" });
     }
   }
@@ -143,12 +172,78 @@ export async function readWorkspaceFile(ws: Workspace, path: string): Promise<st
 }
 
 /**
+ * Intent-ledger capture: before/after snapshots recorded around a write so
+ * line blame and intentional undo can replay history. EOLs are normalized to
+ * \n (patch math depends on it). Capture must never fail the write — every
+ * caller wraps it in a catch.
+ */
+const eol = (s: string) => (s.includes("\r") ? s.replace(/\r\n/g, "\n") : s);
+
+type CaptureBefore = { content: string | null; baseUnknown: boolean };
+
+async function readCaptureBefores(
+  ws: Workspace,
+  paths: string[],
+): Promise<Map<string, CaptureBefore>> {
+  const befores = new Map<string, CaptureBefore>();
+  const rows = await db().workspaceFile.findMany({
+    where: { workspaceId: ws.id, path: { in: paths } },
+    select: { path: true, content: true, deleted: true },
+  });
+  for (const r of rows) {
+    befores.set(r.path, { content: r.deleted ? null : eol(r.content), baseUnknown: false });
+  }
+  for (const path of paths) {
+    if (befores.has(path)) continue;
+    if (ws.mode === "IMPORT" && ws.repo) {
+      try {
+        const file = await getProvider(ws.provider).fetchRepoFileContent(ws.repo, path, ws.baseBranch ?? undefined);
+        befores.set(path, { content: file ? eol(file.content) : null, baseUnknown: false });
+      } catch {
+        befores.set(path, { content: null, baseUnknown: true });
+      }
+    } else {
+      befores.set(path, { content: null, baseUnknown: false });
+    }
+  }
+  return befores;
+}
+
+async function recordChanges(
+  ws: Workspace,
+  intentId: string,
+  entries: { path: string; after: string | null }[],
+  befores: Map<string, CaptureBefore> | null,
+) {
+  for (const e of entries) {
+    // A failed before-read means the original content is unknowable.
+    const before = befores?.get(e.path) ?? { content: null, baseUnknown: true };
+    const after = e.after === null ? null : eol(e.after);
+    await db().workspaceChange.upsert({
+      where: { intentId_path: { intentId, path: e.path } },
+      create: {
+        intentId,
+        workspaceId: ws.id,
+        path: e.path,
+        beforeContent: before.content,
+        afterContent: after,
+        baseUnknown: before.baseUnknown,
+      },
+      // Repeated writes within one intent coalesce: the first before wins.
+      update: { afterContent: after },
+    });
+  }
+}
+
+/**
  * Upserts files into the overlay. Validates paths and sizes; enforces the
- * per-workspace row cap. Returns the written paths or an error.
+ * per-workspace row cap. Returns the written paths or an error. When
+ * `capture` is set, before/after snapshots are recorded against that intent.
  */
 export async function writeWorkspaceFiles(
   ws: Workspace,
   files: { path: string; content: string }[],
+  capture?: { intentId: string },
 ): Promise<{ writtenPaths: string[] } | { error: string }> {
   for (const f of files) {
     if (!isSafeRepoPath(f.path)) return { error: `unsafe file path: ${f.path || "(empty)"}` };
@@ -163,6 +258,10 @@ export async function writeWorkspaceFiles(
     return { error: `workspace is full — max ${MAX_WORKSPACE_FILES} files` };
   }
 
+  const befores = capture
+    ? await readCaptureBefores(ws, files.map((f) => f.path)).catch(() => null)
+    : null;
+
   await db().$transaction(
     files.map((f) =>
       db().workspaceFile.upsert({
@@ -174,6 +273,15 @@ export async function writeWorkspaceFiles(
   );
   await db().workspace.update({ where: { id: ws.id }, data: { updatedAt: new Date() } });
 
+  if (capture) {
+    await recordChanges(
+      ws,
+      capture.intentId,
+      files.map((f) => ({ path: f.path, after: f.content })),
+      befores,
+    ).catch((err) => console.error("[ledger] change capture failed", err));
+  }
+
   return { writtenPaths: files.map((f) => f.path) };
 }
 
@@ -184,8 +292,13 @@ export async function writeWorkspaceFiles(
 export async function deleteWorkspaceFile(
   ws: Workspace,
   path: string,
+  capture?: { intentId: string },
 ): Promise<{ deletedPaths: string[] } | { error: string }> {
   if (!isSafeRepoPath(path)) return { error: `unsafe file path: ${path}` };
+
+  const befores = capture
+    ? await readCaptureBefores(ws, [path]).catch(() => null)
+    : null;
 
   if (ws.mode === "SCRATCH") {
     await db().workspaceFile.deleteMany({ where: { workspaceId: ws.id, path } });
@@ -197,6 +310,12 @@ export async function deleteWorkspaceFile(
     });
   }
   await db().workspace.update({ where: { id: ws.id }, data: { updatedAt: new Date() } });
+
+  if (capture) {
+    await recordChanges(ws, capture.intentId, [{ path, after: null }], befores).catch(
+      (err) => console.error("[ledger] change capture failed", err),
+    );
+  }
 
   return { deletedPaths: [path] };
 }
