@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helix — What's New, in Plain English</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #0d1626; color: #f8fbff;
+    width: 1123px; min-height: 794px; padding: 40px 46px;
+  }
+  h1 { font-size: 30px; letter-spacing: -0.5px; }
+  h1 span { color: #34d399; }
+  .sub { color: #9cadc4; font-size: 14px; margin-top: 6px; margin-bottom: 30px; }
+  .cards { display: flex; flex-direction: column; gap: 18px; }
+  .card {
+    display: flex; align-items: stretch; gap: 0;
+    border: 1px solid #28364f; border-radius: 14px; overflow: hidden; background: #121d30;
+  }
+  .icon {
+    width: 120px; flex-shrink: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 6px; padding: 16px;
+    background: rgba(52,211,153,.08); border-right: 1px solid #28364f;
+  }
+  .icon .emoji { font-size: 40px; line-height: 1; }
+  .icon .num { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: #34d399; }
+  .body { flex: 1; padding: 16px 20px; }
+  .title { font-size: 18px; font-weight: 700; }
+  .analogy { color: #cdd7e6; font-size: 13.5px; margin-top: 4px; font-style: italic; }
+  .ba { display: flex; gap: 14px; margin-top: 12px; }
+  .ba > div { flex: 1; border-radius: 9px; padding: 9px 12px; font-size: 12.5px; line-height: 1.4; }
+  .before { background: rgba(248,113,113,.08); border: 1px solid rgba(248,113,113,.35); }
+  .after  { background: rgba(52,211,153,.08); border: 1px solid rgba(52,211,153,.4); }
+  .ba b { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 3px; }
+  .before b { color: #f87171; }
+  .after b  { color: #34d399; }
+  .footer { margin-top: 26px; font-size: 11px; color: #5f6f86; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>What's New in <span>Helix</span> — in Plain English</h1>
+  <div class="sub">Three upgrades that make building software here faster, safer, and more like having a teammate. No jargon.</div>
+
+  <div class="cards">
+    <!-- 1 -->
+    <div class="card">
+      <div class="icon"><div class="emoji">🧰</div><div class="num">1 · FASTER</div></div>
+      <div class="body">
+        <div class="title">Your project remembers its tools</div>
+        <div class="analogy">Like leaving your tools out on the workbench instead of unpacking the whole toolbox every single time.</div>
+        <div class="ba">
+          <div class="before"><b>Before</b>Every time you ran your app, it re-downloaded everything first — minutes of waiting, each run.</div>
+          <div class="after"><b>After</b>It sets up once and remembers. The next run starts in <b style="display:inline">a few seconds</b>. You can even customize the setup.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <div class="card">
+      <div class="icon"><div class="emoji">📚</div><div class="num">2 · SAFER</div></div>
+      <div class="body">
+        <div class="title">Saving to GitHub the proper way</div>
+        <div class="analogy">Like saving a real document with full edit history — not slipping a loose photocopy into the drawer.</div>
+        <div class="ba">
+          <div class="before"><b>Before</b>Sent one flat snapshot. If a teammate had changed the same project, your save could clash or overwrite.</div>
+          <div class="after"><b>After</b>Real version history. It pulls in teammates' latest work first, and warns you instead of clobbering it.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 -->
+    <div class="card">
+      <div class="icon"><div class="emoji">🧑‍🏫</div><div class="num">3 · SMARTER</div></div>
+      <div class="body">
+        <div class="title">An AI teammate checks your work</div>
+        <div class="analogy">Like a senior teammate who quietly reviews every change before it ships — and tells you what to fix.</div>
+        <div class="ba">
+          <div class="before"><b>Before</b>You opened a pull request on GitHub and hoped someone had time to review it.</div>
+          <div class="after"><b>After</b>Flip it on for a repo, and Helix reviews every pull request automatically — pointing at the exact lines with problems, then a clear <b style="display:inline">"ship it"</b> or <b style="display:inline">"hold"</b>.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Helix Studio · the deep technical version of these is in agent-platform.pdf</div>
+</body>
+</html>
