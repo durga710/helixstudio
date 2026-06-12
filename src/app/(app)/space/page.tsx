@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
-import { db, dbEnabled, schemaReady } from "@/lib/db";
+import { dbEnabled } from "@/lib/db";
 import { Card } from "@/components/ui/card";
 import { SpaceScreen } from "@/components/screens/space-screen";
 
@@ -29,28 +29,11 @@ export default async function SpacePage() {
     );
   }
 
-  // Consume a pending invite cookie set by the login flow (mirrors the
-  // guest-upgrade pattern in editor/page.tsx). If the user signed in to accept
-  // an invite, the joinCode is waiting here — join the Space, then clear it.
-  const jar = await cookies();
-  const joinCode = jar.get("helix.join-space")?.value;
-  if (joinCode) {
-    await schemaReady();
-    const space = await db().space.findUnique({
-      where: { joinCode },
-      select: { id: true },
-    });
-    if (space) {
-      await db().spaceMember.upsert({
-        where: { spaceId_userId: { spaceId: space.id, userId: session.user.id } },
-        create: { spaceId: space.id, userId: session.user.id, role: "member" },
-        update: {},
-      });
-    }
-    jar.set("helix.join-space", "", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 0 });
-    if (space) redirect(`/space?s=${space.id}`);
-    redirect("/space?invite=invalid");
-  }
+  // A pending invite cookie means the user signed in to accept an invite.
+  // Hand it to the join route handler, which joins AND clears the cookie
+  // (pages can't modify cookies during render).
+  const joinCode = (await cookies()).get("helix.join-space")?.value;
+  if (joinCode) redirect(`/space/join/${encodeURIComponent(joinCode)}`);
 
   return <SpaceScreen youName={session.user.name ?? null} />;
 }

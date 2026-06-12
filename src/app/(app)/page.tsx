@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { Bot, FolderGit2, Lock, MessageSquare, FileCode2, Sparkles, Users } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db, dbEnabled, schemaReady } from "@/lib/db";
@@ -37,6 +38,14 @@ function activityLabel(content: string, actions: unknown): string {
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/welcome");
+
+  // Login lands here — if the user signed in to accept a Space invite, finish
+  // the join first (the route handler joins and clears the cookie).
+  if (!session.user.isGuest) {
+    const joinCode = (await cookies()).get("helix.join-space")?.value;
+    if (joinCode) redirect(`/space/join/${encodeURIComponent(joinCode)}`);
+  }
+
   const firstName = (session.user.name ?? "there").split(" ")[0];
   const userId = session.user.id;
 

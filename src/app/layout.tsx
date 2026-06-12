@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { ThemeProvider, themeInitScript } from "@/components/theme-provider";
+import { ThemeProvider } from "@/components/theme-provider";
+import { themeInitScript } from "@/lib/theme-init";
 import { ToastProvider } from "@/components/ui/toast";
 import "./globals.css";
 
@@ -43,10 +44,14 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-      </head>
       <body className="min-h-full font-sans">
+        {/* Theme init must execute before first paint, but a <script> element
+            rendered through React triggers a React 19 console error whenever
+            the tree re-renders on the client (scripts are never executed
+            there). Injecting the tag via innerHTML keeps it out of React's
+            element creation entirely: the browser parser executes it from the
+            server HTML, and client re-renders are a no-op. */}
+        <div hidden dangerouslySetInnerHTML={{ __html: `<script>${themeInitScript}</script>` }} />
         <ThemeProvider>
           <ToastProvider>{children}</ToastProvider>
         </ThemeProvider>

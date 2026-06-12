@@ -107,10 +107,6 @@ export function useTheme(): ThemeContextValue {
   return ctx;
 }
 
-/** Applied before paint via an inline <script> to avoid a flash of default theme. */
-export const themeInitScript = `(function(){try{var d=document.documentElement,ls=window.localStorage;
-var t=ls.getItem('helix_theme');d.dataset.theme=t==='light'?'light':'dark';
-var de=ls.getItem('helix_density');d.dataset.density=de==='compact'?'compact':'comfortable';
-var a=ls.getItem('helix_accent');if(a&&/^#[0-9a-fA-F]{6}$/.test(a)){d.style.setProperty('--accent',a);d.style.setProperty('--accent-ink','#fff');}
-var f=parseInt(ls.getItem('helix_ft')||'',10);if(f>=11&&f<=18)d.style.setProperty('--ft',f+'px');
-}catch(e){}})();`;
+// The before-paint init script lives in src/lib/theme-init.ts (server-safe;
+// this module is "use client" so exports from here reach the server layout as
+// client-reference proxies, not values). Keep its storage keys in sync.
