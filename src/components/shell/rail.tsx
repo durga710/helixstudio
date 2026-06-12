@@ -22,7 +22,7 @@ export const NAV_ITEMS = [
   { href: "/space", title: "Space", icon: Users },
 ] as const;
 
-export function Rail({ userInitials }: { userInitials: string }) {
+export function Rail({ userInitials, userImage }: { userInitials: string; userImage?: string | null }) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -59,9 +59,14 @@ export function Rail({ userInitials }: { userInitials: string }) {
         <Dropdown.Trigger asChild>
           <button
             title="Account"
-            className="mt-1 grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-lg border-none bg-gradient-to-br from-[#8b5cf6] to-accent text-[11px] font-semibold text-white"
+            className="mt-1 grid h-[30px] w-[30px] cursor-pointer place-items-center overflow-hidden rounded-lg border-none bg-gradient-to-br from-[#8b5cf6] to-accent text-[11px] font-semibold text-white"
           >
-            {userInitials}
+            {userImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={userImage} alt="" className="h-full w-full object-cover" />
+            ) : (
+              userInitials
+            )}
           </button>
         </Dropdown.Trigger>
         <Dropdown.Portal>

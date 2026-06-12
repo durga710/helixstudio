@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Moon, Plus, Sun, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Moon, Plus, Sun, Trash2, Upload, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
@@ -46,16 +47,83 @@ function SettingRow({
 
 const GUIDANCE_FILES = ["CLAUDE.md", "PRODUCT.md", "ARCHITECTURE.md", "DESIGN_SYSTEM.md", "TASKS.md"];
 
+/** Initials fallback for the avatar (matches the Space member chips). */
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+/** Center-crop + resize an image File to a square data-URL (~a few KB). */
+function resizeToDataUrl(file: File, size = 128): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("read failed"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("decode failed"));
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("no canvas"));
+        const side = Math.min(img.width, img.height); // cover-crop to a square
+        ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 const scopeTone: Record<MemoryScope, "accent" | "green" | "amber"> = {
   user: "accent",
   project: "green",
   agent: "amber",
 };
 
-export function SettingsScreen() {
+export function SettingsScreen({
+  initialName,
+  initialImage,
+}: {
+  initialName?: string | null;
+  initialImage?: string | null;
+} = {}) {
   const { theme, setTheme, accent, setAccent, density, setDensity, fontSize, setFontSize } = useTheme();
   const { prefs, update } = usePrefs();
   const { toast } = useToast();
+  const router = useRouter();
+
+  // Profile (avatar + display name). Seeded from the SSR session to avoid a
+  // flash, then reconciled with the live DB value (the session can lag ≤60s).
+  const [avatar, setAvatar] = useState<string | null>(initialImage ?? null);
+  const [displayName, setDisplayName] = useState(initialName ?? "");
+  const [savedName, setSavedName] = useState(initialName ?? "");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/profile", { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        if (!cancelled && res.ok && json?.ok) {
+          setAvatar(json.data.image ?? null);
+          setDisplayName(json.data.name ?? "");
+          setSavedName(json.data.name ?? "");
+        }
+      } catch {
+        /* keep the SSR seed */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [memory, setMemory] = useState<MemoryEntry[]>([]);
   const [memLoading, setMemLoading] = useState(true);
@@ -147,12 +215,125 @@ export function SettingsScreen() {
     }
   }
 
+  async function patchProfile(body: { image?: string | null; name?: string }) {
+    const res = await fetch("/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.ok) throw new Error(json?.error?.message ?? "Couldn't save.");
+    return json.data as { image: string | null; name: string | null };
+  }
+
+  async function onPickAvatar(file: File) {
+    if (savingProfile) return;
+    setSavingProfile(true);
+    try {
+      const dataUrl = await resizeToDataUrl(file, 128);
+      if (dataUrl.length > 95_000) throw new Error("That image is too large even after resizing — try another.");
+      const saved = await patchProfile({ image: dataUrl });
+      setAvatar(saved.image);
+      toast("Picture updated");
+      router.refresh(); // refresh the rail's session-based avatar
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Couldn't update the picture.");
+    }
+    setSavingProfile(false);
+  }
+
+  async function removeAvatar() {
+    if (savingProfile) return;
+    setSavingProfile(true);
+    try {
+      await patchProfile({ image: null });
+      setAvatar(null);
+      toast("Picture removed");
+      router.refresh();
+    } catch {
+      toast("Couldn't remove the picture.");
+    }
+    setSavingProfile(false);
+  }
+
+  async function saveName() {
+    const name = displayName.trim();
+    if (!name || savingProfile) return;
+    setSavingProfile(true);
+    try {
+      await patchProfile({ name });
+      setSavedName(name);
+      toast("Name updated");
+      router.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Couldn't update your name.");
+    }
+    setSavingProfile(false);
+  }
+
   return (
     <div className="pad-screen">
       <div className="max-w-[760px]">
         <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Workspace</div>
         <h1 className="text-[22px] font-bold tracking-tight">Settings</h1>
-        <p className="mt-1 text-[13px] text-txt2">Appearance, model, agents, memory, and project guidance.</p>
+        <p className="mt-1 text-[13px] text-txt2">Profile, appearance, model, agents, memory, and project guidance.</p>
+
+        {/* Profile */}
+        <h3 className="mb-[11px] mt-6 text-sm font-semibold">Profile</h3>
+        <Card className="px-[18px] py-1">
+          <SettingRow
+            label="Profile picture"
+            description="Shown on your spaces, assignments, and the sidebar. PNG, JPEG, or WebP."
+          >
+            <div className="flex items-center gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full border border-border2 bg-panel2 text-sm font-semibold text-txt2">
+                {avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatar} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  initials(displayName || initialName || "?")
+                )}
+              </span>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void onPickAvatar(f);
+                  e.target.value = ""; // allow re-picking the same file
+                }}
+              />
+              <Button variant="ghost" onClick={() => avatarInputRef.current?.click()} disabled={savingProfile}>
+                {savingProfile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                Upload
+              </Button>
+              {avatar && (
+                <Button variant="ghost" onClick={() => void removeAvatar()} disabled={savingProfile}>
+                  Remove
+                </Button>
+              )}
+            </div>
+          </SettingRow>
+          <SettingRow label="Display name" description="How your name appears to teammates." last>
+            <div className="flex items-center gap-2">
+              <Input
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Your name"
+                aria-label="Display name"
+                className="w-48 text-[13px]"
+              />
+              <Button
+                onClick={() => void saveName()}
+                disabled={savingProfile || !displayName.trim() || displayName.trim() === savedName}
+              >
+                Save
+              </Button>
+            </div>
+          </SettingRow>
+        </Card>
 
         {/* Appearance */}
         <h3 className="mb-[11px] mt-6 text-sm font-semibold">Appearance</h3>

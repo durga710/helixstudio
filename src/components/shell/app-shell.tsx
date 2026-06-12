@@ -8,9 +8,11 @@ import { NewProjectModal } from "./new-project-modal";
 
 export function AppShell({
   userInitials,
+  userImage,
   children,
 }: {
   userInitials: string;
+  userImage?: string | null;
   children: React.ReactNode;
 }) {
   return (
@@ -22,7 +24,7 @@ export function AppShell({
           which made the editor's chat panel look empty. With the row pinned,
           <main> stays viewport-height and scrolls its own content. */}
       <div className="grid h-screen grid-cols-[56px_1fr] grid-rows-1 overflow-hidden">
-        <Rail userInitials={userInitials} />
+        <Rail userInitials={userInitials} userImage={userImage} />
         <div className="flex min-w-0 flex-col">
           <Topbar />
           <main className="scroll-area min-h-0 flex-1 overflow-auto">{children}</main>

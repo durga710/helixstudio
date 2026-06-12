@@ -173,11 +173,15 @@ const config: NextAuthConfig = {
         if (dbEnabled() && account && account.provider !== "credentials" && account.provider !== "guest" && user.email) {
           await schemaReady();
           const dbUser = await db().user.findUnique({ where: { email: user.email.toLowerCase() } });
-          if (dbUser) token.sub = dbUser.id;
+          if (dbUser) {
+            token.sub = dbUser.id;
+            token.picture = dbUser.image ?? null;
+          }
           token.guest = false;
         } else {
           if (user.id) token.sub = user.id;
           token.guest = Boolean((user as { isGuest?: boolean }).isGuest);
+          token.picture = (user as { image?: string | null }).image ?? null;
         }
         token.checkedAt = Date.now();
         return token;
@@ -191,10 +195,11 @@ const config: NextAuthConfig = {
         await schemaReady();
         const dbUser = await db().user.findUnique({
           where: { id: token.sub },
-          select: { isGuest: true },
+          select: { isGuest: true, image: true },
         });
         if (!dbUser) return null; // user no longer exists → invalidate session
         token.guest = dbUser.isGuest;
+        token.picture = dbUser.image ?? null; // pick up avatar changes within 60s
         token.checkedAt = Date.now();
       }
       return token;
@@ -202,6 +207,7 @@ const config: NextAuthConfig = {
     session({ session, token }) {
       if (session.user && token.sub) session.user.id = token.sub;
       if (session.user) session.user.isGuest = Boolean(token.guest);
+      if (session.user) session.user.image = (token.picture as string | null) ?? null;
       return session;
     },
   },

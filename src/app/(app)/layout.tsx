@@ -16,7 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .join("") || "U";
 
   return (
-    <AppShell userInitials={initials}>
+    <AppShell userInitials={initials} userImage={session.user.image ?? null}>
       {children}
     </AppShell>
   );
