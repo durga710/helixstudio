@@ -106,18 +106,26 @@ interface WorkspaceExport {
   pkgJson: string | null;
 }
 
+const EXPORT_CONCURRENCY = 10;
+
 async function exportWorkspace(ws: Workspace): Promise<WorkspaceExport> {
   const files = await listWorkspaceFiles(ws);
   const paths = files.map((f) => f.path);
 
+  // IMPORT-mode reads hit the git host per file — batched in parallel, or a
+  // big repo's export alone blows the serverless time budget.
   const exportList = files.slice(0, MAX_EXPORT_FILES);
   const contents: { path: string; content: string }[] = [];
   let pkgJson: string | null = null;
-  for (const f of exportList) {
-    const content = await readWorkspaceFile(ws, f.path);
-    if (content === null) continue; // binary/unreadable — skip
-    if (f.path === "package.json") pkgJson = content;
-    contents.push({ path: f.path, content });
+  for (let i = 0; i < exportList.length; i += EXPORT_CONCURRENCY) {
+    const batch = exportList.slice(i, i + EXPORT_CONCURRENCY);
+    const reads = await Promise.all(batch.map((f) => readWorkspaceFile(ws, f.path).catch(() => null)));
+    for (let j = 0; j < batch.length; j++) {
+      const content = reads[j];
+      if (content === null) continue; // binary/unreadable — skip
+      if (batch[j].path === "package.json") pkgJson = content;
+      contents.push({ path: batch[j].path, content });
+    }
   }
   return { paths, contents, pkgJson };
 }
@@ -207,11 +215,14 @@ export interface PreparedSandbox {
  *   3. Otherwise cold: create, run the setup script, snapshot it for next time.
  * Setup/snapshot failures degrade gracefully — you just get a cold VM.
  */
-export async function ensurePreparedSandbox(ws: Workspace): Promise<PreparedSandbox | { error: string }> {
+export async function ensurePreparedSandbox(
+  ws: Workspace,
+  preExported?: WorkspaceExport,
+): Promise<PreparedSandbox | { error: string }> {
   const existing = await findSandbox(ws);
   if (existing) return { sandbox: existing, warm: true };
 
-  const exported = await exportWorkspace(ws);
+  const exported = preExported ?? (await exportWorkspace(ws));
   const detection = detectFramework(exported.paths, exported.pkgJson);
   const setup = effectiveSetup(ws, detection, exported.paths);
   const key = envKey(setup, exported);
@@ -265,24 +276,48 @@ export async function clearEnvCache(workspaceId: string): Promise<void> {
 async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
   await stop(ws.id); // one run per workspace
 
-  const { paths, pkgJson } = await exportWorkspace(ws);
-  if (paths.length === 0) return { error: "The workspace is empty — nothing to run." };
+  const exported = await exportWorkspace(ws);
+  if (exported.paths.length === 0) return { error: "The workspace is empty — nothing to run." };
 
-  const detection = detectFramework(paths, pkgJson);
+  const detection = detectFramework(exported.paths, exported.pkgJson);
   if (detection.kind === "static" || detection.kind === "unknown") {
     return { error: "This looks like a static site — the Preview tab renders it directly, no run needed." };
   }
 
-  const built = buildCommands(detection, paths, pkgJson, PORT, "0.0.0.0");
+  const built = buildCommands(detection, exported.paths, exported.pkgJson, PORT, "0.0.0.0");
   if ("error" in built) return { error: built.error };
 
-  // Prepared = deps installed (warm restore, or cold prepare ran the setup
-  // script), so we only run the dev command here — no inline install.
-  const prepared = await ensurePreparedSandbox(ws);
-  if ("error" in prepared) return prepared;
-  const { sandbox, warm } = prepared;
-  const command = built.dev;
+  // Warm path: a fresh env snapshot restores with deps already installed.
+  // Cold path: create the VM and run `setup && dev` DETACHED — installing
+  // inline used to blow the serverless time budget on big repos (the start
+  // request timed out and the UI showed a phantom "stopped" run). The boot
+  // screen streams the install from the VM's log file instead. Cold runs
+  // don't seed the env-cache snapshot; verify/run_command still do.
+  const setup = effectiveSetup(ws, detection, exported.paths);
+  const key = envKey(setup, exported);
+  const cacheFresh =
+    ws.envSnapshotId &&
+    ws.envSnapshotKey === key &&
+    ws.envReadyAt &&
+    Date.now() - ws.envReadyAt.getTime() < SNAPSHOT_TTL_MS;
 
+  let sandbox: Sandbox | null = null;
+  let warm = false;
+  if (cacheFresh) {
+    const restored = await createSandboxWithFiles(ws, detection, exported.contents, ws.envSnapshotId!);
+    if (!("error" in restored)) {
+      sandbox = restored;
+      warm = true;
+    }
+    // Snapshot gone/expired server-side — fall through to a cold VM.
+  }
+  if (!sandbox) {
+    const cold = await createSandboxWithFiles(ws, detection, exported.contents);
+    if ("error" in cold) return cold;
+    sandbox = cold;
+  }
+
+  const command = warm || !setup ? built.dev : `${setup} && ${built.dev}`;
   try {
     // Detached with output captured in the VM — later invocations read the
     // log file because no server memory survives between API calls.
@@ -299,14 +334,19 @@ async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
   }
 
   return {
-    status: "starting",
+    status: warm ? "starting" : "installing",
     framework: detection.label,
     url: sandbox.domain(PORT),
     port: null,
     reachable: false,
     logs: [
       `[helix] ${detection.label} detected`,
-      warm ? "[helix] warm VM (deps cached) — starting the dev server" : "[helix] cold VM prepared — starting the dev server",
+      ...(exported.paths.length > MAX_EXPORT_FILES
+        ? [`[helix] workspace has ${exported.paths.length} files — exported the first ${MAX_EXPORT_FILES}`]
+        : []),
+      warm
+        ? "[helix] warm VM (deps cached) — starting the dev server"
+        : "[helix] cold VM — installing dependencies inside the VM (logs stream below)",
     ],
   };
 }

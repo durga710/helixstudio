@@ -1306,11 +1306,26 @@ export function WorkspacePanel({
               </div>
               <div className="min-h-0 flex-1">
                 {run?.url && run.reachable ? (
-                  <iframe
-                    title="App preview"
-                    src={run.url}
-                    className="h-full w-full bg-white"
-                  />
+                  <div className="flex h-full flex-col">
+                    <iframe
+                      title="App preview"
+                      src={run.url}
+                      className="min-h-0 w-full flex-1 bg-white"
+                    />
+                    {/* Apps that send X-Frame-Options / frame-ancestors refuse
+                        to render in ANY iframe — give them a way out. */}
+                    <div className="flex items-center justify-center gap-1.5 border-t border-border bg-panel2/40 px-3 py-1.5 text-[11px] text-txt3">
+                      <span>Showing &ldquo;refused to connect&rdquo;? The app blocks embedding —</span>
+                      <a
+                        href={run.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-accent transition-colors hover:brightness-110"
+                      >
+                        open it in a new tab <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                  </div>
                 ) : run && run.status !== "stopped" ? (
                   /* booting / installing / error → live logs */
                   <div className="flex h-full flex-col bg-codebg">
