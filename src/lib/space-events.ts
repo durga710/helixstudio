@@ -17,6 +17,7 @@ export type SpaceEventAction =
   | "assignment_created"
   | "submitted"
   | "reviewed"
+  | "revision_requested"
   | "pushed"
   | "forked"
   | "task_added"

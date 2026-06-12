@@ -3,10 +3,24 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readCache, writeCache } from "@/lib/client-cache";
-import { ArrowLeft, GraduationCap, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, GraduationCap, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
+import { Button } from "@/components/ui/button";
+
+/** RFC-4180-ish CSV cell: quote when it contains a comma, quote, or newline. */
+function csvCell(v: string): string {
+  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  not_started: "not started",
+  in_progress: "in progress",
+  submitted: "submitted",
+  reviewed: "reviewed",
+  revise: "needs revision",
+};
 
 interface GradebookData {
   spaceName: string;
@@ -20,7 +34,32 @@ const CELL_STYLE: Record<string, string> = {
   in_progress: "text-txt2",
   submitted: "text-accent",
   reviewed: "text-ok",
+  revise: "text-warn",
 };
+
+/** Download the gradebook as a CSV: a Student column + one column per
+ * assignment (grade if set, else the status). Built client-side from data
+ * already loaded — no server round-trip. */
+function exportCsv(data: GradebookData) {
+  const header = ["Student", ...data.assignments.map((a) => a.title)];
+  const rows = data.students.map((s) => [
+    s.name,
+    ...data.assignments.map((a) => {
+      const cell = data.cells[`${a.id}:${s.userId}`];
+      if (!cell) return "not started";
+      return cell.grade || STATUS_LABEL[cell.status] || cell.status;
+    }),
+  ]);
+  const csv = [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n");
+  const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const safeName = data.spaceName.replace(/[^\w-]+/g, "-").replace(/^-+|-+$/g, "") || "classroom";
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${safeName}-gradebook.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -98,6 +137,11 @@ export function GradebookScreen({ spaceId }: { spaceId: string }) {
             {data.students.length} student{data.students.length === 1 ? "" : "s"} ·{" "}
             {data.assignments.length} assignment{data.assignments.length === 1 ? "" : "s"}
           </span>
+          {data.students.length > 0 && data.assignments.length > 0 && (
+            <Button variant="ghost" onClick={() => exportCsv(data)} className="ml-auto px-2.5 py-1.5">
+              <Download className="h-3.5 w-3.5" /> Export CSV
+            </Button>
+          )}
         </div>
 
         {data.assignments.length === 0 || data.students.length === 0 ? (

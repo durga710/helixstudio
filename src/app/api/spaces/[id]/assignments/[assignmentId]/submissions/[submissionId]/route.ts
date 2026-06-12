@@ -20,6 +20,9 @@ const Schema = z.object({
   feedback: z.string().max(20_000).optional(),
   grade: z.string().max(40).optional(),
   markReviewed: z.boolean().optional(),
+  // Send a reviewed submission back for changes: keeps the feedback/grade
+  // visible to the student and unlocks resubmission.
+  requestRevision: z.boolean().optional(),
 });
 
 export async function PATCH(req: Request, { params }: Params) {
@@ -54,18 +57,30 @@ export async function PATCH(req: Request, { params }: Params) {
   if (parsed.data.markReviewed) {
     data.status = "reviewed";
     data.reviewedAt = new Date();
+  } else if (parsed.data.requestRevision) {
+    // Reopen for changes — feedback/grade stay so the student knows what to fix.
+    data.status = "revise";
   }
   if (Object.keys(data).length === 0) return apiErrors.badRequest("Nothing to update.");
 
   await db().assignmentSubmission.update({ where: { id: submissionId }, data });
 
-  // Feed: announce the review itself, never the grade (that's the student's).
+  // Feed: announce the review / revision request, never the grade.
   if (parsed.data.markReviewed && submission.status !== "reviewed") {
     void recordSpaceEvent({
       spaceId: id,
       userId: g.user.id,
       actorName: actorNameOf(g.user),
       action: "reviewed",
+      target: submission.assignment.title,
+      targetId: assignmentId,
+    });
+  } else if (parsed.data.requestRevision) {
+    void recordSpaceEvent({
+      spaceId: id,
+      userId: g.user.id,
+      actorName: actorNameOf(g.user),
+      action: "revision_requested",
       target: submission.assignment.title,
       targetId: assignmentId,
     });

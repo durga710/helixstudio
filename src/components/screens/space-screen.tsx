@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { useToast } from "@/components/ui/toast";
 import { AssignmentsSection } from "@/components/screens/assignments-section";
+import { ClassroomOverview } from "@/components/screens/classroom-overview";
 import { SpaceBillingCard, type SpaceBilling } from "@/components/screens/space-billing-card";
 import { SpaceActivityFeed } from "@/components/screens/space-activity-feed";
 import { SpaceBoard } from "@/components/screens/space-board";
@@ -821,6 +822,11 @@ function SpaceDetailPanel({
       {/* Plan & seats (owner only; hidden when billing isn't configured) */}
       {detail.isOwner && (
         <SpaceBillingCard spaceId={detail.id} kind={detail.kind} billing={detail.billing} />
+      )}
+
+      {/* Classroom command center (instructor only) — at-a-glance status */}
+      {detail.kind === "classroom" && detail.isOwner && (
+        <ClassroomOverview spaceId={detail.id} refreshKey={detail.id} />
       )}
 
       {/* Assignments (classrooms only) */}

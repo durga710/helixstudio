@@ -11,8 +11,12 @@ import {
   Check,
   ClipboardList,
   Loader2,
+  Pencil,
+  RotateCcw,
   Send,
+  Trash2,
   Undo2,
+  X,
 } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -55,17 +59,42 @@ interface Detail {
   roster?: RosterRow[];
 }
 
-const STATUS_PILL: Record<string, { label: string; tone: "neutral" | "accent" | "green" }> = {
+const STATUS_PILL: Record<string, { label: string; tone: "neutral" | "accent" | "green" | "amber" }> = {
   not_started: { label: "not started", tone: "neutral" },
   in_progress: { label: "in progress", tone: "neutral" },
   submitted: { label: "submitted", tone: "accent" },
   reviewed: { label: "reviewed", tone: "green" },
+  revise: { label: "needs revision", tone: "amber" },
 };
 
 export function AssignmentScreen({ spaceId, assignmentId }: { spaceId: string; assignmentId: string }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function deleteAssignment() {
+    if (deleting) return;
+    if (!window.confirm("Delete this assignment? Student grades and submission records are removed; their workspaces stay.")) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/spaces/${spaceId}/assignments/${assignmentId}`, { method: "DELETE" });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        toast("Assignment deleted");
+        router.push(`/space?s=${spaceId}`);
+        return;
+      }
+      toast(json?.error?.message ?? "Couldn't delete the assignment.");
+    } catch {
+      toast("Couldn't delete the assignment.");
+    }
+    setDeleting(false);
+  }
 
   const load = useCallback(async () => {
     try {
@@ -121,29 +150,159 @@ export function AssignmentScreen({ spaceId, assignmentId }: { spaceId: string; a
           <ArrowLeft className="h-3.5 w-3.5" /> {detail.spaceName}
         </button>
 
-        <div className="mb-1 flex items-center gap-2">
-          <ClipboardList className="h-5 w-5 text-txt3" />
-          <h1 className="text-[20px] font-bold tracking-tight">{detail.title}</h1>
-          {detail.dueAt && (
-            <Pill tone="neutral">
-              <CalendarClock className="h-3 w-3" />{" "}
-              {new Date(detail.dueAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-            </Pill>
-          )}
-        </div>
-
-        <Card className="mt-4 p-5">
-          <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-txt3">Instructions</h2>
-          <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-txt2">{detail.instructions}</p>
-        </Card>
-
-        {detail.isOwner ? (
-          <InstructorPanel detail={detail} spaceId={spaceId} assignmentId={assignmentId} onChanged={load} />
+        {editing ? (
+          <AssignmentEditForm
+            detail={detail}
+            spaceId={spaceId}
+            assignmentId={assignmentId}
+            onDone={async () => {
+              setEditing(false);
+              await load();
+            }}
+            onCancel={() => setEditing(false)}
+          />
         ) : (
-          <StudentPanel detail={detail} spaceId={spaceId} assignmentId={assignmentId} onChanged={load} />
+          <>
+            <div className="mb-1 flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-txt3" />
+              <h1 className="text-[20px] font-bold tracking-tight">{detail.title}</h1>
+              {detail.dueAt && (
+                <Pill tone="neutral">
+                  <CalendarClock className="h-3 w-3" />{" "}
+                  {new Date(detail.dueAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                </Pill>
+              )}
+              {detail.isOwner && (
+                <div className="ml-auto flex gap-1.5">
+                  <Button variant="ghost" onClick={() => setEditing(true)} className="px-2.5 py-1.5">
+                    <Pencil className="h-3.5 w-3.5" /> Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => void deleteAssignment()}
+                    disabled={deleting}
+                    className="px-2.5 py-1.5 text-bad hover:text-bad"
+                  >
+                    {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    Delete
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <Card className="mt-4 p-5">
+              <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-txt3">Instructions</h2>
+              <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-txt2">{detail.instructions}</p>
+            </Card>
+
+            {detail.isOwner ? (
+              <InstructorPanel detail={detail} spaceId={spaceId} assignmentId={assignmentId} onChanged={load} />
+            ) : (
+              <StudentPanel detail={detail} spaceId={spaceId} assignmentId={assignmentId} onChanged={load} />
+            )}
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+/* ------------------------------- edit form ------------------------------ */
+
+function AssignmentEditForm({
+  detail,
+  spaceId,
+  assignmentId,
+  onDone,
+  onCancel,
+}: {
+  detail: Detail;
+  spaceId: string;
+  assignmentId: string;
+  onDone: () => Promise<void>;
+  onCancel: () => void;
+}) {
+  const { toast } = useToast();
+  const [title, setTitle] = useState(detail.title);
+  const [instructions, setInstructions] = useState(detail.instructions);
+  const [due, setDue] = useState(detail.dueAt ? detail.dueAt.slice(0, 10) : "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (saving) return;
+    if (!title.trim() || !instructions.trim()) {
+      toast("Title and instructions are required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/spaces/${spaceId}/assignments/${assignmentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          instructions: instructions.trim(),
+          // date input → end-of-day ISO, or null to clear.
+          dueAt: due ? new Date(`${due}T23:59:59`).toISOString() : null,
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        toast("Assignment updated");
+        await onDone();
+      } else {
+        toast(json?.error?.message ?? "Couldn't update the assignment.");
+        setSaving(false);
+      }
+    } catch {
+      toast("Couldn't update the assignment.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <Pencil className="h-4 w-4 text-accent" />
+        <h2 className="text-sm font-semibold">Edit assignment</h2>
+        <button type="button" onClick={onCancel} aria-label="Cancel" className="ml-auto text-txt3 hover:text-txt">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="space-y-3">
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" aria-label="Title" />
+        <Textarea
+          value={instructions}
+          onChange={(e) => setInstructions(e.target.value)}
+          placeholder="Instructions (markdown supported)"
+          aria-label="Instructions"
+          rows={8}
+        />
+        <div className="flex items-center gap-2">
+          <label className="text-[12px] text-txt2">Due date</label>
+          <input
+            type="date"
+            value={due}
+            onChange={(e) => setDue(e.target.value)}
+            className="rounded-lg border border-border2 bg-bg2 px-2 py-1.5 text-[12px] text-txt outline-none focus:border-accent"
+          />
+          {due && (
+            <button type="button" onClick={() => setDue("")} className="text-[11px] text-txt3 hover:text-txt">
+              clear
+            </button>
+          )}
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onCancel} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={() => void save()} disabled={saving}>
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            Save changes
+          </Button>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -227,9 +386,9 @@ function StudentPanel({
                   Open workspace
                 </Button>
               )}
-              {mine.status === "in_progress" && (
+              {(mine.status === "in_progress" || mine.status === "revise") && (
                 <Button onClick={() => void setSubmitState("submit")} disabled={busy}>
-                  <Send className="h-3.5 w-3.5" /> Submit
+                  <Send className="h-3.5 w-3.5" /> {mine.status === "revise" ? "Resubmit" : "Submit"}
                 </Button>
               )}
               {mine.status === "submitted" && (
@@ -242,7 +401,14 @@ function StudentPanel({
         </div>
       </div>
 
-      {mine?.status === "reviewed" && (
+      {mine?.status === "revise" && (
+        <div className="mt-4 flex items-center gap-2 rounded-card border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_8%,transparent)] px-4 py-2.5 text-[12.5px] text-warn">
+          <RotateCcw className="h-4 w-4 shrink-0" />
+          Your instructor asked for changes — review the feedback below, update your work, and resubmit.
+        </div>
+      )}
+
+      {(mine?.status === "reviewed" || mine?.status === "revise") && (
         <div className="mt-4 rounded-card border border-border bg-panel2 p-4">
           <div className="mb-1.5 flex items-center gap-2">
             <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-txt3">Feedback</h3>
@@ -356,6 +522,31 @@ function GradeRow({
     setBusy(false);
   }
 
+  async function requestRevision() {
+    if (busy || !row.submissionId) return;
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/spaces/${spaceId}/assignments/${assignmentId}/submissions/${row.submissionId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requestRevision: true }),
+        },
+      );
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        toast("Sent back for revision — the student can resubmit");
+        await onChanged();
+      } else {
+        toast(json?.error?.message ?? "Couldn't request a revision.");
+      }
+    } catch {
+      toast("Couldn't request a revision.");
+    }
+    setBusy(false);
+  }
+
   async function runAiReview() {
     if (reviewing || !row.submissionId) return;
     setReviewing(true);
@@ -440,12 +631,17 @@ function GradeRow({
                 className="max-w-[160px] text-[12.5px]"
               />
               <div className="ml-auto flex gap-2">
+                {row.status === "reviewed" && (
+                  <Button variant="ghost" onClick={() => void requestRevision()} disabled={busy}>
+                    <RotateCcw className="h-3.5 w-3.5" /> Request revision
+                  </Button>
+                )}
                 <Button variant="ghost" onClick={() => void save(false)} disabled={busy}>
                   Save draft
                 </Button>
                 <Button onClick={() => void save(true)} disabled={busy}>
                   {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                  Mark reviewed
+                  {row.status === "reviewed" ? "Update review" : "Mark reviewed"}
                 </Button>
               </div>
             </div>

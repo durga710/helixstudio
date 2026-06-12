@@ -64,9 +64,11 @@ export async function GET(_req: Request, { params }: Params) {
             status: mine.status,
             workspaceId: mine.workspaceId,
             submittedAt: mine.submittedAt ? mine.submittedAt.toISOString() : null,
-            // Grading is visible to the student once the instructor finishes.
-            grade: mine.status === "reviewed" ? mine.grade : null,
-            feedback: mine.status === "reviewed" ? mine.feedback : null,
+            // Grading is visible once the instructor finishes — and stays
+            // visible while a revision is requested, so the student knows
+            // what to fix.
+            grade: mine.status === "reviewed" || mine.status === "revise" ? mine.grade : null,
+            feedback: mine.status === "reviewed" || mine.status === "revise" ? mine.feedback : null,
           }
         : null,
     });
