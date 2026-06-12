@@ -57,8 +57,11 @@ async function findSandbox(workspaceId: string): Promise<Sandbox | null> {
 
 async function urlReachable(url: string): Promise<boolean> {
   try {
-    await fetch(url, { signal: AbortSignal.timeout(1500), cache: "no-store" });
-    return true; // any HTTP answer counts
+    const res = await fetch(url, { signal: AbortSignal.timeout(2500), cache: "no-store" });
+    // Unlike the local probe, the sandbox proxy ALWAYS answers — while the
+    // app is still installing/booting it serves 502 SANDBOX_NOT_LISTENING.
+    // Only a non-502 response means the app inside the VM is actually up.
+    return res.status !== 502;
   } catch {
     return false;
   }
