@@ -50,21 +50,25 @@ export function Topbar() {
         <span>{title}</span>
       </div>
 
+      {/* Redundant with the "New" button on the right — hide on small screens
+          where space is tight. */}
       <button
         onClick={() => setNewProjectOpen(true)}
-        className="inline-flex cursor-pointer items-center gap-1.5 rounded-card-sm border border-border2 bg-panel px-[9px] py-1 text-xs text-txt transition-colors hover:border-accent"
+        className="hidden cursor-pointer items-center gap-1.5 rounded-card-sm border border-border2 bg-panel px-[9px] py-1 text-xs text-txt transition-colors hover:border-accent sm:inline-flex"
       >
         <Plus className="h-[13px] w-[13px]" strokeWidth={1.7} />
         Start new project
       </button>
 
+      {/* Icon-only on small screens; expands to the full search field at md+. */}
       <button
         onClick={() => setPaletteOpen(true)}
-        className="ml-auto flex w-[300px] max-w-[30vw] cursor-pointer items-center gap-2 rounded-lg border border-border2 bg-panel px-2.5 py-1.5 text-[12.5px] text-txt3 transition-colors hover:border-accent hover:text-txt2"
+        aria-label="Search or ask Helix"
+        className="ml-auto flex cursor-pointer items-center gap-2 rounded-lg border border-border2 bg-panel px-2.5 py-1.5 text-[12.5px] text-txt3 transition-colors hover:border-accent hover:text-txt2 md:w-[300px] md:max-w-[30vw]"
       >
-        <Search className="h-[15px] w-[15px]" strokeWidth={1.7} />
-        Search or ask Helix…
-        <span className="ml-auto flex gap-[3px]">
+        <Search className="h-[15px] w-[15px] shrink-0" strokeWidth={1.7} />
+        <span className="hidden md:inline">Search or ask Helix…</span>
+        <span className="ml-auto hidden gap-[3px] md:flex">
           {["⌘", "K"].map((k) => (
             <span key={k} className="rounded border border-border bg-panel2 px-[5px] font-mono text-[10.5px] text-txt2">
               {k}
