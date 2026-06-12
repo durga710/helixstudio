@@ -10,6 +10,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { MODEL_PRESETS } from "@/lib/model-presets";
+import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 
 type ProviderId = "openai" | "anthropic" | "local";
 const KEY_FIELD: Record<ProviderId, "openaiKey" | "anthropicKey" | "localKey"> = {
@@ -26,7 +27,21 @@ interface Prefs {
   serverKeys: { openai: boolean; anthropic: boolean };
   githubTokenSet: boolean;
   githubOauthConnected?: boolean;
+  gitConnections?: Partial<Record<GitProviderName, boolean>>;
+  gitConfig?: { gitlabBaseUrl?: string | null; azureOrg?: string | null; giteaBaseUrl?: string | null };
 }
+
+type GitHostName = Exclude<GitProviderName, "github">;
+
+const GIT_HOSTS: GitHostName[] = ["gitlab", "bitbucket", "azure", "gitea"];
+
+/** PATCH /api/preferences field names per git host. */
+const GIT_HOST_FIELDS: Record<GitHostName, { token: string; baseUrl?: string; org?: string }> = {
+  gitlab: { token: "gitlabToken", baseUrl: "gitlabBaseUrl" },
+  bitbucket: { token: "bitbucketToken" },
+  azure: { token: "azureToken", org: "azureOrg" },
+  gitea: { token: "giteaToken", baseUrl: "giteaBaseUrl" },
+};
 
 async function patchPreferences(body: Record<string, unknown>): Promise<string | null> {
   try {
@@ -44,10 +59,11 @@ async function patchPreferences(body: Record<string, unknown>): Promise<string |
 }
 
 /**
- * Editor AI & GitHub preferences (migrated from GCODE): which model powers
- * the editor's agent, per-provider BYO keys, and the GitHub connection used
- * for repo import/push — OAuth status plus an optional fine-grained-PAT
- * override.
+ * Editor AI & git preferences (migrated from GCODE): which model powers
+ * the editor's agent, per-provider BYO keys, and the git connections used
+ * for repo import/push — GitHub OAuth status plus an optional
+ * fine-grained-PAT override, and token-based connections for GitLab,
+ * Bitbucket, Azure DevOps, and Gitea/Forgejo.
  */
 export function AiSection() {
   const { toast } = useToast();
@@ -64,6 +80,7 @@ export function AiSection() {
   const [tokenSet, setTokenSet] = useState(false);
   const [token, setToken] = useState("");
   const [ghSaving, setGhSaving] = useState(false);
+  const [gitConn, setGitConn] = useState<Partial<Record<GitProviderName, boolean>>>({});
 
   useEffect(() => {
     fetch("/api/preferences")
@@ -77,6 +94,7 @@ export function AiSection() {
         setBaseUrl(d.aiBaseUrl ?? "");
         setKeySet(d.keySet);
         setTokenSet(d.githubTokenSet);
+        setGitConn(d.gitConnections ?? {});
       })
       .catch(() => setUnavailable(true));
   }, []);
@@ -217,8 +235,8 @@ export function AiSection() {
         </div>
       </Card>
 
-      {/* GitHub connection */}
-      <h3 className="mb-[11px] mt-6 text-sm font-semibold">GitHub connection</h3>
+      {/* Git connections */}
+      <h3 className="mb-[11px] mt-6 text-sm font-semibold">Git connections</h3>
       <Card className="p-[18px]">
         <div className="mb-3 flex items-center gap-2">
           <Pill tone={prefs?.githubOauthConnected || tokenSet ? "green" : "amber"}>
@@ -275,7 +293,136 @@ export function AiSection() {
             on, with Contents and Pull requests read &amp; write (+ Administration to create new repos).
           </p>
         </div>
+
+        {/* Other git hosts — token-based connections */}
+        {prefs !== null &&
+          GIT_HOSTS.map((host) => (
+            <GitHostRow
+              key={host}
+              host={host}
+              connected={Boolean(gitConn[host])}
+              initialBaseUrl={
+                (host === "gitlab"
+                  ? prefs.gitConfig?.gitlabBaseUrl
+                  : host === "gitea"
+                    ? prefs.gitConfig?.giteaBaseUrl
+                    : "") ?? ""
+              }
+              initialOrg={(host === "azure" ? prefs.gitConfig?.azureOrg : "") ?? ""}
+              onConnectedChange={(v) => setGitConn((c) => ({ ...c, [host]: v }))}
+            />
+          ))}
       </Card>
     </>
+  );
+}
+
+/**
+ * One divider-separated settings row per non-GitHub git host: connection
+ * status, token input, host-specific extras (server URL / organization),
+ * Save and Remove.
+ */
+function GitHostRow({
+  host,
+  connected,
+  initialBaseUrl,
+  initialOrg,
+  onConnectedChange,
+}: {
+  host: GitHostName;
+  connected: boolean;
+  initialBaseUrl: string;
+  initialOrg: string;
+  onConnectedChange: (connected: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const meta = PROVIDER_META[host];
+  const fields = GIT_HOST_FIELDS[host];
+
+  const [token, setToken] = useState("");
+  const [baseUrl, setBaseUrl] = useState(initialBaseUrl);
+  const [org, setOrg] = useState(initialOrg);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    const body: Record<string, string> = {};
+    if (token.trim()) body[fields.token] = token.trim();
+    if (fields.baseUrl) body[fields.baseUrl] = baseUrl.trim();
+    if (fields.org) body[fields.org] = org.trim();
+    const err = await patchPreferences(body);
+    if (!err) {
+      if (token.trim()) onConnectedChange(true);
+      setToken("");
+      toast(`${meta.label} saved — import and push are live.`);
+    } else {
+      toast(err);
+    }
+    setSaving(false);
+  }
+
+  async function remove() {
+    setSaving(true);
+    const body: Record<string, string> = { [fields.token]: "" };
+    if (fields.baseUrl) body[fields.baseUrl] = "";
+    if (fields.org) body[fields.org] = "";
+    const err = await patchPreferences(body);
+    if (!err) {
+      onConnectedChange(false);
+      setToken("");
+      setBaseUrl("");
+      setOrg("");
+      toast(`${meta.label} disconnected.`);
+    } else {
+      toast(err);
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="mt-4 border-t border-border pt-4">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-xs font-medium text-txt">{meta.label}</span>
+        <Pill tone={connected ? "green" : "amber"}>{connected ? "connected" : "not connected"}</Pill>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Input
+          type="password"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder={connected ? "token saved — paste to replace" : meta.tokenPlaceholder}
+          aria-label={`${meta.label} access token`}
+          autoComplete="off"
+          className="min-w-[12rem] flex-1 font-mono text-xs"
+        />
+        {fields.baseUrl && (
+          <Input
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder={meta.baseUrlPlaceholder}
+            aria-label={`${meta.label} server URL`}
+            className="min-w-[12rem] flex-1 font-mono text-xs"
+          />
+        )}
+        {fields.org && (
+          <Input
+            value={org}
+            onChange={(e) => setOrg(e.target.value)}
+            placeholder="your-organization"
+            aria-label={`${meta.label} organization`}
+            className="min-w-[10rem] flex-1 font-mono text-xs"
+          />
+        )}
+        <Button onClick={() => void save()} disabled={saving || (!token.trim() && !connected)}>
+          {saving ? "Saving…" : "Save"}
+        </Button>
+        {connected && (
+          <Button variant="ghost" onClick={() => void remove()} disabled={saving}>
+            Remove
+          </Button>
+        )}
+      </div>
+      <p className="mt-2 text-[11px] text-txt3">{meta.tokenHelp}</p>
+    </div>
   );
 }

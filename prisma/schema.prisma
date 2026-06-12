@@ -88,6 +88,16 @@ model UserPreferences {
   // token (e.g. a fine-grained token scoped to specific repos).
   githubToken String?
 
+  // Other git hosts connect by pasted token (no OAuth apps — zero-cost,
+  // works for self-hosted instances too).
+  gitlabToken    String?
+  gitlabBaseUrl  String? // self-hosted GitLab; empty = gitlab.com
+  bitbucketToken String?
+  azureToken     String?
+  azureOrg       String? // dev.azure.com/{org}
+  giteaToken     String?
+  giteaBaseUrl   String? // e.g. https://codeberg.org or self-hosted Gitea/Forgejo
+
   updatedAt DateTime @updatedAt
 }
 
@@ -103,8 +113,13 @@ model Workspace {
   name   String
   mode   WorkspaceMode
 
-  // IMPORT mode: the GitHub repo this workspace mirrors ("owner/name").
-  // SCRATCH mode: set after the first push so later pushes reuse the repo.
+  // Which git host this workspace's repo lives on:
+  // github | gitlab | bitbucket | azure | gitea
+  provider String @default("github")
+
+  // IMPORT mode: the repo this workspace mirrors ("owner/name"; Azure DevOps
+  // uses "org/project/repo"). SCRATCH mode: set after the first push so later
+  // pushes reuse the repo.
   repo       String?
   baseBranch String? // branch pinned at import / first push
 

@@ -10,13 +10,14 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { ok, apiErrors } from "@/lib/api-response";
-import { getGitHubToken } from "@/lib/auth";
-import { fetchRepoTree, withGitHubToken } from "@/lib/github";
-import { isValidRepoName, isValidBranchName } from "@/lib/repo-files";
+import { getProvider, getGitAuth, withGitAuth, isValidRepoId, PROVIDER_META } from "@/lib/git";
+import { isValidBranchName } from "@/lib/repo-files";
 import { guard } from "@/lib/route-helpers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const ProviderSchema = z.enum(["github", "gitlab", "bitbucket", "azure", "gitea"]).default("github");
 
 const CreateSchema = z.discriminatedUnion("mode", [
   z.object({
@@ -25,8 +26,9 @@ const CreateSchema = z.discriminatedUnion("mode", [
   }),
   z.object({
     mode: z.literal("IMPORT"),
-    repo: z.string().min(3).max(140),
+    repo: z.string().min(3).max(300),
     branch: z.string().max(80).optional(),
+    provider: ProviderSchema,
   }),
 ]);
 
@@ -41,6 +43,7 @@ export async function GET() {
       id: true,
       name: true,
       mode: true,
+      provider: true,
       repo: true,
       baseBranch: true,
       updatedAt: true,
@@ -75,28 +78,33 @@ export async function POST(req: Request) {
     return ok({ id: ws.id });
   }
 
-  // IMPORT — verify access and pin the branch.
+  // IMPORT — verify access on the chosen git host and pin the branch.
+  const { provider, branch } = parsed.data;
+  const meta = PROVIDER_META[provider];
   const repo = parsed.data.repo.trim();
-  if (!isValidRepoName(repo)) return apiErrors.badRequest('Repo must be "owner/name"');
-  if (parsed.data.branch && !isValidBranchName(parsed.data.branch)) {
+  if (!isValidRepoId(provider, repo)) {
+    return apiErrors.badRequest(`Repo must look like "${meta.repoIdHint}"`);
+  }
+  if (branch && !isValidBranchName(branch)) {
     return apiErrors.badRequest("Invalid branch name");
   }
 
-  const token = await getGitHubToken(g.user.id);
-  if (!token) return apiErrors.githubUnauthorized();
+  const auth = await getGitAuth(g.user.id, provider);
+  if (!auth) return apiErrors.githubUnauthorized();
 
-  const tree = await withGitHubToken(token, () => fetchRepoTree(repo, parsed.data.mode === "IMPORT" ? parsed.data.branch : undefined));
+  const tree = await withGitAuth(auth, () => getProvider(provider).fetchRepoTree(repo, branch));
   if (!tree) {
     return apiErrors.badRequest(
-      `Couldn't read ${repo} — check the repo name, or reconnect GitHub if it's private.`,
+      `Couldn't read ${repo} — check the repo name, or reconnect ${meta.label} if it's private.`,
     );
   }
 
   const ws = await db().workspace.create({
     data: {
       userId: g.user.id,
-      name: repo.split("/")[1] ?? repo,
+      name: repo.split("/").pop() ?? repo,
       mode: "IMPORT",
+      provider,
       repo,
       baseBranch: tree.branch,
     },

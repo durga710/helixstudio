@@ -15,7 +15,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const ws = await db().workspace.findUnique({
     where: { id },
-    select: { id: true, userId: true, name: true, mode: true, repo: true, baseBranch: true },
+    select: { id: true, userId: true, name: true, mode: true, repo: true, provider: true, baseBranch: true },
   });
   if (!ws || ws.userId !== session.user.id) notFound();
 
@@ -27,6 +27,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
           name: ws.name,
           mode: ws.mode,
           repo: ws.repo,
+          provider: ws.provider,
           baseBranch: ws.baseBranch,
         }}
         isGuest={Boolean(session.user.isGuest)}

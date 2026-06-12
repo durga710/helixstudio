@@ -79,6 +79,13 @@ CREATE TABLE "UserPreferences" (
     "anthropicKey" TEXT,
     "localKey" TEXT,
     "githubToken" TEXT,
+    "gitlabToken" TEXT,
+    "gitlabBaseUrl" TEXT,
+    "bitbucketToken" TEXT,
+    "azureToken" TEXT,
+    "azureOrg" TEXT,
+    "giteaToken" TEXT,
+    "giteaBaseUrl" TEXT,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "UserPreferences_pkey" PRIMARY KEY ("id")
@@ -90,6 +97,7 @@ CREATE TABLE "Workspace" (
     "userId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "mode" "WorkspaceMode" NOT NULL,
+    "provider" TEXT NOT NULL DEFAULT 'github',
     "repo" TEXT,
     "baseBranch" TEXT,
     "notes" TEXT,

@@ -13,8 +13,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { ok, apiErrors } from "@/lib/api-response";
-import { getGitHubToken } from "@/lib/auth";
-import { createRepo, createPullRequest, pushFilesToRepo, withGitHubToken } from "@/lib/github";
+import { getProvider, getGitAuth, withGitAuth, PROVIDER_META } from "@/lib/git";
 import { getOverlay } from "@/lib/workspace";
 import { isValidBranchName, validateFiles, MAX_PUSH_FILES } from "@/lib/repo-files";
 import { guardWorkspace } from "@/lib/route-helpers";
@@ -59,8 +58,10 @@ export async function POST(req: Request, { params }: Params) {
   const parsed = PushSchema.safeParse(body);
   if (!parsed.success) return apiErrors.validation(parsed.error);
 
-  const token = await getGitHubToken(user.id);
-  if (!token) return apiErrors.githubUnauthorized();
+  const git = getProvider(ws.provider);
+  const meta = PROVIDER_META[git.name];
+  const auth = await getGitAuth(user.id, ws.provider);
+  if (!auth) return apiErrors.githubUnauthorized();
 
   const overlay = await getOverlay(ws);
   if (overlay.files.length === 0 && overlay.deletions.length === 0) {
@@ -73,12 +74,12 @@ export async function POST(req: Request, { params }: Params) {
 
   const data = parsed.data;
 
-  return withGitHubToken(token, async () => {
+  return withGitAuth(auth, async () => {
     if (data.target === "new-repo") {
-      const created = await createRepo(data.name, { isPrivate: data.private ?? false });
+      const created = await git.createRepo(data.name, { isPrivate: data.private ?? false });
       if ("error" in created) return apiErrors.badRequest(created.error);
 
-      const pushed = await pushFilesToRepo(created.repo, {
+      const pushed = await git.pushFilesToRepo(created.repo, {
         branch: created.defaultBranch,
         message: data.message?.trim() || `Helix: ${ws.name}`,
         files: overlay.files,
@@ -110,7 +111,7 @@ export async function POST(req: Request, { params }: Params) {
     const branch = data.branch?.trim() || `helix/${ws.id.slice(-6)}-${Date.now().toString(36)}`;
     if (!isValidBranchName(branch)) return apiErrors.badRequest("Invalid branch name");
 
-    const pushed = await pushFilesToRepo(repo, {
+    const pushed = await git.pushFilesToRepo(repo, {
       branch,
       message: data.message?.trim() || `Helix: update ${ws.name}`,
       files: overlay.files,
@@ -124,9 +125,9 @@ export async function POST(req: Request, { params }: Params) {
       if (pushed.branch !== branch) {
         // Empty repo: the push bootstrapped the root commit directly on the
         // default branch, so there is no diff to open a PR against.
-        prError = `The repo was empty, so the first commit went straight to ${pushed.branch} — no PR needed.`;
+        prError = `The repo was empty, so the first commit went straight to ${pushed.branch} — no ${meta.prNoun} needed.`;
       } else {
-        const pr = await createPullRequest(repo, {
+        const pr = await git.createPullRequest(repo, {
           title: data.prTitle.trim(),
           body: data.prBody?.trim() || data.prTitle.trim(),
           head: branch,

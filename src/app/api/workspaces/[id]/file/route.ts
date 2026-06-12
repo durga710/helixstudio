@@ -4,8 +4,7 @@
  */
 
 import { ok, apiErrors } from "@/lib/api-response";
-import { getGitHubToken } from "@/lib/auth";
-import { withGitHubToken } from "@/lib/github";
+import { getGitAuth, withGitAuth } from "@/lib/git";
 import { readWorkspaceFile } from "@/lib/workspace";
 import { guardWorkspace } from "@/lib/route-helpers";
 
@@ -22,8 +21,8 @@ export async function GET(req: Request, { params }: Params) {
   const path = new URL(req.url).searchParams.get("path") ?? "";
   if (!path) return apiErrors.badRequest("path is required");
 
-  const token = await getGitHubToken(g.user.id);
-  const content = await withGitHubToken(token, () => readWorkspaceFile(g.ws, path));
+  const auth = await getGitAuth(g.user.id, g.ws.provider);
+  const content = await withGitAuth(auth, () => readWorkspaceFile(g.ws, path));
   if (content === null) return apiErrors.notFound("File");
   return ok({ path, content });
 }

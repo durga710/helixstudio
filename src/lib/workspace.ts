@@ -9,13 +9,13 @@ import "server-only";
  * pinned branch; the effective tree is the repo tree merged with the
  * overlay, and reads check the overlay first.
  *
- * IMPORT-mode functions hit the GitHub API, so callers must run inside
- * withGitHubToken().
+ * IMPORT-mode functions hit the workspace's git host, so callers must run
+ * inside withGitAuth() (see src/lib/git).
  */
 
 import type { Workspace } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
-import { fetchRepoTree, fetchRepoFileContent } from "@/lib/github";
+import { getProvider } from "@/lib/git";
 import {
   isSafeRepoPath,
   MAX_FILE_CHARS,
@@ -51,7 +51,7 @@ export async function listWorkspaceFiles(ws: Workspace): Promise<WorkspaceFileEn
   const entries = new Map<string, WorkspaceFileEntry>();
 
   if (ws.mode === "IMPORT" && ws.repo) {
-    const tree = await fetchRepoTree(ws.repo, ws.baseBranch ?? undefined);
+    const tree = await getProvider(ws.provider).fetchRepoTree(ws.repo, ws.baseBranch ?? undefined);
     for (const f of tree?.files ?? []) {
       entries.set(f.path, { path: f.path, size: f.size, source: "repo" });
     }
@@ -74,7 +74,7 @@ export async function readWorkspaceFile(ws: Workspace, path: string): Promise<st
   if (row) return row.deleted ? null : row.content;
 
   if (ws.mode === "IMPORT" && ws.repo) {
-    const file = await fetchRepoFileContent(ws.repo, path, ws.baseBranch ?? undefined);
+    const file = await getProvider(ws.provider).fetchRepoFileContent(ws.repo, path, ws.baseBranch ?? undefined);
     return file?.content ?? null;
   }
   return null;

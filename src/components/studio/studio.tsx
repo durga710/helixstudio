@@ -9,6 +9,7 @@ export interface WorkspaceMeta {
   name: string;
   mode: "SCRATCH" | "IMPORT";
   repo: string | null;
+  provider: string;
   baseBranch: string | null;
 }
 

@@ -7,8 +7,7 @@
 
 import { z } from "zod";
 import { ok, apiErrors } from "@/lib/api-response";
-import { getGitHubToken } from "@/lib/auth";
-import { withGitHubToken } from "@/lib/github";
+import { getGitAuth, withGitAuth } from "@/lib/git";
 import { listWorkspaceFiles, writeWorkspaceFiles, deleteWorkspaceFile } from "@/lib/workspace";
 import { validateFiles, MAX_PUSH_FILES } from "@/lib/repo-files";
 import { guardWorkspace } from "@/lib/route-helpers";
@@ -23,8 +22,8 @@ export async function GET(_req: Request, { params }: Params) {
   const g = await guardWorkspace("ws.read", id, { limit: 600, windowMs: 60 * 60 * 1000 });
   if ("response" in g) return g.response;
 
-  const token = await getGitHubToken(g.user.id);
-  const files = await withGitHubToken(token, () => listWorkspaceFiles(g.ws));
+  const auth = await getGitAuth(g.user.id, g.ws.provider);
+  const files = await withGitAuth(auth, () => listWorkspaceFiles(g.ws));
   return ok({ mode: g.ws.mode, repo: g.ws.repo, baseBranch: g.ws.baseBranch, files });
 }
 

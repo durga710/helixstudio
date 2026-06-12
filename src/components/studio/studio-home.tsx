@@ -6,6 +6,7 @@ import {
   Sparkles,
   FolderGit2,
   FilePlus2,
+  GitBranch,
   Loader2,
   MessageSquare,
   FileCode2,
@@ -16,6 +17,8 @@ import {
 import { cn, timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { RepoPicker } from "@/components/studio/repo-picker";
+import { GitHostPicker } from "@/components/studio/git-host-picker";
+import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 
 /* ------------------------- folder import rules ------------------------- */
 
@@ -35,6 +38,7 @@ interface WorkspaceCard {
   name: string;
   mode: "SCRATCH" | "IMPORT";
   repo: string | null;
+  provider: string;
   updatedAt: string;
   fileCount: number;
   messageCount: number;
@@ -54,6 +58,7 @@ export function StudioHome({
 }) {
   const router = useRouter();
   const [picking, setPicking] = useState(false);
+  const [pickingHost, setPickingHost] = useState(false);
   const [creating, setCreating] = useState(false);
   const [scratchName, setScratchName] = useState("");
   const [namePrompt, setNamePrompt] = useState(false);
@@ -182,19 +187,20 @@ export function StudioHome({
     setCreating(false);
   }
 
-  async function importRepo(repo: string) {
+  async function importRepo(provider: GitProviderName, repo: string) {
     setCreating(true);
     setError(null);
     try {
       const res = await fetch("/api/workspaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "IMPORT", repo }),
+        body: JSON.stringify({ mode: "IMPORT", repo, provider }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
         setError(json?.error?.message ?? "Couldn't import the repo.");
         setPicking(false);
+        setPickingHost(false);
       } else {
         router.push(`/editor/${json.data.id}`);
         return;
@@ -202,6 +208,7 @@ export function StudioHome({
     } catch {
       setError("Network error. Try again.");
       setPicking(false);
+      setPickingHost(false);
     }
     setCreating(false);
   }
@@ -228,7 +235,7 @@ export function StudioHome({
           Chat with Helix and watch the code land in a live workspace — then push it to GitHub.
         </p>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* Create from scratch */}
           <div
             className={cn(
@@ -286,6 +293,24 @@ export function StudioHome({
             <p className="text-xs leading-relaxed text-txt3">
               Pick one of your repos — private included. Browse and edit it with Helix, then push the
               changes back as a branch or PR.
+            </p>
+          </button>
+
+          {/* Import from another Git host */}
+          <button
+            type="button"
+            onClick={() => {
+              setPickingHost(true);
+              setError(null);
+            }}
+            className="glass-panel-strong p-6 text-left transition-colors hover:border-accent"
+          >
+            <span className="mb-4 grid h-10 w-10 place-items-center rounded-xl border border-border2 bg-panel2">
+              <GitBranch className="h-5 w-5 text-txt2" />
+            </span>
+            <h2 className="mb-1 text-base font-medium text-txt">Import from another Git host</h2>
+            <p className="text-xs leading-relaxed text-txt3">
+              GitLab, Bitbucket, Azure DevOps, Gitea/Codeberg — connect with a token and import.
             </p>
           </button>
 
@@ -353,7 +378,12 @@ export function StudioHome({
                   {w.repo && (
                     <p className="mb-2 flex items-center gap-1 truncate font-mono text-[11px] text-txt3">
                       <Lock className="h-3 w-3 shrink-0 opacity-60" />
-                      {w.repo}
+                      <span className="truncate">{w.repo}</span>
+                      {w.provider !== "github" && (
+                        <span className="shrink-0 text-[9px] uppercase tracking-wide text-txt3 opacity-70">
+                          {PROVIDER_META[w.provider as GitProviderName]?.label ?? w.provider}
+                        </span>
+                      )}
                     </p>
                   )}
                   <div className="flex items-center gap-3 font-mono text-[10px] text-txt3">
@@ -384,8 +414,16 @@ export function StudioHome({
         <RepoPicker
           busy={creating}
           isGuest={isGuest}
-          onSelect={(repo) => void importRepo(repo)}
+          onSelect={(repo) => void importRepo("github", repo)}
           onClose={() => setPicking(false)}
+        />
+      )}
+
+      {pickingHost && (
+        <GitHostPicker
+          busy={creating}
+          onSelect={(provider, repo) => void importRepo(provider, repo)}
+          onClose={() => setPickingHost(false)}
         />
       )}
     </div>

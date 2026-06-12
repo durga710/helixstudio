@@ -12,8 +12,8 @@ import { z } from "zod";
 import OpenAI from "openai";
 import { db } from "@/lib/db";
 import { ok, err, apiErrors } from "@/lib/api-response";
-import { getGitHubToken, GUEST_TOKEN_LIMIT } from "@/lib/auth";
-import { withGitHubToken } from "@/lib/github";
+import { GUEST_TOKEN_LIMIT } from "@/lib/auth";
+import { getGitAuth, withGitAuth, PROVIDER_META, getProvider } from "@/lib/git";
 import { getOpenAI, OPENAI_MODEL } from "@/lib/openai";
 import {
   WORKSPACE_TOOLS,
@@ -114,16 +114,16 @@ export async function POST(req: Request, { params }: Params) {
     );
   }
 
-  const githubToken = await getGitHubToken(user.id);
+  const gitAuth = await getGitAuth(user.id, ws.provider);
 
   // Context engine (src/lib/chat-context.ts): instead of resending the full
   // tree and 30 verbatim messages every turn, the model gets a stack line, a
   // collapsed tree outline, its own curated PROJECT NOTES, a digest of older
   // turns, and a short verbatim window — under a hard input budget.
-  const tree = await withGitHubToken(githubToken, () => listWorkspaceFiles(ws)).catch(() => []);
+  const tree = await withGitAuth(gitAuth, () => listWorkspaceFiles(ws)).catch(() => []);
   const treePaths = tree.map((f) => f.path);
   const pkgJson = treePaths.includes("package.json")
-    ? await withGitHubToken(githubToken, () => readWorkspaceFile(ws, "package.json")).catch(() => null)
+    ? await withGitAuth(gitAuth, () => readWorkspaceFile(ws, "package.json")).catch(() => null)
     : null;
 
   const history = await db().workspaceMessage.findMany({
@@ -156,7 +156,7 @@ export async function POST(req: Request, { params }: Params) {
     rules,
     workspaceMeta:
       `Name: ${ws.name}\n` +
-      `Mode: ${ws.mode === "IMPORT" ? `imported from GitHub repo ${ws.repo} @ ${ws.baseBranch} (edits overlay the repo until pushed)` : "built from scratch (files live here until pushed to GitHub)"}`,
+      `Mode: ${ws.mode === "IMPORT" ? `imported from ${PROVIDER_META[getProvider(ws.provider).name].label} repo ${ws.repo} @ ${ws.baseBranch} (edits overlay the repo until pushed)` : "built from scratch (files live here until pushed to a git host)"}`,
     stack: stackLine(treePaths, pkgJson),
     tree: treeOutline(treePaths),
     notes: ws.notes ?? "",
@@ -198,7 +198,7 @@ export async function POST(req: Request, { params }: Params) {
   try {
 
   if (aiProvider === "anthropic" || aiProvider === "local") {
-    const result = await withGitHubToken(githubToken, () =>
+    const result = await withGitAuth(gitAuth, () =>
       aiProvider === "anthropic"
         ? runAnthropicAgent({ model: aiModel, instructions, messages, ctx, apiKey: memberKey })
         : runLocalAgent({
@@ -241,7 +241,7 @@ export async function POST(req: Request, { params }: Params) {
           let result: unknown;
           try {
             const parsedArgs = JSON.parse(call.arguments || "{}") as Record<string, unknown>;
-            result = await withGitHubToken(githubToken, () => executeTool(call.name, parsedArgs, ctx));
+            result = await withGitAuth(gitAuth, () => executeTool(call.name, parsedArgs, ctx));
           } catch (e) {
             result = { error: e instanceof Error ? e.message : "tool failed" };
           }

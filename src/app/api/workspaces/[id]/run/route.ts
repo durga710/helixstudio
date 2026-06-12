@@ -10,8 +10,8 @@
  */
 
 import { ok, apiErrors } from "@/lib/api-response";
-import { auth, getGitHubToken } from "@/lib/auth";
-import { withGitHubToken } from "@/lib/github";
+import { auth } from "@/lib/auth";
+import { getGitAuth, withGitAuth } from "@/lib/git";
 import { startRun, stopRun, getRunInfo, runnerEnabled } from "@/lib/app-runner";
 import { guardWorkspace } from "@/lib/route-helpers";
 
@@ -34,8 +34,8 @@ export async function POST(_req: Request, { params }: Params) {
     }
   }
 
-  const token = await getGitHubToken(g.user.id);
-  const result = await withGitHubToken(token, () => startRun(g.ws));
+  const gitAuth = await getGitAuth(g.user.id, g.ws.provider);
+  const result = await withGitAuth(gitAuth, () => startRun(g.ws));
   if ("error" in result) return apiErrors.badRequest(result.error);
   return ok(result);
 }

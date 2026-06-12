@@ -11,6 +11,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { ok, apiErrors } from "@/lib/api-response";
 import { guard } from "@/lib/route-helpers";
+import { sanitizeBaseUrl } from "@/lib/git";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +24,13 @@ const PatchSchema = z.object({
   anthropicKey: z.string().max(300).optional(),
   localKey: z.string().max(300).optional(),
   githubToken: z.string().max(300).optional(),
+  gitlabToken: z.string().max(300).optional(),
+  gitlabBaseUrl: z.string().max(300).optional(),
+  bitbucketToken: z.string().max(300).optional(),
+  azureToken: z.string().max(300).optional(),
+  azureOrg: z.string().max(100).optional(),
+  giteaToken: z.string().max(300).optional(),
+  giteaBaseUrl: z.string().max(300).optional(),
 });
 
 export async function GET() {
@@ -53,6 +61,19 @@ export async function GET() {
       anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
     },
     githubTokenSet: Boolean(prefs?.githubToken),
+    // Which git hosts are connected (token present + required config).
+    gitConnections: {
+      github: Boolean(prefs?.githubToken || githubAccount?.access_token),
+      gitlab: Boolean(prefs?.gitlabToken),
+      bitbucket: Boolean(prefs?.bitbucketToken),
+      azure: Boolean(prefs?.azureToken && prefs?.azureOrg),
+      gitea: Boolean(prefs?.giteaToken && prefs?.giteaBaseUrl),
+    },
+    gitConfig: {
+      gitlabBaseUrl: prefs?.gitlabBaseUrl ?? "",
+      azureOrg: prefs?.azureOrg ?? "",
+      giteaBaseUrl: prefs?.giteaBaseUrl ?? "",
+    },
   });
 }
 
@@ -78,6 +99,19 @@ export async function PATCH(req: Request) {
   if (p.anthropicKey !== undefined) data.anthropicKey = p.anthropicKey.trim() || null;
   if (p.localKey !== undefined) data.localKey = p.localKey.trim() || null;
   if (p.githubToken !== undefined) data.githubToken = p.githubToken.trim() || null;
+  if (p.gitlabToken !== undefined) data.gitlabToken = p.gitlabToken.trim() || null;
+  if (p.bitbucketToken !== undefined) data.bitbucketToken = p.bitbucketToken.trim() || null;
+  if (p.azureToken !== undefined) data.azureToken = p.azureToken.trim() || null;
+  if (p.azureOrg !== undefined) data.azureOrg = p.azureOrg.trim().replace(/^.*dev\.azure\.com\//, "").replace(/\/.*$/, "") || null;
+  if (p.giteaToken !== undefined) data.giteaToken = p.giteaToken.trim() || null;
+  // Self-hosted base URLs are user input — sanitize (https only, no creds).
+  for (const [field, raw] of [["gitlabBaseUrl", p.gitlabBaseUrl], ["giteaBaseUrl", p.giteaBaseUrl]] as const) {
+    if (raw === undefined) continue;
+    if (!raw.trim()) { data[field] = null; continue; }
+    const clean = sanitizeBaseUrl(raw);
+    if (!clean) return apiErrors.badRequest("Base URL must be a plain https:// origin");
+    data[field] = clean;
+  }
 
   await db().userPreferences.upsert({
     where: { userId: g.user.id },
