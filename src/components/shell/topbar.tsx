@@ -5,15 +5,14 @@ import { usePathname } from "next/navigation";
 import { Moon, Palette, Plus, Search, Sun } from "lucide-react";
 import { ACCENTS, useTheme } from "@/components/theme-provider";
 import { useShell } from "./shell-context";
+import { NAV_ITEMS } from "./rail";
 import { cn } from "@/lib/utils";
 
-// Keyed by the first path segment; sub-pages fall back to it (e.g.
-// /space/gradebook -> "Space", /editor/[id] -> "Editor"). Keep in sync with the
-// rail's NAV_ITEMS so the breadcrumb matches the active nav icon.
-const TITLES: Record<string, string> = {
-  "/": "Home",
-  "/editor": "Editor",
-  "/space": "Space",
+// Breadcrumb titles, keyed by first path segment. The rail's NAV_ITEMS are the
+// source of truth (add a nav item → its breadcrumb appears automatically);
+// EXTRA_TITLES covers pages reachable outside the rail. Anything still unmapped
+// is humanized from its path, so a new page can never wrongly show "Home".
+const EXTRA_TITLES: Record<string, string> = {
   "/analysis": "Repository Analysis",
   "/agents": "Agents",
   "/skills": "Skills",
@@ -21,6 +20,19 @@ const TITLES: Record<string, string> = {
   "/team": "Team",
   "/settings": "Settings",
 };
+const TITLES: Record<string, string> = {
+  ...Object.fromEntries(NAV_ITEMS.map((i) => [i.href, i.title])),
+  ...EXTRA_TITLES,
+};
+
+/** "/space/gradebook" → "Space"; "/foo-bar" → "Foo Bar"; "/" → "Home". */
+function resolveTitle(pathname: string): string {
+  if (TITLES[pathname]) return TITLES[pathname];
+  const seg = pathname.split("/")[1] ?? "";
+  if (!seg) return "Home";
+  if (TITLES[`/${seg}`]) return TITLES[`/${seg}`];
+  return seg.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export function Topbar() {
   const pathname = usePathname();
@@ -28,7 +40,7 @@ export function Topbar() {
   const { setPaletteOpen, setNewProjectOpen, accentPopOpen, setAccentPopOpen } = useShell();
   const popRef = useRef<HTMLDivElement>(null);
 
-  const title = TITLES[pathname] ?? TITLES[`/${pathname.split("/")[1]}`] ?? "Home";
+  const title = resolveTitle(pathname);
 
   useEffect(() => {
     if (!accentPopOpen) return;
