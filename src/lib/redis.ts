@@ -40,18 +40,25 @@ import { Redis } from "@upstash/redis";
 
 let client: Redis | null | undefined;
 
+// Accept either naming: UPSTASH_REDIS_REST_* (Upstash-direct) or KV_REST_API_*
+// (what Vercel's Upstash/KV marketplace integration injects). Same REST
+// endpoint + token either way.
+function restUrl(): string | undefined {
+  return process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+}
+function restToken(): string | undefined {
+  return process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+}
+
 export function redisEnabled(): boolean {
-  return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+  return Boolean(restUrl() && restToken());
 }
 
 /** The shared Redis client, or null when not configured (callers fall back). */
 export function getRedis(): Redis | null {
   if (client !== undefined) return client;
-  client = redisEnabled()
-    ? new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL!,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-      })
-    : null;
+  const url = restUrl();
+  const token = restToken();
+  client = url && token ? new Redis({ url, token }) : null;
   return client;
 }

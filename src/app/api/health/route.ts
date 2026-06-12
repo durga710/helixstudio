@@ -1,5 +1,6 @@
 import { oauthProviders } from "@/lib/auth";
 import { aiProviderName } from "@/lib/ai/provider";
+import { redisEnabled } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,8 @@ export async function GET() {
       AUTH_GOOGLE: oauthProviders.google,
       OPENAI_API_KEY: Boolean(process.env.OPENAI_API_KEY),
       ANTHROPIC_API_KEY: Boolean(process.env.ANTHROPIC_API_KEY),
+      REDIS: redisEnabled(),
+      SENTRY: Boolean(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN),
     },
     time: new Date().toISOString(),
   });
