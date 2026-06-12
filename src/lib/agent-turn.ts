@@ -34,6 +34,7 @@ import { usingSandboxBackend, runnerEnabled } from "@/lib/app-runner";
 import { verifyBuild, verifyMarker } from "@/lib/verify";
 import { runAnthropicAgent, runLocalAgent, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
 import { createAgentIntent } from "@/lib/intent-ledger";
+import { AGENT_LIMITS, BUILD_RULES, PLAN_RULES, VERIFY_DEFAULT_ON, VERIFY_MAX_FIX_ATTEMPTS } from "@/lib/agent-config";
 import {
   stackLine,
   treeOutline,
@@ -178,43 +179,9 @@ export async function runAgentTurn(opts: {
   });
   const { digest, recent } = historyContext(history.reverse());
 
-  const planRules =
-    "You are Helix — an AI coding agent working in the user's virtual workspace. You are in PLAN MODE: the user " +
-    "wants an implementation plan to review BEFORE anything is built.\n\n" +
-    "RULES:\n" +
-    "- Your tools this turn are READ-ONLY (list_files, read_file, search_files, and web search when available). Use " +
-    "them to ground the plan in the real files — verify what exists before proposing changes.\n" +
-    "- Do NOT write, delete, or modify anything, and do NOT paste full file contents or save-ready code into the " +
-    "chat. Building happens only after the user approves.\n" +
-    "- Reply with a NUMBERED step-by-step plan: each step says what changes, the exact file path(s) (existing or " +
-    "new), and a one-line why. 3-10 steps, tight.\n" +
-    '- If anything is genuinely uncertain, end the plan with one line: "Open questions: …".\n' +
-    "- If PROJECT INSTRUCTIONS are present below, the plan must follow them.\n" +
-    '- Finish with exactly: "Approve to build, or tell me what to change."\n';
-
-  const buildRules =
-    "You are Helix — an AI coding agent working in the user's virtual workspace. The workspace IS the project: " +
-    "its file tree is outlined below, and your tools read and write it directly. The user watches the file tree and " +
-    "editor update live as you work.\n\n" +
-    "RULES:\n" +
-    "- write_files is your ONLY way to produce code. Write COMPLETE file contents — never diffs, never snippets in chat, " +
-    "never instructions for the user to create files themselves. You have hands; use them.\n" +
-    '- NEVER print tool-call payloads, raw JSON like {"files":[...]}, or file contents in your chat reply. CALL the tool, ' +
-    "then reply in plain language: what you added/changed and where (e.g. \"Added PROJECT_WORKFLOW.md — it's in the file explorer\").\n" +
-    "- ALWAYS read_file before modifying an existing file so your rewrite keeps everything that should stay.\n" +
-    "- Use search_files to find definitions/usages instead of guessing paths, and run_command to PROVE your work runs " +
-    "(install, test, build) — if a command fails, fix the code and run it again.\n" +
-    "- Match the project's existing stack and conventions. If PROJECT INSTRUCTIONS are present below, they are the " +
-    "project owner's rules — follow them.\n" +
-    "- For new projects pick a sensible stack: a single index.html with embedded CSS/JS for simple pages; Vite or " +
-    "Next.js structure for real apps.\n" +
-    "- Keep PROJECT NOTES current with the `remember` tool after meaningful decisions (stack choices, conventions, " +
-    "gotchas) — it's your only durable memory; older conversation gets compressed.\n" +
-    "- The user pushes to their git host from the UI — you cannot push, don't try, and don't tell them to run git commands.\n" +
-    "- After building, reply in 2-4 lines: what you built/changed and any next step worth knowing. No tutorials.\n" +
-    "- Ask at most ONE clarifying question, and only when the request is truly ambiguous — default to building.\n";
-
-  const rules = mode === "plan" ? planRules : buildRules;
+  // Prompts live in agent-config.ts so the /admin overview shows the exact
+  // text the model receives.
+  const rules = mode === "plan" ? PLAN_RULES : BUILD_RULES;
 
   const fitted = fitBudget({
     rules,
@@ -316,7 +283,11 @@ export async function runAgentTurn(opts: {
           if (item.type === "web_search_call") actions.push({ tool: "web_search", label: toolLabel("web_search", null) });
         }
 
-        for (let hop = 0; hop < 6; hop++) {
+        // Tool loop: bounded by move count AND token spend (whichever first),
+        // so a long multi-file task runs to completion but a runaway turn
+        // can't burn the budget. See AGENT_LIMITS in agent-config.ts.
+        for (let hop = 0; hop < AGENT_LIMITS.maxHops; hop++) {
+          if (tokensUsed >= AGENT_LIMITS.maxTurnTokens) break;
           const calls = (resp.output ?? []).filter(
             (o): o is Extract<typeof o, { type: "function_call" }> => o.type === "function_call",
           );
@@ -336,7 +307,7 @@ export async function runAgentTurn(opts: {
             outputs.push({
               type: "function_call_output" as const,
               call_id: call.call_id,
-              output: JSON.stringify(result).slice(0, 8000),
+              output: JSON.stringify(result).slice(0, AGENT_LIMITS.toolResultCap),
             });
           }
 
@@ -435,13 +406,15 @@ export async function runAgentTurn(opts: {
       actions.push({ tool: "plan", label: "proposed a plan" });
     }
 
-    // Verify phase: when asked, run the freshly-built project in the sandbox,
-    // read errors, and (best-effort) fix + re-run. Gated to real build turns
-    // that wrote files, non-guests, and an available runner. Always degrades to
-    // a skip — it never fails the turn.
+    // Verify phase: run the freshly-built project in the sandbox, read errors,
+    // and (best-effort) fix + re-run. Default ON (VERIFY_DEFAULT_ON) for build
+    // turns that wrote files — the caller can still force it off (e.g. nested
+    // fix turns pass verify:false to stop recursion). Gated to non-guests and
+    // an available runner; always degrades to a skip — never fails the turn.
+    const verifyWanted = opts.verify ?? VERIFY_DEFAULT_ON;
     let verify: TurnResult["verify"];
     if (
-      opts.verify &&
+      verifyWanted &&
       mode === "build" &&
       changes.written.length > 0 &&
       !dbUser?.isGuest &&
@@ -454,7 +427,7 @@ export async function runAgentTurn(opts: {
         changes,
         actions,
         emit,
-        maxAttempts: opts.verifyMaxAttempts ?? 1,
+        maxAttempts: opts.verifyMaxAttempts ?? VERIFY_MAX_FIX_ATTEMPTS,
         // Injected fix runner — a build-mode turn with verify OFF (the guard
         // that prevents infinite verify recursion). Not persisted; its changes
         // and tokens fold into this turn.

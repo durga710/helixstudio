@@ -15,6 +15,7 @@ import { execInSandbox } from "@/lib/runner/vercel-sandbox";
 import { setProgress } from "@/lib/progress";
 import { db } from "@/lib/db";
 import { NOTES_MAX } from "@/lib/chat-context";
+import { AGENT_LIMITS } from "@/lib/agent-config";
 
 /** Live activity label for a tool call — shown in the chat while it runs. */
 function progressLabel(name: string, args: Record<string, unknown>): string {
@@ -30,6 +31,8 @@ function progressLabel(name: string, args: Record<string, unknown>): string {
         ? `writing ${first.path}…`
         : `writing ${files.length} file(s)…`;
     }
+    case "edit_file":
+      return `editing ${typeof args.path === "string" ? args.path : "a file"}…`;
     case "delete_file":
       return `deleting ${typeof args.path === "string" ? args.path : "a file"}…`;
     case "remember":
@@ -67,9 +70,9 @@ export interface ToolContext {
   getIntentId?: () => Promise<string | null>;
 }
 
-const READ_CAP = 24_000;
-const SEARCH_FILE_CAP = 40; // files scanned per search
-const SEARCH_MATCH_CAP = 30; // matches returned per search
+const READ_CAP = AGENT_LIMITS.readCap;
+const SEARCH_FILE_CAP = AGENT_LIMITS.searchFileCap; // files scanned per search
+const SEARCH_MATCH_CAP = AGENT_LIMITS.searchMatchCap; // matches returned per search
 const SEARCH_BATCH = 5; // concurrent file reads while scanning
 
 export const WORKSPACE_TOOLS = [
@@ -116,6 +119,27 @@ export const WORKSPACE_TOOLS = [
         },
       },
       required: ["files"],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: "function" as const,
+    name: "edit_file",
+    description:
+      "Make a SURGICAL edit to an existing file: replace an exact substring with new text. " +
+      "Prefer this over write_files for small, targeted changes — it's far cheaper than resending the whole file. " +
+      "old_string must match EXACTLY (including whitespace/indentation) and be UNIQUE in the file, unless replace_all is true. " +
+      "read_file first so old_string is exact. To add a brand-new file, use write_files instead.",
+    parameters: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "workspace-relative path of the file to edit" },
+        old_string: { type: "string", description: "the exact text to find (must be unique unless replace_all)" },
+        new_string: { type: "string", description: "the text to replace it with" },
+        replace_all: { type: "boolean", description: "replace every occurrence (default false)" },
+      },
+      required: ["path", "old_string", "new_string"],
       additionalProperties: false,
     },
     strict: false,
@@ -202,7 +226,7 @@ export const WORKSPACE_TOOLS = [
 ];
 
 const READ_ONLY_TOOL_NAMES = new Set(["list_files", "read_file", "search_files"]);
-const MUTATING_TOOL_NAMES = new Set(["write_files", "delete_file", "remember", "run_command"]);
+const MUTATING_TOOL_NAMES = new Set(["write_files", "edit_file", "delete_file", "remember", "run_command"]);
 
 /** The tool list for a turn. Plan mode keeps only read-only tools (plus the
  * web_search built-in, which has no name field — don't filter it by name). */
@@ -274,6 +298,37 @@ async function executeToolInner(
       if ("error" in result) return result;
       if (ctx.cache) ctx.cache.tree = undefined; // listing changed
       return { written: true, count: files.length, writtenPaths: result.writtenPaths };
+    }
+    case "edit_file": {
+      const path = s(args.path);
+      const oldString = s(args.old_string);
+      const newString = typeof args.new_string === "string" ? args.new_string : "";
+      const replaceAll = args.replace_all === true;
+      if (!path) return { error: "path is required" };
+      if (!oldString) return { error: "old_string is required" };
+      if (oldString === newString) return { error: "old_string and new_string are identical — nothing to change" };
+
+      const current = await readWorkspaceFile(ws, path);
+      if (current === null) return { error: `${path} not found — use write_files to create it` };
+
+      const occurrences = current.split(oldString).length - 1;
+      if (occurrences === 0) {
+        return { error: `old_string not found in ${path} — read_file again and copy the exact text (whitespace matters)` };
+      }
+      if (occurrences > 1 && !replaceAll) {
+        return {
+          error: `old_string appears ${occurrences} times in ${path} — add more surrounding context to make it unique, or set replace_all`,
+        };
+      }
+      const updated = replaceAll
+        ? current.split(oldString).join(newString)
+        : current.replace(oldString, newString);
+
+      const intentId = ctx.getIntentId ? await ctx.getIntentId() : null;
+      const result = await writeWorkspaceFiles(ws, [{ path, content: updated }], intentId ? { intentId } : undefined);
+      if ("error" in result) return result;
+      if (ctx.cache) ctx.cache.tree = undefined; // size may have changed
+      return { edited: true, path, replacements: replaceAll ? occurrences : 1 };
     }
     case "delete_file": {
       const path = s(args.path);
@@ -371,6 +426,8 @@ export function toolLabel(name: string, result: unknown): string {
       return r.path ? `read ${String(r.path)}` : "tried to read a file";
     case "write_files":
       return r.written ? `wrote ${String(r.count)} file(s)` : "tried to write files";
+    case "edit_file":
+      return r.edited ? `edited ${String(r.path)}` : "tried to edit a file";
     case "delete_file": {
       const paths = Array.isArray(r.deletedPaths) ? (r.deletedPaths as string[]) : [];
       return r.deleted ? `deleted ${paths[0] ?? "a file"}` : "tried to delete a file";

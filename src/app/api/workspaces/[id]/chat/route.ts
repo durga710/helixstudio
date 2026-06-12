@@ -26,9 +26,10 @@ const ChatSchema = z.object({
   message: z.string().min(1).max(8000),
   // "plan": read-only agent turn that replies with an implementation plan.
   mode: z.enum(["plan", "build"]).default("build"),
-  // When true, a build turn that writes files runs + verifies in the sandbox
-  // (auto-fixing once). Off by default while we're testing.
-  verify: z.boolean().default(false),
+  // A build turn that writes files runs + verifies in the sandbox (auto-fixing
+  // once). Optional: when omitted the server applies VERIFY_DEFAULT_ON; the UI
+  // sends an explicit value from its toggle.
+  verify: z.boolean().optional(),
 });
 
 type Params = { params: Promise<{ id: string }> };

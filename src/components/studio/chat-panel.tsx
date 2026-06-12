@@ -121,9 +121,10 @@ export function ChatPanel({
   const [messages, setMessages] = useState<Msg[] | null>(null); // null = loading history
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<"plan" | "build">("build");
-  // Auto-verify build turns in the sandbox. Off by default (testing phase);
-  // the per-message "Verify" button works regardless.
-  const [verifyOn, setVerifyOn] = useState(false);
+  // Auto-verify build turns in the sandbox. ON by default (Plan→Build→Verify
+  // is the standard flow now); the toggle lets you turn it off, and the
+  // per-message "Verify" button works regardless.
+  const [verifyOn, setVerifyOn] = useState(true);
   const [verifying, setVerifying] = useState(false);
   const [openLog, setOpenLog] = useState<number | null>(null); // message index with expanded log
   const [busy, setBusy] = useState(false);

@@ -21,6 +21,7 @@ import {
   type ChangeManifest,
   type ToolContext,
 } from "@/lib/workspace-tools";
+import { AGENT_LIMITS } from "@/lib/agent-config";
 
 export interface AgentMessage {
   role: "user" | "assistant";
@@ -34,7 +35,13 @@ export interface AgentResult {
   tokensUsed: number;
 }
 
-const MAX_HOPS = 6;
+const MAX_HOPS = AGENT_LIMITS.maxHops;
+const TOOL_RESULT_CAP = AGENT_LIMITS.toolResultCap;
+
+/** True once a turn has spent its token budget — stop calling tools, wrap up. */
+function outOfBudget(tokensUsed: number): boolean {
+  return tokensUsed >= AGENT_LIMITS.maxTurnTokens;
+}
 
 type FunctionTool = {
   type: "function";
@@ -121,7 +128,7 @@ export async function runAnthropicAgent(opts: {
     tokensUsed += (data.usage?.input_tokens ?? 0) + (data.usage?.output_tokens ?? 0);
     const toolUses = data.content.filter((b) => b.type === "tool_use");
 
-    if (data.stop_reason !== "tool_use" || toolUses.length === 0 || hop === MAX_HOPS) {
+    if (data.stop_reason !== "tool_use" || toolUses.length === 0 || hop === MAX_HOPS || outOfBudget(tokensUsed)) {
       const text = data.content
         .filter((b) => b.type === "text")
         .map((b) => b.text ?? "")
@@ -145,7 +152,7 @@ export async function runAnthropicAgent(opts: {
       results.push({
         type: "tool_result",
         tool_use_id: call.id,
-        content: JSON.stringify(result).slice(0, 8000),
+        content: JSON.stringify(result).slice(0, TOOL_RESULT_CAP),
       });
     }
     messages.push({ role: "user", content: results });
@@ -191,7 +198,7 @@ export async function runLocalAgent(opts: {
       if (!msg) return { error: "empty response from the local model" };
 
       const calls = msg.tool_calls ?? [];
-      if (calls.length === 0 || hop === MAX_HOPS) {
+      if (calls.length === 0 || hop === MAX_HOPS || outOfBudget(tokensUsed)) {
         return { text: (msg.content ?? "").trim() || "(no reply)", actions, changes, tokensUsed };
       }
 
@@ -210,7 +217,7 @@ export async function runLocalAgent(opts: {
         messages.push({
           role: "tool",
           tool_call_id: call.id,
-          content: JSON.stringify(result).slice(0, 8000),
+          content: JSON.stringify(result).slice(0, TOOL_RESULT_CAP),
         });
       }
     }

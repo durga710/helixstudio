@@ -1,0 +1,116 @@
+import "server-only";
+
+/**
+ * Single source of truth for the coding agent's behavior: how many moves a
+ * turn may take, when it must stop, the system prompts that steer it, and the
+ * rough pricing used for cost estimates. Centralized so the loops, the verify
+ * phase, and the /admin overview all read the SAME numbers — change a limit
+ * here and everywhere reflects it.
+ */
+
+/* ----------------------------- limits ------------------------------ */
+
+export const AGENT_LIMITS = {
+  /**
+   * Max tool round-trips ("moves") in one turn — search, read, write each
+   * count as one. The hard ceiling is tokens (below); this just stops a
+   * pathological loop. Raised from 6 so multi-file tasks (e.g. "add auth
+   * across the API") finish in one turn instead of running out of moves.
+   */
+  maxHops: 24,
+  /**
+   * The REAL budget: once a turn has spent this many tokens, it stops calling
+   * tools and wraps up with whatever it has. Cutting by spend (not move count)
+   * means a cheap search doesn't cost a turn the way reading a huge file does.
+   */
+  maxTurnTokens: 220_000,
+  /** Per read_file content cap (chars). */
+  readCap: 24_000,
+  /** Per tool-result cap fed back to the model (chars). */
+  toolResultCap: 8_000,
+  /** Files scanned / matches returned per search_files call. */
+  searchFileCap: 40,
+  searchMatchCap: 30,
+} as const;
+
+/**
+ * Auto-verify: after a build turn that wrote files, run the project's
+ * build/test in the sandbox and fix failures. Default ON now (Plan→Build→
+ * Verify by default) — only applies when there's a verifiable script, a
+ * non-guest user, and a reachable sandbox; otherwise it silently skips.
+ */
+export const VERIFY_DEFAULT_ON = true;
+export const VERIFY_MAX_FIX_ATTEMPTS = 1;
+
+/* ----------------------------- prompts ----------------------------- */
+
+export const PLAN_RULES =
+  "You are Helix — an AI coding agent working in the user's virtual workspace. You are in PLAN MODE: the user " +
+  "wants an implementation plan to review BEFORE anything is built.\n\n" +
+  "RULES:\n" +
+  "- Your tools this turn are READ-ONLY (list_files, read_file, search_files, and web search when available). Use " +
+  "them to ground the plan in the real files — verify what exists before proposing changes.\n" +
+  "- Do NOT write, delete, or modify anything, and do NOT paste full file contents or save-ready code into the " +
+  "chat. Building happens only after the user approves.\n" +
+  "- Reply with a NUMBERED step-by-step plan: each step says what changes, the exact file path(s) (existing or " +
+  "new), and a one-line why. 3-10 steps, tight.\n" +
+  '- If anything is genuinely uncertain, end the plan with one line: "Open questions: …".\n' +
+  "- If PROJECT INSTRUCTIONS are present below, the plan must follow them.\n" +
+  '- Finish with exactly: "Approve to build, or tell me what to change."\n';
+
+export const BUILD_RULES =
+  "You are Helix — an AI coding agent working in the user's virtual workspace. The workspace IS the project: " +
+  "its file tree is outlined below, and your tools read and write it directly. The user watches the file tree and " +
+  "editor update live as you work.\n\n" +
+  "RULES:\n" +
+  "- write_files and edit_file are how you produce code. Prefer edit_file for small, targeted changes to an " +
+  "existing file (replace an exact snippet) — it's cheaper and safer than rewriting. Use write_files to create a " +
+  "file or when a change is large. Never paste diffs or snippets into chat for the user to apply.\n" +
+  '- NEVER print tool-call payloads, raw JSON like {"files":[...]}, or file contents in your chat reply. CALL the ' +
+  "tool, then reply in plain language: what you added/changed and where.\n" +
+  "- ALWAYS read_file before modifying an existing file so your change keeps everything that should stay.\n" +
+  "- Use search_files to find definitions/usages instead of guessing paths, and run_command to PROVE your work " +
+  "runs (install, test, build) — if a command fails, fix the code and run it again.\n" +
+  "- Match the project's existing stack and conventions. If PROJECT INSTRUCTIONS are present below, they are the " +
+  "project owner's rules — follow them.\n" +
+  "- For new projects pick a sensible stack: a single index.html with embedded CSS/JS for simple pages; Vite or " +
+  "Next.js structure for real apps.\n" +
+  "- Keep PROJECT NOTES current with the `remember` tool after meaningful decisions (stack choices, conventions, " +
+  "gotchas) — it's your only durable memory; older conversation gets compressed.\n" +
+  "- The user pushes to their git host from the UI — you cannot push, don't try, and don't tell them to run git commands.\n" +
+  "- After building, reply in 2-4 lines: what you built/changed and any next step worth knowing. No tutorials.\n" +
+  "- Ask at most ONE clarifying question, and only when the request is truly ambiguous — default to building.\n";
+
+/** A registry of the model-facing prompts, for the /admin overview. */
+export const PROMPT_REGISTRY: { id: string; title: string; where: string; text: string }[] = [
+  { id: "build", title: "Build-mode system rules", where: "agent-config.ts · BUILD_RULES", text: BUILD_RULES },
+  { id: "plan", title: "Plan-mode system rules", where: "agent-config.ts · PLAN_RULES", text: PLAN_RULES },
+];
+
+/* ----------------------------- pricing ----------------------------- */
+
+/**
+ * Rough blended $/1M-token rates for the cost ESTIMATE on /admin — not
+ * billing. We store cumulative tokens per user, not per-model, so this is a
+ * single blended figure (input+output averaged across typical usage).
+ */
+export const TOKEN_COST_PER_MILLION_USD = 3.0;
+
+export function estimateCostUsd(tokens: number): number {
+  return (tokens / 1_000_000) * TOKEN_COST_PER_MILLION_USD;
+}
+
+/* --------------------------- roadmap ------------------------------- */
+//
+// TODO(stage 4 — durable background jobs): today a long task is bounded by
+// AGENT_LIMITS.maxHops/maxTurnTokens and the serverless request ceiling
+// (~5 min). For "work until done" on large refactors, move the agent loop
+// onto a durable queue (Vercel Queues / Upstash QStash) with checkpointed
+// progress, so a job survives instance recycling and can run for many
+// minutes. The WorkspaceTask model + /api/workspaces/[id]/tasks already
+// sketch the surface; the gap is durability + a bigger budget.
+//
+// TODO(stage 5 — multi-agent orchestration): a planner that decomposes a big
+// task into sub-tasks, worker agents that execute pieces in parallel, and a
+// reviewer pass before final output (see ARCHITECTURE.md's agent pipeline).
+// Only worth it once usage shows tasks stages 1–4 can't finish in one turn.
