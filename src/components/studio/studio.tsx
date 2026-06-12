@@ -11,6 +11,7 @@ export interface WorkspaceMeta {
   repo: string | null;
   provider: string;
   baseBranch: string | null;
+  spaceId?: string | null;
 }
 
 export interface Changes {
@@ -27,7 +28,18 @@ export interface Changes {
  * Fills its container: the parent page provides the height (h-full/min-h-0),
  * so this works inside Helix's rail + topbar shell without viewport math.
  */
-export function Studio({ workspace, isGuest }: { workspace: WorkspaceMeta; isGuest?: boolean }) {
+export function Studio({
+  workspace,
+  isGuest,
+  isOwner = true,
+  ownerName,
+}: {
+  workspace: WorkspaceMeta;
+  isGuest?: boolean;
+  /** False when a Space member is viewing a teammate's shared workspace. */
+  isOwner?: boolean;
+  ownerName?: string;
+}) {
   const [changes, setChanges] = useState<Changes | null>(null);
 
   return (
@@ -40,13 +52,20 @@ export function Studio({ workspace, isGuest }: { workspace: WorkspaceMeta; isGue
         <ChatPanel
           workspace={workspace}
           isGuest={isGuest}
+          isOwner={isOwner}
           onChanges={(written, deleted) =>
             setChanges((c) => ({ written, deleted, nonce: (c?.nonce ?? 0) + 1 }))
           }
         />
       </div>
       <div className="h-[70vh] min-h-0 min-w-0 xl:col-span-3 xl:h-full">
-        <WorkspacePanel workspace={workspace} changes={changes} isGuest={isGuest} />
+        <WorkspacePanel
+          workspace={workspace}
+          changes={changes}
+          isGuest={isGuest}
+          isOwner={isOwner}
+          ownerName={ownerName}
+        />
       </div>
     </div>
   );

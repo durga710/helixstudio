@@ -40,6 +40,36 @@ model User {
   workspaces    Workspace[]
   repoWatches   RepoWatch[]
   preferences   UserPreferences?
+  ownedSpaces      Space[]       @relation("SpaceOwner")
+  spaceMemberships SpaceMember[]
+}
+
+// ---------- Helix Space · lightweight team collaboration ----------
+// A Space groups people who can see and open each other's shared workspaces
+// (separate-but-visible: each member owns their own; only the owner edits).
+// Invite is a per-Space join link (joinCode).
+model Space {
+  id         String        @id @default(cuid())
+  name       String
+  ownerId    String
+  owner      User          @relation("SpaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  joinCode   String        @unique
+  createdAt  DateTime      @default(now())
+  members    SpaceMember[]
+  workspaces Workspace[]
+}
+
+model SpaceMember {
+  id       String   @id @default(cuid())
+  spaceId  String
+  userId   String
+  role     String   @default("member") // owner | member
+  joinedAt DateTime @default(now())
+  space    Space    @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([spaceId, userId])
+  @@index([userId])
 }
 
 model Account {
@@ -114,6 +144,11 @@ model Workspace {
   name   String
   mode   WorkspaceMode
 
+  // Shared into a Space → Space members can view/open/copy it (read-only).
+  // null = private to the owner.
+  spaceId String?
+  space   Space?  @relation(fields: [spaceId], references: [id], onDelete: SetNull)
+
   // Which git host this workspace's repo lives on:
   // github | gitlab | bitbucket | azure | gitea
   provider String @default("github")
@@ -148,6 +183,7 @@ model Workspace {
   tasks    WorkspaceTask[]
 
   @@index([userId, updatedAt])
+  @@index([spaceId])
 }
 
 // Background agent turns ("run in background"): same agent machinery as a

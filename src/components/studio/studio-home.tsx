@@ -13,6 +13,7 @@ import {
   Trash2,
   Lock,
   UploadCloud,
+  Users,
 } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,10 @@ interface WorkspaceCard {
   messageCount: number;
 }
 
+interface SharedCard extends WorkspaceCard {
+  ownerName: string;
+}
+
 /**
  * Studio home — the entry choice. Two big doors: create from scratch, or
  * import from GitHub (which opens the repo picker, which handles the
@@ -39,9 +44,11 @@ interface WorkspaceCard {
  */
 export function StudioHome({
   workspaces,
+  sharedWorkspaces,
   isGuest,
 }: {
   workspaces: WorkspaceCard[];
+  sharedWorkspaces?: SharedCard[];
   isGuest?: boolean;
 }) {
   const router = useRouter();
@@ -254,6 +261,57 @@ export function StudioHome({
                   className="absolute right-3 top-3 text-txt3 opacity-0 transition-all hover:text-bad group-hover:opacity-100"
                 >
                   {deleting === w.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Shared with you — teammates' workspaces shared via your Spaces */}
+      {sharedWorkspaces && sharedWorkspaces.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center gap-2">
+            <h2 className="label-tactical">Shared with you</h2>
+            <Users className="h-3.5 w-3.5 text-txt3" />
+          </div>
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {sharedWorkspaces.map((w) => (
+              <li key={w.id}>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/editor/${w.id}`)}
+                  className="glass-panel block w-full p-4 text-left transition-colors hover:border-accent"
+                >
+                  <div className="mb-1 flex items-center gap-2">
+                    {w.mode === "IMPORT" ? (
+                      <FolderGit2 className="h-4 w-4 shrink-0 text-accent" />
+                    ) : (
+                      <Sparkles className="h-4 w-4 shrink-0 text-ok" />
+                    )}
+                    <span className="truncate text-sm font-medium text-txt">{w.name}</span>
+                  </div>
+                  <p className="mb-2 truncate text-[11px] text-txt3">by {w.ownerName}</p>
+                  {w.repo && (
+                    <p className="mb-2 flex items-center gap-1 truncate font-mono text-[11px] text-txt3">
+                      <Lock className="h-3 w-3 shrink-0 opacity-60" />
+                      <span className="truncate">{w.repo}</span>
+                      {w.provider !== "github" && (
+                        <span className="shrink-0 text-[9px] uppercase tracking-wide text-txt3 opacity-70">
+                          {PROVIDER_META[w.provider as GitProviderName]?.label ?? w.provider}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3 font-mono text-[10px] text-txt3">
+                    <span className="inline-flex items-center gap-1">
+                      <FileCode2 className="h-3 w-3" /> {w.fileCount}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <MessageSquare className="h-3 w-3" /> {w.messageCount}
+                    </span>
+                    <span className="ml-auto">{timeAgo(w.updatedAt)}</span>
+                  </div>
                 </button>
               </li>
             ))}

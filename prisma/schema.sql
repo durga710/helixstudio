@@ -41,6 +41,28 @@ CREATE TABLE "User" (
 );
 
 -- CreateTable
+CREATE TABLE "Space" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "ownerId" TEXT NOT NULL,
+    "joinCode" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Space_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SpaceMember" (
+    "id" TEXT NOT NULL,
+    "spaceId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "role" TEXT NOT NULL DEFAULT 'member',
+    "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "SpaceMember_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Account" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -97,6 +119,7 @@ CREATE TABLE "Workspace" (
     "userId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "mode" "WorkspaceMode" NOT NULL,
+    "spaceId" TEXT,
     "provider" TEXT NOT NULL DEFAULT 'github',
     "repo" TEXT,
     "baseBranch" TEXT,
@@ -343,6 +366,15 @@ CREATE TABLE "AuditEvent" (
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Space_joinCode_key" ON "Space"("joinCode");
+
+-- CreateIndex
+CREATE INDEX "SpaceMember_userId_idx" ON "SpaceMember"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SpaceMember_spaceId_userId_key" ON "SpaceMember"("spaceId", "userId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Account_provider_providerAccountId_key" ON "Account"("provider", "providerAccountId");
 
 -- CreateIndex
@@ -353,6 +385,9 @@ CREATE UNIQUE INDEX "UserPreferences_userId_key" ON "UserPreferences"("userId");
 
 -- CreateIndex
 CREATE INDEX "Workspace_userId_updatedAt_idx" ON "Workspace"("userId", "updatedAt");
+
+-- CreateIndex
+CREATE INDEX "Workspace_spaceId_idx" ON "Workspace"("spaceId");
 
 -- CreateIndex
 CREATE INDEX "WorkspaceTask_workspaceId_createdAt_idx" ON "WorkspaceTask"("workspaceId", "createdAt");
@@ -412,6 +447,15 @@ CREATE INDEX "Invite_teamId_status_idx" ON "Invite"("teamId", "status");
 CREATE INDEX "AuditEvent_teamId_at_idx" ON "AuditEvent"("teamId", "at");
 
 -- AddForeignKey
+ALTER TABLE "Space" ADD CONSTRAINT "Space_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SpaceMember" ADD CONSTRAINT "SpaceMember_spaceId_fkey" FOREIGN KEY ("spaceId") REFERENCES "Space"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SpaceMember" ADD CONSTRAINT "SpaceMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -422,6 +466,9 @@ ALTER TABLE "UserPreferences" ADD CONSTRAINT "UserPreferences_userId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "Workspace" ADD CONSTRAINT "Workspace_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Workspace" ADD CONSTRAINT "Workspace_spaceId_fkey" FOREIGN KEY ("spaceId") REFERENCES "Space"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkspaceTask" ADD CONSTRAINT "WorkspaceTask_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;

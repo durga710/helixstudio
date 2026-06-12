@@ -3,8 +3,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import {
   Code2,
+  Copy,
+  Eye,
   ExternalLink,
   FileCode2,
   FilePlus2,
@@ -27,11 +30,13 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
+import { useToast } from "@/components/ui/toast";
 import { Markdown } from "@/components/ui/markdown";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 import type { Changes, WorkspaceMeta } from "@/components/studio/studio";
 import { PushDialog } from "@/components/studio/push-dialog";
 import { EnvDialog } from "@/components/studio/env-dialog";
+import { ShareMenu } from "@/components/studio/share-menu";
 import { FileTree, type TreeFile } from "@/components/studio/file-tree";
 
 const editorLoading = (
@@ -108,11 +113,19 @@ export function WorkspacePanel({
   workspace,
   changes,
   isGuest,
+  isOwner = true,
+  ownerName,
 }: {
   workspace: WorkspaceMeta;
   changes: Changes | null;
   isGuest?: boolean;
+  /** False when a Space member is viewing a teammate's shared workspace. */
+  isOwner?: boolean;
+  ownerName?: string;
 }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [forking, setForking] = useState(false);
   const [files, setFiles] = useState<TreeFile[]>([]);
   const [treeError, setTreeError] = useState<string | null>(null);
   const [loadingTree, setLoadingTree] = useState(true);
@@ -361,6 +374,27 @@ export function WorkspacePanel({
       setNote("Save failed.");
     }
     setSaving(false);
+  }
+
+  // Non-owner action: copy a teammate's shared workspace into a fresh scratch
+  // workspace you own, then jump into it (now fully editable).
+  async function forkWorkspace() {
+    if (forking) return;
+    setForking(true);
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}/fork`, { method: "POST" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        toast(json?.error?.message ?? "Couldn't copy this workspace.");
+        setForking(false);
+      } else {
+        toast("Copied to your workspaces");
+        router.push(`/editor/${json.data.id}`);
+      }
+    } catch {
+      toast("Couldn't copy this workspace.");
+      setForking(false);
+    }
   }
 
   /* ------------------------------- diff ----------------------------- */
@@ -657,15 +691,17 @@ export function WorkspacePanel({
             </button>
           </div>
 
-          <button
-            type="button"
-            aria-label="Environment"
-            title="Environment (setup script & cache)"
-            onClick={() => setEnvOpen(true)}
-            className="rounded-lg border border-border p-1.5 text-txt2 transition-colors hover:border-accent hover:text-txt"
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-          </button>
+          {isOwner && (
+            <button
+              type="button"
+              aria-label="Environment"
+              title="Environment (setup script & cache)"
+              onClick={() => setEnvOpen(true)}
+              className="rounded-lg border border-border p-1.5 text-txt2 transition-colors hover:border-accent hover:text-txt"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+            </button>
+          )}
 
           <button
             type="button"
@@ -677,21 +713,41 @@ export function WorkspacePanel({
             {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
           </button>
 
-          <Button
-            variant="ghost"
-            onClick={() => void save()}
-            disabled={!dirtyCount || saving}
-            className="px-3.5 py-1.5"
-          >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            Save {dirtyCount > 0 ? `(${dirtyCount})` : ""}
-          </Button>
-          <Button onClick={() => setPushing(true)} className="px-3.5 py-1.5">
-            <UploadCloud className="h-3.5 w-3.5" />
-            Push
-          </Button>
+          {isOwner ? (
+            <>
+              <ShareMenu workspaceId={workspace.id} currentSpaceId={workspace.spaceId ?? null} />
+              <Button
+                variant="ghost"
+                onClick={() => void save()}
+                disabled={!dirtyCount || saving}
+                className="px-3.5 py-1.5"
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Save {dirtyCount > 0 ? `(${dirtyCount})` : ""}
+              </Button>
+              <Button onClick={() => setPushing(true)} className="px-3.5 py-1.5">
+                <UploadCloud className="h-3.5 w-3.5" />
+                Push
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => void forkWorkspace()} disabled={forking} className="px-3.5 py-1.5">
+              {forking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
+              Copy to my workspaces
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Read-only banner for Space viewers. */}
+      {!isOwner && (
+        <div className="flex items-center gap-2 border-b border-border bg-panel2/50 px-3 py-2 text-[12px] text-txt2">
+          <Eye className="h-3.5 w-3.5 shrink-0 text-accent" />
+          <span className="min-w-0 truncate">
+            Viewing {ownerName ? `${ownerName}'s` : "a shared"} workspace — read only. Copy it to edit.
+          </span>
+        </div>
+      )}
 
       {tab === "code" ? (
         <div className="flex min-h-0 flex-1">
@@ -699,19 +755,21 @@ export function WorkspacePanel({
           <aside className="scroll-area w-60 shrink-0 overflow-y-auto border-r border-border p-2">
             <div className="flex items-center justify-between px-2 py-1">
               <span className="label-tactical">Files</span>
-              <button
-                type="button"
-                aria-label="New file"
-                title="New file"
-                onClick={() => {
-                  setNewFileOpen(true);
-                  setNewFilePath("");
-                  setNewFileError(null);
-                }}
-                className="text-txt3 transition-colors hover:text-accent"
-              >
-                <FilePlus2 className="h-3.5 w-3.5" />
-              </button>
+              {isOwner && (
+                <button
+                  type="button"
+                  aria-label="New file"
+                  title="New file"
+                  onClick={() => {
+                    setNewFileOpen(true);
+                    setNewFilePath("");
+                    setNewFileError(null);
+                  }}
+                  className="text-txt3 transition-colors hover:text-accent"
+                >
+                  <FilePlus2 className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
             {treeError ? (
               <p className="px-2 py-1 text-xs text-warn">{treeError}</p>
@@ -721,7 +779,7 @@ export function WorkspacePanel({
               </p>
             ) : files.length === 0 ? (
               <p className="px-2 py-1 text-xs text-txt3">
-                Empty — ask Helix to build something, or add a file.
+                {isOwner ? "Empty — ask Helix to build something, or add a file." : "This workspace has no files yet."}
               </p>
             ) : (
               <FileTree
@@ -730,7 +788,7 @@ export function WorkspacePanel({
                 dirtyPaths={dirtyPaths}
                 importMode={workspace.mode === "IMPORT"}
                 onOpen={(p) => void openFile(p)}
-                onDelete={(p) => void deleteFile(p)}
+                onDelete={(p) => isOwner && void deleteFile(p)}
               />
             )}
           </aside>
@@ -775,6 +833,7 @@ export function WorkspacePanel({
                     });
                   }}
                   options={{
+                    readOnly: !isOwner,
                     fontSize: 13,
                     minimap: { enabled: false },
                     scrollBeyondLastLine: false,

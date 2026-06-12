@@ -14,6 +14,7 @@ import {
   Newspaper,
   Clock,
   GitCompare,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -100,10 +101,12 @@ export function ChatPanel({
   workspace,
   onChanges,
   isGuest,
+  isOwner = true,
 }: {
   workspace: WorkspaceMeta;
   onChanges: (written: string[], deleted: string[]) => void;
   isGuest?: boolean;
+  isOwner?: boolean;
 }) {
   const [messages, setMessages] = useState<Msg[] | null>(null); // null = loading history
   const [input, setInput] = useState("");
@@ -505,47 +508,54 @@ export function ChatPanel({
         </div>
       )}
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send(input);
-        }}
-        className="flex items-center gap-2 border-t border-border p-3"
-      >
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={guestBlocked}
-          placeholder={
-            guestBlocked
-              ? "Guest allowance used — sign in to continue"
-              : workspace.mode === "IMPORT"
-                ? "Describe a change to this repo…"
-                : "Describe the app you want built…"
-          }
-          className="flex-1 rounded-xl border border-border bg-bg2 px-4 py-2.5 text-sm text-txt placeholder:text-txt3 focus:border-accent focus:outline-none disabled:opacity-60"
-        />
-        {!isGuest && (
+      {!isOwner ? (
+        <div className="flex items-center gap-2 border-t border-border bg-panel2/40 px-4 py-3 text-[12.5px] text-txt3">
+          <Lock className="h-3.5 w-3.5 shrink-0" />
+          Read-only — copy this workspace to chat with Helix.
+        </div>
+      ) : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void send(input);
+          }}
+          className="flex items-center gap-2 border-t border-border p-3"
+        >
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={guestBlocked}
+            placeholder={
+              guestBlocked
+                ? "Guest allowance used — sign in to continue"
+                : workspace.mode === "IMPORT"
+                  ? "Describe a change to this repo…"
+                  : "Describe the app you want built…"
+            }
+            className="flex-1 rounded-xl border border-border bg-bg2 px-4 py-2.5 text-sm text-txt placeholder:text-txt3 focus:border-accent focus:outline-none disabled:opacity-60"
+          />
+          {!isGuest && (
+            <Button
+              type="button"
+              variant="ghost"
+              aria-label="Queue as background task"
+              title="Queue as a background task"
+              onClick={() => void queueTask(input)}
+              disabled={busy || queuingTask || !input.trim()}
+              className="shrink-0 px-3 py-2.5"
+            >
+              {queuingTask ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
+            </Button>
+          )}
           <Button
-            type="button"
-            variant="ghost"
-            aria-label="Queue as background task"
-            title="Queue as a background task"
-            onClick={() => void queueTask(input)}
-            disabled={busy || queuingTask || !input.trim()}
+            type="submit"
+            disabled={busy || !input.trim() || guestBlocked}
             className="shrink-0 px-3 py-2.5"
           >
-            {queuingTask ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
-        )}
-        <Button
-          type="submit"
-          disabled={busy || !input.trim() || guestBlocked}
-          className="shrink-0 px-3 py-2.5"
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-        </Button>
-      </form>
+        </form>
+      )}
     </div>
   );
 }

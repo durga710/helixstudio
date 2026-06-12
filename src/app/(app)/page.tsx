@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Bot, FolderGit2, Lock, MessageSquare, FileCode2, Sparkles } from "lucide-react";
+import { Bot, FolderGit2, Lock, MessageSquare, FileCode2, Sparkles, Users } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db, dbEnabled, schemaReady } from "@/lib/db";
 import { getGitConnections } from "@/lib/git";
@@ -54,7 +54,7 @@ export default async function DashboardPage() {
   }
   await schemaReady();
 
-  const [workspaceCount, fileCount, aiTurns, connections, workspaces, recentTurns] = await Promise.all([
+  const [workspaceCount, fileCount, aiTurns, connections, workspaces, sharedWorkspaces, recentTurns] = await Promise.all([
     db().workspace.count({ where: { userId } }),
     db().workspaceFile.count({ where: { deleted: false, workspace: { userId } } }),
     db().workspaceMessage.count({ where: { role: "assistant", workspace: { userId } } }),
@@ -70,6 +70,25 @@ export default async function DashboardPage() {
         provider: true,
         repo: true,
         updatedAt: true,
+        _count: { select: { files: true, messages: true } },
+      },
+    }),
+    // Teammates' workspaces shared via a Space the user belongs to.
+    db().workspace.findMany({
+      where: {
+        space: { members: { some: { userId } } },
+        NOT: { userId },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 12,
+      select: {
+        id: true,
+        name: true,
+        mode: true,
+        provider: true,
+        repo: true,
+        updatedAt: true,
+        user: { select: { name: true, email: true } },
         _count: { select: { files: true, messages: true } },
       },
     }),
@@ -158,6 +177,61 @@ export default async function DashboardPage() {
             );
           })}
         </div>
+      )}
+
+      {/* Shared with you — teammates' workspaces shared via your Spaces */}
+      {sharedWorkspaces.length > 0 && (
+        <>
+          <div className="mb-3 mt-6 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold">Shared with you</h3>
+              <Users className="h-3.5 w-3.5 text-txt3" strokeWidth={1.7} />
+            </div>
+            <Link href="/space" className="text-xs text-accent hover:underline">
+              Spaces →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {sharedWorkspaces.map((w) => {
+              const meta = PROVIDER_META[w.provider as GitProviderName];
+              return (
+                <Link key={w.id} href={`/editor/${w.id}`} className="block">
+                  <Card className="cursor-pointer p-4 transition-all duration-150 hover:-translate-y-px hover:border-accent">
+                    <div className="mb-1 flex items-center gap-2">
+                      {w.mode === "IMPORT" ? (
+                        <FolderGit2 className="h-4 w-4 shrink-0 text-accent" strokeWidth={1.7} />
+                      ) : (
+                        <Sparkles className="h-4 w-4 shrink-0 text-ok" strokeWidth={1.7} />
+                      )}
+                      <span className="truncate text-[13.5px] font-semibold">{w.name}</span>
+                    </div>
+                    <p className="mb-2 truncate text-[11px] text-txt3">
+                      by {w.user.name ?? w.user.email ?? "a teammate"}
+                    </p>
+                    {w.repo && (
+                      <p className="mb-2 flex items-center gap-1 truncate font-mono text-[11px] text-txt3">
+                        <Lock className="h-3 w-3 shrink-0 opacity-60" />
+                        {w.repo}
+                        {w.provider !== "github" && meta && (
+                          <span className="ml-1 uppercase tracking-wide text-[9px]">{meta.label}</span>
+                        )}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-3 font-mono text-[10.5px] text-txt3">
+                      <span className="inline-flex items-center gap-1">
+                        <FileCode2 className="h-3 w-3" /> {w._count.files}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <MessageSquare className="h-3 w-3" /> {w._count.messages}
+                      </span>
+                      <span className="ml-auto">{timeAgo(w.updatedAt.toISOString())}</span>
+                    </div>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* AI activity */}

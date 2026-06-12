@@ -26,12 +26,12 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params;
-  const g = await guardWorkspace("diff", id, { limit: 300, windowMs: 60 * 60 * 1000 });
+  const g = await guardWorkspace("diff", id, { limit: 300, windowMs: 60 * 60 * 1000 }, "read");
   if ("response" in g) return g.response;
-  const { user, ws } = g;
+  const { ws } = g;
 
   const overlay = await getOverlay(ws);
-  const gitAuth = ws.mode === "IMPORT" ? await getGitAuth(user.id, ws.provider) : null;
+  const gitAuth = ws.mode === "IMPORT" ? await getGitAuth(ws.userId, ws.provider) : null;
 
   const readBase = async (path: string): Promise<string> => {
     if (ws.mode !== "IMPORT" || !ws.repo) return "";

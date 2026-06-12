@@ -15,13 +15,13 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: Request, { params }: Params) {
   const { id } = await params;
-  const g = await guardWorkspace("ws.read", id, { limit: 1200, windowMs: 60 * 60 * 1000 });
+  const g = await guardWorkspace("ws.read", id, { limit: 1200, windowMs: 60 * 60 * 1000 }, "read");
   if ("response" in g) return g.response;
 
   const path = new URL(req.url).searchParams.get("path") ?? "";
   if (!path) return apiErrors.badRequest("path is required");
 
-  const auth = await getGitAuth(g.user.id, g.ws.provider);
+  const auth = await getGitAuth(g.ws.userId, g.ws.provider);
   const content = await withGitAuth(auth, () => readWorkspaceFile(g.ws, path));
   if (content === null) return apiErrors.notFound("File");
   return ok({ path, content });

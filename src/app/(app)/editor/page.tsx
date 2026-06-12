@@ -44,20 +44,41 @@ export default async function EditorPage() {
     }
   }
 
-  const workspaces = await db().workspace.findMany({
-    where: { userId: session.user.id },
-    orderBy: { updatedAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      mode: true,
-      repo: true,
-      provider: true,
-      updatedAt: true,
-      _count: { select: { files: true, messages: true } },
-    },
-    take: 50,
-  });
+  const [workspaces, shared] = await Promise.all([
+    db().workspace.findMany({
+      where: { userId: session.user.id },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        mode: true,
+        repo: true,
+        provider: true,
+        updatedAt: true,
+        _count: { select: { files: true, messages: true } },
+      },
+      take: 50,
+    }),
+    // Teammates' workspaces shared via a Space the user belongs to.
+    db().workspace.findMany({
+      where: {
+        space: { members: { some: { userId: session.user.id } } },
+        NOT: { userId: session.user.id },
+      },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        mode: true,
+        repo: true,
+        provider: true,
+        updatedAt: true,
+        user: { select: { name: true, email: true } },
+        _count: { select: { files: true, messages: true } },
+      },
+      take: 12,
+    }),
+  ]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -72,6 +93,17 @@ export default async function EditorPage() {
           updatedAt: w.updatedAt.toISOString(),
           fileCount: w._count.files,
           messageCount: w._count.messages,
+        }))}
+        sharedWorkspaces={shared.map((w) => ({
+          id: w.id,
+          name: w.name,
+          mode: w.mode,
+          repo: w.repo,
+          provider: w.provider,
+          updatedAt: w.updatedAt.toISOString(),
+          fileCount: w._count.files,
+          messageCount: w._count.messages,
+          ownerName: w.user.name ?? w.user.email ?? "a teammate",
         }))}
       />
     </div>

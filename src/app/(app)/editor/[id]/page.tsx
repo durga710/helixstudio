@@ -15,9 +15,27 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const ws = await db().workspace.findUnique({
     where: { id },
-    select: { id: true, userId: true, name: true, mode: true, repo: true, provider: true, baseBranch: true },
+    select: { id: true, userId: true, name: true, mode: true, repo: true, provider: true, baseBranch: true, spaceId: true },
   });
-  if (!ws || ws.userId !== session.user.id) notFound();
+  if (!ws) notFound();
+
+  // Owners always get in. Space members get a read-only view of a workspace
+  // shared into a Space they belong to; everyone else is a 404.
+  const isOwner = ws.userId === session.user.id;
+  let ownerName: string | undefined;
+  if (!isOwner) {
+    if (!ws.spaceId) notFound();
+    const member = await db().spaceMember.findUnique({
+      where: { spaceId_userId: { spaceId: ws.spaceId, userId: session.user.id } },
+      select: { id: true },
+    });
+    if (!member) notFound();
+    const owner = await db().user.findUnique({
+      where: { id: ws.userId },
+      select: { name: true, email: true },
+    });
+    ownerName = owner?.name ?? owner?.email ?? "a teammate";
+  }
 
   return (
     <div className="mx-auto h-full min-h-0 max-w-[1800px] px-4 py-4">
@@ -29,8 +47,11 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
           repo: ws.repo,
           provider: ws.provider,
           baseBranch: ws.baseBranch,
+          spaceId: ws.spaceId,
         }}
         isGuest={Boolean(session.user.isGuest)}
+        isOwner={isOwner}
+        ownerName={ownerName}
       />
     </div>
   );

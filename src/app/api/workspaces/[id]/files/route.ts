@@ -19,12 +19,14 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params;
-  const g = await guardWorkspace("ws.read", id, { limit: 600, windowMs: 60 * 60 * 1000 });
+  const g = await guardWorkspace("ws.read", id, { limit: 600, windowMs: 60 * 60 * 1000 }, "read");
   if ("response" in g) return g.response;
 
-  const auth = await getGitAuth(g.user.id, g.ws.provider);
+  // Read as the OWNER's git identity so Space viewers can see imported-repo
+  // files without needing their own access to the owner's repo.
+  const auth = await getGitAuth(g.ws.userId, g.ws.provider);
   const files = await withGitAuth(auth, () => listWorkspaceFiles(g.ws));
-  return ok({ mode: g.ws.mode, repo: g.ws.repo, baseBranch: g.ws.baseBranch, files });
+  return ok({ mode: g.ws.mode, repo: g.ws.repo, baseBranch: g.ws.baseBranch, files, isOwner: g.isOwner });
 }
 
 const SaveSchema = z.object({

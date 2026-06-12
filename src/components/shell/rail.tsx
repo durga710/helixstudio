@@ -8,6 +8,7 @@ import {
   Home,
   LogOut,
   Settings,
+  Users,
 } from "lucide-react";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand";
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
 export const NAV_ITEMS = [
   { href: "/", title: "Home", icon: Home },
   { href: "/editor", title: "Editor", icon: Code2 },
+  { href: "/space", title: "Space", icon: Users },
 ] as const;
 
 export function Rail({ userInitials }: { userInitials: string }) {

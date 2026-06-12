@@ -42,7 +42,8 @@ export async function POST(_req: Request, { params }: Params) {
 
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params;
-  const g = await guardWorkspace("run.read", id, { limit: 1200, windowMs: 60 * 60 * 1000 });
+  // Space viewers can watch a teammate's running preview (read-only).
+  const g = await guardWorkspace("run.read", id, { limit: 1200, windowMs: 60 * 60 * 1000 }, "read");
   if ("response" in g) return g.response;
 
   return ok(await getRunInfo(g.ws));

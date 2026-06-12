@@ -28,7 +28,7 @@ export interface WorkspaceFileEntry {
   source: "workspace" | "repo";
 }
 
-/** Ownership check — every route and AI tool goes through this. */
+/** Ownership check — write routes and AI tools go through this. */
 export async function getWorkspaceForUser(
   workspaceId: string,
   userId: string,
@@ -36,6 +36,28 @@ export async function getWorkspaceForUser(
   const ws = await db().workspace.findUnique({ where: { id: workspaceId } });
   if (!ws || ws.userId !== userId) return null;
   return ws;
+}
+
+/**
+ * Read access: the owner, OR a member of the Space the workspace is shared
+ * into. Used by the read-only routes (view files, diff, run status) so Space
+ * teammates can look at — but not modify — each other's work.
+ */
+export async function getWorkspaceForViewer(
+  workspaceId: string,
+  userId: string,
+): Promise<{ ws: Workspace; isOwner: boolean } | null> {
+  const ws = await db().workspace.findUnique({ where: { id: workspaceId } });
+  if (!ws) return null;
+  if (ws.userId === userId) return { ws, isOwner: true };
+  if (ws.spaceId) {
+    const member = await db().spaceMember.findUnique({
+      where: { spaceId_userId: { spaceId: ws.spaceId, userId } },
+      select: { id: true },
+    });
+    if (member) return { ws, isOwner: false };
+  }
+  return null;
 }
 
 /**
