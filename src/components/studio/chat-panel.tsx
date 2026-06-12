@@ -351,7 +351,12 @@ export function ChatPanel({
         </div>
       </div>
 
-      <div ref={scrollRef} className="scroll-area flex-1 space-y-4 overflow-y-auto p-5">
+      {/* min-h-0 is required: a flex-1 child in a column flex defaults to
+          min-height:auto and won't shrink below its content, so without this
+          the message list overflows the panel and pushes the input box past
+          the panel's overflow-hidden edge (it gets clipped, leaving only the
+          header visible). */}
+      <div ref={scrollRef} className="scroll-area min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
         {messages === null ? (
           <div className="grid h-full place-items-center text-sm text-txt3">
             <span className="flex items-center gap-2">
