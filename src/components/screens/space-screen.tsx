@@ -31,6 +31,7 @@ import { useToast } from "@/components/ui/toast";
 import { AssignmentsSection } from "@/components/screens/assignments-section";
 import { SpaceBillingCard, type SpaceBilling } from "@/components/screens/space-billing-card";
 import { SpaceActivityFeed } from "@/components/screens/space-activity-feed";
+import { SpaceBoard } from "@/components/screens/space-board";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 
 type SpaceKind = "team" | "classroom";
@@ -830,6 +831,15 @@ function SpaceDetailPanel({
           onUpgradeNeeded={(msg) => toast(msg)}
         />
       )}
+
+      {/* Task board */}
+      <SpaceBoard
+        key={`board-${detail.id}`}
+        spaceId={detail.id}
+        members={detail.members.map((m) => ({ id: m.id, name: m.name }))}
+        youId={detail.members.find((m) => m.isYou)?.id ?? null}
+        isOwner={detail.isOwner}
+      />
 
       {/* Shared workspaces */}
       <div>

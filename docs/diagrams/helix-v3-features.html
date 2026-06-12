@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helix v3 — Plan Mode, Activity, Gradebook, Board</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #0d1626; color: #f8fbff;
+    width: 1123px; min-height: 794px; padding: 36px 46px;
+  }
+  h1 { font-size: 27px; letter-spacing: -0.5px; }
+  h1 span { color: #34d399; }
+  .sub { color: #9cadc4; font-size: 13px; margin-top: 6px; margin-bottom: 20px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card {
+    border: 1px solid #28364f; border-radius: 14px; background: #121d30; padding: 16px 18px;
+  }
+  .head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .emoji { font-size: 26px; line-height: 1; }
+  .title { font-size: 16px; font-weight: 700; }
+  .tag { margin-left: auto; font-size: 9.5px; font-weight: 700; letter-spacing: .1em; color: #34d399; }
+  .plain { color: #cdd7e6; font-size: 12.5px; line-height: 1.5; }
+  .how {
+    margin-top: 10px; border-radius: 9px; padding: 8px 11px; font-size: 11.5px; line-height: 1.45;
+    background: rgba(96,165,250,.07); border: 1px solid rgba(96,165,250,.3); color: #c9d8ef;
+  }
+  .how b { display: block; font-size: 9.5px; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 3px; color: #60a5fa; }
+  code { font-family: Consolas, monospace; font-size: 11px; color: #7dd3fc; }
+  .footer { margin-top: 20px; font-size: 10.5px; color: #5f6f86; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>Helix <span>v3</span> — Plan Mode, Activity, Gradebook, Board</h1>
+  <div class="sub">Four additions: one in the editor's AI chat, three in Spaces. Everything works with the accounts, Spaces, and editor you already have.</div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="head"><span class="emoji">🗺️</span><span class="title">Plan mode in the AI chat</span><span class="tag">EDITOR</span></div>
+      <p class="plain">A Plan/Build switch next to the chat box. In Plan, the agent only reads your project and replies with a numbered implementation plan — what changes, in which files, and why. Nothing is written until you press <b>Approve &amp; build</b>; <b>Revise</b> lets you adjust the plan first. Useful before bigger changes.</p>
+      <div class="how"><b>How it works</b>A plan turn runs the same agent with its tool list cut to read-only (<code>list_files</code>, <code>read_file</code>, <code>search_files</code>) and a planning prompt; write tools are also blocked server-side. Approving sends the plan text back as a normal build turn.</div>
+    </div>
+
+    <div class="card">
+      <div class="head"><span class="emoji">📰</span><span class="title">Space activity feed</span><span class="tag">SPACES</span></div>
+      <p class="plain">Every Space now shows what happened recently: who joined or left, which projects were shared or pushed to git, assignments posted and submitted, tasks added and completed. Opens automatically on the Space page; quiet until there's something to show.</p>
+      <div class="how"><b>How it works</b>Routes record one event row after each action (never failing the action itself); <code>GET /api/spaces/[id]/activity</code> returns the latest 50 to members only. Grades are never shown in the feed.</div>
+    </div>
+
+    <div class="card">
+      <div class="head"><span class="emoji">🧮</span><span class="title">Classroom gradebook</span><span class="tag">CLASSROOMS</span></div>
+      <p class="plain">One grid with every student and every assignment: not started, in progress, submitted, or the grade once reviewed — plus a per-student completion count. Column headers jump to the assignment's grading page. Visible to the instructor only.</p>
+      <div class="how"><b>How it works</b><code>GET /api/spaces/[id]/gradebook</code> composes assignments × members × submissions in three queries and returns a cell map keyed <code>assignmentId:userId</code>.</div>
+    </div>
+
+    <div class="card">
+      <div class="head"><span class="emoji">📋</span><span class="title">Task board</span><span class="tag">SPACES</span></div>
+      <p class="plain">A three-column board (to do / in progress / done) in every Space. Any member can add tasks, drag them between columns (or use the arrow buttons — keyboard friendly), and assign them to a member. Deleting is limited to the task's creator or the Space owner.</p>
+      <div class="how"><b>How it works</b>A <code>SpaceTask</code> row per card; moves are a single <code>PATCH</code> whether dragged or clicked. Completions land in the activity feed.</div>
+    </div>
+  </div>
+
+  <div class="footer">Helix Studio · v3 · models: SpaceEvent, SpaceTask · chat accepts <code>mode: plan | build</code> · routes: /api/spaces/[id]/{activity, gradebook, tasks}</div>
+</body>
+</html>
