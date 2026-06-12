@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 760" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrAccent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3b82f6"/>
+    </marker>
+  </defs>
+
+  <rect width="1180" height="760" fill="#0b1220"/>
+  <text x="40" y="48" fill="#e2e8f0" font-size="24" font-weight="700">Helix — Intent Ledger &amp; Intentional Undo</text>
+  <text x="40" y="72" fill="#94a3b8" font-size="13">Every change becomes an intent with before/after snapshots → line blame + safe idea-level undo</text>
+
+  <!-- ===== Sources of change ===== -->
+  <text x="40" y="112" fill="#7dd3fc" font-size="12" font-weight="700" letter-spacing="2">SOURCES OF CHANGE</text>
+  <g>
+    <rect x="40" y="124" width="200" height="58" rx="10" fill="#101a2e" stroke="#3b82f6"/>
+    <text x="58" y="148" fill="#e2e8f0" font-size="13" font-weight="600">AI build turn</text>
+    <text x="58" y="167" fill="#94a3b8" font-size="11">runAgentTurn → write_files</text>
+
+    <rect x="40" y="194" width="200" height="58" rx="10" fill="#101a2e" stroke="#fbbf24"/>
+    <text x="58" y="218" fill="#e2e8f0" font-size="13" font-weight="600">Manual editor save</text>
+    <text x="58" y="237" fill="#94a3b8" font-size="11">POST /files (no-ops dropped)</text>
+
+    <rect x="40" y="264" width="200" height="58" rx="10" fill="#101a2e" stroke="#f87171"/>
+    <text x="58" y="288" fill="#e2e8f0" font-size="13" font-weight="600">Applied undo</text>
+    <text x="58" y="307" fill="#94a3b8" font-size="11">undo-apply (itself undoable)</text>
+  </g>
+
+  <!-- ===== Capture chokepoint ===== -->
+  <rect x="320" y="170" width="240" height="116" rx="12" fill="#0f2236" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="340" y="200" fill="#e2e8f0" font-size="14" font-weight="700">Capture chokepoint</text>
+  <text x="340" y="222" fill="#94a3b8" font-size="11">workspace.ts</text>
+  <text x="340" y="240" fill="#cbd5e1" font-size="11">writeWorkspaceFiles(capture)</text>
+  <text x="340" y="257" fill="#cbd5e1" font-size="11">deleteWorkspaceFile(capture)</text>
+  <text x="340" y="276" fill="#64748b" font-size="10">fail-open: capture never breaks a write</text>
+
+  <line x1="240" y1="153" x2="320" y2="200" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="240" y1="223" x2="320" y2="228" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="240" y1="293" x2="320" y2="258" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ===== Ledger storage ===== -->
+  <rect x="640" y="124" width="250" height="180" rx="12" fill="#101a2e" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="660" y="152" fill="#e2e8f0" font-size="14" font-weight="700">Ledger (PostgreSQL)</text>
+  <rect x="660" y="166" width="210" height="56" rx="8" fill="#16213a" stroke="#334155"/>
+  <text x="674" y="186" fill="#c4b5fd" font-size="12" font-weight="600">WorkspaceIntent</text>
+  <text x="674" y="203" fill="#94a3b8" font-size="10">kind · status · request · plan · reasoning</text>
+  <rect x="660" y="232" width="210" height="56" rx="8" fill="#16213a" stroke="#334155"/>
+  <text x="674" y="252" fill="#c4b5fd" font-size="12" font-weight="600">WorkspaceChange</text>
+  <text x="674" y="269" fill="#94a3b8" font-size="10">path · beforeContent · afterContent</text>
+
+  <line x1="560" y1="228" x2="640" y2="214" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrAccent)"/>
+  <text x="566" y="208" fill="#7dd3fc" font-size="10">one intent per request,</text>
+  <text x="566" y="221" fill="#7dd3fc" font-size="10">full snapshots per file</text>
+
+  <!-- ===== Read paths ===== -->
+  <text x="40" y="400" fill="#7dd3fc" font-size="12" font-weight="700" letter-spacing="2">READ PATHS</text>
+
+  <!-- Blame -->
+  <rect x="40" y="416" width="320" height="120" rx="12" fill="#0f2236" stroke="#34d399" stroke-width="1.5"/>
+  <text x="60" y="444" fill="#e2e8f0" font-size="14" font-weight="700">Line blame — computeLineLedger()</text>
+  <text x="60" y="466" fill="#cbd5e1" font-size="11">replay snapshots oldest→newest with diffLines:</text>
+  <text x="60" y="483" fill="#94a3b8" font-size="11">added lines take the intent · survivors carry forward</text>
+  <text x="60" y="500" fill="#94a3b8" font-size="11">final diff vs live file → "uncaptured" drift bucket</text>
+  <text x="60" y="521" fill="#64748b" font-size="10">GET /ledger?path → RLE ranges + intents + tests</text>
+
+  <!-- Undo -->
+  <rect x="400" y="416" width="360" height="200" rx="12" fill="#0f2236" stroke="#f87171" stroke-width="1.5"/>
+  <text x="420" y="444" fill="#e2e8f0" font-size="14" font-weight="700">Intentional undo — per file (A→B vs current C)</text>
+  <rect x="420" y="458" width="320" height="34" rx="7" fill="#16213a" stroke="#34d399"/>
+  <text x="434" y="480" fill="#a7f3d0" font-size="11">C = B → exact: restore A mechanically</text>
+  <rect x="420" y="500" width="320" height="34" rx="7" fill="#16213a" stroke="#fbbf24"/>
+  <text x="434" y="522" fill="#fde68a" font-size="11">later edits elsewhere → inverse patch (context 1, fuzz 0)</text>
+  <rect x="420" y="542" width="320" height="34" rx="7" fill="#16213a" stroke="#f87171"/>
+  <text x="434" y="564" fill="#fecaca" font-size="11">overlap → AI untangle (≤8 files, never auto-applied)</text>
+  <text x="420" y="600" fill="#64748b" font-size="10">undo-preview (sha256 baseHashes) → user approves diff → undo-apply (409 if stale)</text>
+
+  <!-- UI -->
+  <rect x="800" y="416" width="340" height="200" rx="12" fill="#0f2236" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="820" y="444" fill="#e2e8f0" font-size="14" font-weight="700">Editor UI</text>
+  <text x="820" y="470" fill="#cbd5e1" font-size="11">• Fresh-change highlight + hover provenance card</text>
+  <text x="820" y="490" fill="#cbd5e1" font-size="11">• Ledger toggle: gutter bars + side panel per line</text>
+  <text x="820" y="510" fill="#cbd5e1" font-size="11">• "Why does this exist?" / "What breaks if removed?"</text>
+  <text x="820" y="530" fill="#cbd5e1" font-size="11">• Intents tab: timeline + per-intent Undo</text>
+  <text x="820" y="550" fill="#cbd5e1" font-size="11">• Undo dialog: Monaco diff + exact/patch/AI badges</text>
+  <text x="820" y="584" fill="#64748b" font-size="10">gutter: blue = AI · amber = manual · red = undo</text>
+  <text x="820" y="600" fill="#64748b" font-size="10">dimmed = uncaptured / pre-ledger</text>
+
+  <!-- arrows from ledger down to read paths -->
+  <line x1="700" y1="304" x2="240" y2="416" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="765" y1="304" x2="600" y2="416" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="830" y1="304" x2="950" y2="416" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- undo loops back to capture -->
+  <path d="M 400 590 C 200 640 120 420 130 322" fill="none" stroke="#f87171" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+  <text x="150" y="630" fill="#f87171" font-size="11">undo-apply writes through the</text>
+  <text x="150" y="646" fill="#f87171" font-size="11">same captured path → undoable</text>
+
+  <!-- footer -->
+  <text x="40" y="722" fill="#475569" font-size="11">Retention: newest 200 intents per workspace · capture is fail-open · pre-ledger lines attribute to "base" · e2e: scripts/e2e-intent-ledger.mjs (27 checks)</text>
+</svg>
