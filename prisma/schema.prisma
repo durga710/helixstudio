@@ -38,6 +38,7 @@ model User {
   auditEvents   AuditEvent[]
   chatThreads   ChatThread[]
   workspaces    Workspace[]
+  repoWatches   RepoWatch[]
   preferences   UserPreferences?
 }
 
@@ -181,6 +182,23 @@ model WorkspaceFile {
   updatedAt   DateTime  @updatedAt
 
   @@unique([workspaceId, path])
+}
+
+// A repo the user has opted into automatic PR review on. Helix installs a
+// GitHub webhook (hookId) that calls /api/git/webhook; the per-repo secret
+// authenticates incoming events. v1 is GitHub-only.
+model RepoWatch {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider  String   @default("github")
+  repo      String
+  secret    String
+  hookId    String?
+  createdAt DateTime @default(now())
+
+  @@unique([provider, repo])
+  @@index([userId])
 }
 
 model WorkspaceMessage {

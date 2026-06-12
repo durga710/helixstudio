@@ -141,6 +141,19 @@ CREATE TABLE "WorkspaceFile" (
 );
 
 -- CreateTable
+CREATE TABLE "RepoWatch" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "provider" TEXT NOT NULL DEFAULT 'github',
+    "repo" TEXT NOT NULL,
+    "secret" TEXT NOT NULL,
+    "hookId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "RepoWatch_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "WorkspaceMessage" (
     "id" TEXT NOT NULL,
     "workspaceId" TEXT NOT NULL,
@@ -348,6 +361,12 @@ CREATE INDEX "WorkspaceTask_workspaceId_createdAt_idx" ON "WorkspaceTask"("works
 CREATE UNIQUE INDEX "WorkspaceFile_workspaceId_path_key" ON "WorkspaceFile"("workspaceId", "path");
 
 -- CreateIndex
+CREATE INDEX "RepoWatch_userId_idx" ON "RepoWatch"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RepoWatch_provider_repo_key" ON "RepoWatch"("provider", "repo");
+
+-- CreateIndex
 CREATE INDEX "WorkspaceMessage_workspaceId_createdAt_idx" ON "WorkspaceMessage"("workspaceId", "createdAt");
 
 -- CreateIndex
@@ -409,6 +428,9 @@ ALTER TABLE "WorkspaceTask" ADD CONSTRAINT "WorkspaceTask_workspaceId_fkey" FORE
 
 -- AddForeignKey
 ALTER TABLE "WorkspaceFile" ADD CONSTRAINT "WorkspaceFile_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RepoWatch" ADD CONSTRAINT "RepoWatch_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkspaceMessage" ADD CONSTRAINT "WorkspaceMessage_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;

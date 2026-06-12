@@ -307,6 +307,69 @@ export async function createPullRequest(
   return { url: prJson.html_url };
 }
 
+/* ---------------------- PR auto-review (webhooks) ------------------- */
+
+/** Install a pull_request webhook on a repo. Returns the hook id. */
+export async function createWebhook(
+  repo: string,
+  opts: { url: string; secret: string },
+): Promise<{ hookId: string } | { error: string }> {
+  const { ok: created, json } = await ghReq("POST", `/repos/${repo}/hooks`, {
+    name: "web",
+    active: true,
+    events: ["pull_request"],
+    config: { url: opts.url, content_type: "json", secret: opts.secret, insecure_ssl: "0" },
+  });
+  const data = (json ?? {}) as { id?: number; message?: string; errors?: Array<{ message?: string }> };
+  if (!created || data.id === undefined) {
+    // A hook with the same URL may already exist — treat that as success.
+    if (data.errors?.some((e) => /already exists/i.test(e.message ?? ""))) return { hookId: "existing" };
+    return { error: data.errors?.[0]?.message || data.message || "couldn't install the webhook" };
+  }
+  return { hookId: String(data.id) };
+}
+
+export async function deleteWebhook(repo: string, hookId: string): Promise<void> {
+  if (!hookId || hookId === "existing") return;
+  await ghReq("DELETE", `/repos/${repo}/hooks/${hookId}`).catch(() => {});
+}
+
+/** A PR's changed files with patches, for the reviewer. */
+export async function fetchPullFiles(
+  repo: string,
+  prNumber: number,
+): Promise<{ filename: string; status: string; patch?: string }[] | null> {
+  return ghJson(`/repos/${repo}/pulls/${prNumber}/files?per_page=100`);
+}
+
+/** Whether Helix already reviewed this PR at this head SHA (idempotency). */
+export async function alreadyReviewed(repo: string, prNumber: number, headSha: string): Promise<boolean> {
+  const reviews = await ghJson<{ commit_id?: string; body?: string }[]>(
+    `/repos/${repo}/pulls/${prNumber}/reviews?per_page=100`,
+  );
+  return Boolean(reviews?.some((r) => r.commit_id === headSha && /helix/i.test(r.body ?? "")));
+}
+
+/** Post a review with optional inline comments. */
+export async function postPullReview(
+  repo: string,
+  prNumber: number,
+  opts: { body: string; comments?: { path: string; line: number; body: string }[] },
+): Promise<{ ok: boolean }> {
+  const r = await ghReq("POST", `/repos/${repo}/pulls/${prNumber}/reviews`, {
+    event: "COMMENT",
+    body: opts.body,
+    comments: opts.comments ?? [],
+  });
+  // GitHub rejects inline comments whose line isn't in the diff — retry as a
+  // plain summary review so the feedback still lands.
+  if (!r.ok && (opts.comments?.length ?? 0) > 0) {
+    const r2 = await ghReq("POST", `/repos/${repo}/pulls/${prNumber}/reviews`, { event: "COMMENT", body: opts.body });
+    return { ok: r2.ok };
+  }
+  return { ok: r.ok };
+}
+
 export const githubProvider: GitProvider = {
   name: "github",
   listRepos: listAccessibleRepos,
