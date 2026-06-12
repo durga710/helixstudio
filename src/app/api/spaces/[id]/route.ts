@@ -68,6 +68,7 @@ export async function GET(_req: Request, { params }: Params) {
         user: { select: { name: true, email: true } },
         _count: { select: { files: true, messages: true } },
       },
+      take: 100, // bound the payload; the panel shows the most-recent shares
     }),
   ]);
 
