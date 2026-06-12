@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { AppShell } from "@/components/shell/app-shell";
-import { activeProject } from "@/lib/store";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -17,7 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .join("") || "U";
 
   return (
-    <AppShell userInitials={initials} activeProjectName={activeProject()?.name ?? "acme-web"}>
+    <AppShell userInitials={initials}>
       {children}
     </AppShell>
   );

@@ -1,117 +1,180 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { FolderUp, Plus } from "lucide-react";
+import { useRef, useState } from "react";
+import { FilePlus2, FolderGit2, GitBranch, Loader2, UploadCloud } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/toast";
 import { useShell } from "./shell-context";
+import { RepoPicker } from "@/components/studio/repo-picker";
+import { GitHostPicker } from "@/components/studio/git-host-picker";
+import { useWorkspaceCreation } from "@/components/studio/use-workspace-creation";
 
-function GitHubMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" fill="currentColor" className={className} aria-hidden>
-      <path d="M8 0a8 8 0 0 0-2.5 15.6c.4.07.55-.17.55-.38v-1.34c-2.2.48-2.67-1.06-2.67-1.06-.36-.92-.88-1.16-.88-1.16-.72-.49.05-.48.05-.48.8.06 1.22.82 1.22.82.71 1.21 1.86.86 2.31.66.07-.52.28-.86.5-1.06-1.75-.2-3.6-.88-3.6-3.9 0-.86.31-1.56.82-2.11-.08-.2-.36-1 .08-2.09 0 0 .67-.21 2.2.8a7.6 7.6 0 0 1 4 0c1.53-1.01 2.2-.8 2.2-.8.44 1.09.16 1.89.08 2.09.51.55.82 1.25.82 2.11 0 3.03-1.85 3.7-3.61 3.89.29.24.54.72.54 1.45v2.15c0 .21.15.45.55.38A8 8 0 0 0 8 0z" />
-    </svg>
-  );
-}
-
-const optionClass =
-  "flex gap-3.5 rounded-card border border-border2 bg-panel2 p-3.5 text-left transition-colors hover:border-accent";
-
+/**
+ * "Start new project" — the global entry point in the top bar. Same four
+ * doors as the editor landing page (shared flows via useWorkspaceCreation):
+ * scratch, GitHub, other git hosts, local folder.
+ */
 export function NewProjectModal() {
   const { newProjectOpen, setNewProjectOpen } = useShell();
-  const { toast } = useToast();
-  const router = useRouter();
-  const [repoUrl, setRepoUrl] = useState("github.com/durga710/ChatDPS");
-  const [importing, setImporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [namePrompt, setNamePrompt] = useState(false);
+  const [scratchName, setScratchName] = useState("");
+  // The repo pickers are full-screen overlays of their own — the dialog
+  // hides while one is up and comes back if the user backs out.
+  const [picker, setPicker] = useState<"github" | "host" | null>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
-  async function importRepo() {
-    setImporting(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/repos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repoUrl }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? `Import failed (${res.status})`);
-      }
-      const data = (await res.json()) as { indexed?: number };
+  const { creating, error, setError, uploadNote, createScratch, importRepo, importFolder } =
+    useWorkspaceCreation(() => {
+      setPicker(null);
       setNewProjectOpen(false);
-      toast(`Indexed ${data.indexed ?? 0} files — workspace ready`);
-      router.push("/editor");
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Import failed");
-    } finally {
-      setImporting(false);
-    }
+    });
+
+  function reset() {
+    setNamePrompt(false);
+    setScratchName("");
+    setError(null);
   }
 
+  const door =
+    "group flex cursor-pointer flex-col gap-2.5 rounded-card border border-border2 bg-panel2 p-4 text-left transition-colors hover:border-accent disabled:opacity-60";
+
   return (
-    <Dialog open={newProjectOpen} onOpenChange={setNewProjectOpen}>
-      <DialogContent>
-        <DialogHeader
-          title="New project"
-          description="Import an existing repository or start from a blank workspace."
-        />
-        <div className="flex flex-col gap-2.5 p-5">
-          <div className={optionClass}>
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-accent">
-              <GitHubMark className="h-4 w-4" />
+    <>
+      <Dialog
+        open={newProjectOpen && picker === null}
+        onOpenChange={(open) => {
+          setNewProjectOpen(open);
+          if (!open) reset();
+        }}
+      >
+        <DialogContent className="w-[min(640px,94vw)]">
+          <DialogHeader
+            title="Start new project"
+            description="Build from a prompt, your repos, or a folder on your computer."
+          />
+
+          <div className="grid gap-2.5 p-5 sm:grid-cols-2">
+            {/* Create from scratch — div+role so the name form can nest */}
+            <div
+              role="button"
+              tabIndex={0}
+              className={door}
+              onClick={() => !namePrompt && !creating && setNamePrompt(true)}
+              onKeyDown={(e) => e.key === "Enter" && !namePrompt && !creating && setNamePrompt(true)}
+            >
+              <span className="grid h-9 w-9 place-items-center rounded-[9px] border border-[color-mix(in_srgb,var(--green)_35%,transparent)] bg-[color-mix(in_srgb,var(--green)_12%,transparent)]">
+                <FilePlus2 className="h-4 w-4 text-ok" strokeWidth={1.7} />
+              </span>
+              <span>
+                <h5 className="text-[13px] font-semibold text-txt">Create from scratch</h5>
+                <p className="mt-0.5 text-xs leading-relaxed text-txt2">
+                  Start empty. Describe what you want; files appear as Helix writes them.
+                </p>
+              </span>
+              {namePrompt && (
+                <form
+                  className="flex w-full gap-2"
+                  onClick={(e) => e.stopPropagation()}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void createScratch(scratchName);
+                  }}
+                >
+                  <input
+                    autoFocus
+                    value={scratchName}
+                    onChange={(e) => setScratchName(e.target.value)}
+                    placeholder="Project name (optional)"
+                    className="min-w-0 flex-1 rounded-lg border border-border bg-bg2 px-2.5 py-1.5 text-xs text-txt placeholder:text-txt3 focus:border-accent focus:outline-none"
+                  />
+                  <Button type="submit" disabled={creating}>
+                    {creating && !uploadNote ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Create"}
+                  </Button>
+                </form>
+              )}
             </div>
-            <div className="flex-1">
-              <h5 className="text-[13px] font-semibold">Import from GitHub</h5>
-              <p className="mt-0.5 text-xs text-txt2">Index a repo so Helix understands the whole codebase.</p>
-              <div className="mt-2.5 flex gap-2">
-                <input
-                  value={repoUrl}
-                  onChange={(e) => setRepoUrl(e.target.value)}
-                  aria-label="Repository URL"
-                  className="w-full rounded-card-sm border border-border2 bg-panel px-2.5 py-1.5 font-mono text-xs text-txt outline-none focus:border-accent"
-                />
-              </div>
-              {error && <p className="mt-1.5 text-xs text-bad">{error}</p>}
-            </div>
+
+            {/* Import from GitHub */}
+            <button type="button" className={door} disabled={creating} onClick={() => setPicker("github")}>
+              <span className="grid h-9 w-9 place-items-center rounded-[9px] border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-hl">
+                <FolderGit2 className="h-4 w-4 text-accent" strokeWidth={1.7} />
+              </span>
+              <span>
+                <h5 className="text-[13px] font-semibold text-txt">Import from GitHub</h5>
+                <p className="mt-0.5 text-xs leading-relaxed text-txt2">
+                  Pick one of your repos — private included. Edit with Helix, push back as a branch or PR.
+                </p>
+              </span>
+            </button>
+
+            {/* Import from another git host */}
+            <button type="button" className={door} disabled={creating} onClick={() => setPicker("host")}>
+              <span className="grid h-9 w-9 place-items-center rounded-[9px] border border-border2 bg-panel">
+                <GitBranch className="h-4 w-4 text-txt2" strokeWidth={1.7} />
+              </span>
+              <span>
+                <h5 className="text-[13px] font-semibold text-txt">Import from another Git host</h5>
+                <p className="mt-0.5 text-xs leading-relaxed text-txt2">
+                  GitLab, Bitbucket, Azure DevOps, Gitea/Codeberg — connect with a token and import.
+                </p>
+              </span>
+            </button>
+
+            {/* Import from folder */}
+            <button
+              type="button"
+              className={door}
+              disabled={creating}
+              onClick={() => folderInputRef.current?.click()}
+            >
+              <span className="grid h-9 w-9 place-items-center rounded-[9px] border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_12%,transparent)]">
+                {uploadNote && creating ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-warn" />
+                ) : (
+                  <UploadCloud className="h-4 w-4 text-warn" strokeWidth={1.7} />
+                )}
+              </span>
+              <span>
+                <h5 className="text-[13px] font-semibold text-txt">Import from folder</h5>
+                <p className="mt-0.5 text-xs leading-relaxed text-txt2">
+                  {uploadNote ?? "Upload a project from your computer — run it live, then push it to a repo."}
+                </p>
+              </span>
+            </button>
           </div>
-          <button className={`${optionClass} cursor-pointer`} onClick={() => toast("Folder upload arrives with local indexing")}>
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-accent">
-              <FolderUp className="h-4 w-4" strokeWidth={1.7} />
-            </div>
-            <div>
-              <h5 className="text-[13px] font-semibold">Upload a folder</h5>
-              <p className="mt-0.5 text-xs text-txt2">Drag in a local project to analyze offline.</p>
-            </div>
-          </button>
-          <button
-            className={`${optionClass} cursor-pointer`}
-            onClick={() => {
-              setRepoUrl("github.com/acme/new-app");
-              toast("Scaffold: Next.js · TypeScript · Tailwind · shadcn/ui");
-            }}
-          >
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-accent">
-              <Plus className="h-4 w-4" strokeWidth={1.7} />
-            </div>
-            <div>
-              <h5 className="text-[13px] font-semibold">Start from scratch</h5>
-              <p className="mt-0.5 text-xs text-txt2">Scaffold a new Next.js · TypeScript · Tailwind · shadcn/ui app.</p>
-            </div>
-          </button>
-        </div>
-        <div className="flex justify-end gap-2 border-t border-border px-5 py-3.5">
-          <Button variant="ghost" onClick={() => setNewProjectOpen(false)}>
-            Cancel
-          </Button>
-          <Button onClick={importRepo} disabled={importing || repoUrl.trim().length < 4}>
-            {importing ? "Importing…" : "Import & index"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+
+          {error && <p className="px-5 pb-4 text-xs text-warn">{error}</p>}
+        </DialogContent>
+      </Dialog>
+
+      <input
+        ref={folderInputRef}
+        type="file"
+        className="hidden"
+        aria-label="Choose a project folder to import"
+        // @ts-expect-error — webkitdirectory is a non-standard but universally supported attribute
+        webkitdirectory=""
+        multiple
+        onChange={(e) => {
+          if (e.target.files?.length) void importFolder(e.target.files);
+          e.target.value = "";
+        }}
+      />
+
+      {newProjectOpen && picker === "github" && (
+        <RepoPicker
+          busy={creating}
+          onSelect={(repo) => void importRepo("github", repo)}
+          onClose={() => setPicker(null)}
+        />
+      )}
+      {newProjectOpen && picker === "host" && (
+        <GitHostPicker
+          busy={creating}
+          onSelect={(provider, repo) => void importRepo(provider, repo)}
+          onClose={() => setPicker(null)}
+        />
+      )}
+    </>
   );
 }
