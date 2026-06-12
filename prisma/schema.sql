@@ -108,6 +108,22 @@ CREATE TABLE "Workspace" (
 );
 
 -- CreateTable
+CREATE TABLE "WorkspaceTask" (
+    "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "prompt" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'queued',
+    "resultText" TEXT,
+    "actions" JSONB,
+    "changes" JSONB,
+    "error" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "finishedAt" TIMESTAMP(3),
+
+    CONSTRAINT "WorkspaceTask_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "WorkspaceFile" (
     "id" TEXT NOT NULL,
     "workspaceId" TEXT NOT NULL,
@@ -321,6 +337,9 @@ CREATE UNIQUE INDEX "UserPreferences_userId_key" ON "UserPreferences"("userId");
 CREATE INDEX "Workspace_userId_updatedAt_idx" ON "Workspace"("userId", "updatedAt");
 
 -- CreateIndex
+CREATE INDEX "WorkspaceTask_workspaceId_createdAt_idx" ON "WorkspaceTask"("workspaceId", "createdAt");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WorkspaceFile_workspaceId_path_key" ON "WorkspaceFile"("workspaceId", "path");
 
 -- CreateIndex
@@ -379,6 +398,9 @@ ALTER TABLE "UserPreferences" ADD CONSTRAINT "UserPreferences_userId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "Workspace" ADD CONSTRAINT "Workspace_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkspaceTask" ADD CONSTRAINT "WorkspaceTask_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkspaceFile" ADD CONSTRAINT "WorkspaceFile_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;

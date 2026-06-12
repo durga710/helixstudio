@@ -12,6 +12,8 @@ import {
   UserRound,
   CreditCard,
   Newspaper,
+  Clock,
+  GitCompare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,6 +28,35 @@ interface Msg {
   role: "user" | "assistant";
   content: string;
   actions?: Action[];
+}
+
+interface TaskChanges {
+  written: string[];
+  deleted: string[];
+}
+interface BgTask {
+  id: string;
+  prompt: string;
+  status: "queued" | "running" | "done" | "error";
+  resultText?: string | null;
+  actions?: Action[] | null;
+  changes?: TaskChanges | null;
+  error?: string | null;
+  createdAt: string;
+  finishedAt?: string | null;
+}
+
+/** Compact relative time ("now", "3m", "2h", "5d") from an ISO/date string. */
+function timeAgo(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "";
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 45) return "now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.round(h / 24)}d`;
 }
 
 const STARTERS = [
@@ -80,6 +111,8 @@ export function ChatPanel({
   const [activity, setActivity] = useState<string | null>(null);
   // null until the first chat turn reports it; counts down to 0.
   const [guestRemaining, setGuestRemaining] = useState<number | null>(null);
+  const [tasks, setTasks] = useState<BgTask[]>([]);
+  const [queuingTask, setQueuingTask] = useState(false);
   const guestBlocked = isGuest && guestRemaining === 0;
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -112,30 +145,91 @@ export function ChatPanel({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
 
-  // While a turn runs, poll the live-activity channel — real tool steps
-  // ("reading src/App.jsx…", "writing 3 file(s)…"), not theatre.
   useEffect(() => {
-    if (!busy) {
-      setActivity(null);
-      return;
-    }
+    if (!busy) setActivity(null);
+  }, [busy]);
+
+  /* ----------------------------- background tasks ------------------------- */
+
+  // Load any persisted background tasks once on mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/workspaces/${workspace.id}/tasks`, { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        if (!cancelled && res.ok && json?.ok) setTasks(json.data.tasks ?? []);
+      } catch {
+        // no tasks yet, or guests — fine
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace.id]);
+
+  // Poll for task updates only while something is in flight; stop when all terminal.
+  const tasksPending = tasks.some((t) => t.status === "queued" || t.status === "running");
+  useEffect(() => {
+    if (!tasksPending) return;
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch(`/api/workspaces/${workspace.id}/progress`, { cache: "no-store" });
+        const res = await fetch(`/api/workspaces/${workspace.id}/tasks`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
-        if (!cancelled && res.ok && json?.ok) setActivity(json.data.label);
+        if (!cancelled && res.ok && json?.ok) setTasks(json.data.tasks ?? []);
       } catch {
-        // keep the last label
+        // keep last snapshot; next tick retries
       }
     };
-    void poll();
-    const t = setInterval(poll, 1200);
+    const t = setInterval(poll, 5000);
     return () => {
       cancelled = true;
       clearInterval(t);
     };
-  }, [busy, workspace.id]);
+  }, [tasksPending, workspace.id]);
+
+  async function queueTask(text: string) {
+    const content = text.trim();
+    if (!content || queuingTask || messages === null) return;
+    if (isGuest) {
+      setMessages((m) => [
+        ...(m ?? []),
+        { role: "assistant", content: "Sign in to queue background tasks." },
+      ]);
+      return;
+    }
+    setQueuingTask(true);
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: content }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        setMessages((m) => [
+          ...(m ?? []),
+          { role: "assistant", content: json?.error?.message ?? "Couldn't queue that task." },
+        ]);
+      } else {
+        setInput("");
+        // Optimistically show the queued task; the poll fills in the rest.
+        setTasks((ts) => [
+          {
+            id: json.data.id,
+            prompt: content,
+            status: json.data.status ?? "queued",
+            createdAt: new Date().toISOString(),
+          },
+          ...ts,
+        ]);
+      }
+    } catch {
+      setMessages((m) => [...(m ?? []), { role: "assistant", content: "Network error. Try again." }]);
+    }
+    setQueuingTask(false);
+  }
 
   async function send(text: string) {
     const content = text.trim();
@@ -143,30 +237,83 @@ export function ChatPanel({
     setMessages((m) => [...(m ?? []), { role: "user", content }]);
     setInput("");
     setBusy(true);
+
+    // Replicates the old success path: append the assistant turn, update the
+    // guest counter, and surface any file changes to the workspace panel.
+    const handleFinal = (data: {
+      text?: string;
+      actions?: Action[];
+      changes?: TaskChanges;
+      guestRemaining?: number;
+    }) => {
+      setMessages((m) => [
+        ...(m ?? []),
+        { role: "assistant", content: data.text ?? "", actions: data.actions },
+      ]);
+      if (typeof data.guestRemaining === "number") setGuestRemaining(data.guestRemaining);
+      const ch = data.changes;
+      if (ch && (ch.written.length > 0 || ch.deleted.length > 0)) onChanges(ch.written, ch.deleted);
+    };
+
     try {
       const res = await fetch(`/api/workspaces/${workspace.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: content }),
       });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) {
-        if (json?.error?.code === "GUEST_LIMIT") setGuestRemaining(0);
-        setMessages((m) => [
-          ...(m ?? []),
-          { role: "assistant", content: json?.error?.message ?? "Something went wrong." },
-        ]);
-      } else {
-        setMessages((m) => [
-          ...(m ?? []),
-          { role: "assistant", content: json.data.text, actions: json.data.actions },
-        ]);
-        if (typeof json.data.guestRemaining === "number") {
-          setGuestRemaining(json.data.guestRemaining);
+
+      const isNdjson = res.headers.get("content-type")?.includes("application/x-ndjson");
+
+      if (res.body && isNdjson) {
+        // Stream NDJSON: each line is an {type:"activity"|"final"|"error"} event.
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        const consume = (line: string) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          let evt: { type?: string; [k: string]: unknown };
+          try {
+            evt = JSON.parse(trimmed);
+          } catch {
+            return; // ignore malformed partials
+          }
+          if (evt.type === "activity") {
+            setActivity((evt.label as string) ?? null);
+          } else if (evt.type === "final") {
+            handleFinal(evt as Parameters<typeof handleFinal>[0]);
+          } else if (evt.type === "error") {
+            if (evt.code === "GUEST_LIMIT") setGuestRemaining(0);
+            setMessages((m) => [
+              ...(m ?? []),
+              { role: "assistant", content: (evt.message as string) ?? "Something went wrong." },
+            ]);
+          }
+        };
+
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buffer.indexOf("\n")) >= 0) {
+            consume(buffer.slice(0, nl));
+            buffer = buffer.slice(nl + 1);
+          }
         }
-        const ch = json.data.changes as { written: string[]; deleted: string[] } | undefined;
-        if (ch && (ch.written.length > 0 || ch.deleted.length > 0)) {
-          onChanges(ch.written, ch.deleted);
+        if (buffer) consume(buffer); // trailing line without newline
+      } else {
+        // Fallback for an older, non-streaming server.
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) {
+          if (json?.error?.code === "GUEST_LIMIT") setGuestRemaining(0);
+          setMessages((m) => [
+            ...(m ?? []),
+            { role: "assistant", content: json?.error?.message ?? "Something went wrong." },
+          ]);
+        } else {
+          handleFinal(json.data);
         }
       }
     } catch {
@@ -312,6 +459,52 @@ export function ChatPanel({
         </div>
       )}
 
+      {tasks.length > 0 && (
+        <div className="scroll-area max-h-40 overflow-y-auto border-t border-border bg-panel2/40">
+          <div className="flex items-center gap-1.5 px-4 pt-2 pb-1">
+            <Clock className="h-3 w-3 text-txt3" />
+            <span className="label-tactical text-[10px]">Background tasks</span>
+          </div>
+          <div className="space-y-px px-2 pb-2">
+            {tasks.map((t) => {
+              const dot =
+                t.status === "done"
+                  ? "bg-ok"
+                  : t.status === "error"
+                    ? "bg-bad"
+                    : t.status === "running"
+                      ? "bg-accent animate-pulse"
+                      : "bg-txt3";
+              const done = t.status === "done";
+              const hasChanges =
+                done && t.changes && (t.changes.written.length > 0 || t.changes.deleted.length > 0);
+              return (
+                <div
+                  key={t.id}
+                  title={t.status === "error" ? (t.error ?? "Task failed") : t.prompt}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-panel2"
+                >
+                  <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dot)} />
+                  <span className="min-w-0 flex-1 truncate text-[11.5px] text-txt2">{t.prompt}</span>
+                  {hasChanges && (
+                    <button
+                      type="button"
+                      onClick={() => onChanges(t.changes!.written, t.changes!.deleted)}
+                      className="inline-flex shrink-0 items-center gap-1 text-[10.5px] text-accent underline-offset-2 hover:underline"
+                    >
+                      <GitCompare className="h-3 w-3" /> view changes
+                    </button>
+                  )}
+                  <span className="shrink-0 font-mono text-[10px] text-txt3">
+                    {timeAgo(t.createdAt)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -332,6 +525,19 @@ export function ChatPanel({
           }
           className="flex-1 rounded-xl border border-border bg-bg2 px-4 py-2.5 text-sm text-txt placeholder:text-txt3 focus:border-accent focus:outline-none disabled:opacity-60"
         />
+        {!isGuest && (
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label="Queue as background task"
+            title="Queue as a background task"
+            onClick={() => void queueTask(input)}
+            disabled={busy || queuingTask || !input.trim()}
+            className="shrink-0 px-3 py-2.5"
+          >
+            {queuingTask ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
+          </Button>
+        )}
         <Button
           type="submit"
           disabled={busy || !input.trim() || guestBlocked}

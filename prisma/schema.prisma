@@ -132,8 +132,28 @@ model Workspace {
 
   files    WorkspaceFile[]
   messages WorkspaceMessage[]
+  tasks    WorkspaceTask[]
 
   @@index([userId, updatedAt])
+}
+
+// Background agent turns ("run in background"): same agent machinery as a
+// chat turn, executed after the response via next/server after(), tracked
+// here so the client can poll status and pick up results.
+model WorkspaceTask {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  prompt      String
+  status      String    @default("queued") // queued | running | done | error
+  resultText  String?
+  actions     Json?
+  changes     Json? // { written: string[], deleted: string[] }
+  error       String?
+  createdAt   DateTime  @default(now())
+  finishedAt  DateTime?
+
+  @@index([workspaceId, createdAt])
 }
 
 // Overlay storage: a row exists only for files the AI/user created, modified,

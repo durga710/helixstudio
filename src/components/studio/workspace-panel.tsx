@@ -9,6 +9,8 @@ import {
   FileCode2,
   FilePlus2,
   FolderGit2,
+  GitBranch,
+  GitCompare,
   Loader2,
   Maximize2,
   Minimize2,
@@ -23,20 +25,33 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Pill } from "@/components/ui/pill";
+import { Markdown } from "@/components/ui/markdown";
+import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 import type { Changes, WorkspaceMeta } from "@/components/studio/studio";
 import { PushDialog } from "@/components/studio/push-dialog";
 import { FileTree, type TreeFile } from "@/components/studio/file-tree";
 
+const editorLoading = (
+  <div className="grid h-full place-items-center text-sm text-txt3">
+    <span className="flex items-center gap-2">
+      <Loader2 className="h-4 w-4 animate-spin" /> loading editor…
+    </span>
+  </div>
+);
+
 const Monaco = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
-  loading: () => (
-    <div className="grid h-full place-items-center text-sm text-txt3">
-      <span className="flex items-center gap-2">
-        <Loader2 className="h-4 w-4 animate-spin" /> loading editor…
-      </span>
-    </div>
-  ),
+  loading: () => editorLoading,
 });
+
+const MonacoDiff = dynamic(
+  () => import("@monaco-editor/react").then((m) => m.DiffEditor),
+  {
+    ssr: false,
+    loading: () => editorLoading,
+  },
+);
 
 const LANGUAGES: Record<string, string> = {
   ts: "typescript",
@@ -105,7 +120,7 @@ export function WorkspacePanel({
   const [dirty, setDirty] = useState<Record<string, string>>({});
   const [loadingFile, setLoadingFile] = useState(false);
 
-  const [tab, setTab] = useState<"code" | "preview">("code");
+  const [tab, setTab] = useState<"code" | "preview" | "diff">("code");
   const [fullscreen, setFullscreen] = useState(false);
   const [newFileOpen, setNewFileOpen] = useState(false);
   const [newFilePath, setNewFilePath] = useState("");
@@ -135,6 +150,20 @@ export function WorkspacePanel({
   const [runBusy, setRunBusy] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
+  // Diff tab: pending workspace changes vs the base branch.
+  interface DiffEntry {
+    path: string;
+    status: "added" | "modified" | "deleted";
+    base: string;
+    current: string;
+  }
+  const [diffEntries, setDiffEntries] = useState<DiffEntry[] | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
+  const [diffSelected, setDiffSelected] = useState<string | null>(null);
+  const [review, setReview] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+
   // A workspace with a package.json (or python entry) is a framework app —
   // the static compose can't represent it; the runner can.
   const isFrameworkApp = useMemo(
@@ -147,6 +176,16 @@ export function WorkspacePanel({
   const dirtyCount = Object.keys(dirty).length;
   const dirtyPaths = useMemo(() => new Set(Object.keys(dirty)), [dirty]);
   const currentContent = selected ? (dirty[selected] ?? contents[selected] ?? "") : "";
+
+  // Approximate pending-change count for the tab badge — overlay files in the
+  // tree (the diff fetch gives the authoritative number once the tab opens).
+  const changedCount = useMemo(
+    () =>
+      diffEntries
+        ? diffEntries.length
+        : files.filter((f) => f.source === "workspace").length,
+    [diffEntries, files],
+  );
 
   /* ------------------------------ data ------------------------------ */
 
@@ -321,6 +360,59 @@ export function WorkspacePanel({
     setSaving(false);
   }
 
+  /* ------------------------------- diff ----------------------------- */
+
+  const loadDiff = useCallback(async () => {
+    setDiffLoading(true);
+    setDiffError(null);
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}/diff`, { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        setDiffError(json?.error?.message ?? "Couldn't load the diff.");
+      } else {
+        const entries = (json.data.entries ?? []) as DiffEntry[];
+        setDiffEntries(entries);
+        setDiffSelected((sel) =>
+          sel && entries.some((e) => e.path === sel) ? sel : (entries[0]?.path ?? null),
+        );
+      }
+    } catch {
+      setDiffError("Couldn't load the diff.");
+    }
+    setDiffLoading(false);
+    // DiffEntry is a stable local type; workspace.id is the only real dep.
+     
+  }, [workspace.id]);
+
+  // Fetch the diff whenever the tab opens or AI/manual changes land while open.
+  useEffect(() => {
+    if (tab !== "diff") return;
+    void loadDiff();
+  }, [tab, loadDiff, changes?.nonce]);
+
+  async function runReview() {
+    if (reviewing) return;
+    setReviewing(true);
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}/review`, { method: "POST" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        setReview(json?.error?.message ?? "Review failed.");
+      } else {
+        setReview(json.data.text);
+      }
+    } catch {
+      setReview("Review failed.");
+    }
+    setReviewing(false);
+  }
+
+  const diffSelectedEntry = useMemo(
+    () => diffEntries?.find((e) => e.path === diffSelected) ?? null,
+    [diffEntries, diffSelected],
+  );
+
   /* ----------------------------- preview ---------------------------- */
 
   // The preview entry: the selected HTML file if one is open, else index.html,
@@ -489,10 +581,30 @@ export function WorkspacePanel({
         ) : (
           <Sparkles className="h-4 w-4 shrink-0 text-ok" />
         )}
-        <span className="truncate font-mono text-[11px] text-txt2">
-          {workspace.repo ?? workspace.name}
-          {workspace.baseBranch && <span className="text-txt3"> @ {workspace.baseBranch}</span>}
-        </span>
+        <div className="flex min-w-0 items-center gap-2">
+          {workspace.provider !== "github" && PROVIDER_META[workspace.provider as GitProviderName] && (
+            <Pill tone="neutral">{PROVIDER_META[workspace.provider as GitProviderName].label}</Pill>
+          )}
+          <span className="truncate font-mono text-[11px] text-txt2">
+            {workspace.repo ?? "scratch workspace"}
+          </span>
+          {workspace.baseBranch && (
+            <span className="inline-flex shrink-0 items-center gap-1 font-mono text-[11px] text-txt3">
+              <GitBranch className="h-3 w-3" />
+              {workspace.baseBranch}
+            </span>
+          )}
+          {changedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setTab("diff")}
+              aria-label="View pending changes"
+              title="View pending changes"
+            >
+              <Pill tone="accent">{changedCount} changed</Pill>
+            </button>
+          )}
+        </div>
 
         <div className="ml-auto flex items-center gap-2">
           {note && <span className="max-w-[12rem] truncate text-xs text-txt2">{note}</span>}
@@ -522,6 +634,23 @@ export function WorkspacePanel({
               )}
             >
               <MonitorPlay className="h-3.5 w-3.5" /> Preview
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("diff")}
+              className={cn(
+                "inline-flex items-center gap-1.5 border-l border-border px-3 py-1.5 text-xs transition-colors",
+                tab === "diff"
+                  ? "bg-hl text-accent"
+                  : "text-txt2 hover:bg-panel2 hover:text-txt",
+              )}
+            >
+              <GitCompare className="h-3.5 w-3.5" /> Diff
+              {changedCount > 0 && (
+                <span className="rounded-full bg-panel3 px-1.5 text-[10px] font-semibold text-txt2">
+                  {changedCount}
+                </span>
+              )}
             </button>
           </div>
 
@@ -643,6 +772,142 @@ export function WorkspacePanel({
               )}
             </div>
           </div>
+        </div>
+      ) : tab === "diff" ? (
+        /* Diff tab — pending workspace changes vs the base branch */
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
+            <GitCompare className="h-3.5 w-3.5 text-accent" />
+            <span className="truncate font-mono text-[11px] text-txt2">
+              {diffEntries ? `${diffEntries.length} changed file(s)` : "pending changes"}
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Reload diff"
+                title="Reload diff"
+                onClick={() => void loadDiff()}
+                className="text-txt3 transition-colors hover:text-accent"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </button>
+              <Button
+                variant="ghost"
+                onClick={() => void runReview()}
+                disabled={reviewing || !diffEntries || diffEntries.length === 0}
+                className="px-3 py-1.5"
+              >
+                {reviewing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                Review changes
+              </Button>
+            </div>
+          </div>
+
+          {review && (
+            <div className="scroll-area max-h-56 shrink-0 overflow-y-auto border-b border-border bg-panel2/40 px-4 py-3 text-[12.5px] leading-relaxed text-txt2">
+              <div className="mb-1.5 flex items-center gap-2">
+                <span className="label-tactical text-[10px]">Review</span>
+                <button
+                  type="button"
+                  onClick={() => setReview(null)}
+                  aria-label="Dismiss review"
+                  className="ml-auto text-txt3 transition-colors hover:text-txt"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <Markdown content={review} />
+            </div>
+          )}
+
+          {diffLoading && !diffEntries ? (
+            <div className="grid flex-1 place-items-center text-sm text-txt3">
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> loading diff…
+              </span>
+            </div>
+          ) : diffError ? (
+            <div className="grid flex-1 place-items-center px-6 text-center text-sm text-warn">
+              {diffError}
+            </div>
+          ) : !diffEntries || diffEntries.length === 0 ? (
+            <div className="grid flex-1 place-items-center bg-codebg px-6 text-center">
+              <div>
+                <GitCompare className="mx-auto mb-3 h-8 w-8 text-txt3" />
+                <p className="text-sm text-txt2">No pending changes</p>
+                <p className="mt-1 max-w-sm text-xs text-txt3">
+                  Edit files or ask Helix to build something.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1">
+              {/* Changed-file list */}
+              <aside className="scroll-area w-60 shrink-0 overflow-y-auto border-r border-border p-2">
+                <div className="px-2 py-1">
+                  <span className="label-tactical">Changes</span>
+                </div>
+                <ul className="space-y-px">
+                  {diffEntries.map((e) => {
+                    const dot =
+                      e.status === "added"
+                        ? "bg-ok"
+                        : e.status === "deleted"
+                          ? "bg-bad"
+                          : "bg-warn";
+                    return (
+                      <li key={e.path}>
+                        <button
+                          type="button"
+                          onClick={() => setDiffSelected(e.path)}
+                          title={`${e.status}: ${e.path}`}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors",
+                            diffSelected === e.path
+                              ? "bg-hl text-txt"
+                              : "text-txt2 hover:bg-panel2 hover:text-txt",
+                          )}
+                        >
+                          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dot)} />
+                          <span className="truncate font-mono text-[11px]">{e.path}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </aside>
+
+              {/* Side-by-side diff editor */}
+              <div className="min-w-0 flex-1">
+                {diffSelectedEntry ? (
+                  <MonacoDiff
+                    key={diffSelectedEntry.path}
+                    theme={monacoTheme}
+                    language={languageFor(diffSelectedEntry.path)}
+                    original={diffSelectedEntry.base}
+                    modified={diffSelectedEntry.current}
+                    options={{
+                      readOnly: true,
+                      renderSideBySide: true,
+                      fontSize: 13,
+                      minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                      padding: { top: 12 },
+                    }}
+                  />
+                ) : (
+                  <div className="grid h-full place-items-center text-sm text-txt3">
+                    Select a file to view its diff.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         /* Preview tab — framework apps run for real; static sites compose */

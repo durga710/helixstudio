@@ -228,3 +228,79 @@ export const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
   anthropic: "claude-sonnet-4-6",
   local: "llama3.1",
 };
+
+/* ============================ Reviewer ============================= */
+
+/**
+ * One model call, no tools: review a pending diff. Used by the
+ * "Review changes" action — provider/model/key resolution is the caller's
+ * job (it reuses the user's chat preferences).
+ */
+export async function runReviewer(opts: {
+  provider: string;
+  model: string;
+  apiKey?: string;
+  baseUrl?: string;
+  diffText: string;
+}): Promise<{ text: string; tokensUsed: number } | { error: string }> {
+  const system =
+    "You are a senior code reviewer. Review the pending workspace changes below. " +
+    "Flag ONLY real problems — correctness bugs, security issues, data loss, broken builds — with file and line " +
+    "references. Skip style nits. Be concise (bullets). End with exactly one line: 'Verdict: ship it' or " +
+    "'Verdict: hold — <one-line reason>'.";
+  const user = `PENDING CHANGES:\n\n${opts.diffText}`;
+
+  try {
+    if (opts.provider === "anthropic") {
+      const apiKey = opts.apiKey || process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) return { error: "No Anthropic API key — add one in Settings → AI model." };
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({
+          model: opts.model,
+          max_tokens: 2048,
+          system,
+          messages: [{ role: "user", content: user }],
+        }),
+        cache: "no-store",
+      });
+      if (!res.ok) return { error: `Anthropic error ${res.status}` };
+      const data = (await res.json()) as {
+        content?: { type: string; text?: string }[];
+        usage?: { input_tokens?: number; output_tokens?: number };
+      };
+      const text = (data.content ?? [])
+        .filter((b) => b.type === "text")
+        .map((b) => b.text ?? "")
+        .join("\n")
+        .trim();
+      return {
+        text: text || "(no review produced)",
+        tokensUsed: (data.usage?.input_tokens ?? 0) + (data.usage?.output_tokens ?? 0),
+      };
+    }
+
+    // openai + local share the OpenAI-compatible chat surface.
+    const client =
+      opts.provider === "local"
+        ? new OpenAI({ baseURL: opts.baseUrl, apiKey: opts.apiKey || "not-needed" })
+        : new OpenAI({ apiKey: opts.apiKey || process.env.OPENAI_API_KEY });
+    if (opts.provider !== "local" && !opts.apiKey && !process.env.OPENAI_API_KEY) {
+      return { error: "No OpenAI API key — add one in Settings → AI model." };
+    }
+    const resp = await client.chat.completions.create({
+      model: opts.model,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    });
+    return {
+      text: resp.choices[0]?.message?.content?.trim() || "(no review produced)",
+      tokensUsed: resp.usage?.total_tokens ?? 0,
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "review failed" };
+  }
+}

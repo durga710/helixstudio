@@ -10,7 +10,8 @@ import "server-only";
  */
 
 import { getWorkspaceForUser, listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFiles, deleteWorkspaceFile, type WorkspaceFileEntry } from "@/lib/workspace";
-import { validateFiles, MAX_TOOL_FILES } from "@/lib/repo-files";
+import { validateFiles, MAX_TOOL_FILES, MAX_FILE_CHARS } from "@/lib/repo-files";
+import { execInSandbox } from "@/lib/runner/vercel-sandbox";
 import { setProgress } from "@/lib/progress";
 import { db } from "@/lib/db";
 import { NOTES_MAX } from "@/lib/chat-context";
@@ -33,6 +34,10 @@ function progressLabel(name: string, args: Record<string, unknown>): string {
       return `deleting ${typeof args.path === "string" ? args.path : "a file"}…`;
     case "remember":
       return "updating project notes…";
+    case "run_command":
+      return `running \`${typeof args.command === "string" ? args.command.slice(0, 60) : "a command"}\`…`;
+    case "search_files":
+      return `searching for /${typeof args.pattern === "string" ? args.pattern.slice(0, 40) : "?"}/…`;
     default:
       return "working…";
   }
@@ -47,9 +52,14 @@ export interface ToolContext {
    * doesn't refetch the GitHub tree; writes/deletes invalidate it.
    */
   cache?: { tree?: WorkspaceFileEntry[] };
+  /** Streaming hook — live activity labels for the client event stream. */
+  onActivity?: (label: string) => void;
 }
 
 const READ_CAP = 24_000;
+const SEARCH_FILE_CAP = 40; // files scanned per search
+const SEARCH_MATCH_CAP = 30; // matches returned per search
+const SEARCH_BATCH = 5; // concurrent file reads while scanning
 
 export const WORKSPACE_TOOLS = [
   { type: "web_search" as const },
@@ -130,6 +140,54 @@ export const WORKSPACE_TOOLS = [
     },
     strict: false,
   },
+  {
+    type: "function" as const,
+    name: "run_command",
+    description:
+      "Run a shell command in the workspace's cloud VM (Linux, node24/python preinstalled) and get exit code + output. " +
+      "USE THIS to verify your work: install deps, run tests/builds, reproduce errors — then fix what fails and run again. " +
+      "The VM persists for ~15 minutes, so installs carry over between calls.",
+    parameters: {
+      type: "object",
+      properties: {
+        command: {
+          type: "string",
+          description: "shell command, executed via `sh -c` in the workspace root (max 500 chars)",
+          minLength: 1,
+          maxLength: 500,
+        },
+      },
+      required: ["command"],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: "function" as const,
+    name: "search_files",
+    description:
+      "Search the workspace's file CONTENTS with a regex (and optional path substring filter). " +
+      "Returns path:line: snippet matches. Use this to find definitions/usages before reading whole files.",
+    parameters: {
+      type: "object",
+      properties: {
+        pattern: {
+          type: "string",
+          description: "regular expression matched against each line (max 200 chars)",
+          minLength: 1,
+          maxLength: 200,
+        },
+        pathFilter: {
+          type: "string",
+          description: "only search files whose path contains this substring",
+          maxLength: 100,
+        },
+      },
+      required: ["pattern"],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
 ];
 
 const s = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -139,12 +197,15 @@ export async function executeTool(
   args: Record<string, unknown>,
   ctx: ToolContext,
 ): Promise<unknown> {
-  setProgress(ctx.workspaceId, progressLabel(name, args));
+  const label = progressLabel(name, args);
+  setProgress(ctx.workspaceId, label);
+  ctx.onActivity?.(label);
   try {
     return await executeToolInner(name, args, ctx);
   } finally {
     // Back to the model deliberating until the next tool call.
     setProgress(ctx.workspaceId, "thinking…");
+    ctx.onActivity?.("thinking…");
   }
 }
 
@@ -203,6 +264,67 @@ async function executeToolInner(
       await db().workspace.update({ where: { id: ws.id }, data: { notes } });
       return { saved: true };
     }
+    case "run_command": {
+      const command = s(args.command).trim();
+      if (!command) return { error: "command is required" };
+      if (command.length > 500) return { error: "command too long — max 500 characters" };
+      // Commands run against a disposable copy of the workspace in the VM —
+      // they never change workspace files, so the tree cache stays valid.
+      const result = await execInSandbox(ws, command);
+      if ("error" in result) return result;
+      return { command, ...result };
+    }
+    case "search_files": {
+      const pattern = s(args.pattern);
+      if (!pattern) return { error: "pattern is required" };
+      if (pattern.length > 200) return { error: "pattern too long — max 200 characters" };
+      let re: RegExp;
+      try {
+        re = new RegExp(pattern);
+      } catch (e) {
+        return { error: `invalid regex: ${e instanceof Error ? e.message : "bad pattern"}` };
+      }
+      const pathFilter = s(args.pathFilter);
+
+      const tree = ctx.cache?.tree ?? (await listWorkspaceFiles(ws));
+      if (ctx.cache) ctx.cache.tree = tree;
+      const eligible = tree.filter(
+        (f) => (!pathFilter || f.path.includes(pathFilter)) && f.size <= MAX_FILE_CHARS,
+      );
+      // Shallow/short paths first — they're usually the interesting ones.
+      const candidates = eligible
+        .slice()
+        .sort((a, b) => a.path.length - b.path.length || a.path.localeCompare(b.path))
+        .slice(0, SEARCH_FILE_CAP);
+
+      const matches: string[] = [];
+      let scannedFiles = 0;
+      let capped = false;
+      outer: for (let i = 0; i < candidates.length; i += SEARCH_BATCH) {
+        const batch = candidates.slice(i, i + SEARCH_BATCH);
+        const reads = await Promise.all(batch.map((f) => readWorkspaceFile(ws, f.path)));
+        for (let j = 0; j < batch.length; j++) {
+          const content = reads[j];
+          if (content === null) continue; // binary/unreadable — skip
+          scannedFiles++;
+          const lines = content.split(/\r?\n/);
+          for (let n = 0; n < lines.length; n++) {
+            if (!re.test(lines[n])) continue;
+            matches.push(`${batch[j].path}:${n + 1}: ${lines[n].trim().slice(0, 160)}`);
+            if (matches.length >= SEARCH_MATCH_CAP) {
+              capped = true;
+              break outer;
+            }
+          }
+        }
+      }
+      return {
+        pattern,
+        matches,
+        scannedFiles,
+        truncated: capped || eligible.length > candidates.length,
+      };
+    }
     default:
       return { error: `unknown tool: ${name}` };
   }
@@ -226,6 +348,14 @@ export function toolLabel(name: string, result: unknown): string {
     }
     case "remember":
       return r.saved ? "updated project notes" : "tried to update notes";
+    case "run_command":
+      return typeof r.exitCode === "number"
+        ? `ran \`${s(r.command).slice(0, 40)}\` (exit ${String(r.exitCode)})`
+        : "tried to run a command";
+    case "search_files":
+      return Array.isArray(r.matches)
+        ? `searched /${s(r.pattern).slice(0, 30)}/ (${r.matches.length} hit(s))`
+        : "tried to search files";
     default:
       return name;
   }

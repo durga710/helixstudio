@@ -149,12 +149,16 @@ export function historyContext(
 
 /* ---------------------------- budget guard ---------------------------- */
 
+export const INSTRUCTIONS_MAX = 4_000;
+
 export interface ContextParts {
   rules: string; // never trimmed
   workspaceMeta: string; // never trimmed
   stack: string;
   tree: string;
   notes: string; // never trimmed (already capped at NOTES_MAX)
+  /** Repo's AGENTS.md/CLAUDE.md (capped at INSTRUCTIONS_MAX) — never trimmed. */
+  instructionsDoc: string;
   digest: string;
   recent: ChatMsg[];
   userMessage: string; // never trimmed
@@ -172,6 +176,7 @@ export function fitBudget(parts: ContextParts): ContextParts {
     p.stack.length +
     p.tree.length +
     p.notes.length +
+    p.instructionsDoc.length +
     p.digest.length +
     p.recent.reduce((n, m) => n + m.content.length, 0) +
     p.userMessage.length;

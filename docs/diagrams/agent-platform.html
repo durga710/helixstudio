@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helix — Agent Platform</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #0d1626; color: #f8fbff;
+    width: 1123px; padding: 30px 38px;
+  }
+  h1 { font-size: 24px; letter-spacing: -0.5px; }
+  h1 span { color: #34d399; }
+  .sub { color: #9cadc4; font-size: 12px; margin-top: 3px; margin-bottom: 18px; }
+  .row { display: flex; gap: 14px; align-items: stretch; }
+  .col { display: flex; flex-direction: column; gap: 9px; }
+  .box {
+    border: 1px solid #28364f; border-radius: 9px; background: #121d30;
+    padding: 9px 12px; font-size: 11px; line-height: 1.42;
+  }
+  .box b { font-size: 12px; display: block; margin-bottom: 2px; }
+  .accent { border-color: rgba(52,211,153,.5); background: rgba(52,211,153,.07); }
+  .accent b { color: #34d399; }
+  .blue { border-color: rgba(96,165,250,.5); background: rgba(96,165,250,.07); }
+  .blue b { color: #60a5fa; }
+  .amber { border-color: rgba(251,191,36,.5); background: rgba(251,191,36,.07); }
+  .amber b { color: #fbbf24; }
+  .violet { border-color: rgba(192,132,252,.5); background: rgba(192,132,252,.07); }
+  .violet b { color: #c084fc; }
+  .muted { color: #9cadc4; }
+  .mono { font-family: Consolas, monospace; font-size: 10px; color: #9cadc4; }
+  .arrow { display: flex; align-items: center; color: #5f6f86; font-size: 18px; padding: 0 1px; }
+  .tag { display: inline-block; border: 1px solid #28364f; border-radius: 99px; padding: 1px 7px; font-size: 9.5px; color: #9cadc4; margin-top: 4px; margin-right: 3px; }
+  ul { padding-left: 15px; margin-top: 2px; }
+  li { margin: 1.5px 0; }
+  .section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #5f6f86; margin: 16px 0 7px; }
+  .footer { margin-top: 14px; font-size: 9.5px; color: #5f6f86; display: flex; justify-content: space-between; }
+  .loop { border:1px dashed rgba(52,211,153,.5); border-radius:8px; padding:7px 10px; font-size:10.5px; }
+</style>
+</head>
+<body>
+  <h1>Helix <span>Agent Platform</span></h1>
+  <div class="sub">How an agent turn runs end to end — streaming, sandboxed command execution, repo tools, background tasks, and diff/review — plus the per-host git layer. Shipped 2026-06-12.</div>
+
+  <!-- ROW 1: streaming turn pipeline -->
+  <div class="section-label">1 · Streaming turn pipeline</div>
+  <div class="row">
+    <div class="box" style="width:150px"><b>Client</b>chat-panel.tsx<br/><span class="muted">reads an NDJSON stream, renders live activity, then the final reply</span></div>
+    <div class="arrow">→</div>
+    <div class="box blue" style="width:150px"><b>POST /chat</b>route returns a ReadableStream<br/><span class="mono">application/x-ndjson</span><br/><span class="muted">one JSON event per line</span></div>
+    <div class="arrow">→</div>
+    <div class="box accent" style="flex:1"><b>runAgentTurn() — src/lib/agent-turn.ts</b>
+      The one function every entry point calls (chat · tasks · reviewer share it).
+      <div class="row" style="gap:8px;margin-top:6px">
+        <div class="box" style="flex:1"><b>1 · Context</b>chat-context engine: stack line · collapsed tree · PROJECT NOTES · <b style="display:inline">AGENTS.md</b> · history digest · 8 verbatim — budget-capped<span class="tag">~1-2k tokens</span></div>
+        <div class="box" style="flex:1"><b>2 · Provider</b>OpenAI Responses / Anthropic / local — multi-hop tool loop (≤6 hops)<span class="tag">onEvent → activity</span></div>
+        <div class="box" style="flex:1"><b>3 · Persist</b>user + assistant messages, tool actions, token meter<span class="tag">guest 15k cap</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="mono" style="margin-top:5px">events:  {"type":"activity","label":"running `npm test`…"}  …  {"type":"final","text","actions","changes","guestRemaining"}</div>
+
+  <!-- ROW 2: tools + sandbox loop -->
+  <div class="section-label">2 · The tool belt (the agent's hands)</div>
+  <div class="row">
+    <div class="col" style="flex:1">
+      <div class="box"><b>file tools</b>list_files · read_file · write_files · delete_file <span class="muted">— the virtual overlay (SCRATCH = whole project; IMPORT = overlay on the repo)</span></div>
+      <div class="box violet"><b>search_files</b>regex over file contents → <span class="mono">path:line: match</span> — find definitions/usages instead of guessing paths</div>
+      <div class="box"><b>remember</b>rewrites PROJECT NOTES (durable memory) · <b style="display:inline">web_search</b> (OpenAI)</div>
+    </div>
+    <div class="arrow">↔</div>
+    <div class="col" style="flex:1.1">
+      <div class="box amber"><b>run_command → Vercel Sandbox (Firecracker microVM)</b>
+        execInSandbox: reuse or create the workspace VM, re-sync files, run <span class="mono">sh -c</span> (120s cap) → exit code + stdout/stderr</div>
+      <div class="loop accent">
+        <b style="color:#34d399">The Codex loop:</b> write_files → <b>run_command</b> (npm test / build) → read the failure → fix the code → run again — until it passes.
+      </div>
+      <div class="box muted" style="font-size:10px">Same per-workspace VM as live preview (<span class="mono">helix-run-&lt;id&gt;</span>, 15-min life). Guests blocked; commands cost-bounded.</div>
+    </div>
+  </div>
+
+  <!-- ROW 3: background tasks + diff/review -->
+  <div class="row" style="margin-top:14px">
+    <div class="col" style="flex:1">
+      <div class="section-label" style="margin-top:0">3 · Background tasks</div>
+      <div class="box blue"><b>POST /tasks → after()</b>
+        Creates a WorkspaceTask(queued), returns immediately, then runs the SAME runAgentTurn AFTER the response (next/server <span class="mono">after()</span>, ≤5 min).</div>
+      <div class="box"><b>WorkspaceTask</b><span class="mono">status: queued→running→done|error</span> · stores resultText + changes manifest. Client polls every 5s while non-terminal; up to 3 parallel per workspace.</div>
+      <div class="box muted" style="font-size:10px">Zombie sweep: a task running &gt;6 min (platform killed the fn) is marked timed-out on next GET.</div>
+    </div>
+    <div class="col" style="flex:1">
+      <div class="section-label" style="margin-top:0">4 · Diff &amp; review</div>
+      <div class="box"><b>GET /diff</b>overlay vs base (repo file @ pinned branch for IMPORT, "" for SCRATCH) → added / modified / deleted entries</div>
+      <div class="box violet"><b>Diff tab</b>Monaco DiffEditor (base ↔ current, read-only) with a status-dotted file list — review exactly what will ship before pushing</div>
+      <div class="box accent"><b>POST /review</b>one no-tools model call: flags correctness / security / data-loss issues with file:line, ends with a ship/hold verdict — lands in chat history</div>
+    </div>
+  </div>
+
+  <!-- ROW 4: git layer -->
+  <div class="section-label">5 · Per-host git layer (every change ships to its host)</div>
+  <div class="row">
+    <div class="box" style="flex:1"><b>Git info bar</b>provider · repo · base branch · N changed → Diff tab. Each workspace records its <span class="mono">provider</span>.</div>
+    <div class="arrow">→</div>
+    <div class="box blue" style="flex:1.4"><b>GitProvider adapters — withGitAuth(token)</b>
+      GitHub (OAuth/PAT) · GitLab · Bitbucket · Azure DevOps · Gitea/Forgejo/Codeberg (pasted token).
+      listRepos · fetchTree · readFile · <b style="display:inline">pushFiles</b> (one commit, branch + empty-repo bootstrap) · createRepo · PR/MR.</div>
+    <div class="arrow">→</div>
+    <div class="box accent" style="flex:1"><b>Push dialog</b>new branch + PR, or straight to the base branch — copy adapts per host ("merge request" on GitLab).</div>
+  </div>
+
+  <div class="footer">
+    <span>src/lib/agent-turn.ts · workspace-tools.ts · runner/vercel-sandbox.ts · api/workspaces/[id]/{chat,diff,review,tasks} · lib/git/*</span>
+    <span>Regenerate: edit docs/diagrams/agent-platform.html → node docs/diagrams/render-pdf.mjs</span>
+  </div>
+</body>
+</html>

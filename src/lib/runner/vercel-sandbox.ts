@@ -27,6 +27,7 @@ import { Sandbox } from "@vercel/sandbox";
 import type { Workspace } from "@/generated/prisma/client";
 import { listWorkspaceFiles, readWorkspaceFile } from "@/lib/workspace";
 import {
+  type Detection,
   type RunInfo,
   type RunnerBackend,
   STOPPED_RUN,
@@ -77,13 +78,17 @@ async function readLogs(sandbox: Sandbox): Promise<string[]> {
   }
 }
 
-/* --------------------------- lifecycle ----------------------------- */
+/* ------------------------ VM provisioning -------------------------- */
 
-async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
-  await stop(ws.id); // one run per workspace
+/** The workspace read once into VM-transferable form (text files, capped). */
+interface WorkspaceExport {
+  paths: string[];
+  contents: { path: string; content: string }[];
+  pkgJson: string | null;
+}
 
+async function exportWorkspace(ws: Workspace): Promise<WorkspaceExport> {
   const files = await listWorkspaceFiles(ws);
-  if (files.length === 0) return { error: "The workspace is empty — nothing to run." };
   const paths = files.map((f) => f.path);
 
   const exportList = files.slice(0, MAX_EXPORT_FILES);
@@ -95,15 +100,15 @@ async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
     if (f.path === "package.json") pkgJson = content;
     contents.push({ path: f.path, content });
   }
+  return { paths, contents, pkgJson };
+}
 
-  const detection = detectFramework(paths, pkgJson);
-  if (detection.kind === "static" || detection.kind === "unknown") {
-    return { error: "This looks like a static site — the Preview tab renders it directly, no run needed." };
-  }
-
-  const built = buildRunCommand(detection, paths, pkgJson, PORT, "0.0.0.0");
-  if ("error" in built) return { error: built.error };
-
+/** Create the workspace's named VM and copy its files in — no app launch. */
+async function createSandboxWithFiles(
+  ws: Workspace,
+  detection: Detection,
+  contents: WorkspaceExport["contents"],
+): Promise<Sandbox | { error: string }> {
   let sandbox: Sandbox;
   try {
     sandbox = await Sandbox.create({
@@ -123,10 +128,39 @@ async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
   }
 
   try {
-    await sandbox.writeFiles(
-      contents.map((f) => ({ path: f.path, content: Buffer.from(f.content, "utf8") })),
-    );
+    if (contents.length > 0) {
+      await sandbox.writeFiles(
+        contents.map((f) => ({ path: f.path, content: Buffer.from(f.content, "utf8") })),
+      );
+    }
+  } catch (e) {
+    await sandbox.stop().catch(() => {});
+    const detail = e instanceof Error ? e.message : "unknown error";
+    return { error: `Couldn't copy the workspace into the cloud VM: ${detail}` };
+  }
+  return sandbox;
+}
 
+/* --------------------------- lifecycle ----------------------------- */
+
+async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
+  await stop(ws.id); // one run per workspace
+
+  const { paths, contents, pkgJson } = await exportWorkspace(ws);
+  if (paths.length === 0) return { error: "The workspace is empty — nothing to run." };
+
+  const detection = detectFramework(paths, pkgJson);
+  if (detection.kind === "static" || detection.kind === "unknown") {
+    return { error: "This looks like a static site — the Preview tab renders it directly, no run needed." };
+  }
+
+  const built = buildRunCommand(detection, paths, pkgJson, PORT, "0.0.0.0");
+  if ("error" in built) return { error: built.error };
+
+  const sandbox = await createSandboxWithFiles(ws, detection, contents);
+  if ("error" in sandbox) return sandbox;
+
+  try {
     // Detached with output captured in the VM — later invocations read the
     // log file because no server memory survives between API calls.
     await sandbox.runCommand({
@@ -177,3 +211,65 @@ async function stop(workspaceId: string): Promise<void> {
 }
 
 export const sandboxBackend: RunnerBackend = { start, status, stop };
+
+/* ---------------------- agent command execution --------------------- */
+
+const EXEC_TIMEOUT_MS = 120_000; // one agent command gets 2 minutes, then SIGKILL
+const EXEC_OUTPUT_CAP = 8_000; // per stream — tool results go back into the prompt
+
+function capExecOutput(text: string): string {
+  return text.length > EXEC_OUTPUT_CAP ? `${text.slice(0, EXEC_OUTPUT_CAP)}… [truncated]` : text;
+}
+
+/**
+ * The VM the agent's run_command tool executes in. One sandbox per workspace
+ * (same name as the preview runner's): if one is already alive — e.g. a
+ * running preview — it's reused as-is; otherwise a fresh VM is created
+ * exactly like start() does, just without launching the dev server.
+ */
+export async function ensureCommandSandbox(ws: Workspace): Promise<Sandbox | { error: string }> {
+  const existing = await findSandbox(ws.id);
+  if (existing) return existing;
+
+  const { paths, contents, pkgJson } = await exportWorkspace(ws);
+  const detection = detectFramework(paths, pkgJson);
+  return createSandboxWithFiles(ws, detection, contents);
+}
+
+/**
+ * Run one shell command in the workspace's VM and return its outcome. The
+ * current workspace files are re-written into the VM first, so edits the
+ * agent made earlier in the turn are visible — the VM copy is disposable,
+ * nothing the command does flows back into the workspace.
+ */
+export async function execInSandbox(
+  ws: Workspace,
+  command: string,
+): Promise<{ exitCode: number; stdout: string; stderr: string } | { error: string }> {
+  try {
+    const sandbox = await ensureCommandSandbox(ws);
+    if ("error" in sandbox) return sandbox;
+
+    const { contents } = await exportWorkspace(ws);
+    if (contents.length > 0) {
+      await sandbox.writeFiles(
+        contents.map((f) => ({ path: f.path, content: Buffer.from(f.content, "utf8") })),
+      );
+    }
+
+    const result = await sandbox.runCommand({
+      cmd: "sh",
+      args: ["-c", command],
+      timeoutMs: EXEC_TIMEOUT_MS,
+    });
+    const [stdout, stderr] = await Promise.all([result.stdout(), result.stderr()]);
+    return {
+      exitCode: result.exitCode,
+      stdout: capExecOutput(stdout),
+      stderr: capExecOutput(stderr),
+    };
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : "unknown error";
+    return { error: `Couldn't run the command in the cloud VM: ${detail}` };
+  }
+}
