@@ -86,6 +86,15 @@ export function Rail({ userInitials }: { userInitials: string }) {
           </Dropdown.Content>
         </Dropdown.Portal>
       </Dropdown.Root>
+      <button
+        type="button"
+        title="Sign out"
+        aria-label="Sign out"
+        onClick={() => signOut({ callbackUrl: "/login" })}
+        className="mt-1 grid h-[38px] w-10 cursor-pointer place-items-center rounded-[9px] border-none bg-transparent text-txt3 transition-colors hover:bg-panel2 hover:text-bad"
+      >
+        <LogOut className="h-[19px] w-[19px]" strokeWidth={1.7} />
+      </button>
     </nav>
   );
 }
