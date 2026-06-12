@@ -14,7 +14,7 @@ import "server-only";
 
 import OpenAI from "openai";
 import {
-  WORKSPACE_TOOLS,
+  workspaceTools,
   executeTool,
   toolLabel,
   mergeChanges,
@@ -43,8 +43,8 @@ type FunctionTool = {
   parameters: Record<string, unknown>;
 };
 
-function functionTools(): FunctionTool[] {
-  return (WORKSPACE_TOOLS as ReadonlyArray<Record<string, unknown>>)
+function functionTools(mode: "plan" | "build" = "build"): FunctionTool[] {
+  return (workspaceTools(mode) as ReadonlyArray<Record<string, unknown>>)
     .filter((t) => t.type === "function")
     .map((t) => ({
       type: "function" as const,
@@ -75,7 +75,7 @@ export async function runAnthropicAgent(opts: {
   if (!apiKey)
     return { error: "Anthropic is not configured — add your API key in Settings, or set ANTHROPIC_API_KEY." };
 
-  const tools = functionTools().map((t) => ({
+  const tools = functionTools(opts.ctx.mode).map((t) => ({
     name: t.name,
     description: t.description,
     input_schema: t.parameters,
@@ -169,7 +169,7 @@ export async function runLocalAgent(opts: {
     baseURL: opts.baseUrl,
   });
 
-  const tools = functionTools().map((t) => ({
+  const tools = functionTools(opts.ctx.mode).map((t) => ({
     type: "function" as const,
     function: { name: t.name, description: t.description, parameters: t.parameters },
   }));

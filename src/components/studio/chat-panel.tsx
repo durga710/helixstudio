@@ -15,9 +15,13 @@ import {
   Clock,
   GitCompare,
   Lock,
+  Check,
+  PencilLine,
+  Map,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Segmented } from "@/components/ui/segmented";
 import type { WorkspaceMeta } from "@/components/studio/studio";
 import { ModelPicker } from "@/components/studio/model-picker";
 
@@ -110,6 +114,7 @@ export function ChatPanel({
 }) {
   const [messages, setMessages] = useState<Msg[] | null>(null); // null = loading history
   const [input, setInput] = useState("");
+  const [mode, setMode] = useState<"plan" | "build">("build");
   const [busy, setBusy] = useState(false);
   const [activity, setActivity] = useState<string | null>(null);
   // null until the first chat turn reports it; counts down to 0.
@@ -118,6 +123,7 @@ export function ChatPanel({
   const [queuingTask, setQueuingTask] = useState(false);
   const guestBlocked = isGuest && guestRemaining === 0;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -234,7 +240,7 @@ export function ChatPanel({
     setQueuingTask(false);
   }
 
-  async function send(text: string) {
+  async function send(text: string, sendMode: "plan" | "build" = mode) {
     const content = text.trim();
     if (!content || busy || messages === null) return;
     setMessages((m) => [...(m ?? []), { role: "user", content }]);
@@ -262,7 +268,7 @@ export function ChatPanel({
       const res = await fetch(`/api/workspaces/${workspace.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content }),
+        body: JSON.stringify({ message: content, mode: sendMode }),
       });
 
       const isNdjson = res.headers.get("content-type")?.includes("application/x-ndjson");
@@ -392,12 +398,22 @@ export function ChatPanel({
         ) : (
           <>
             {messages.map((m, i) => {
-              const labels = uniqueLabels(m.actions);
+              const labels = uniqueLabels(m.actions?.filter((a) => a.tool !== "plan"));
+              const isPlan = Boolean(m.actions?.some((a) => a.tool === "plan"));
+              const lastAssistantIdx = messages.reduce(
+                (last, msg, idx) => (msg.role === "assistant" ? idx : last),
+                -1,
+              );
+              const showPlanButtons = isPlan && i === lastAssistantIdx && isOwner && !busy;
               return (
                 <div key={i} className={cn("flex gap-2.5", m.role === "user" ? "justify-end" : "justify-start")}>
                   {m.role === "assistant" && (
                     <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border bg-panel2">
-                      <Sparkles className="h-3.5 w-3.5 text-accent" />
+                      {isPlan ? (
+                        <Map className="h-3.5 w-3.5 text-accent" />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5 text-accent" />
+                      )}
                     </span>
                   )}
                   <div className={cn("max-w-[88%]", m.role === "user" ? "" : "w-full")}>
@@ -406,11 +422,44 @@ export function ChatPanel({
                         "whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
                         m.role === "user"
                           ? "inline-block border border-accent/35 bg-hl text-txt"
-                          : "border border-border bg-panel2 text-txt",
+                          : isPlan
+                            ? "border border-accent/35 bg-panel2 text-txt"
+                            : "border border-border bg-panel2 text-txt",
                       )}
                     >
+                      {isPlan && (
+                        <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-accent">
+                          Proposed plan
+                        </div>
+                      )}
                       {m.role === "assistant" ? <Linkified text={m.content} /> : m.content}
                     </div>
+                    {showPlanButtons && (
+                      <div className="mt-2 flex flex-wrap gap-2 pl-1">
+                        <Button
+                          onClick={() => {
+                            setMode("build");
+                            void send(
+                              "Execute this approved plan exactly, step by step:\n\n" + m.content.slice(0, 6000),
+                              "build",
+                            );
+                          }}
+                          className="px-3 py-1.5 text-xs"
+                        >
+                          <Check className="h-3.5 w-3.5" /> Approve & build
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setMode("plan");
+                            inputRef.current?.focus();
+                          }}
+                          className="px-3 py-1.5 text-xs"
+                        >
+                          <PencilLine className="h-3.5 w-3.5" /> Revise
+                        </Button>
+                      </div>
+                    )}
                     {labels.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-1">
                         <Wrench className="h-3 w-3 text-txt3" />
@@ -521,20 +570,33 @@ export function ChatPanel({
           }}
           className="flex items-center gap-2 border-t border-border p-3"
         >
+          <Segmented
+            options={[
+              { value: "build", label: "Build" },
+              { value: "plan", label: "Plan" },
+            ]}
+            value={mode}
+            onChange={setMode}
+            aria-label="Agent mode"
+            className="shrink-0"
+          />
           <input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={guestBlocked}
             placeholder={
               guestBlocked
                 ? "Guest allowance used — sign in to continue"
-                : workspace.mode === "IMPORT"
-                  ? "Describe a change to this repo…"
-                  : "Describe the app you want built…"
+                : mode === "plan"
+                  ? "Describe it — Helix plans first, builds after you approve…"
+                  : workspace.mode === "IMPORT"
+                    ? "Describe a change to this repo…"
+                    : "Describe the app you want built…"
             }
             className="flex-1 rounded-xl border border-border bg-bg2 px-4 py-2.5 text-sm text-txt placeholder:text-txt3 focus:border-accent focus:outline-none disabled:opacity-60"
           />
-          {!isGuest && (
+          {!isGuest && mode === "build" && (
             <Button
               type="button"
               variant="ghost"

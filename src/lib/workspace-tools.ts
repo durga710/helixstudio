@@ -54,6 +54,10 @@ export interface ToolContext {
   cache?: { tree?: WorkspaceFileEntry[] };
   /** Streaming hook — live activity labels for the client event stream. */
   onActivity?: (label: string) => void;
+  /** "plan" turns are read-only: mutating tools are filtered out of the tool
+   * list AND hard-blocked in executeTool (lax local models may ignore the
+   * declared list). Default "build". */
+  mode?: "plan" | "build";
 }
 
 const READ_CAP = 24_000;
@@ -190,6 +194,18 @@ export const WORKSPACE_TOOLS = [
   },
 ];
 
+const READ_ONLY_TOOL_NAMES = new Set(["list_files", "read_file", "search_files"]);
+const MUTATING_TOOL_NAMES = new Set(["write_files", "delete_file", "remember", "run_command"]);
+
+/** The tool list for a turn. Plan mode keeps only read-only tools (plus the
+ * web_search built-in, which has no name field — don't filter it by name). */
+export function workspaceTools(mode: "plan" | "build" = "build") {
+  if (mode !== "plan") return WORKSPACE_TOOLS;
+  return WORKSPACE_TOOLS.filter(
+    (t) => t.type === "web_search" || READ_ONLY_TOOL_NAMES.has((t as { name?: string }).name ?? ""),
+  );
+}
+
 const s = (v: unknown): string => (typeof v === "string" ? v : "");
 
 export async function executeTool(
@@ -216,6 +232,10 @@ async function executeToolInner(
 ): Promise<unknown> {
   const ws = await getWorkspaceForUser(ctx.workspaceId, ctx.userId);
   if (!ws) return { error: "workspace not found" };
+
+  if (ctx.mode === "plan" && MUTATING_TOOL_NAMES.has(name)) {
+    return { error: "Plan mode is read-only — finish the plan; the user approves before anything is built." };
+  }
 
   switch (name) {
     case "list_files": {

@@ -20,7 +20,7 @@ import { GUEST_TOKEN_LIMIT } from "@/lib/auth";
 import { getGitAuth, withGitAuth, PROVIDER_META, getProvider } from "@/lib/git";
 import { getOpenAI, OPENAI_MODEL } from "@/lib/openai";
 import {
-  WORKSPACE_TOOLS,
+  workspaceTools,
   executeTool,
   toolLabel,
   mergeChanges,
@@ -66,9 +66,13 @@ export async function runAgentTurn(opts: {
   onEvent?: (e: TurnEvent) => void;
   /** Write user+assistant messages and meter tokens (default true). */
   persist?: boolean;
+  /** "plan": read-only tools + the agent replies with a numbered plan the
+   * user approves before a normal build turn executes it. Default "build". */
+  mode?: "plan" | "build";
 }): Promise<TurnResult | TurnError> {
   const { ws, userId, onEvent } = opts;
   const persist = opts.persist ?? true;
+  const mode = opts.mode ?? "build";
   const userMessage = opts.message.trim();
   const emit = (label: string) => onEvent?.({ type: "activity", label });
 
@@ -157,7 +161,21 @@ export async function runAgentTurn(opts: {
   });
   const { digest, recent } = historyContext(history.reverse());
 
-  const rules =
+  const planRules =
+    "You are Helix — an AI coding agent working in the user's virtual workspace. You are in PLAN MODE: the user " +
+    "wants an implementation plan to review BEFORE anything is built.\n\n" +
+    "RULES:\n" +
+    "- Your tools this turn are READ-ONLY (list_files, read_file, search_files, and web search when available). Use " +
+    "them to ground the plan in the real files — verify what exists before proposing changes.\n" +
+    "- Do NOT write, delete, or modify anything, and do NOT paste full file contents or save-ready code into the " +
+    "chat. Building happens only after the user approves.\n" +
+    "- Reply with a NUMBERED step-by-step plan: each step says what changes, the exact file path(s) (existing or " +
+    "new), and a one-line why. 3-10 steps, tight.\n" +
+    '- If anything is genuinely uncertain, end the plan with one line: "Open questions: …".\n' +
+    "- If PROJECT INSTRUCTIONS are present below, the plan must follow them.\n" +
+    '- Finish with exactly: "Approve to build, or tell me what to change."\n';
+
+  const buildRules =
     "You are Helix — an AI coding agent working in the user's virtual workspace. The workspace IS the project: " +
     "its file tree is outlined below, and your tools read and write it directly. The user watches the file tree and " +
     "editor update live as you work.\n\n" +
@@ -178,6 +196,8 @@ export async function runAgentTurn(opts: {
     "- The user pushes to their git host from the UI — you cannot push, don't try, and don't tell them to run git commands.\n" +
     "- After building, reply in 2-4 lines: what you built/changed and any next step worth knowing. No tutorials.\n" +
     "- Ask at most ONE clarifying question, and only when the request is truly ambiguous — default to building.\n";
+
+  const rules = mode === "plan" ? planRules : buildRules;
 
   const fitted = fitBudget({
     rules,
@@ -224,6 +244,7 @@ export async function runAgentTurn(opts: {
     workspaceId: ws.id,
     cache: { tree },
     onActivity: (label) => emit(label),
+    mode,
   };
   setProgress(ws.id, "reading your message…");
   emit("thinking…");
@@ -250,7 +271,7 @@ export async function runAgentTurn(opts: {
           model: aiModel || OPENAI_MODEL,
           instructions,
           input: messages,
-          tools: WORKSPACE_TOOLS,
+          tools: workspaceTools(mode),
           store: true,
         });
         tokensUsed += resp.usage?.total_tokens ?? 0;
@@ -287,7 +308,7 @@ export async function runAgentTurn(opts: {
             model: aiModel || OPENAI_MODEL,
             previous_response_id: resp.id,
             input: outputs,
-            tools: WORKSPACE_TOOLS,
+            tools: workspaceTools(mode),
             store: true,
           });
           tokensUsed += resp.usage?.total_tokens ?? 0;
@@ -311,10 +332,12 @@ export async function runAgentTurn(opts: {
                 {
                   role: "user" as const,
                   content:
-                    "Stop working and reply now: in 1-3 sentences, what did you change in the workspace and what (if anything) is still unfinished? Do not call tools.",
+                    mode === "plan"
+                      ? "Stop exploring and reply now with the numbered implementation plan you arrived at. Do not call tools."
+                      : "Stop working and reply now: in 1-3 sentences, what did you change in the workspace and what (if anything) is still unfinished? Do not call tools.",
                 },
               ],
-              tools: WORKSPACE_TOOLS,
+              tools: workspaceTools(mode),
               tool_choice: "none",
               store: true,
             });
@@ -352,11 +375,14 @@ export async function runAgentTurn(opts: {
     }
 
     // Guardrail: some models print the write_files payload into the reply
-    // instead of calling the tool. Detect, execute for real, and clean the text.
-    try {
-      text = await salvageInlineFileWrites(text, ctx, changes);
-    } catch (e) {
-      console.error("[helix-chat] salvage failed", e);
+    // instead of calling the tool. Detect, execute for real, and clean the
+    // text. NEVER in plan mode — plan turns must not write anything.
+    if (mode !== "plan") {
+      try {
+        text = await salvageInlineFileWrites(text, ctx, changes);
+      } catch (e) {
+        console.error("[helix-chat] salvage failed", e);
+      }
     }
 
     // If the provider didn't report usage, estimate (~4 chars per token) so
@@ -365,6 +391,12 @@ export async function runAgentTurn(opts: {
     if (tokensUsed === 0) {
       const msgChars = messages.reduce((n, m) => n + m.content.length, 0);
       tokensUsed = estimateTokens(instructions.length + msgChars + text.length);
+    }
+
+    // Mark plan turns so the chat UI can render the approve card (live via
+    // the final stream event and after a history reload).
+    if (mode === "plan") {
+      actions.push({ tool: "plan", label: "proposed a plan" });
     }
 
     // Persist the turn (best-effort — the reply still goes out if this fails).

@@ -21,6 +21,8 @@ export const maxDuration = 120;
 
 const ChatSchema = z.object({
   message: z.string().min(1).max(8000),
+  // "plan": read-only agent turn that replies with an implementation plan.
+  mode: z.enum(["plan", "build"]).default("build"),
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -60,6 +62,7 @@ export async function POST(req: Request, { params }: Params) {
             ws,
             userId: user.id,
             message,
+            mode: parsed.data.mode,
             onEvent: (e) => write(e),
           });
           if ("error" in result) {
