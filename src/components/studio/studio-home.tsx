@@ -1,8 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  ArrowRight,
   Sparkles,
   FolderGit2,
   FilePlus2,
@@ -92,6 +94,23 @@ export function StudioHome({
         <p className="mb-6 text-sm text-txt3">
           Chat with Helix and watch the code land in a live workspace — then push it to GitHub.
         </p>
+
+        {/* Prompt-first flow: describe an app, watch it build with a live preview. */}
+        <Link
+          href="/build"
+          className="mb-4 flex items-center gap-3.5 rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[linear-gradient(110deg,color-mix(in_srgb,var(--accent)_14%,transparent),color-mix(in_srgb,#c084fc_10%,transparent))] px-5 py-4 transition-colors hover:border-accent"
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[var(--brand-cyan,#00ffd1)] via-accent to-[#c084fc]">
+            <Sparkles className="h-5 w-5 text-white" strokeWidth={1.8} />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-base font-medium text-txt">Build with AI</span>
+            <span className="block text-xs leading-relaxed text-txt3">
+              Describe the app you want — Helix builds it while a live preview takes shape next to the chat.
+            </span>
+          </span>
+          <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-txt3" strokeWidth={1.8} />
+        </Link>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* Create from scratch */}

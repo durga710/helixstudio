@@ -112,7 +112,7 @@ export default async function WelcomePage() {
           </div>
           <div className="ml-auto flex items-center gap-2.5">
             <Link href={appHref} className={btnGhost}>{appLabel}</Link>
-            <Link href="/login" className={btnSolid}>Start free</Link>
+            <Link href="/build" className={btnSolid}>Start free</Link>
           </div>
         </div>
       </nav>
@@ -146,7 +146,7 @@ export default async function WelcomePage() {
             idea to production without leaving one workspace.
           </p>
           <div className="relative mt-[30px] flex flex-wrap justify-center gap-3">
-            <Link href="/login" className={btnSolid}>
+            <Link href="/build" className={btnSolid}>
               <ArrowRight className="h-5 w-5" strokeWidth={1.7} />
               Start building free
             </Link>
@@ -362,7 +362,7 @@ export default async function WelcomePage() {
           <h2 className="text-[clamp(26px,4vw,38px)] font-bold tracking-tight">Ship your next feature with Helix.</h2>
           <p className="mt-3" style={{ color: C.txt2 }}>Connect a repo and let the agents handle the rest.</p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Link href="/login" className={btnSolid}>Start building free</Link>
+            <Link href="/build" className={btnSolid}>Start building free</Link>
             <Link href="/login" className={btnGhost}>Book a demo</Link>
           </div>
         </div>
