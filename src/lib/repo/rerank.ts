@@ -75,6 +75,23 @@ export function lexicalScore(queryTokens: string[], chunk: Chunk): number {
   return score;
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// TODO(phase-b): SEMANTIC CANDIDATE GENERATION — do this LATER, at large scale.
+//
+// This function is Stage 1 — it currently finds candidates by KEYWORD overlap,
+// so a query like "where users log in" misses code that says authenticateSession()
+// with no shared words. The reranker can only sort what this hands it.
+//
+// Phase B upgrade (parked until repos get big — see memory helix-agent-search):
+//   1. On file save, chunk + embed each chunk (OpenAI text-embedding-3-small,
+//      ~pennies) and store the vectors in a Postgres column (no new service).
+//   2. Embed the query and replace/augment the lexical prefilter below with a
+//      cosine-similarity nearest-neighbour lookup — finds code by MEANING.
+//   3. The matched chunks still flow into the same reranker (rerankSearch) and
+//      the same semantic_search tool — this is the only function that changes.
+// Cheapest path: OpenAI tiny-embeddings + Postgres column + in-Node cosine.
+// ───────────────────────────────────────────────────────────────────────────
+
 /** Top PREFILTER chunks by lexical score. Pads with leftovers when the query
  *  has little literal overlap, so the reranker still has material to judge. */
 function prefilter(query: string, chunks: Chunk[]): Chunk[] {
