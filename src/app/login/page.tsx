@@ -1,10 +1,32 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { AlertCircle, ArrowRight, DraftingCompass, Search, Wrench } from "lucide-react";
 import { auth, demoMode, oauthProviders, signIn, DEMO_USER } from "@/lib/auth";
+import { dbEnabled } from "@/lib/db";
 import { BrandMark } from "@/components/brand";
 
 export const metadata: Metadata = { title: "Sign in" };
+
+/**
+ * If the current session is a guest, remember their user id for 10 minutes so
+ * the editor can transfer their workspaces onto the real account they're
+ * about to sign in with. Safe: the transfer only ever moves data off
+ * accounts marked isGuest. Returns true when an upgrade is in flight.
+ */
+async function markGuestUpgrade(): Promise<boolean> {
+  const session = await auth();
+  if (session?.user?.isGuest && session.user.id) {
+    (await cookies()).set("helix.upgrade-from", session.user.id, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 600,
+    });
+    return true;
+  }
+  return false;
+}
 
 const GitHubIcon = (
   <svg viewBox="0 0 16 16" fill="currentColor" className="h-[18px] w-[18px]" aria-hidden>
@@ -33,7 +55,9 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const session = await auth();
-  if (session?.user) redirect("/");
+  // Guests may revisit this page to upgrade to a real account.
+  if (session?.user && !session.user.isGuest) redirect("/");
+  const isGuest = Boolean(session?.user?.isGuest);
   const { error } = await searchParams;
 
   return (
@@ -61,7 +85,8 @@ export default async function LoginPage({
                   <form
                     action={async () => {
                       "use server";
-                      await signIn("github", { redirectTo: "/" });
+                      const upgrading = await markGuestUpgrade();
+                      await signIn("github", { redirectTo: upgrading ? "/editor" : "/" });
                     }}
                   >
                     <button className={oauthBtn}>{GitHubIcon}Continue with GitHub</button>
@@ -71,7 +96,8 @@ export default async function LoginPage({
                   <form
                     action={async () => {
                       "use server";
-                      await signIn("google", { redirectTo: "/" });
+                      const upgrading = await markGuestUpgrade();
+                      await signIn("google", { redirectTo: upgrading ? "/editor" : "/" });
                     }}
                   >
                     <button className={oauthBtn}>{GoogleIcon}Continue with Google</button>
@@ -132,6 +158,29 @@ export default async function LoginPage({
             <div className="mt-5 rounded-[10px] border border-[#1d2940] bg-[#0d1626] px-3.5 py-3 text-xs text-[#9cadc4]">
               Demo workspace: <span className="font-mono text-[#f8fbff]">{DEMO_USER.email}</span> ·{" "}
               <span className="font-mono text-[#f8fbff]">helix-demo</span>
+            </div>
+          )}
+
+          {dbEnabled() && !isGuest && (
+            <form
+              action={async () => {
+                "use server";
+                await signIn("guest", { redirectTo: "/editor" });
+              }}
+              className="mt-4"
+            >
+              <button
+                type="submit"
+                className="w-full cursor-pointer py-2 text-xs text-[#5f6f86] transition-colors hover:text-[#9cadc4]"
+              >
+                Continue as guest — try the editor without an account
+              </button>
+            </form>
+          )}
+
+          {isGuest && (
+            <div className="mt-5 rounded-[10px] border border-[#1d2940] bg-[#0d1626] px-3.5 py-3 text-xs text-[#9cadc4]">
+              You&apos;re in guest mode — sign in above to keep your work and unlock GitHub import &amp; push.
             </div>
           )}
 

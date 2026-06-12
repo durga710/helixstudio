@@ -11,6 +11,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { ACCENTS, useTheme, type Density, type Theme } from "@/components/theme-provider";
 import { usePrefs } from "@/hooks/use-prefs";
+import { AiSection } from "@/components/screens/settings/ai-section";
 import { timeAgo, cn } from "@/lib/utils";
 import type { MemoryEntry, MemoryScope } from "@/lib/types";
 import type { ModelTier, ReasoningDepth } from "@/lib/ai/provider";
@@ -258,6 +259,9 @@ export function SettingsScreen() {
             logged on the server. Get a key at console.anthropic.com.
           </p>
         </Card>
+
+        {/* Editor AI & GitHub (workspace editor preferences, stored per user) */}
+        <AiSection />
 
         {/* Model & reasoning */}
         <h3 className="mb-[11px] mt-6 text-sm font-semibold">Model &amp; reasoning</h3>

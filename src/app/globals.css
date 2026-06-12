@@ -190,3 +190,27 @@ input[type="range"] {
 .fade-up {
   animation: fade-up 0.18s ease both;
 }
+
+/* ===================== STUDIO (ported from GCODE) ===================== */
+/* Panel surfaces — theme-aware replacements for GCODE's dark-only glass. */
+.glass-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.glass-panel-strong {
+  background: var(--panel);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+/* Small uppercase mono label. */
+.label-tactical {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--txt-3);
+}

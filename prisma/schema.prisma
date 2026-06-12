@@ -20,17 +20,25 @@ datasource db {
 model User {
   id            String       @id @default(cuid())
   name          String?
-  email         String       @unique
+  email         String?      @unique
   emailVerified DateTime?
   image         String?
   passwordHash  String?
   createdAt     DateTime     @default(now())
+
+  // Guest trial: anonymous accounts created by "Continue as guest".
+  // tokensUsed meters AI usage; guests are blocked at GUEST_TOKEN_LIMIT.
+  isGuest    Boolean @default(false)
+  tokensUsed Int     @default(0)
+
   accounts      Account[]
   sessions      Session[]
   memberships   TeamMember[]
   memories      MemoryEntry[]
   auditEvents   AuditEvent[]
   chatThreads   ChatThread[]
+  workspaces    Workspace[]
+  preferences   UserPreferences?
 }
 
 model Account {
@@ -57,6 +65,83 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------- Editor studio · Workspaces (migrated from GCODE) ----------
+
+model UserPreferences {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // AI brain
+  aiProvider String  @default("openai") // openai | anthropic | local
+  aiModel    String  @default("") // empty = provider default
+  aiBaseUrl  String? // for local/custom (OpenAI-compatible)
+  // Per-provider keys — switching provider can never send the wrong
+  // vendor's key.
+  openaiKey    String?
+  anthropicKey String?
+  localKey     String?
+
+  // Optional GitHub PAT override. When set, it is used INSTEAD of the OAuth
+  // token (e.g. a fine-grained token scoped to specific repos).
+  githubToken String?
+
+  updatedAt DateTime @updatedAt
+}
+
+enum WorkspaceMode {
+  SCRATCH
+  IMPORT
+}
+
+model Workspace {
+  id     String        @id @default(cuid())
+  userId String
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name   String
+  mode   WorkspaceMode
+
+  // IMPORT mode: the GitHub repo this workspace mirrors ("owner/name").
+  // SCRATCH mode: set after the first push so later pushes reuse the repo.
+  repo       String?
+  baseBranch String? // branch pinned at import / first push
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  files    WorkspaceFile[]
+  messages WorkspaceMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+// Overlay storage: a row exists only for files the AI/user created, modified,
+// or deleted on top of the base (the GitHub repo in IMPORT mode, nothing in
+// SCRATCH mode). `deleted` tombstones an imported repo file.
+model WorkspaceFile {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  path        String
+  content     String
+  deleted     Boolean   @default(false)
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([workspaceId, path])
+}
+
+model WorkspaceMessage {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  role        String // "user" | "assistant"
+  content     String
+  actions     Json? // [{tool, label}]
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, createdAt])
 }
 
 // ---------- Phase 1/2 · Projects & repository intelligence ----------
