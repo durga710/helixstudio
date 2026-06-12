@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   // Standalone server output — bundled into the desktop app (see docs/DESKTOP.md).
@@ -31,4 +32,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry build integration: client+server error capture (init in the
+// instrumentation files) plus source-map upload. Upload only runs when
+// SENTRY_AUTH_TOKEN is present (set in Vercel); locally it's skipped, so a
+// build without the token never fails. Sentry stays confined to
+// instrumentation*.ts + observability.ts (portability notes there).
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  telemetry: false,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+});

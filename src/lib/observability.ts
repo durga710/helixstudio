@@ -1,60 +1,38 @@
 import "server-only";
 
+import * as Sentry from "@sentry/nextjs";
+
 /**
  * Error reporting wrapper. Call `reportError(err, context)` from any catch
  * block that would otherwise swallow a failure. Two things always happen:
- *   1. a structured line is logged (improves ops even with no external tool);
- *   2. if SENTRY_DSN is set, the error is sent to Sentry with the context.
+ *   1. a structured line is logged (useful even with no external tool);
+ *   2. the error is sent to Sentry with the context.
+ *
+ * Sentry is initialized globally by the instrumentation files
+ * (src/instrumentation.ts for server/edge, src/instrumentation-client.ts for
+ * the browser). When no DSN is configured those inits are no-ops, so
+ * captureException here is harmless and only the structured log remains.
  *
  * ───────────────────────────────────────────────────────────────────────────
  * PORTABILITY NOTE — read before moving to AWS or Azure.
  *
- * This file is the ONLY place that knows about Sentry. Everything else calls
- * `reportError()`. To move providers, rewrite the body here — call sites don't
- * change:
- *   • AWS: send to CloudWatch Logs / X-Ray (or keep Sentry — it's host-agnostic
- *     and works from anywhere).
- *   • Azure: send to Application Insights.
- *   • Vendor-neutral: emit OpenTelemetry spans/logs (Sentry can also ingest
- *     OTel, so you can stay on Sentry while speaking a neutral wire format).
- * Sentry does NOT care where the app is hosted — moving clouds doesn't force a
- * change here at all; this note is only for if you also want to change the
- * monitoring vendor.
- *
- * We use @sentry/node (not the full @sentry/nextjs plugin) and import it lazily
- * so it only loads when a DSN is configured — keeps it out of the bundle and
- * keeps the dependency easy to swap.
+ * Sentry lives ONLY in this file plus the two instrumentation files. App code
+ * calls reportError(); the instrumentation files do Sentry.init(). To move
+ * providers, rewrite the body here and swap the init in the instrumentation
+ * files — call sites don't change:
+ *   • AWS: CloudWatch Logs / X-Ray (or keep Sentry — it's host-agnostic).
+ *   • Azure: Application Insights.
+ *   • Vendor-neutral: OpenTelemetry (Sentry can also ingest OTel).
+ * Sentry does not care where the app is hosted — changing clouds does not
+ * force a change here; this note is only for changing the monitoring vendor.
  * ───────────────────────────────────────────────────────────────────────────
  */
-
-type SentryModule = typeof import("@sentry/node");
-
-let initPromise: Promise<SentryModule | null> | undefined;
-
-function ensureSentry(): Promise<SentryModule | null> {
-  initPromise ??= (async () => {
-    // SENTRY_DSN (server-only) or NEXT_PUBLIC_SENTRY_DSN (what the Sentry
-    // wizard / Vercel integration sets). A DSN is safe to read either way.
-    const dsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN;
-    if (!dsn) return null;
-    const Sentry = await import("@sentry/node");
-    Sentry.init({
-      dsn,
-      environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "development",
-      tracesSampleRate: 0, // errors only for now; turn up for performance tracing
-    });
-    return Sentry;
-  })().catch(() => null);
-  return initPromise;
-}
-
-/** Report a caught error. Fire-and-forget; never throws. */
 export function reportError(err: unknown, context?: Record<string, unknown>): void {
-  // Structured local log first — this alone gives ops something to grep.
+  // Structured local log first — gives ops something to grep even sans Sentry.
   console.error("[helix-error]", context ? JSON.stringify(context) : "", err);
-  void ensureSentry()
-    .then((Sentry) => {
-      if (Sentry) Sentry.captureException(err, context ? { extra: context } : undefined);
-    })
-    .catch(() => {});
+  try {
+    Sentry.captureException(err, context ? { extra: context } : undefined);
+  } catch {
+    // never let error reporting throw
+  }
 }
