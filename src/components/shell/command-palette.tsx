@@ -3,19 +3,13 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Bot,
-  ChartLine,
   Code2,
   Home,
   Moon,
   Palette,
-  Play,
   Plus,
-  Rocket,
   Search,
   Settings,
-  ShieldCheck,
-  Users,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { useShell } from "./shell-context";
@@ -49,16 +43,10 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
     return [
       { id: "home", group: "Navigate", label: "Go to Home", icon: Home, shortcut: "G H", run: go("/") },
       { id: "editor", group: "Navigate", label: "Open Editor", icon: Code2, shortcut: "G E", run: go("/editor") },
-      { id: "analysis", group: "Navigate", label: "Repository Analysis", icon: ChartLine, run: go("/analysis") },
-      { id: "agents", group: "Navigate", label: "Agents", icon: Bot, run: go("/agents") },
-      { id: "skills", group: "Navigate", label: "Skills", icon: ShieldCheck, run: go("/skills") },
-      { id: "deployments", group: "Navigate", label: "Deployments", icon: Rocket, run: go("/deployments") },
-      { id: "team", group: "Navigate", label: "Team", icon: Users, run: go("/team") },
       { id: "theme", group: "Customize", label: "Toggle dark / light theme", icon: Moon, shortcut: "⌘ ⇧ L", run: toggleTheme },
       { id: "accent", group: "Customize", label: "Change accent color", icon: Palette, run: () => setAccentPopOpen(true) },
       { id: "settings", group: "Customize", label: "Open Settings", icon: Settings, run: go("/settings") },
       { id: "new", group: "Actions", label: "New project / import repo", icon: Plus, run: () => setNewProjectOpen(true) },
-      { id: "run", group: "Actions", label: "Run full agent workflow", icon: Play, run: go("/agents?run=1") },
     ];
   }, [router, toggleTheme, setNewProjectOpen, setAccentPopOpen]);
 

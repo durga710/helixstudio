@@ -81,5 +81,42 @@ export async function getGitAuth(userId: string, provider: string): Promise<GitA
   }
 }
 
+/** Which hosts the user can act on right now (token + required config). */
+export async function getGitConnections(userId: string): Promise<Record<GitProviderName, boolean>> {
+  const none: Record<GitProviderName, boolean> = {
+    github: false,
+    gitlab: false,
+    bitbucket: false,
+    azure: false,
+    gitea: false,
+  };
+  if (!dbEnabled()) return none;
+  await schemaReady();
+
+  const [prefs, githubAccount] = await Promise.all([
+    db().userPreferences.findUnique({
+      where: { userId },
+      select: {
+        githubToken: true,
+        gitlabToken: true,
+        bitbucketToken: true,
+        azureToken: true,
+        azureOrg: true,
+        giteaToken: true,
+        giteaBaseUrl: true,
+      },
+    }),
+    db().account.findFirst({ where: { userId, provider: "github" }, select: { access_token: true } }),
+  ]);
+
+  return {
+    github: Boolean(prefs?.githubToken || githubAccount?.access_token),
+    gitlab: Boolean(prefs?.gitlabToken),
+    bitbucket: Boolean(prefs?.bitbucketToken),
+    azure: Boolean(prefs?.azureToken && prefs?.azureOrg),
+    gitea: Boolean(prefs?.giteaToken && prefs?.giteaBaseUrl),
+  };
+}
+
 export { withGitAuth, activeAuth, PROVIDER_META, GIT_PROVIDERS, isValidRepoId, sanitizeBaseUrl } from "./types";
 export type { GitAuth, GitProvider, GitProviderName, RepoListEntry, PushOpts } from "./types";

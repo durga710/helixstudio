@@ -1,29 +1,17 @@
 import Link from "next/link";
-import { ChartLine, Check, ShieldCheck, SquareDashed } from "lucide-react";
+import { redirect } from "next/navigation";
+import { Bot, FolderGit2, Lock, MessageSquare, FileCode2, Sparkles } from "lucide-react";
 import { auth } from "@/lib/auth";
-import { store } from "@/lib/store";
+import { db, dbEnabled, schemaReady } from "@/lib/db";
+import { getGitConnections } from "@/lib/git";
+import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 import { timeAgo } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { CircuitTraces } from "@/components/brand";
 import { Pill } from "@/components/ui/pill";
-import { ProjectLogos } from "@/components/logos";
 import { DashboardActions } from "@/components/screens/dashboard-actions";
-import type { ActivityKind, Health } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-
-const healthPill: Record<Health, { tone: "green" | "amber" | "red"; label: string }> = {
-  healthy: { tone: "green", label: "healthy" },
-  review: { tone: "amber", label: "in review" },
-  issues: { tone: "red", label: "2 issues" },
-};
-
-const activityMeta: Record<ActivityKind, { tone: "green" | "amber" | "accent" | "neutral"; label: string; icon: React.ReactNode }> = {
-  merged: { tone: "green", label: "merged", icon: <Check className="h-[15px] w-[15px]" strokeWidth={1.7} /> },
-  task: { tone: "accent", label: "task", icon: <SquareDashed className="h-[15px] w-[15px]" strokeWidth={1.7} /> },
-  review: { tone: "amber", label: "review", icon: <ShieldCheck className="h-[15px] w-[15px]" strokeWidth={1.7} /> },
-  analysis: { tone: "neutral", label: "analysis", icon: <ChartLine className="h-[15px] w-[15px]" strokeWidth={1.7} /> },
-};
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -33,105 +21,212 @@ function greeting(): string {
   return "Good evening";
 }
 
+/** "wrote 3 file(s); updated project notes" from the stored tool actions, or the reply's first line. */
+function activityLabel(content: string, actions: unknown): string {
+  if (Array.isArray(actions) && actions.length > 0) {
+    const labels = actions
+      .map((a) => (a && typeof a === "object" && "label" in a ? String((a as { label: unknown }).label) : null))
+      .filter((l): l is string => Boolean(l))
+      .slice(0, 3);
+    if (labels.length) return labels.join("; ");
+  }
+  const flat = content.replace(/\s+/g, " ").trim();
+  return flat.length > 90 ? flat.slice(0, 90) + "…" : flat || "replied";
+}
+
 export default async function DashboardPage() {
   const session = await auth();
-  const firstName = (session?.user?.name ?? "there").split(" ")[0];
-  const { projects, activity, stats } = store();
+  if (!session?.user?.id) redirect("/welcome");
+  const firstName = (session.user.name ?? "there").split(" ")[0];
+  const userId = session.user.id;
+
+  // Without a database there is nothing real to show — greet and point at
+  // the editor (demo store data is never rendered here anymore).
+  if (!dbEnabled()) {
+    return (
+      <div className="pad-screen">
+        <Hero firstName={firstName} stats={null} />
+        <Card className="mt-6 p-8 text-center text-sm text-txt3">
+          Connect a database (DATABASE_URL) to track workspaces and activity here.
+        </Card>
+      </div>
+    );
+  }
+  await schemaReady();
+
+  const [workspaceCount, fileCount, aiTurns, connections, workspaces, recentTurns] = await Promise.all([
+    db().workspace.count({ where: { userId } }),
+    db().workspaceFile.count({ where: { deleted: false, workspace: { userId } } }),
+    db().workspaceMessage.count({ where: { role: "assistant", workspace: { userId } } }),
+    getGitConnections(userId),
+    db().workspace.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+      take: 6,
+      select: {
+        id: true,
+        name: true,
+        mode: true,
+        provider: true,
+        repo: true,
+        updatedAt: true,
+        _count: { select: { files: true, messages: true } },
+      },
+    }),
+    db().workspaceMessage.findMany({
+      where: { role: "assistant", workspace: { userId } },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      select: {
+        id: true,
+        content: true,
+        actions: true,
+        createdAt: true,
+        workspace: { select: { id: true, name: true } },
+      },
+    }),
+  ]);
+
+  const hostsConnected = Object.values(connections).filter(Boolean).length;
 
   return (
     <div className="pad-screen">
-      {/* Hero */}
-      <div className="relative overflow-hidden rounded-card-lg border border-border bg-panel px-7 py-[26px] after:pointer-events-none after:absolute after:inset-0 after:bg-[radial-gradient(900px_240px_at_8%_-40%,color-mix(in_srgb,var(--accent)_16%,transparent),transparent)]">
-        <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Workspace</div>
-        <CircuitTraces className="pointer-events-none absolute -right-6 -top-8 h-[210px] w-[440px] text-[color-mix(in_srgb,var(--brand-cyan)_55%,var(--accent))] opacity-[0.08]" />
-        <h2 className="relative text-[23px] font-bold tracking-tight">
-          {greeting()}, <span className="brand-gradient-text">{firstName}</span>.
-        </h2>
-        <p className="relative mt-1.5 max-w-[560px] text-txt2">
-          One unified system for building, reviewing, and shipping software. Helix indexed{" "}
-          {stats.repositories} repositories and has {stats.tasksReady} tasks ready for your review.
-        </p>
-        <DashboardActions />
+      <Hero
+        firstName={firstName}
+        stats={[
+          { n: String(workspaceCount), l: "Workspaces" },
+          { n: fileCount.toLocaleString(), l: "Files in your projects" },
+          { n: aiTurns.toLocaleString(), l: "AI turns" },
+          { n: String(hostsConnected), l: hostsConnected === 1 ? "Git host connected" : "Git hosts connected" },
+        ]}
+      />
+
+      {/* Workspaces */}
+      <div className="mb-3 mt-6 flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Your workspaces</h3>
+        {workspaceCount > 0 && (
+          <Link href="/editor" className="text-xs text-accent hover:underline">
+            View all →
+          </Link>
+        )}
+      </div>
+      {workspaces.length === 0 ? (
+        <Card className="p-8 text-center">
+          <p className="text-sm text-txt2">No workspaces yet.</p>
+          <p className="mt-1 text-xs text-txt3">
+            Start your first project — describe it to Helix, import a repo, or upload a folder.
+          </p>
+          <div className="mt-4 flex justify-center">
+            <DashboardActions />
+          </div>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {workspaces.map((w) => {
+            const meta = PROVIDER_META[w.provider as GitProviderName];
+            return (
+              <Link key={w.id} href={`/editor/${w.id}`} className="block">
+                <Card className="cursor-pointer p-4 transition-all duration-150 hover:-translate-y-px hover:border-accent">
+                  <div className="mb-2 flex items-center gap-2">
+                    {w.mode === "IMPORT" ? (
+                      <FolderGit2 className="h-4 w-4 shrink-0 text-accent" strokeWidth={1.7} />
+                    ) : (
+                      <Sparkles className="h-4 w-4 shrink-0 text-ok" strokeWidth={1.7} />
+                    )}
+                    <span className="truncate text-[13.5px] font-semibold">{w.name}</span>
+                  </div>
+                  {w.repo && (
+                    <p className="mb-2 flex items-center gap-1 truncate font-mono text-[11px] text-txt3">
+                      <Lock className="h-3 w-3 shrink-0 opacity-60" />
+                      {w.repo}
+                      {w.provider !== "github" && meta && (
+                        <span className="ml-1 uppercase tracking-wide text-[9px]">{meta.label}</span>
+                      )}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3 font-mono text-[10.5px] text-txt3">
+                    <span className="inline-flex items-center gap-1">
+                      <FileCode2 className="h-3 w-3" /> {w._count.files}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <MessageSquare className="h-3 w-3" /> {w._count.messages}
+                    </span>
+                    <span className="ml-auto">{timeAgo(w.updatedAt.toISOString())}</span>
+                  </div>
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+
+      {/* AI activity */}
+      <div className="mb-3 mt-6 flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Recent AI activity</h3>
+      </div>
+      <Card>
+        {recentTurns.length === 0 && (
+          <div className="p-8 text-center text-sm text-txt3">
+            No activity yet — open a workspace and ask Helix to build something.
+          </div>
+        )}
+        {recentTurns.map((t, i) => (
+          <div
+            key={t.id}
+            className={`flex items-center gap-[11px] px-4 py-[11px] text-[12.5px] ${
+              i < recentTurns.length - 1 ? "border-b border-border" : ""
+            }`}
+          >
+            <span className="shrink-0 text-txt3">
+              <Bot className="h-[15px] w-[15px]" strokeWidth={1.7} />
+            </span>
+            <span className="min-w-0 truncate">
+              <Pill tone="accent">helix</Pill>
+              <span className="text-txt2">&nbsp; {activityLabel(t.content, t.actions)} in </span>
+              <Link href={`/editor/${t.workspace.id}`} className="font-semibold text-txt hover:underline">
+                {t.workspace.name}
+              </Link>
+            </span>
+            <span className="ml-auto whitespace-nowrap text-[11.5px] text-txt3">
+              {timeAgo(t.createdAt.toISOString())}
+            </span>
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
+function Hero({
+  firstName,
+  stats,
+}: {
+  firstName: string;
+  stats: { n: string; l: string }[] | null;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-card-lg border border-border bg-panel px-7 py-[26px] after:pointer-events-none after:absolute after:inset-0 after:bg-[radial-gradient(900px_240px_at_8%_-40%,color-mix(in_srgb,var(--accent)_16%,transparent),transparent)]">
+      <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Workspace</div>
+      <CircuitTraces className="pointer-events-none absolute -right-6 -top-8 h-[210px] w-[440px] text-[color-mix(in_srgb,var(--brand-cyan)_55%,var(--accent))] opacity-[0.08]" />
+      <h2 className="relative text-[23px] font-bold tracking-tight">
+        {greeting()}, <span className="brand-gradient-text">{firstName}</span>.
+      </h2>
+      <p className="relative mt-1.5 max-w-[560px] text-txt2">
+        Describe what you want built and watch it land in a live workspace — then run it in the cloud
+        and push it to your repos.
+      </p>
+      <DashboardActions />
+      {stats && (
         <div className="relative mt-3.5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {[
-            { n: String(stats.repositories), l: "Active repositories" },
-            { n: String(stats.tasksReady), l: "Tasks awaiting review", up: "ready" },
-            { n: `${stats.coverage}%`, l: "Test coverage" },
-            { n: String(stats.securityFindings), l: "Security findings" },
-          ].map((stat) => (
+          {stats.map((stat) => (
             <div key={stat.l} className="rounded-card border border-border bg-panel px-4 py-3.5">
-              <div className="flex items-baseline gap-1.5 text-[21px] font-bold tracking-tight">
-                {stat.n}
-                {stat.up && <span className="text-[11px] font-semibold text-ok">{stat.up}</span>}
-              </div>
+              <div className="flex items-baseline gap-1.5 text-[21px] font-bold tracking-tight">{stat.n}</div>
               <div className="mt-1 h-[2px] w-6 rounded-full brand-gradient-fill opacity-80" />
               <div className="mt-1 text-[11.5px] text-txt2">{stat.l}</div>
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Projects */}
-      <div className="mb-3 mt-6 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Recent projects</h3>
-      </div>
-      {projects.length === 0 ? (
-        <Card className="p-8 text-center text-sm text-txt3">No projects yet — import a repository to begin.</Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {projects.slice(0, 6).map((p) => (
-            <Link key={p.id} href={p.indexedAt ? `/editor?project=${encodeURIComponent(p.id)}` : `/analysis?project=${encodeURIComponent(p.id)}`} className="block">
-              <Card className="cursor-pointer p-4 transition-all duration-150 hover:-translate-y-px hover:border-accent">
-                <div className="mb-3 flex items-center gap-2.5">
-                  <ProjectLogos language={p.language} />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13.5px] font-semibold">{p.name}</div>
-                    <div className="truncate font-mono text-[11px] text-txt3">{p.repoUrl}</div>
-                  </div>
-                </div>
-                <div className="text-xs text-txt2">{p.description}</div>
-                <div className="mt-3 h-1 overflow-hidden rounded bg-panel3">
-                  <i className="brand-gradient-fill block h-full" style={{ width: `${p.progress}%` }} />
-                </div>
-                <div className="mt-[11px] flex items-center gap-2.5 text-[11.5px] text-txt2">
-                  <span>{p.language}</span>
-                  <span className="text-txt3">· {p.files.toLocaleString()} files</span>
-                  <Pill tone={healthPill[p.health].tone} className="ml-auto">
-                    {healthPill[p.health].label}
-                  </Pill>
-                </div>
-              </Card>
-            </Link>
-          ))}
-        </div>
       )}
-
-      {/* Activity */}
-      <div className="mb-3 mt-6 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Activity</h3>
-      </div>
-      <Card>
-        {activity.length === 0 && <div className="p-8 text-center text-sm text-txt3">No activity yet.</div>}
-        {activity.slice(0, 8).map((item, i) => {
-          const meta = activityMeta[item.kind];
-          return (
-            <div
-              key={item.id}
-              className={`flex items-center gap-[11px] px-4 py-[11px] text-[12.5px] ${
-                i < Math.min(activity.length, 8) - 1 ? "border-b border-border" : ""
-              }`}
-            >
-              <span className="shrink-0 text-txt3">{meta.icon}</span>
-              <span className="min-w-0">
-                <Pill tone={meta.tone}>{meta.label}</Pill>
-                <span className="text-txt2">&nbsp; {item.text} </span>
-                <b className="font-semibold text-txt">{item.highlight}</b>
-              </span>
-              <span className="ml-auto whitespace-nowrap text-[11.5px] text-txt3">{timeAgo(item.at)}</span>
-            </div>
-          );
-        })}
-      </Card>
     </div>
   );
 }
