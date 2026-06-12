@@ -30,6 +30,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { useToast } from "@/components/ui/toast";
 import { AssignmentsSection } from "@/components/screens/assignments-section";
 import { SpaceBillingCard, type SpaceBilling } from "@/components/screens/space-billing-card";
+import { SpaceActivityFeed } from "@/components/screens/space-activity-feed";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 
 type SpaceKind = "team" | "classroom";
@@ -898,6 +899,9 @@ function SpaceDetailPanel({
           </ul>
         )}
       </div>
+
+      {/* Recent activity */}
+      <SpaceActivityFeed key={`feed-${detail.id}`} spaceId={detail.id} />
     </div>
   );
 }

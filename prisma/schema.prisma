@@ -43,6 +43,8 @@ model User {
   ownedSpaces      Space[]                @relation("SpaceOwner")
   spaceMemberships SpaceMember[]
   submissions      AssignmentSubmission[]
+  spaceEvents      SpaceEvent[]
+  assignedTasks    SpaceTask[]            @relation("TaskAssignee")
 }
 
 // ---------- Helix Space · lightweight team collaboration ----------
@@ -72,6 +74,8 @@ model Space {
   currentPeriodEnd     DateTime?
 
   assignments Assignment[]
+  events      SpaceEvent[]
+  spaceTasks  SpaceTask[]
 }
 
 // ---------- Helix Space v2 · classroom assignments ----------
@@ -97,6 +101,49 @@ model Assignment {
   submissions AssignmentSubmission[]
 
   @@index([spaceId, createdAt])
+}
+
+// ---------- Helix Space v3 · activity feed + task board ----------
+// One row per notable Space action (joined, shared, submitted, graded, …).
+// actorName is denormalized so the feed reads cleanly even after the actor's
+// account is deleted. Writes are fire-and-forget from the routes.
+model SpaceEvent {
+  id      String  @id @default(cuid())
+  spaceId String
+  space   Space   @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  userId  String?
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  actorName String
+  // joined | left | shared | unshared | assignment_created | submitted |
+  // reviewed | pushed | forked | task_added | task_done
+  action    String
+  target    String // workspace/assignment/task title (display only)
+  targetId  String?
+  createdAt DateTime @default(now())
+
+  @@index([spaceId, createdAt])
+}
+
+// Lightweight per-Space task board (todo | doing | done). Any member can
+// create and move tasks; deleting is the creator's or the space owner's call.
+model SpaceTask {
+  id      String @id @default(cuid())
+  spaceId String
+  space   Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  title       String
+  note        String?
+  status      String  @default("todo") // todo | doing | done
+  assigneeId  String?
+  assignee    User?   @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdById String?
+
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([spaceId, status, order])
 }
 
 // One row per (assignment, student). Created when the student starts the

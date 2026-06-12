@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { ok, apiErrors } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { recordSpaceEvent, actorNameOf } from "@/lib/space-events";
 import { guard } from "@/lib/route-helpers";
 
 export const runtime = "nodejs";
@@ -31,7 +32,8 @@ export async function PATCH(req: Request, { params }: Params) {
     select: {
       id: true,
       assignmentId: true,
-      assignment: { select: { spaceId: true, space: { select: { ownerId: true } } } },
+      status: true,
+      assignment: { select: { spaceId: true, title: true, space: { select: { ownerId: true } } } },
     },
   });
   if (
@@ -56,5 +58,17 @@ export async function PATCH(req: Request, { params }: Params) {
   if (Object.keys(data).length === 0) return apiErrors.badRequest("Nothing to update.");
 
   await db().assignmentSubmission.update({ where: { id: submissionId }, data });
+
+  // Feed: announce the review itself, never the grade (that's the student's).
+  if (parsed.data.markReviewed && submission.status !== "reviewed") {
+    void recordSpaceEvent({
+      spaceId: id,
+      userId: g.user.id,
+      actorName: actorNameOf(g.user),
+      action: "reviewed",
+      target: submission.assignment.title,
+      targetId: assignmentId,
+    });
+  }
   return ok({ updated: true });
 }

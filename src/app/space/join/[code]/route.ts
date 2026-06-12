@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, dbEnabled, schemaReady } from "@/lib/db";
 import { canJoin } from "@/lib/billing";
+import { recordSpaceEvent, actorNameOf } from "@/lib/space-events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
     await schemaReady();
     const space = await db().space.findUnique({
       where: { joinCode: code },
-      select: { id: true, plan: true, seats: true, currentPeriodEnd: true, _count: { select: { members: true } } },
+      select: { id: true, name: true, plan: true, seats: true, currentPeriodEnd: true, _count: { select: { members: true } } },
     });
     if (space) {
       const existing = await db().spaceMember.findUnique({
@@ -52,6 +53,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
         }
         await db().spaceMember.create({
           data: { spaceId: space.id, userId: session.user.id, role: "member" },
+        });
+        void recordSpaceEvent({
+          spaceId: space.id,
+          userId: session.user.id,
+          actorName: actorNameOf(session.user),
+          action: "joined",
+          target: space.name,
         });
       }
       const res = to(`/space?s=${space.id}`);

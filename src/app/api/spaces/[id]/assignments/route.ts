@@ -13,6 +13,7 @@ import { db } from "@/lib/db";
 import { guard } from "@/lib/route-helpers";
 import { getWorkspaceForUser } from "@/lib/workspace";
 import { canCreateAssignment } from "@/lib/billing";
+import { recordSpaceEvent, actorNameOf } from "@/lib/space-events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -135,7 +136,15 @@ export async function POST(req: Request, { params }: Params) {
       dueAt: parsed.data.dueAt ? new Date(parsed.data.dueAt) : null,
       starterWorkspaceId: parsed.data.starterWorkspaceId ?? null,
     },
-    select: { id: true },
+    select: { id: true, title: true },
   });
-  return ok(assignment);
+  void recordSpaceEvent({
+    spaceId: id,
+    userId: g.user.id,
+    actorName: actorNameOf(g.user),
+    action: "assignment_created",
+    target: assignment.title,
+    targetId: assignment.id,
+  });
+  return ok({ id: assignment.id });
 }

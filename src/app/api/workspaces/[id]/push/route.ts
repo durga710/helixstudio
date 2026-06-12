@@ -19,6 +19,7 @@ import { usingSandboxBackend } from "@/lib/app-runner";
 import { gitPush } from "@/lib/runner/git-push";
 import { isValidBranchName, validateFiles, MAX_PUSH_FILES } from "@/lib/repo-files";
 import { guardWorkspace } from "@/lib/route-helpers";
+import { recordSpaceEvent, actorNameOf } from "@/lib/space-events";
 import type { Workspace } from "@/generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -122,6 +123,16 @@ export async function POST(req: Request, { params }: Params) {
       data: { repo: created.repo, baseBranch: created.defaultBranch },
     });
 
+    if (ws.spaceId) {
+      void recordSpaceEvent({
+        spaceId: ws.spaceId,
+        userId: g.user.id,
+        actorName: actorNameOf(g.user),
+        action: "pushed",
+        target: ws.name,
+        targetId: ws.id,
+      });
+    }
     return ok({ repo: created.repo, repoUrl: created.url, branch: pushed.branch, commitUrl: pushed.commitUrl });
   }
 
@@ -165,5 +176,15 @@ export async function POST(req: Request, { params }: Params) {
     }
   }
 
+  if (ws.spaceId) {
+    void recordSpaceEvent({
+      spaceId: ws.spaceId,
+      userId: g.user.id,
+      actorName: actorNameOf(g.user),
+      action: "pushed",
+      target: ws.name,
+      targetId: ws.id,
+    });
+  }
   return ok({ repo, branch: pushed.branch, commitUrl: pushed.commitUrl, prUrl, prError });
 }

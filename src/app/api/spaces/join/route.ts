@@ -7,6 +7,7 @@ import { z } from "zod";
 import { ok, apiErrors } from "@/lib/api-response";
 import { db } from "@/lib/db";
 import { canJoin } from "@/lib/billing";
+import { recordSpaceEvent, actorNameOf } from "@/lib/space-events";
 import { guard } from "@/lib/route-helpers";
 
 export const runtime = "nodejs";
@@ -45,6 +46,13 @@ export async function POST(req: Request) {
     if (!gate.allowed) return apiErrors.upgradeRequired(gate.reason!);
     await db().spaceMember.create({
       data: { spaceId: space.id, userId: g.user.id, role: "member" },
+    });
+    void recordSpaceEvent({
+      spaceId: space.id,
+      userId: g.user.id,
+      actorName: actorNameOf(g.user),
+      action: "joined",
+      target: space.name,
     });
   }
   return ok({ id: space.id, name: space.name });

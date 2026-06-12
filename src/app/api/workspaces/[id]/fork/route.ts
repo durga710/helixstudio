@@ -8,6 +8,7 @@
 import { ok } from "@/lib/api-response";
 import { copyWorkspaceAsScratch } from "@/lib/workspace";
 import { guardWorkspace } from "@/lib/route-helpers";
+import { recordSpaceEvent, actorNameOf } from "@/lib/space-events";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -20,5 +21,16 @@ export async function POST(_req: Request, { params }: Params) {
   if ("response" in g) return g.response;
 
   const fork = await copyWorkspaceAsScratch(g.ws, g.user.id, `Copy of ${g.ws.name}`);
+  // Feed: a teammate copying a shared project is worth announcing.
+  if (g.ws.spaceId && !g.isOwner) {
+    void recordSpaceEvent({
+      spaceId: g.ws.spaceId,
+      userId: g.user.id,
+      actorName: actorNameOf(g.user),
+      action: "forked",
+      target: g.ws.name,
+      targetId: g.ws.id,
+    });
+  }
   return ok(fork);
 }

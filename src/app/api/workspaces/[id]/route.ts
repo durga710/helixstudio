@@ -9,6 +9,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { ok, apiErrors } from "@/lib/api-response";
 import { guardWorkspace } from "@/lib/route-helpers";
+import { recordSpaceEvent, actorNameOf } from "@/lib/space-events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -86,6 +87,21 @@ export async function PATCH(req: Request, { params }: Params) {
   if (Object.keys(data).length === 0) return apiErrors.badRequest("Nothing to update.");
 
   await db().workspace.update({ where: { id: g.ws.id }, data });
+
+  // Feed: sharing into a Space (and pulling back out) is worth announcing.
+  if (data.spaceId !== undefined && data.spaceId !== g.ws.spaceId) {
+    const feedSpaceId = data.spaceId ?? g.ws.spaceId; // new space, or the one being left
+    if (feedSpaceId) {
+      void recordSpaceEvent({
+        spaceId: feedSpaceId,
+        userId: g.user.id,
+        actorName: actorNameOf(g.user),
+        action: data.spaceId ? "shared" : "unshared",
+        target: data.name ?? g.ws.name,
+        targetId: g.ws.id,
+      });
+    }
+  }
   return ok({ updated: true });
 }
 

@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { ok, apiErrors } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { recordSpaceEvent, actorNameOf } from "@/lib/space-events";
 import { guard } from "@/lib/route-helpers";
 
 export const runtime = "nodejs";
@@ -27,7 +28,7 @@ export async function POST(req: Request, { params }: Params) {
 
   const submission = await db().assignmentSubmission.findUnique({
     where: { assignmentId_userId: { assignmentId, userId: g.user.id } },
-    select: { id: true, status: true, assignment: { select: { spaceId: true } } },
+    select: { id: true, status: true, assignment: { select: { spaceId: true, title: true } } },
   });
   if (!submission || submission.assignment.spaceId !== id) return apiErrors.notFound("Submission");
   if (submission.status === "reviewed") {
@@ -38,6 +39,14 @@ export async function POST(req: Request, { params }: Params) {
     await db().assignmentSubmission.update({
       where: { id: submission.id },
       data: { status: "submitted", submittedAt: new Date() },
+    });
+    void recordSpaceEvent({
+      spaceId: id,
+      userId: g.user.id,
+      actorName: actorNameOf(g.user),
+      action: "submitted",
+      target: submission.assignment.title,
+      targetId: assignmentId,
     });
     return ok({ status: "submitted" });
   }
