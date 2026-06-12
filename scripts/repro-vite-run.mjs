@@ -47,7 +47,9 @@ const FILES = [
         type: "module",
         scripts: { dev: "vite", build: "vite build", preview: "vite preview" },
         dependencies: { react: "^18.3.1", "react-dom": "^18.3.1" },
-        devDependencies: { "@vitejs/plugin-react": "^4.3.1", vite: "^5.4.2" },
+        // Latest Vite on purpose: its dev-server host check is the case the
+        // cloud runner must pass (__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS).
+        devDependencies: { "@vitejs/plugin-react": "^4.7.0", vite: "^7.0.0" },
       },
       null,
       2,
@@ -86,7 +88,16 @@ for (let i = 0; i < 48; i++) {
   if (i % 4 === 3 || d.status === "error" || (d.status === "running" && d.reachable)) {
     console.log("--- logs ---\n" + (d.logs ?? []).slice(-25).join("\n") + "\n------------");
   }
-  if (d.status === "error" || (d.status === "running" && d.reachable)) break;
+  if (d.status === "error" || (d.status === "running" && d.reachable)) {
+    if (d.url && d.reachable) {
+      // Prove the preview actually serves the app (catches host-check blocks).
+      const page = await fetch(d.url, { cache: "no-store" });
+      const body = await page.text();
+      const blocked = /blocked request|not allowed/i.test(body);
+      console.log(`preview fetch: ${page.status} blocked=${blocked} bytes=${body.length}`);
+    }
+    break;
+  }
 }
 
 // cleanup
