@@ -57,7 +57,10 @@ const FILES = [
   },
   {
     path: "vite.config.js",
-    content: "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nexport default defineConfig({ plugins: [react()] });\n",
+    // Worst case on purpose: an explicit allowedHosts list that excludes the
+    // sandbox host — the runner's config shim must still win.
+    content:
+      "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nexport default defineConfig({ plugins: [react()], server: { allowedHosts: ['localhost'] } });\n",
   },
   {
     path: "index.html",

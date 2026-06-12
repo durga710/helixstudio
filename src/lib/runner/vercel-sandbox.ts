@@ -273,6 +273,31 @@ export async function clearEnvCache(workspaceId: string): Promise<void> {
 
 /* --------------------------- lifecycle ----------------------------- */
 
+const VITE_SHIM_FILE = "helix.vite.config.mjs";
+
+/**
+ * Vite ≥6.0.9 rejects requests whose Host header isn't allow-listed, and
+ * cloud previews arrive as sb-*.vercel.run. The env-var escape hatch only
+ * exists on newer Vite, so the deterministic fix is a config shim: wrap the
+ * project's own config and force-allow hosts. The VM copy is disposable —
+ * the user's workspace is never touched. allowedHosts:true is safe here:
+ * the host check guards local dev against DNS rebinding; a sandbox URL is
+ * already public and serves exactly one app.
+ */
+function viteHostShim(userConfigPath: string | null): string {
+  const head = userConfigPath
+    ? `import userConfig from "./${userConfigPath}";`
+    : `const userConfig = {};`;
+  return `${head}
+// Helix preview shim — everything comes from the project's config; the only
+// override is letting the sandbox's public hostname through the host check.
+export default async (env) => {
+  const resolved = typeof userConfig === "function" ? await userConfig(env) : userConfig;
+  return { ...resolved, server: { ...(resolved?.server ?? {}), allowedHosts: true } };
+};
+`;
+}
+
 async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
   await stop(ws.id); // one run per workspace
 
@@ -286,6 +311,25 @@ async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
 
   const built = buildCommands(detection, exported.paths, exported.pkgJson, PORT, "0.0.0.0");
   if ("error" in built) return { error: built.error };
+
+  // Vite apps get the host-check shim (mirrors buildCommands' "append CLI
+  // flags" condition: a dev script + vite in the dependency tree).
+  let devCommand = built.dev;
+  try {
+    const pkg = JSON.parse(exported.pkgJson ?? "{}") as {
+      scripts?: Record<string, string>;
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    if (pkg.scripts?.dev && { ...pkg.dependencies, ...pkg.devDependencies }.vite) {
+      const userConfig =
+        exported.contents.find((c) => /^vite\.config\.(js|ts|mjs|mts|cjs|cts)$/.test(c.path))?.path ?? null;
+      exported.contents.push({ path: VITE_SHIM_FILE, content: viteHostShim(userConfig) });
+      devCommand = `${built.dev} --config ${VITE_SHIM_FILE}`;
+    }
+  } catch {
+    // unparsable package.json — buildCommands already coped; skip the shim
+  }
 
   // Warm path: a fresh env snapshot restores with deps already installed.
   // Cold path: create the VM and run `setup && dev` DETACHED — installing
@@ -317,7 +361,7 @@ async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
     sandbox = cold;
   }
 
-  const command = warm || !setup ? built.dev : `${setup} && ${built.dev}`;
+  const command = warm || !setup ? devCommand : `${setup} && ${devCommand}`;
   // Dev-server host checks: traffic reaches the app with the sandbox's
   // public hostname in the Host header, which Vite ≥6.1 rejects unless
   // allowed ("Blocked request. This host is not allowed."). Vite reads
