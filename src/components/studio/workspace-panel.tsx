@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
@@ -455,16 +456,10 @@ export function WorkspacePanel({
 
   // The preview entry: the selected HTML file if one is open, else index.html,
   // else the first HTML file in the tree.
-  const previewEntry = useMemo(() => {
-    const htmlFiles = files.filter((f) => f.path.toLowerCase().endsWith(".html"));
-    if (selected?.toLowerCase().endsWith(".html")) return selected;
-    return (
-      htmlFiles.find((f) => f.path === "index.html")?.path ??
-      htmlFiles.find((f) => /(^|\/)index\.html$/.test(f.path))?.path ??
-      htmlFiles[0]?.path ??
-      null
-    );
-  }, [files, selected]);
+  const previewEntry = useMemo(
+    () => pickPreviewEntry(files.map((f) => f.path), selected),
+    [files, selected],
+  );
 
   // Compose the preview: take the entry HTML and inline its RELATIVE css/js
   // references from workspace files, so multi-file static apps run in one
@@ -484,57 +479,17 @@ export function WorkspacePanel({
         return fetchContent(path);
       };
 
-      let html = await getFile(previewEntry);
+      const composed = await composePreviewHtml(previewEntry, getFile);
       if (seq !== composeSeq.current) return;
-      if (html === null) {
+      if (!composed) {
         setPreviewHtml(null);
         setPreviewInfo("Couldn't load the page.");
         return;
       }
 
-      const baseDir = previewEntry.includes("/")
-        ? previewEntry.slice(0, previewEntry.lastIndexOf("/") + 1)
-        : "";
-      const resolve = (ref: string) => {
-        let p = ref.startsWith("./") ? ref.slice(2) : ref;
-        if (p.startsWith("/")) p = p.slice(1);
-        else p = baseDir + p;
-        return p;
-      };
-      const isLocalRef = (ref: string) =>
-        Boolean(ref) && !/^([a-z]+:)?\/\//i.test(ref) && !ref.startsWith("data:") && !ref.startsWith("#");
-
-      const inlined: string[] = [];
-
-      // <link rel="stylesheet" href="style.css"> → <style>…</style>
-      const linkRe = /<link\b[^>]*href=["']([^"']+)["'][^>]*>/gi;
-      const links = Array.from(html.matchAll(linkRe)).filter(
-        (m) => /stylesheet/i.test(m[0]) && isLocalRef(m[1]),
-      );
-      for (const m of links) {
-        const css = await getFile(resolve(m[1]));
-        if (seq !== composeSeq.current) return;
-        if (css !== null) {
-          html = html.replace(m[0], `<style>\n${css}\n</style>`);
-          inlined.push(m[1]);
-        }
-      }
-
-      // <script src="app.js"></script> → <script>…</script>
-      const scriptRe = /<script\b[^>]*src=["']([^"']+)["'][^>]*>\s*<\/script>/gi;
-      const scripts = Array.from(html.matchAll(scriptRe)).filter((m) => isLocalRef(m[1]));
-      for (const m of scripts) {
-        const js = await getFile(resolve(m[1]));
-        if (seq !== composeSeq.current) return;
-        if (js !== null) {
-          html = html.replace(m[0], `<script>\n${js}\n</script>`);
-          inlined.push(m[1]);
-        }
-      }
-
-      setPreviewHtml(html);
+      setPreviewHtml(composed.html);
       setPreviewInfo(
-        `${previewEntry}${inlined.length ? ` + ${inlined.length} inlined asset(s)` : ""}`,
+        `${previewEntry}${composed.inlined.length ? ` + ${composed.inlined.length} inlined asset(s)` : ""}`,
       );
     })();
   }, [tab, previewEntry, previewNonce, dirty, contents, fetchContent]);
