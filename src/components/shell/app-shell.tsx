@@ -15,7 +15,13 @@ export function AppShell({
 }) {
   return (
     <ShellProvider>
-      <div className="grid h-screen grid-cols-[56px_1fr] overflow-hidden">
+      {/* grid-rows-1 → grid-template-rows: minmax(0,1fr): pins the single row to
+          the screen height so it can't grow with content. Without it a tall page
+          (e.g. the editor's big file tree) expands this row past the viewport;
+          overflow-hidden then clips everything below the fold with no scroll,
+          which made the editor's chat panel look empty. With the row pinned,
+          <main> stays viewport-height and scrolls its own content. */}
+      <div className="grid h-screen grid-cols-[56px_1fr] grid-rows-1 overflow-hidden">
         <Rail userInitials={userInitials} />
         <div className="flex min-w-0 flex-col">
           <Topbar />

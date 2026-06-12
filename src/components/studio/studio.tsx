@@ -42,8 +42,15 @@ export function Studio({
 }) {
   const [changes, setChanges] = useState<Changes | null>(null);
 
+  // xl:grid-rows-1 → grid-template-rows: minmax(0,1fr): the single row fills the
+  // container height and can't grow past it. Without it the row is auto-sized,
+  // so a tall file tree (big repo) expands the workspace column, drags the whole
+  // row taller than the screen, and stretches the chat column thousands of px
+  // tall — pushing its messages + input far below the fold so the panel looks
+  // empty. Capping the row makes the file tree and chat scroll inside their own
+  // fixed-height columns instead.
   return (
-    <div className="grid h-auto min-h-0 grid-cols-1 gap-4 xl:h-full xl:grid-cols-5">
+    <div className="grid h-auto min-h-0 grid-cols-1 gap-4 xl:h-full xl:grid-cols-5 xl:grid-rows-1">
       {/* min-w-0 on both: without it a grid item defaults to min-width:auto and
           won't shrink below its content's intrinsic width — the Monaco editor
           on the Code tab has a large min-width and would otherwise blow out its
