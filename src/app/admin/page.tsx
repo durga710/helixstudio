@@ -13,6 +13,7 @@ import {
 import { WORKSPACE_TOOLS } from "@/lib/workspace-tools";
 import { PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
 import { OPENAI_MODEL } from "@/lib/openai";
+import { AdminAutoRefresh } from "./auto-refresh";
 
 export const metadata = { title: "Helix · Admin", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -82,7 +83,10 @@ export default async function AdminPage() {
   return (
     <div className="mx-auto max-w-[1100px] px-6 py-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-txt">Helix · Admin overview</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight text-txt">Helix · Admin overview</h1>
+          <AdminAutoRefresh intervalMs={30_000} />
+        </div>
         <p className="mt-1 text-[13px] text-txt3">
           System internals — agent move logic, prompts, AI usage, and configuration. Signed in as{" "}
           <span className="font-mono text-txt2">{session?.user?.email}</span>. Not linked from the app.
