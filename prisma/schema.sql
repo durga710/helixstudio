@@ -101,6 +101,11 @@ CREATE TABLE "Workspace" (
     "repo" TEXT,
     "baseBranch" TEXT,
     "notes" TEXT,
+    "setupScript" TEXT,
+    "envSnapshotId" TEXT,
+    "envSnapshotKey" TEXT,
+    "envReadyAt" TIMESTAMP(3),
+    "envSandbox" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

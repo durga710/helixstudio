@@ -23,15 +23,18 @@ import "server-only";
  * deployments (OIDC); locally, `vercel env pull` provides a 12h token.
  */
 
+import { createHash, randomBytes } from "node:crypto";
 import { Sandbox } from "@vercel/sandbox";
 import type { Workspace } from "@/generated/prisma/client";
+import { db } from "@/lib/db";
 import { listWorkspaceFiles, readWorkspaceFile } from "@/lib/workspace";
 import {
   type Detection,
   type RunInfo,
   type RunnerBackend,
   STOPPED_RUN,
-  buildRunCommand,
+  buildCommands,
+  defaultSetupScript,
   detectFramework,
   runEnv,
 } from "./types";
@@ -40,14 +43,21 @@ const PORT = 3000;
 const RUN_TIMEOUT_MS = 15 * 60 * 1000; // forgotten previews self-destruct
 const MAX_EXPORT_FILES = 300;
 const LOG_FILE = "/tmp/run.log";
+const SETUP_TIMEOUT_MS = 6 * 60 * 1000; // deps install budget before snapshotting
+const SNAPSHOT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // env cache lifetime (bounds Hobby's 15GB)
+// Files that, when changed, invalidate the cached environment snapshot.
+const ENV_KEY_FILES = ["package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "requirements.txt"];
 
-function sandboxName(workspaceId: string): string {
-  return `helix-run-${workspaceId}`;
+/** A fresh, single-use VM name. (Names are burned once a snapshot uses them.) */
+function freshSandboxName(workspaceId: string): string {
+  return `helix-run-${workspaceId.slice(-10)}-${randomBytes(4).toString("hex")}`;
 }
 
-async function findSandbox(workspaceId: string): Promise<Sandbox | null> {
+/** The workspace's live VM, found by the name stored on the row (envSandbox). */
+async function findSandbox(ws: { envSandbox: string | null }): Promise<Sandbox | null> {
+  if (!ws.envSandbox) return null;
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName(workspaceId), resume: false });
+    const sandbox = await Sandbox.get({ name: ws.envSandbox, resume: false });
     // A sandbox past its life (stopped/failed/expired) counts as no run.
     if (["stopped", "failed", "aborted"].includes(sandbox.status)) return null;
     return sandbox;
@@ -103,22 +113,36 @@ async function exportWorkspace(ws: Workspace): Promise<WorkspaceExport> {
   return { paths, contents, pkgJson };
 }
 
-/** Create the workspace's named VM and copy its files in — no app launch. */
+async function writeSource(sandbox: Sandbox, contents: WorkspaceExport["contents"]): Promise<void> {
+  if (contents.length === 0) return;
+  await sandbox.writeFiles(contents.map((f) => ({ path: f.path, content: Buffer.from(f.content, "utf8") })));
+}
+
+/** Create a fresh-named VM (optionally from a cached snapshot), record the name
+ *  on the workspace so later calls can find it, and copy the files in — no app
+ *  launch. */
 async function createSandboxWithFiles(
   ws: Workspace,
   detection: Detection,
   contents: WorkspaceExport["contents"],
+  fromSnapshotId?: string,
 ): Promise<Sandbox | { error: string }> {
+  const name = freshSandboxName(ws.id);
   let sandbox: Sandbox;
   try {
     sandbox = await Sandbox.create({
-      name: sandboxName(ws.id),
-      runtime: detection.kind === "python" ? "python3.13" : "node24",
+      name,
+      // Restoring from a snapshot brings its own runtime; only set runtime on a
+      // cold create.
+      ...(fromSnapshotId
+        ? { source: { type: "snapshot" as const, snapshotId: fromSnapshotId } }
+        : { runtime: detection.kind === "python" ? "python3.13" : "node24" }),
       ports: [PORT],
       timeout: RUN_TIMEOUT_MS,
       resources: { vcpus: 2 },
-      // No filesystem snapshot on stop: a resumed snapshot would restore the
-      // files but not the dev-server process, leaving a zombie "run".
+      // No auto filesystem snapshot on stop: a resumed snapshot would restore
+      // the files but not the dev-server process, leaving a zombie "run". The
+      // env cache uses explicit snapshot() calls instead.
       persistent: false,
       tags: { app: "helix", framework: detection.label.slice(0, 60) },
     });
@@ -127,12 +151,12 @@ async function createSandboxWithFiles(
     return { error: `Couldn't start a cloud VM: ${detail}` };
   }
 
+  // Record the live name so status/exec/stop on later requests find this VM.
+  await db().workspace.update({ where: { id: ws.id }, data: { envSandbox: name } }).catch(() => {});
+  ws.envSandbox = name; // keep the in-memory copy consistent for this request
+
   try {
-    if (contents.length > 0) {
-      await sandbox.writeFiles(
-        contents.map((f) => ({ path: f.path, content: Buffer.from(f.content, "utf8") })),
-      );
-    }
+    await writeSource(sandbox, contents);
   } catch (e) {
     await sandbox.stop().catch(() => {});
     const detail = e instanceof Error ? e.message : "unknown error";
@@ -141,12 +165,98 @@ async function createSandboxWithFiles(
   return sandbox;
 }
 
+/* ----------------------- environment cache ------------------------- */
+
+/** The effective setup script: the user's override, else stack default. */
+function effectiveSetup(ws: Workspace, detection: Detection, paths: string[]): string | null {
+  const custom = ws.setupScript?.trim();
+  return custom ? custom : defaultSetupScript(detection, paths);
+}
+
+/** Hash of the setup inputs — when it changes, the cached snapshot is stale. */
+function envKey(setup: string | null, exported: WorkspaceExport): string {
+  const h = createHash("sha256");
+  h.update(setup ?? "");
+  for (const name of ENV_KEY_FILES) {
+    const f = exported.contents.find((c) => c.path === name);
+    if (f) h.update(`\n${name}\n${f.content}`);
+  }
+  return h.digest("hex").slice(0, 32);
+}
+
+/** A prepared VM: dependencies installed (warm) or just created (cold). */
+export interface PreparedSandbox {
+  sandbox: Sandbox;
+  warm: boolean;
+}
+
+/**
+ * The workspace's VM with its dependencies already installed when possible.
+ *   1. A live sandbox (e.g. a running preview) → reuse as-is.
+ *   2. A valid cached snapshot (deps installed, setup inputs unchanged, fresh)
+ *      → restore from it instantly, then re-sync the current source on top.
+ *   3. Otherwise cold: create, run the setup script, snapshot it for next time.
+ * Setup/snapshot failures degrade gracefully — you just get a cold VM.
+ */
+export async function ensurePreparedSandbox(ws: Workspace): Promise<PreparedSandbox | { error: string }> {
+  const existing = await findSandbox(ws);
+  if (existing) return { sandbox: existing, warm: true };
+
+  const exported = await exportWorkspace(ws);
+  const detection = detectFramework(exported.paths, exported.pkgJson);
+  const setup = effectiveSetup(ws, detection, exported.paths);
+  const key = envKey(setup, exported);
+
+  // Warm: restore from a still-valid cached snapshot.
+  const cacheFresh =
+    ws.envSnapshotId &&
+    ws.envSnapshotKey === key &&
+    ws.envReadyAt &&
+    Date.now() - ws.envReadyAt.getTime() < SNAPSHOT_TTL_MS;
+  if (cacheFresh) {
+    const restored = await createSandboxWithFiles(ws, detection, exported.contents, ws.envSnapshotId!);
+    if (!("error" in restored)) return { sandbox: restored, warm: true };
+    // Snapshot gone/expired server-side — fall through to a cold build.
+  }
+
+  // Cold: fresh VM, run setup, snapshot for next time.
+  const sandbox = await createSandboxWithFiles(ws, detection, exported.contents);
+  if ("error" in sandbox) return sandbox;
+
+  if (setup) {
+    try {
+      await sandbox.runCommand({ cmd: "sh", args: ["-c", setup], timeoutMs: SETUP_TIMEOUT_MS });
+      const snap = await sandbox.snapshot({ expiration: SNAPSHOT_TTL_MS });
+      await db()
+        .workspace.update({
+          where: { id: ws.id },
+          data: { envSnapshotId: snap.snapshotId, envSnapshotKey: key, envReadyAt: new Date() },
+        })
+        .catch(() => {});
+    } catch {
+      // Setup or snapshot failed — keep going with a cold VM; the dev command /
+      // run_command will surface any real install error in its own output.
+    }
+  }
+  return { sandbox, warm: false };
+}
+
+/** Drop the cached environment so the next run rebuilds (the "Rebuild" button). */
+export async function clearEnvCache(workspaceId: string): Promise<void> {
+  await db()
+    .workspace.update({
+      where: { id: workspaceId },
+      data: { envSnapshotId: null, envSnapshotKey: null, envReadyAt: null },
+    })
+    .catch(() => {});
+}
+
 /* --------------------------- lifecycle ----------------------------- */
 
 async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
   await stop(ws.id); // one run per workspace
 
-  const { paths, contents, pkgJson } = await exportWorkspace(ws);
+  const { paths, pkgJson } = await exportWorkspace(ws);
   if (paths.length === 0) return { error: "The workspace is empty — nothing to run." };
 
   const detection = detectFramework(paths, pkgJson);
@@ -154,18 +264,22 @@ async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
     return { error: "This looks like a static site — the Preview tab renders it directly, no run needed." };
   }
 
-  const built = buildRunCommand(detection, paths, pkgJson, PORT, "0.0.0.0");
+  const built = buildCommands(detection, paths, pkgJson, PORT, "0.0.0.0");
   if ("error" in built) return { error: built.error };
 
-  const sandbox = await createSandboxWithFiles(ws, detection, contents);
-  if ("error" in sandbox) return sandbox;
+  // Prepared = deps installed (warm restore, or cold prepare ran the setup
+  // script), so we only run the dev command here — no inline install.
+  const prepared = await ensurePreparedSandbox(ws);
+  if ("error" in prepared) return prepared;
+  const { sandbox, warm } = prepared;
+  const command = built.dev;
 
   try {
     // Detached with output captured in the VM — later invocations read the
     // log file because no server memory survives between API calls.
     await sandbox.runCommand({
       cmd: "sh",
-      args: ["-c", `( ${built.command} ) > ${LOG_FILE} 2>&1`],
+      args: ["-c", `( ${command} ) > ${LOG_FILE} 2>&1`],
       detached: true,
       env: runEnv(PORT, "0.0.0.0"),
     });
@@ -176,17 +290,20 @@ async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
   }
 
   return {
-    status: built.installs ? "installing" : "starting",
+    status: "starting",
     framework: detection.label,
     url: sandbox.domain(PORT),
     port: null,
     reachable: false,
-    logs: [`[helix] ${detection.label} detected — ${built.command}`, "[helix] cloud VM started"],
+    logs: [
+      `[helix] ${detection.label} detected`,
+      warm ? "[helix] warm VM (deps cached) — starting the dev server" : "[helix] cold VM prepared — starting the dev server",
+    ],
   };
 }
 
 async function status(ws: Workspace): Promise<RunInfo> {
-  const sandbox = await findSandbox(ws.id);
+  const sandbox = await findSandbox(ws);
   if (!sandbox) return STOPPED_RUN;
 
   const url = sandbox.domain(PORT);
@@ -205,9 +322,15 @@ async function status(ws: Workspace): Promise<RunInfo> {
 }
 
 async function stop(workspaceId: string): Promise<void> {
-  const sandbox = await findSandbox(workspaceId);
-  if (!sandbox) return;
-  await sandbox.stop().catch(() => {});
+  const ws = await db().workspace.findUnique({
+    where: { id: workspaceId },
+    select: { envSandbox: true },
+  });
+  if (!ws?.envSandbox) return;
+  const sandbox = await findSandbox(ws);
+  if (sandbox) await sandbox.stop().catch(() => {});
+  // The name is single-use; clear it so the next run gets a fresh VM.
+  await db().workspace.update({ where: { id: workspaceId }, data: { envSandbox: null } }).catch(() => {});
 }
 
 export const sandboxBackend: RunnerBackend = { start, status, stop };
@@ -222,40 +345,22 @@ function capExecOutput(text: string): string {
 }
 
 /**
- * The VM the agent's run_command tool executes in. One sandbox per workspace
- * (same name as the preview runner's): if one is already alive — e.g. a
- * running preview — it's reused as-is; otherwise a fresh VM is created
- * exactly like start() does, just without launching the dev server.
- */
-export async function ensureCommandSandbox(ws: Workspace): Promise<Sandbox | { error: string }> {
-  const existing = await findSandbox(ws.id);
-  if (existing) return existing;
-
-  const { paths, contents, pkgJson } = await exportWorkspace(ws);
-  const detection = detectFramework(paths, pkgJson);
-  return createSandboxWithFiles(ws, detection, contents);
-}
-
-/**
- * Run one shell command in the workspace's VM and return its outcome. The
- * current workspace files are re-written into the VM first, so edits the
- * agent made earlier in the turn are visible — the VM copy is disposable,
- * nothing the command does flows back into the workspace.
+ * Run one shell command in the workspace's VM and return its outcome. The VM
+ * comes prepared (deps cached when possible), and the current workspace files
+ * are re-synced first so edits the agent made earlier in the turn are visible
+ * — the VM copy is disposable, nothing the command does flows back.
  */
 export async function execInSandbox(
   ws: Workspace,
   command: string,
 ): Promise<{ exitCode: number; stdout: string; stderr: string } | { error: string }> {
   try {
-    const sandbox = await ensureCommandSandbox(ws);
-    if ("error" in sandbox) return sandbox;
+    const prepared = await ensurePreparedSandbox(ws);
+    if ("error" in prepared) return prepared;
+    const { sandbox } = prepared;
 
     const { contents } = await exportWorkspace(ws);
-    if (contents.length > 0) {
-      await sandbox.writeFiles(
-        contents.map((f) => ({ path: f.path, content: Buffer.from(f.content, "utf8") })),
-      );
-    }
+    await writeSource(sandbox, contents);
 
     const result = await sandbox.runCommand({
       cmd: "sh",

@@ -127,6 +127,18 @@ model Workspace {
   // the start of every chat turn. Invisible to the user; never pushed.
   notes String?
 
+  // Cached cloud environment (Vercel Sandbox snapshot with deps installed) so
+  // preview + run_command start warm. setupScript null = auto-derived from the
+  // stack; envSnapshotKey is a hash of the setup inputs (invalidates on change).
+  setupScript    String?
+  envSnapshotId  String?
+  envSnapshotKey String?
+  envReadyAt     DateTime?
+  // The current live VM's unique name. Sandbox names are single-use once a
+  // snapshot references them, so each VM instance gets a fresh name tracked
+  // here (the serverless "find my VM again" handle).
+  envSandbox     String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -81,13 +81,18 @@ export function detectFramework(
  * embedding iframe needs it), 0.0.0.0 in a VM (traffic arrives through the
  * VM's public port mapping).
  */
-export function buildRunCommand(
+/**
+ * Splits the run into a SETUP step (install deps — cacheable via a sandbox
+ * snapshot) and a DEV step (start the server — run every time). `setup` is
+ * null when there's nothing to install.
+ */
+export function buildCommands(
   detection: Detection,
   paths: string[],
   pkgJson: string | null,
   port: number,
   host: "127.0.0.1" | "0.0.0.0",
-): { command: string; installs: boolean } | { error: string } {
+): { setup: string | null; dev: string } | { error: string } {
   if (detection.kind === "node") {
     const pkg = JSON.parse(pkgJson ?? "{}") as {
       scripts?: Record<string, string>;
@@ -107,14 +112,36 @@ export function buildRunCommand(
           ? `npx next dev -p ${port} -H ${host}`
           : null;
     if (!devCmd) return { error: "no dev/start script in package.json — add one and run again" };
-    return { command: `npm install --no-audit --no-fund && ${devCmd}`, installs: true };
+    return { setup: "npm install --no-audit --no-fund", dev: devCmd };
   }
   const main = paths.find((p) => /^(app|main|server)\.py$/.test(p));
   if (!main) return { error: "no app.py / main.py / server.py found" };
-  const installs = paths.includes("requirements.txt");
   return {
-    command: installs ? `pip install -r requirements.txt && python ${main}` : `python ${main}`,
-    installs,
+    setup: paths.includes("requirements.txt") ? "pip install -r requirements.txt" : null,
+    dev: `python ${main}`,
+  };
+}
+
+/** The default setup script for a workspace's stack (null = nothing to install). */
+export function defaultSetupScript(detection: Detection, paths: string[]): string | null {
+  if (detection.kind === "node") return "npm install --no-audit --no-fund";
+  if (detection.kind === "python" && paths.includes("requirements.txt")) return "pip install -r requirements.txt";
+  return null;
+}
+
+/** Back-compat: the combined `setup && dev` string (callers not yet split). */
+export function buildRunCommand(
+  detection: Detection,
+  paths: string[],
+  pkgJson: string | null,
+  port: number,
+  host: "127.0.0.1" | "0.0.0.0",
+): { command: string; installs: boolean } | { error: string } {
+  const built = buildCommands(detection, paths, pkgJson, port, host);
+  if ("error" in built) return built;
+  return {
+    command: built.setup ? `${built.setup} && ${built.dev}` : built.dev,
+    installs: Boolean(built.setup),
   };
 }
 

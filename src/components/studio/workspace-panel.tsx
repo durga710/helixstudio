@@ -18,6 +18,7 @@ import {
   Play,
   RefreshCw,
   Save,
+  Settings2,
   Sparkles,
   Square,
   UploadCloud,
@@ -30,6 +31,7 @@ import { Markdown } from "@/components/ui/markdown";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 import type { Changes, WorkspaceMeta } from "@/components/studio/studio";
 import { PushDialog } from "@/components/studio/push-dialog";
+import { EnvDialog } from "@/components/studio/env-dialog";
 import { FileTree, type TreeFile } from "@/components/studio/file-tree";
 
 const editorLoading = (
@@ -129,6 +131,7 @@ export function WorkspacePanel({
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [pushing, setPushing] = useState(false);
+  const [envOpen, setEnvOpen] = useState(false);
 
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewInfo, setPreviewInfo] = useState<string | null>(null);
@@ -656,6 +659,16 @@ export function WorkspacePanel({
 
           <button
             type="button"
+            aria-label="Environment"
+            title="Environment (setup script & cache)"
+            onClick={() => setEnvOpen(true)}
+            className="rounded-lg border border-border p-1.5 text-txt2 transition-colors hover:border-accent hover:text-txt"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+          </button>
+
+          <button
+            type="button"
             aria-label={fullscreen ? "Exit full screen" : "Full screen"}
             title={fullscreen ? "Exit full screen (Esc)" : "Full screen"}
             onClick={() => setFullscreen((v) => !v)}
@@ -1105,6 +1118,7 @@ export function WorkspacePanel({
         </div>
       )}
 
+      {envOpen && <EnvDialog workspaceId={workspace.id} onClose={() => setEnvOpen(false)} />}
       {pushing && (
         <PushDialog
           workspace={workspace}
