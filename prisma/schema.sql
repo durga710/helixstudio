@@ -102,6 +102,36 @@ CREATE TABLE "SpaceTask" (
 );
 
 -- CreateTable
+CREATE TABLE "DeployConnection" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "provider" TEXT NOT NULL,
+    "token" TEXT NOT NULL,
+    "config" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "DeployConnection_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "WorkspaceDeploy" (
+    "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "provider" TEXT NOT NULL,
+    "projectId" TEXT NOT NULL,
+    "projectName" TEXT NOT NULL,
+    "dashboardUrl" TEXT,
+    "productionUrl" TEXT,
+    "lastState" TEXT,
+    "lastDeployAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "WorkspaceDeploy_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "WorkspaceIntent" (
     "id" TEXT NOT NULL,
     "workspaceId" TEXT NOT NULL,
@@ -494,6 +524,15 @@ CREATE INDEX "SpaceEvent_spaceId_createdAt_idx" ON "SpaceEvent"("spaceId", "crea
 CREATE INDEX "SpaceTask_spaceId_status_order_idx" ON "SpaceTask"("spaceId", "status", "order");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "DeployConnection_userId_provider_key" ON "DeployConnection"("userId", "provider");
+
+-- CreateIndex
+CREATE INDEX "DeployConnection_userId_idx" ON "DeployConnection"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkspaceDeploy_workspaceId_key" ON "WorkspaceDeploy"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "WorkspaceIntent_workspaceId_createdAt_idx" ON "WorkspaceIntent"("workspaceId", "createdAt");
 
 -- CreateIndex
@@ -609,6 +648,12 @@ ALTER TABLE "SpaceTask" ADD CONSTRAINT "SpaceTask_spaceId_fkey" FOREIGN KEY ("sp
 
 -- AddForeignKey
 ALTER TABLE "SpaceTask" ADD CONSTRAINT "SpaceTask_assigneeId_fkey" FOREIGN KEY ("assigneeId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DeployConnection" ADD CONSTRAINT "DeployConnection_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkspaceDeploy" ADD CONSTRAINT "WorkspaceDeploy_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkspaceIntent" ADD CONSTRAINT "WorkspaceIntent_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;

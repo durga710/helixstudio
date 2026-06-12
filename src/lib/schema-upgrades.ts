@@ -200,4 +200,45 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "WorkspaceChange" ADD CONSTRAINT "WorkspaceChange_intentId_fkey" FOREIGN KEY ("intentId") REFERENCES "WorkspaceIntent"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- 2026-06 · Deploy integrations (DeployConnection, WorkspaceDeploy)
+CREATE TABLE IF NOT EXISTS "DeployConnection" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "provider" TEXT NOT NULL,
+    "token" TEXT NOT NULL,
+    "config" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "DeployConnection_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "WorkspaceDeploy" (
+    "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "provider" TEXT NOT NULL,
+    "projectId" TEXT NOT NULL,
+    "projectName" TEXT NOT NULL,
+    "dashboardUrl" TEXT,
+    "productionUrl" TEXT,
+    "lastState" TEXT,
+    "lastDeployAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "WorkspaceDeploy_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "DeployConnection_userId_provider_key" ON "DeployConnection"("userId", "provider");
+CREATE INDEX IF NOT EXISTS "DeployConnection_userId_idx" ON "DeployConnection"("userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "WorkspaceDeploy_workspaceId_key" ON "WorkspaceDeploy"("workspaceId");
+
+DO $$ BEGIN
+  ALTER TABLE "DeployConnection" ADD CONSTRAINT "DeployConnection_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "WorkspaceDeploy" ADD CONSTRAINT "WorkspaceDeploy_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 `;

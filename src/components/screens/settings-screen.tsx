@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { ACCENTS, useTheme, type Density, type Theme } from "@/components/theme-provider";
 import { usePrefs } from "@/hooks/use-prefs";
 import { AiSection } from "@/components/screens/settings/ai-section";
+import { DeploySection } from "@/components/screens/settings/deploy-section";
 import { PrReviewSection } from "@/components/screens/settings/pr-review-section";
 import { timeAgo, cn } from "@/lib/utils";
 import type { MemoryEntry, MemoryScope } from "@/lib/types";
@@ -444,6 +445,9 @@ export function SettingsScreen({
 
         {/* Editor AI & GitHub (workspace editor preferences, stored per user) */}
         <AiSection />
+
+        {/* Hosting platform connections (Vercel…) for one-push deploys */}
+        <DeploySection />
 
         {/* Auto-review pull requests (GitHub webhook) */}
         <PrReviewSection />

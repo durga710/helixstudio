@@ -22,6 +22,7 @@ import {
   MonitorPlay,
   Play,
   RefreshCw,
+  Rocket,
   Save,
   ScrollText,
   Settings2,
@@ -39,6 +40,7 @@ import { Markdown } from "@/components/ui/markdown";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 import type { Changes, WorkspaceMeta } from "@/components/studio/studio";
 import { PushDialog } from "@/components/studio/push-dialog";
+import { DeployDialog } from "@/components/studio/deploy-dialog";
 import { EnvDialog } from "@/components/studio/env-dialog";
 import { ShareMenu } from "@/components/studio/share-menu";
 import { FileTree, type TreeFile } from "@/components/studio/file-tree";
@@ -155,6 +157,7 @@ export function WorkspacePanel({
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [pushing, setPushing] = useState(false);
+  const [deployOpen, setDeployOpen] = useState(false);
   const [envOpen, setEnvOpen] = useState(false);
 
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
@@ -944,6 +947,10 @@ export function WorkspacePanel({
                 <UploadCloud className="h-3.5 w-3.5" />
                 Push
               </Button>
+              <Button variant="ghost" onClick={() => setDeployOpen(true)} className="px-3.5 py-1.5" title="Deploy to a hosting platform">
+                <Rocket className="h-3.5 w-3.5" />
+                Deploy
+              </Button>
             </>
           ) : (
             <Button onClick={() => void forkWorkspace()} disabled={forking} className="px-3.5 py-1.5">
@@ -1489,6 +1496,13 @@ export function WorkspacePanel({
           dirtyCount={dirtyCount}
           isGuest={isGuest}
           onClose={() => setPushing(false)}
+        />
+      )}
+      {deployOpen && (
+        <DeployDialog
+          workspaceId={workspace.id}
+          hasRepo={Boolean(workspace.repo) && workspace.provider === "github"}
+          onClose={() => setDeployOpen(false)}
         />
       )}
     </div>

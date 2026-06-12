@@ -40,6 +40,7 @@ model User {
   workspaces    Workspace[]
   repoWatches   RepoWatch[]
   preferences   UserPreferences?
+  deployConnections DeployConnection[]
   ownedSpaces      Space[]                @relation("SpaceOwner")
   spaceMemberships SpaceMember[]
   submissions      AssignmentSubmission[]
@@ -297,6 +298,7 @@ model Workspace {
   messages WorkspaceMessage[]
   tasks    WorkspaceTask[]
   intents  WorkspaceIntent[]
+  deploy   WorkspaceDeploy?
 
   // Classroom assignments (v2): this workspace as a starter template, and as
   // a student's submission copy.
@@ -339,6 +341,42 @@ model WorkspaceFile {
   updatedAt   DateTime  @updatedAt
 
   @@unique([workspaceId, path])
+}
+
+// ---------- Deploy integrations ----------
+// A user's connection to a hosting platform (Vercel, Netlify, Cloudflare
+// Pages, Render…). One token per provider; `config` holds provider-specific
+// extras (Vercel teamId, Cloudflare accountId, etc.). Mirrors the git-host
+// model so new platforms slot in as adapters.
+model DeployConnection {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider  String // vercel | netlify | cloudflare | render
+  token     String
+  config    Json? // { teamId } | { accountId } | …
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+// The hosting project a workspace is linked to. Git-linked: the platform
+// auto-builds on every push to the workspace's repo. One per workspace.
+model WorkspaceDeploy {
+  id            String    @id @default(cuid())
+  workspaceId   String    @unique
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider      String // vercel | netlify | …
+  projectId     String // platform project id
+  projectName   String // platform project name/slug
+  dashboardUrl  String? // link to the platform's project page
+  productionUrl String? // the live site
+  lastState     String? // READY | BUILDING | ERROR | QUEUED | CANCELED
+  lastDeployAt  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 // ---------- Intent ledger ----------
