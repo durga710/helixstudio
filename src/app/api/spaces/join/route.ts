@@ -6,6 +6,7 @@
 import { z } from "zod";
 import { ok, apiErrors } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { canJoin } from "@/lib/billing";
 import { guard } from "@/lib/route-helpers";
 
 export const runtime = "nodejs";
@@ -22,14 +23,29 @@ export async function POST(req: Request) {
 
   const space = await db().space.findUnique({
     where: { joinCode: parsed.data.code.trim() },
-    select: { id: true, name: true },
+    select: {
+      id: true,
+      name: true,
+      plan: true,
+      seats: true,
+      currentPeriodEnd: true,
+      _count: { select: { members: true } },
+    },
   });
   if (!space) return apiErrors.notFound("Invite link");
 
-  await db().spaceMember.upsert({
+  // Existing members always pass (idempotent re-join); only NEW members count
+  // against the seat cap.
+  const existing = await db().spaceMember.findUnique({
     where: { spaceId_userId: { spaceId: space.id, userId: g.user.id } },
-    create: { spaceId: space.id, userId: g.user.id, role: "member" },
-    update: {},
+    select: { id: true },
   });
+  if (!existing) {
+    const gate = canJoin(space, space._count.members);
+    if (!gate.allowed) return apiErrors.upgradeRequired(gate.reason!);
+    await db().spaceMember.create({
+      data: { spaceId: space.id, userId: g.user.id, role: "member" },
+    });
+  }
   return ok({ id: space.id, name: space.name });
 }

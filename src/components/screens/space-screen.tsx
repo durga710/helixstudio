@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { useToast } from "@/components/ui/toast";
 import { AssignmentsSection } from "@/components/screens/assignments-section";
+import { SpaceBillingCard, type SpaceBilling } from "@/components/screens/space-billing-card";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 
 type SpaceKind = "team" | "classroom";
@@ -70,6 +71,7 @@ interface SpaceDetail {
   kind: SpaceKind;
   isOwner: boolean;
   joinCode: string;
+  billing: SpaceBilling;
   members: Member[];
   workspaces: SharedWorkspace[];
 }
@@ -97,7 +99,7 @@ export function SpaceScreen({ youName }: { youName?: string | null }) {
   const [spaces, setSpaces] = useState<SpaceSummary[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [inviteInvalid, setInviteInvalid] = useState(false);
+  const [inviteNotice, setInviteNotice] = useState<"invalid" | "full" | null>(null);
 
   // Create / join forms (empty state + sidebar).
   const [newName, setNewName] = useState("");
@@ -127,10 +129,14 @@ export function SpaceScreen({ youName }: { youName?: string | null }) {
     void loadSpaces();
   }, [loadSpaces]);
 
-  // Honour ?invite=invalid and default-select ?s=<id> once spaces arrive.
+  // Honour ?invite=invalid/full, ?billing=success, and default-select ?s=<id>.
   useEffect(() => {
-    if (params.get("invite") === "invalid") setInviteInvalid(true);
-  }, [params]);
+    const invite = params.get("invite");
+    if (invite === "invalid" || invite === "full") setInviteNotice(invite);
+    if (params.get("billing") === "success") {
+      toast("Payment received — your space is upgrading now");
+    }
+  }, [params, toast]);
 
   useEffect(() => {
     if (!spaces || spaces.length === 0) return;
@@ -225,13 +231,17 @@ export function SpaceScreen({ youName }: { youName?: string | null }) {
           other&apos;s projects — read-only, copy any to make it yours.
         </p>
 
-        {inviteInvalid && (
+        {inviteNotice && (
           <Card className="mt-4 flex items-center gap-3 border-warn/40 bg-warn/10 p-3.5">
-            <span className="text-[13px] text-warn">That invite link is invalid or expired.</span>
+            <span className="text-[13px] text-warn">
+              {inviteNotice === "full"
+                ? "That space is full — every seat is taken. Ask the owner to add seats."
+                : "That invite link is invalid or expired."}
+            </span>
             <button
               type="button"
               aria-label="Dismiss"
-              onClick={() => setInviteInvalid(false)}
+              onClick={() => setInviteNotice(null)}
               className="ml-auto text-txt3 transition-colors hover:text-txt"
             >
               <X className="h-4 w-4" />
@@ -805,6 +815,11 @@ function SpaceDetailPanel({
           ))}
         </div>
       </Card>
+
+      {/* Plan & seats (owner only; hidden when billing isn't configured) */}
+      {detail.isOwner && (
+        <SpaceBillingCard spaceId={detail.id} kind={detail.kind} billing={detail.billing} />
+      )}
 
       {/* Assignments (classrooms only) */}
       {detail.kind === "classroom" && (

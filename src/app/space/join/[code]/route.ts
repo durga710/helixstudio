@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, dbEnabled, schemaReady } from "@/lib/db";
+import { canJoin } from "@/lib/billing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,13 +33,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
 
   if (dbEnabled()) {
     await schemaReady();
-    const space = await db().space.findUnique({ where: { joinCode: code }, select: { id: true } });
+    const space = await db().space.findUnique({
+      where: { joinCode: code },
+      select: { id: true, plan: true, seats: true, currentPeriodEnd: true, _count: { select: { members: true } } },
+    });
     if (space) {
-      await db().spaceMember.upsert({
+      const existing = await db().spaceMember.findUnique({
         where: { spaceId_userId: { spaceId: space.id, userId: session.user.id } },
-        create: { spaceId: space.id, userId: session.user.id, role: "member" },
-        update: {},
+        select: { id: true },
       });
+      if (!existing) {
+        const gate = canJoin(space, space._count.members);
+        if (!gate.allowed) {
+          // Seats are full — land on the Space page with a notice.
+          const res = to("/space?invite=full");
+          res.cookies.set(JOIN_COOKIE, "", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 0 });
+          return res;
+        }
+        await db().spaceMember.create({
+          data: { spaceId: space.id, userId: session.user.id, role: "member" },
+        });
+      }
       const res = to(`/space?s=${space.id}`);
       res.cookies.set(JOIN_COOKIE, "", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 0 });
       return res;

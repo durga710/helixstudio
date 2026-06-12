@@ -9,6 +9,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { ok, apiErrors } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { billingEnabled, isPlanActive, memberCap, FREE_ASSIGNMENT_CAP } from "@/lib/billing";
 import { guard } from "@/lib/route-helpers";
 
 export const runtime = "nodejs";
@@ -20,7 +21,20 @@ type Params = { params: Promise<{ id: string }> };
 async function memberSpace(spaceId: string, userId: string) {
   const member = await db().spaceMember.findUnique({
     where: { spaceId_userId: { spaceId, userId } },
-    select: { space: { select: { id: true, name: true, kind: true, ownerId: true, joinCode: true } } },
+    select: {
+      space: {
+        select: {
+          id: true,
+          name: true,
+          kind: true,
+          ownerId: true,
+          joinCode: true,
+          plan: true,
+          seats: true,
+          currentPeriodEnd: true,
+        },
+      },
+    },
   });
   return member?.space ?? null;
 }
@@ -33,12 +47,13 @@ export async function GET(_req: Request, { params }: Params) {
   const space = await memberSpace(id, g.user.id);
   if (!space) return apiErrors.notFound("Space");
 
-  const [members, workspaces] = await Promise.all([
+  const [members, assignmentCount, workspaces] = await Promise.all([
     db().spaceMember.findMany({
       where: { spaceId: id },
       orderBy: { joinedAt: "asc" },
       select: { role: true, user: { select: { id: true, name: true, email: true, image: true } } },
     }),
+    db().assignment.count({ where: { spaceId: id } }),
     db().workspace.findMany({
       where: { spaceId: id },
       orderBy: { updatedAt: "desc" },
@@ -63,6 +78,16 @@ export async function GET(_req: Request, { params }: Params) {
     kind: space.kind,
     isOwner,
     joinCode: space.joinCode,
+    billing: {
+      enabled: billingEnabled(),
+      active: isPlanActive(space),
+      seats: space.seats,
+      memberCount: members.length,
+      memberCap: memberCap(space),
+      assignmentCount,
+      assignmentCap: isPlanActive(space) ? null : FREE_ASSIGNMENT_CAP,
+      renewsAt: isPlanActive(space) && space.currentPeriodEnd ? space.currentPeriodEnd.toISOString() : null,
+    },
     members: members.map((m) => ({
       id: m.user.id,
       name: m.user.name ?? m.user.email ?? "member",
