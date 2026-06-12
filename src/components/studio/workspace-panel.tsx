@@ -121,10 +121,12 @@ export function WorkspacePanel({
   const composeSeq = useRef(0);
   const monacoTheme = useMonacoTheme();
 
-  // Framework app runner (Next.js/Vite/Flask… running on this machine)
+  // Framework app runner (Next.js/Vite/Flask… on this machine in dev, in a
+  // cloud VM with a public preview URL on the hosted site)
   interface RunInfo {
     status: "exporting" | "installing" | "starting" | "running" | "stopped" | "error";
     framework: string;
+    url: string | null;
     port: number | null;
     reachable: boolean;
     logs: string[];
@@ -663,14 +665,14 @@ export function WorkspacePanel({
                   )}
                 </span>
                 <div className="ml-auto flex items-center gap-2">
-                  {run?.port && run.reachable && (
+                  {run?.url && run.reachable && (
                     <a
-                      href={`http://localhost:${run.port}`}
+                      href={run.url}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 font-mono text-[11px] text-ok transition-colors hover:brightness-110"
                     >
-                      :{run.port} <ExternalLink className="h-3 w-3" />
+                      {run.port ? `:${run.port}` : "open preview"} <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
                   {run && run.status !== "stopped" && run.status !== "error" ? (
@@ -695,10 +697,10 @@ export function WorkspacePanel({
                 </div>
               </div>
               <div className="min-h-0 flex-1">
-                {run?.port && run.reachable ? (
+                {run?.url && run.reachable ? (
                   <iframe
                     title="App preview"
-                    src={`http://localhost:${run.port}`}
+                    src={run.url}
                     className="h-full w-full bg-white"
                   />
                 ) : run && run.status !== "stopped" ? (
@@ -707,7 +709,10 @@ export function WorkspacePanel({
                     <div className="flex items-center gap-2 px-4 py-2 text-xs text-txt2">
                       {run.status !== "error" && <Loader2 className="h-3.5 w-3.5 animate-spin text-ok" />}
                       {run.status === "exporting" && "exporting workspace files…"}
-                      {run.status === "installing" && "installing dependencies (first run can take a few minutes)…"}
+                      {run.status === "installing" &&
+                        (run.port
+                          ? "installing dependencies (first run can take a few minutes)…"
+                          : "starting a cloud VM and installing dependencies (a minute or two)…")}
                       {(run.status === "starting" || (run.status === "running" && !run.reachable)) &&
                         "starting the dev server…"}
                       {run.status === "error" && <span className="text-bad">the app crashed — logs below</span>}
@@ -723,8 +728,9 @@ export function WorkspacePanel({
                       <MonitorPlay className="mx-auto mb-3 h-8 w-8 text-txt3" />
                       <p className="text-sm text-txt2">This is a framework app — run it to preview.</p>
                       <p className="mt-1 max-w-sm text-xs text-txt3">
-                        Helix exports the workspace, installs dependencies, and starts the dev server
-                        on this machine. Hit <span className="text-txt2">Run app</span> above.
+                        Helix installs dependencies and starts the dev server — locally in dev, in a
+                        cloud VM with a shareable preview link on the hosted site (auto-stops after
+                        ~15 minutes). Hit <span className="text-txt2">Run app</span> above.
                       </p>
                     </div>
                   </div>

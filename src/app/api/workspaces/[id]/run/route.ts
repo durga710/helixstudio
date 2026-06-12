@@ -1,15 +1,16 @@
 /**
- * /api/workspaces/[id]/run — the local app runner (framework live preview).
+ * /api/workspaces/[id]/run — the app runner (framework live preview).
  *   POST   → export the workspace and start its dev server
- *   GET    → status + port + logs (with live reachability check)
+ *   GET    → status + preview URL + logs (with live reachability check)
  *   DELETE → stop the run
  *
- * Only available when GCODE runs on the user's own machine (dev/self-host);
- * serverless deploys get a clear error instead.
+ * In local dev the app runs on this machine (localhost preview); on
+ * serverless deploys it runs in a cloud microVM with a public preview URL.
+ * Cloud runs cost money, so they require a real (non-guest) account.
  */
 
 import { ok, apiErrors } from "@/lib/api-response";
-import { getGitHubToken } from "@/lib/auth";
+import { auth, getGitHubToken } from "@/lib/auth";
 import { withGitHubToken } from "@/lib/github";
 import { startRun, stopRun, getRunInfo, runnerEnabled } from "@/lib/app-runner";
 import { guardWorkspace } from "@/lib/route-helpers";
@@ -25,9 +26,12 @@ export async function POST(_req: Request, { params }: Params) {
   if ("response" in g) return g.response;
 
   if (!runnerEnabled()) {
-    return apiErrors.badRequest(
-      "Running apps is only available when Helix runs on your own machine (local dev / self-hosted).",
-    );
+    const session = await auth();
+    if (session?.user?.isGuest) {
+      return apiErrors.badRequest(
+        "Cloud runs need an account — sign in with GitHub, Google, or email to run apps.",
+      );
+    }
   }
 
   const token = await getGitHubToken(g.user.id);
@@ -41,7 +45,7 @@ export async function GET(_req: Request, { params }: Params) {
   const g = await guardWorkspace("run.read", id, { limit: 1200, windowMs: 60 * 60 * 1000 });
   if ("response" in g) return g.response;
 
-  return ok(await getRunInfo(g.ws.id));
+  return ok(await getRunInfo(g.ws));
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
