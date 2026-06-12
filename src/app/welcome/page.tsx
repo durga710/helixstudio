@@ -5,13 +5,17 @@ import {
   Bot,
   ChartLine,
   Check,
+  CircleHelp,
   Code2,
   DraftingCompass,
+  History,
   MessageSquare,
+  MonitorPlay,
   Play,
   Rocket,
   Search,
   ShieldCheck,
+  Undo2,
   Wrench,
   Zap,
 } from "lucide-react";
@@ -23,7 +27,7 @@ import { HELIX_SKILLS } from "@/data/skill-catalog";
 export const metadata: Metadata = {
   title: "Helix Studio — The AI coding platform",
   description:
-    "A real editor, a repository-aware assistant, and a five-agent review pipeline — from idea to production in one workspace.",
+    "A real editor, a repository-aware agent that plans, builds, and verifies its own work, and a line-by-line intent ledger so every change is explainable and reversible — from idea to production in one workspace.",
 };
 
 /* Fixed dark palette (matches helixstudio-landing.html / the login page) —
@@ -59,6 +63,34 @@ const PIPELINE = [
   { icon: Search, name: "Reviewer", role: "Finds logic errors" },
   { icon: ShieldCheck, name: "Security", role: "Catches vulnerabilities" },
   { icon: Zap, name: "Performance", role: "Optimizes hot paths" },
+];
+
+// The capabilities that set Helix apart — all shipped and live.
+const FLAGSHIP = [
+  {
+    icon: History,
+    title: "Line-by-line intent ledger",
+    body:
+      "Every generated line links back to the request, the plan step, the agent's reasoning, and the tests that protect it. Click any line and ask “why does this exist?”",
+  },
+  {
+    icon: Undo2,
+    title: "Intentional undo",
+    body:
+      "Revert an idea, not a commit. “Remove the invite feature” reverses the code it introduced and preserves everything you built after — behind a preview diff you approve.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Self-verifying agent",
+    body:
+      "Plan → Build → Verify. After it writes code, the agent runs your build and tests in a sandbox, reads the errors, and fixes them — before handing the work back.",
+  },
+  {
+    icon: MonitorPlay,
+    title: "Live preview, real runtime",
+    body:
+      "Run any framework app — Next.js, Vite, Flask — in a cloud sandbox with a shareable URL. Not a screenshot: the actual app, booting in seconds.",
+  },
 ];
 
 const PLANS = [
@@ -106,6 +138,7 @@ export default async function WelcomePage() {
           </Link>
           <div className="ml-[18px] hidden gap-[26px] text-sm md:flex" style={{ color: C.txt2 }}>
             <a href="#features" className="hover:text-[#eef0f5]">Features</a>
+            <a href="#flagship" className="hover:text-[#eef0f5]">Why Helix</a>
             <a href="#agents" className="hover:text-[#eef0f5]">Agents</a>
             <a href="#skills" className="hover:text-[#eef0f5]">Skills</a>
             <a href="#pricing" className="hover:text-[#eef0f5]">Pricing</a>
@@ -250,6 +283,92 @@ export default async function WelcomePage() {
                 <p className="mt-1.5 text-[13.5px]" style={{ color: C.txt2 }}>{f.body}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Flagship — the differentiated, shipped capabilities */}
+      <section className="py-[70px]" id="flagship">
+        <div className="mx-auto max-w-[1120px] px-6">
+          <div className="mx-auto mb-11 max-w-[680px] text-center">
+            <span className="text-xs font-bold uppercase tracking-[0.14em] text-accent">Why Helix is different</span>
+            <h2 className="mt-2.5 text-[clamp(26px,4vw,38px)] font-bold tracking-tight">
+              AI that explains itself — and cleans up after itself.
+            </h2>
+            <p className="mt-3 text-base" style={{ color: C.txt2 }}>
+              Most AI coders hand you a wall of code and walk away. Helix records the intent behind every line,
+              proves its work runs, and lets you reverse a whole idea in one move.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {FLAGSHIP.map((f) => (
+              <div
+                key={f.title}
+                className="flex gap-4 rounded-[14px] border p-[22px] transition-all duration-150 hover:-translate-y-0.5 hover:border-accent"
+                style={{ borderColor: C.border, background: C.panel }}
+              >
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] bg-[color-mix(in_srgb,var(--accent)_13%,transparent)] text-accent">
+                  <f.icon className="h-[22px] w-[22px]" strokeWidth={1.7} />
+                </div>
+                <div>
+                  <h3 className="text-[17px] font-semibold">{f.title}</h3>
+                  <p className="mt-1.5 text-[13.5px]" style={{ color: C.txt2 }}>{f.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Intent-ledger spotlight: a mini editor showing the provenance card */}
+          <div className="mx-auto mt-7 max-w-[1000px] overflow-hidden rounded-2xl border shadow-[0_30px_90px_rgba(0,0,0,0.55)]" style={{ borderColor: C.border2, background: C.bg2 }}>
+            <div className="flex h-[38px] items-center gap-[7px] border-b px-3.5" style={{ borderColor: C.border, background: C.panel }}>
+              <span className="h-[11px] w-[11px] rounded-full bg-[#ff5f57]" />
+              <span className="h-[11px] w-[11px] rounded-full bg-[#febc2e]" />
+              <span className="h-[11px] w-[11px] rounded-full bg-[#28c840]" />
+              <span className="ml-3.5 inline-flex items-center gap-1.5 font-mono text-[11.5px]" style={{ color: C.txt3 }}>
+                <History className="h-3.5 w-3.5" /> intent ledger · api/invites.ts
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_320px]">
+              {/* code with a highlighted line */}
+              <div className="bg-[#0a0c10] p-4 text-left font-mono text-xs leading-[1.85]" style={{ color: C.txt2 }}>
+                <div><span style={{ color: C.txt3 }}>14</span>&nbsp;&nbsp;<span className="tok-k">const</span> code = <span className="tok-f">randomCode</span>(<span className="tok-s">8</span>)</div>
+                <div className="-mx-4 px-4" style={{ background: "color-mix(in srgb, var(--accent) 12%, transparent)", boxShadow: "inset 3px 0 0 var(--accent)" }}>
+                  <span style={{ color: C.txt3 }}>15</span>&nbsp;&nbsp;<span className="tok-k">await</span> <span className="tok-f">sendInviteEmail</span>(email, code)
+                </div>
+                <div><span style={{ color: C.txt3 }}>16</span>&nbsp;&nbsp;<span className="tok-k">return</span> {"{ code }"}</div>
+                <div className="mt-1">&nbsp;</div>
+                <div><span style={{ color: C.txt3 }}>18</span>&nbsp;&nbsp;<span className="tok-cm">{"// protected by invites.test.ts"}</span></div>
+              </div>
+              {/* provenance card */}
+              <div className="border-t p-4 text-left md:border-l md:border-t-0" style={{ borderColor: C.border, background: C.panel }}>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold text-accent" style={{ borderColor: C.border2 }}>
+                    <Bot className="h-3 w-3" /> AI change
+                  </span>
+                  <span className="text-[10.5px]" style={{ color: C.txt3 }}>2m ago</span>
+                </div>
+                <p className="mt-2 text-[12.5px] font-medium" style={{ color: C.txt }}>Add team invitations</p>
+                <p className="mt-1 text-[12px]" style={{ color: C.txt2 }}>
+                  Sends the invite email so a new member actually receives their code — part of the “add invites”
+                  request.
+                </p>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  <span className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10.5px]" style={{ borderColor: C.border2, color: C.txt2 }}>
+                    <CircleHelp className="h-3 w-3" /> Why?
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10.5px]" style={{ borderColor: C.border2, color: C.txt2 }}>
+                    <Search className="h-3 w-3" /> If removed?
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10.5px] text-[#f87171]" style={{ borderColor: "color-mix(in srgb, #f87171 35%, transparent)" }}>
+                    <Undo2 className="h-3 w-3" /> Undo
+                  </span>
+                </div>
+                <p className="mt-2.5 inline-flex items-center gap-1 text-[10.5px] text-ok">
+                  <ShieldCheck className="h-3 w-3" /> protected by invites.test.ts
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
