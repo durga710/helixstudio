@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helix Space v2 — Classrooms, Assignments, Plans</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #0d1626; color: #f8fbff;
+    width: 1123px; min-height: 794px; padding: 38px 46px;
+  }
+  h1 { font-size: 28px; letter-spacing: -0.5px; }
+  h1 span { color: #34d399; }
+  .sub { color: #9cadc4; font-size: 13.5px; margin-top: 6px; margin-bottom: 24px; }
+  .cards { display: flex; flex-direction: column; gap: 14px; }
+  .card {
+    display: flex; align-items: stretch;
+    border: 1px solid #28364f; border-radius: 14px; overflow: hidden; background: #121d30;
+  }
+  .icon {
+    width: 116px; flex-shrink: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 6px; padding: 14px;
+    background: rgba(52,211,153,.08); border-right: 1px solid #28364f;
+  }
+  .icon .emoji { font-size: 36px; line-height: 1; }
+  .icon .num { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; color: #34d399; text-align: center; }
+  .body { flex: 1; padding: 14px 18px; }
+  .title { font-size: 17px; font-weight: 700; }
+  .plain { color: #cdd7e6; font-size: 13px; margin-top: 4px; }
+  .how {
+    margin-top: 10px; border-radius: 9px; padding: 9px 12px; font-size: 12px; line-height: 1.45;
+    background: rgba(96,165,250,.07); border: 1px solid rgba(96,165,250,.3); color: #c9d8ef;
+  }
+  .how b { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 3px; color: #60a5fa; }
+  code { font-family: Consolas, monospace; font-size: 11.5px; color: #7dd3fc; }
+  .flow {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .step {
+    border: 1px solid #28364f; background: #0d1626; border-radius: 8px;
+    padding: 7px 11px; font-size: 11.5px; color: #cdd7e6;
+  }
+  .step b { color: #34d399; display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+  .arrow { color: #5f6f86; font-size: 14px; }
+  .footer { margin-top: 22px; font-size: 10.5px; color: #5f6f86; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>Helix <span>Space v2</span> — Classrooms, Assignments, Plans</h1>
+  <div class="sub">Three additions to Spaces. Each works the same way for everyone — create a Space, share one invite link, and the rest happens in the editor you already use.</div>
+
+  <div class="cards">
+    <!-- 1 -->
+    <div class="card">
+      <div class="icon"><div class="emoji">🎓</div><div class="num">1 · CLASSROOM<br/>SPACES</div></div>
+      <div class="body">
+        <div class="title">A Space can now be a team or a classroom</div>
+        <div class="plain">A team works like before — everyone shares projects with everyone. A classroom adds one role: the person who created it (the instructor) can post assignments and open each student's assignment work read-only. Students still own their workspaces, and classmates can't see each other's assignment work.</div>
+        <div class="how"><b>How it works</b>One field on the Space (<code>kind: team | classroom</code>) switches the behavior. Access is checked on the server for every file read: owner → full access; Space member → shared projects only; classroom instructor → submissions linked to their assignments, read-only.</div>
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <div class="card">
+      <div class="icon"><div class="emoji">📋</div><div class="num">2 · ASSIGNMENTS</div></div>
+      <div class="body">
+        <div class="title">Hand out starter code, collect work, review with AI help</div>
+        <div class="flow">
+          <div class="step"><b>Instructor</b>Creates an assignment — instructions, due date, optional starter project</div>
+          <span class="arrow">→</span>
+          <div class="step"><b>Student</b>"Start" copies the starter into their own workspace — full editor + AI</div>
+          <span class="arrow">→</span>
+          <div class="step"><b>Student</b>Submits when done (can keep working until it's graded)</div>
+          <span class="arrow">→</span>
+          <div class="step"><b>Instructor</b>Opens the work read-only, runs an AI review, writes feedback + a grade</div>
+          <span class="arrow">→</span>
+          <div class="step"><b>Student</b>Sees feedback and grade once it's marked reviewed</div>
+        </div>
+        <div class="how"><b>How it works</b>Each submission is one database row tying student ↔ assignment ↔ their copied workspace. The copy is independent (starting from a 400-file-max snapshot of the starter). The AI review is a single model call with the instructor's configured model; its output stays instructor-only.</div>
+      </div>
+    </div>
+
+    <!-- 3 -->
+    <div class="card">
+      <div class="icon"><div class="emoji">💺</div><div class="num">3 · PLANS &amp;<br/>SEATS</div></div>
+      <div class="body">
+        <div class="title">Free plan for small groups, seats for bigger ones</div>
+        <div class="plain">Every Space starts free: up to 5 members and 2 assignments. A subscription adds seats (one per member) and removes the assignment limit — classrooms automatically get the education rate. If a subscription ends, nothing is deleted and nobody is removed; the Space just stops accepting new members past the free limit.</div>
+        <div class="how"><b>How it works</b>Checkout and billing management happen on Stripe's hosted pages; Helix stores only the plan, seat count, and renewal date on the Space. A signature-verified webhook (<code>/api/billing/webhook</code>) keeps that in sync. All limits are enforced server-side on the join and assignment-creation routes.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Helix Studio · Space v2 · models: Space.kind/plan/seats · Assignment · AssignmentSubmission — routes: /api/spaces/[id]/assignments*, /api/spaces/[id]/billing/*, /api/billing/webhook</div>
+</body>
+</html>
