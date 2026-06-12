@@ -32,7 +32,11 @@ export function Studio({ workspace, isGuest }: { workspace: WorkspaceMeta; isGue
 
   return (
     <div className="grid h-auto min-h-0 grid-cols-1 gap-4 xl:h-full xl:grid-cols-5">
-      <div className="h-[60vh] min-h-0 xl:col-span-2 xl:h-full">
+      {/* min-w-0 on both: without it a grid item defaults to min-width:auto and
+          won't shrink below its content's intrinsic width — the Monaco editor
+          on the Code tab has a large min-width and would otherwise blow out its
+          column and crush the chat to a sliver. */}
+      <div className="h-[60vh] min-h-0 min-w-0 xl:col-span-2 xl:h-full">
         <ChatPanel
           workspace={workspace}
           isGuest={isGuest}
@@ -41,7 +45,7 @@ export function Studio({ workspace, isGuest }: { workspace: WorkspaceMeta; isGue
           }
         />
       </div>
-      <div className="h-[70vh] min-h-0 xl:col-span-3 xl:h-full">
+      <div className="h-[70vh] min-h-0 min-w-0 xl:col-span-3 xl:h-full">
         <WorkspacePanel workspace={workspace} changes={changes} isGuest={isGuest} />
       </div>
     </div>
