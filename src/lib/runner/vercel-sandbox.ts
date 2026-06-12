@@ -318,6 +318,12 @@ async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
   }
 
   const command = warm || !setup ? built.dev : `${setup} && ${built.dev}`;
+  // Dev-server host checks: traffic reaches the app with the sandbox's
+  // public hostname in the Host header, which Vite ≥6.1 rejects unless
+  // allowed ("Blocked request. This host is not allowed."). Vite reads
+  // extra allowed hosts from this env var; the CRA/webpack-dev-server
+  // equivalent rides along for older stacks.
+  const previewHost = new URL(sandbox.domain(PORT)).hostname;
   try {
     // Detached with output captured in the VM — later invocations read the
     // log file because no server memory survives between API calls.
@@ -325,7 +331,11 @@ async function start(ws: Workspace): Promise<RunInfo | { error: string }> {
       cmd: "sh",
       args: ["-c", `( ${command} ) > ${LOG_FILE} 2>&1`],
       detached: true,
-      env: runEnv(PORT, "0.0.0.0"),
+      env: {
+        ...runEnv(PORT, "0.0.0.0"),
+        __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS: previewHost,
+        DANGEROUSLY_DISABLE_HOST_CHECK: "true",
+      },
     });
   } catch (e) {
     await sandbox.stop().catch(() => {});
