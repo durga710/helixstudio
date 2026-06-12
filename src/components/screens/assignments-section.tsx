@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, ClipboardList, Loader2, Plus } from "lucide-react";
+import { CalendarClock, ClipboardList, GraduationCap, Loader2, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
@@ -154,9 +154,14 @@ export function AssignmentsSection({
           <ClipboardList className="h-4 w-4 text-txt3" /> Assignments
         </h3>
         {isOwner && (
-          <Button variant="ghost" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-3.5 w-3.5" /> New assignment
-          </Button>
+          <div className="flex gap-1.5">
+            <Button variant="ghost" onClick={() => router.push(`/space/gradebook?s=${spaceId}`)}>
+              <GraduationCap className="h-3.5 w-3.5" /> Gradebook
+            </Button>
+            <Button variant="ghost" onClick={() => setDialogOpen(true)}>
+              <Plus className="h-3.5 w-3.5" /> New assignment
+            </Button>
+          </div>
         )}
       </div>
 
