@@ -16,6 +16,7 @@ import { setProgress } from "@/lib/progress";
 import { db } from "@/lib/db";
 import { NOTES_MAX } from "@/lib/chat-context";
 import { AGENT_LIMITS } from "@/lib/agent-config";
+import { buildChunks, rerankSearch } from "@/lib/repo/rerank";
 
 /** Live activity label for a tool call — shown in the chat while it runs. */
 function progressLabel(name: string, args: Record<string, unknown>): string {
@@ -41,6 +42,8 @@ function progressLabel(name: string, args: Record<string, unknown>): string {
       return `running \`${typeof args.command === "string" ? args.command.slice(0, 60) : "a command"}\`…`;
     case "search_files":
       return `searching for /${typeof args.pattern === "string" ? args.pattern.slice(0, 40) : "?"}/…`;
+    case "semantic_search":
+      return `searching for "${typeof args.query === "string" ? args.query.slice(0, 48) : "?"}"…`;
     default:
       return "working…";
   }
@@ -74,6 +77,8 @@ const READ_CAP = AGENT_LIMITS.readCap;
 const SEARCH_FILE_CAP = AGENT_LIMITS.searchFileCap; // files scanned per search
 const SEARCH_MATCH_CAP = AGENT_LIMITS.searchMatchCap; // matches returned per search
 const SEARCH_BATCH = 5; // concurrent file reads while scanning
+const SEMANTIC_FILE_CAP = 60; // files chunked for a semantic search
+const SEMANTIC_TOP_N = 8; // ranked hits returned
 
 export const WORKSPACE_TOOLS = [
   { type: "web_search" as const },
@@ -223,9 +228,37 @@ export const WORKSPACE_TOOLS = [
     },
     strict: false,
   },
+  {
+    type: "function" as const,
+    name: "semantic_search",
+    description:
+      "Find code by MEANING, not exact text. Describe what you're looking for in plain language " +
+      "(e.g. \"where users are authenticated\", \"the function that sends invite emails\") and get the most " +
+      "relevant code locations, ranked best-first. Prefer this over search_files when you don't know the exact " +
+      "symbol or keyword — it understands intent and won't miss synonyms.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "a natural-language description of the code you're looking for (max 300 chars)",
+          minLength: 1,
+          maxLength: 300,
+        },
+        pathFilter: {
+          type: "string",
+          description: "only consider files whose path contains this substring",
+          maxLength: 100,
+        },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
 ];
 
-const READ_ONLY_TOOL_NAMES = new Set(["list_files", "read_file", "search_files"]);
+const READ_ONLY_TOOL_NAMES = new Set(["list_files", "read_file", "search_files", "semantic_search"]);
 const MUTATING_TOOL_NAMES = new Set(["write_files", "edit_file", "delete_file", "remember", "run_command"]);
 
 /** The tool list for a turn. Plan mode keeps only read-only tools (plus the
@@ -409,6 +442,40 @@ async function executeToolInner(
         truncated: capped || eligible.length > candidates.length,
       };
     }
+    case "semantic_search": {
+      const query = s(args.query).trim();
+      if (!query) return { error: "query is required" };
+      const pathFilter = s(args.pathFilter);
+
+      const tree = ctx.cache?.tree ?? (await listWorkspaceFiles(ws));
+      if (ctx.cache) ctx.cache.tree = tree;
+      // Shallow/short paths first, text files within the size cap, bounded.
+      const eligible = tree
+        .filter((f) => (!pathFilter || f.path.includes(pathFilter)) && f.size <= MAX_FILE_CHARS)
+        .slice()
+        .sort((a, b) => a.path.length - b.path.length || a.path.localeCompare(b.path))
+        .slice(0, SEMANTIC_FILE_CAP);
+
+      const files: { path: string; content: string }[] = [];
+      for (let i = 0; i < eligible.length; i += SEARCH_BATCH) {
+        const batch = eligible.slice(i, i + SEARCH_BATCH);
+        const reads = await Promise.all(batch.map((f) => readWorkspaceFile(ws, f.path)));
+        for (let j = 0; j < batch.length; j++) {
+          if (reads[j] !== null) files.push({ path: batch[j].path, content: reads[j]! });
+        }
+      }
+
+      const chunks = buildChunks(files);
+      if (chunks.length === 0) return { query, hits: [], scannedFiles: files.length };
+      const { hits, method } = await rerankSearch({ userId: ctx.userId, query, chunks, topN: SEMANTIC_TOP_N });
+      return {
+        query,
+        hits,
+        scannedFiles: files.length,
+        ranked: method, // reranker | model | lexical — how the order was chosen
+        truncated: tree.length > eligible.length,
+      };
+    }
     default:
       return { error: `unknown tool: ${name}` };
   }
@@ -442,6 +509,10 @@ export function toolLabel(name: string, result: unknown): string {
       return Array.isArray(r.matches)
         ? `searched /${s(r.pattern).slice(0, 30)}/ (${r.matches.length} hit(s))`
         : "tried to search files";
+    case "semantic_search":
+      return Array.isArray(r.hits)
+        ? `found ${r.hits.length} relevant location(s) for "${s(r.query).slice(0, 30)}"`
+        : "tried a semantic search";
     default:
       return name;
   }

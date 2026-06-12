@@ -69,8 +69,9 @@ export const BUILD_RULES =
   '- NEVER print tool-call payloads, raw JSON like {"files":[...]}, or file contents in your chat reply. CALL the ' +
   "tool, then reply in plain language: what you added/changed and where.\n" +
   "- ALWAYS read_file before modifying an existing file so your change keeps everything that should stay.\n" +
-  "- Use search_files to find definitions/usages instead of guessing paths, and run_command to PROVE your work " +
-  "runs (install, test, build) — if a command fails, fix the code and run it again.\n" +
+  "- To locate code: use search_files for an exact symbol/string, or semantic_search to find code by MEANING when " +
+  "you don't know the exact name (it ranks the most relevant locations). Don't guess paths. Use run_command to " +
+  "PROVE your work runs (install, test, build) — if a command fails, fix the code and run it again.\n" +
   "- Match the project's existing stack and conventions. If PROJECT INSTRUCTIONS are present below, they are the " +
   "project owner's rules — follow them.\n" +
   "- For new projects pick a sensible stack: a single index.html with embedded CSS/JS for simple pages; Vite or " +
