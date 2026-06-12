@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helix — Shared State &amp; Monitoring Infrastructure</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #0d1626; color: #f8fbff;
+    width: 1123px; min-height: 794px; padding: 34px 44px;
+  }
+  h1 { font-size: 26px; letter-spacing: -0.5px; }
+  h1 span { color: #34d399; }
+  .sub { color: #9cadc4; font-size: 12.5px; margin-top: 6px; margin-bottom: 18px; max-width: 1000px; }
+  .flow { display: flex; align-items: stretch; gap: 10px; margin-bottom: 16px; }
+  .layer {
+    flex: 1; border: 1px solid #28364f; border-radius: 12px; background: #121d30; padding: 12px 14px;
+  }
+  .layer .lh { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #60a5fa; margin-bottom: 8px; }
+  .box { border: 1px solid #28364f; border-radius: 8px; background: #0d1626; padding: 7px 9px; margin-bottom: 6px; font-size: 11.5px; }
+  .box b { color: #f8fbff; }
+  .box .d { color: #9cadc4; font-size: 10.5px; margin-top: 2px; }
+  code { font-family: Consolas, monospace; font-size: 10.5px; color: #7dd3fc; }
+  .arrow { display: flex; align-items: center; color: #5f6f86; font-size: 18px; }
+  .vendor { border-color: rgba(52,211,153,.4); background: rgba(52,211,153,.07); }
+  .vendor .lh { color: #34d399; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+  .card { border: 1px solid #28364f; border-radius: 11px; background: #121d30; padding: 13px 15px; }
+  .card .t { font-size: 13.5px; font-weight: 700; margin-bottom: 5px; display: flex; align-items: center; gap: 7px; }
+  .card .e { font-size: 18px; }
+  .card p { font-size: 11.5px; line-height: 1.5; color: #cdd7e6; }
+  .port { margin-top: 14px; border: 1px solid rgba(96,165,250,.3); background: rgba(96,165,250,.07); border-radius: 11px; padding: 12px 15px; }
+  .port .t { font-size: 12px; font-weight: 700; color: #60a5fa; margin-bottom: 4px; }
+  .port p { font-size: 11.5px; line-height: 1.5; color: #c9d8ef; }
+  .footer { margin-top: 16px; font-size: 10px; color: #5f6f86; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>Helix — <span>Shared State &amp; Monitoring</span> Infrastructure</h1>
+  <div class="sub">Helix runs as many serverless instances at once. Two needs must be shared across them — request limits and live progress — and failures must be visible. Each capability sits behind a thin adapter so the vendor can change without touching app code.</div>
+
+  <!-- architecture flow -->
+  <div class="flow">
+    <div class="layer">
+      <div class="lh">1 · Application</div>
+      <div class="box"><b>API routes &amp; guards</b><div class="d">call <code>rateLimit()</code></div></div>
+      <div class="box"><b>Agent turns / tools</b><div class="d">call <code>setProgress()</code></div></div>
+      <div class="box"><b>Catch blocks</b><div class="d">call <code>reportError()</code></div></div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="layer">
+      <div class="lh">2 · Adapter layer (our own interface)</div>
+      <div class="box"><b>rate-limit.ts</b><div class="d">fixed-window counter</div></div>
+      <div class="box"><b>progress.ts</b><div class="d">live "what's the AI doing" channel</div></div>
+      <div class="box"><b>observability.ts</b><div class="d">structured log + report</div></div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="layer vendor">
+      <div class="lh">3 · Vendor (one file each)</div>
+      <div class="box"><b>redis.ts → Upstash Redis</b><div class="d">shared counters + progress keys</div></div>
+      <div class="box"><b>observability.ts → Sentry</b><div class="d">error capture + alerting</div></div>
+      <div class="box" style="border-style:dashed"><b>Fallback</b><div class="d">no env set → in-memory / console</div></div>
+    </div>
+  </div>
+
+  <!-- why -->
+  <div class="cards">
+    <div class="card">
+      <div class="t"><span class="e">🧮</span> Rate limiting</div>
+      <p>Per-instance counters let the real limit multiply by the number of instances. A shared Redis counter (<code>INCR</code> + <code>EXPIRE</code>) makes one global limit that actually holds.</p>
+    </div>
+    <div class="card">
+      <div class="t"><span class="e">⏳</span> Live progress</div>
+      <p>The agent turn and the client's status poll can land on different instances. Storing progress in Redis (short TTL) means the spinner reflects real work, not a stuck local copy.</p>
+    </div>
+    <div class="card">
+      <div class="t"><span class="e">🚨</span> Error monitoring</div>
+      <p>Server errors (failed webhooks, crashed background tasks) were only in unwatched logs. <code>reportError()</code> always logs structurally and, when a DSN is set, sends to Sentry with context.</p>
+    </div>
+    <div class="card">
+      <div class="t"><span class="e">🪶</span> Graceful by default</div>
+      <p>Every adapter falls back to its in-process behavior when the vendor env vars are absent — so local and single-instance setups run unchanged with zero configuration.</p>
+    </div>
+  </div>
+
+  <div class="port">
+    <div class="t">Portability — why the adapter boundary matters</div>
+    <p>App code never imports Upstash or Sentry directly; it calls the functions above. Each vendor is confined to one file (<code>redis.ts</code>, <code>observability.ts</code>) carrying a PORTABILITY NOTE. Moving to AWS (ElastiCache / CloudWatch) or Azure (Cache for Redis / Application Insights) means rewriting that one file — Redis is a standard protocol with throwaway data, and Sentry is host-agnostic. No application rewrite, no data migration.</p>
+  </div>
+
+  <div class="footer">Helix Studio · infrastructure · files: src/lib/{redis,rate-limit,progress,observability}.ts · activation visible at /api/health (REDIS, SENTRY)</div>
+</body>
+</html>
