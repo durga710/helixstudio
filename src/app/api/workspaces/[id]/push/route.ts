@@ -13,13 +13,43 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { ok, apiErrors } from "@/lib/api-response";
-import { getProvider, getGitAuth, withGitAuth, PROVIDER_META } from "@/lib/git";
+import { getProvider, getGitAuth, withGitAuth, PROVIDER_META, type GitAuth } from "@/lib/git";
 import { getOverlay } from "@/lib/workspace";
+import { usingSandboxBackend } from "@/lib/app-runner";
+import { gitPush } from "@/lib/runner/git-push";
 import { isValidBranchName, validateFiles, MAX_PUSH_FILES } from "@/lib/repo-files";
 import { guardWorkspace } from "@/lib/route-helpers";
+import type { Workspace } from "@/generated/prisma/client";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
+
+interface Pushed {
+  branch: string;
+  commitSha?: string;
+  commitUrl: string;
+}
+
+/**
+ * Ship the overlay to a repo. In production/self-host (sandbox runner) this is
+ * REAL git inside the VM — clone, commit, rebase onto the latest base (so an
+ * upstream move doesn't clobber, and a true conflict fails safe), push. In
+ * local dev (no sandbox) it falls back to the REST adapter's single-commit push.
+ */
+async function shipOverlay(
+  ws: Workspace,
+  auth: GitAuth,
+  repo: string,
+  o: { branch: string; baseBranch: string; message: string; files: { path: string; content: string }[]; deletions: string[] },
+): Promise<Pushed | { error: string; conflict?: boolean }> {
+  if (usingSandboxBackend()) {
+    return gitPush(ws, auth, { repo, ...o });
+  }
+  const provider = getProvider(auth.provider);
+  return withGitAuth(auth, () =>
+    provider.pushFilesToRepo(repo, { branch: o.branch, message: o.message, files: o.files, deletions: o.deletions }),
+  );
+}
 
 const PushSchema = z.discriminatedUnion("target", [
   z.object({
@@ -74,69 +104,66 @@ export async function POST(req: Request, { params }: Params) {
 
   const data = parsed.data;
 
-  return withGitAuth(auth, async () => {
-    if (data.target === "new-repo") {
-      const created = await git.createRepo(data.name, { isPrivate: data.private ?? false });
-      if ("error" in created) return apiErrors.badRequest(created.error);
+  if (data.target === "new-repo") {
+    const created = await withGitAuth(auth, () => git.createRepo(data.name, { isPrivate: data.private ?? false }));
+    if ("error" in created) return apiErrors.badRequest(created.error);
 
-      const pushed = await git.pushFilesToRepo(created.repo, {
-        branch: created.defaultBranch,
-        message: data.message?.trim() || `Helix: ${ws.name}`,
-        files: overlay.files,
-        // a brand-new repo has nothing to delete
-      });
-      if ("error" in pushed) return apiErrors.badRequest(pushed.error);
-
-      await db().workspace.update({
-        where: { id: ws.id },
-        data: { repo: created.repo, baseBranch: created.defaultBranch },
-      });
-
-      return ok({
-        repo: created.repo,
-        repoUrl: created.url,
-        branch: pushed.branch,
-        commitUrl: pushed.commitUrl,
-      });
-    }
-
-    // target === "repo"
-    const repo = ws.repo;
-    if (!repo) {
-      return apiErrors.badRequest(
-        "This workspace has no repo yet — push to a new repo first (or import one).",
-      );
-    }
-
-    const branch = data.branch?.trim() || `helix/${ws.id.slice(-6)}-${Date.now().toString(36)}`;
-    if (!isValidBranchName(branch)) return apiErrors.badRequest("Invalid branch name");
-
-    const pushed = await git.pushFilesToRepo(repo, {
-      branch,
-      message: data.message?.trim() || `Helix: update ${ws.name}`,
+    const pushed = await shipOverlay(ws, auth, created.repo, {
+      branch: created.defaultBranch,
+      baseBranch: created.defaultBranch,
+      message: data.message?.trim() || `Helix: ${ws.name}`,
       files: overlay.files,
-      deletions: overlay.deletions,
+      deletions: [], // a brand-new repo has nothing to delete
     });
     if ("error" in pushed) return apiErrors.badRequest(pushed.error);
 
-    let prUrl: string | null = null;
-    let prError: string | null = null;
-    if (data.prTitle?.trim()) {
-      if (pushed.branch !== branch) {
-        // Empty repo: the push bootstrapped the root commit directly on the
-        // default branch, so there is no diff to open a PR against.
-        prError = `The repo was empty, so the first commit went straight to ${pushed.branch} — no ${meta.prNoun} needed.`;
-      } else {
-        const pr = await git.createPullRequest(repo, {
-          title: data.prTitle.trim(),
-          body: data.prBody?.trim() || data.prTitle.trim(),
-          head: branch,
-        });
-        if ("url" in pr) prUrl = pr.url;
-        else prError = pr.error;
-      }
-    }
+    await db().workspace.update({
+      where: { id: ws.id },
+      data: { repo: created.repo, baseBranch: created.defaultBranch },
+    });
 
-    return ok({ repo, branch: pushed.branch, commitUrl: pushed.commitUrl, prUrl, prError });
+    return ok({ repo: created.repo, repoUrl: created.url, branch: pushed.branch, commitUrl: pushed.commitUrl });
+  }
+
+  // target === "repo"
+  const repo = ws.repo;
+  if (!repo) {
+    return apiErrors.badRequest("This workspace has no repo yet — push to a new repo first (or import one).");
+  }
+  const baseBranch = ws.baseBranch || "main";
+  const branch = data.branch?.trim() || `helix/${ws.id.slice(-6)}-${Date.now().toString(36)}`;
+  if (!isValidBranchName(branch)) return apiErrors.badRequest("Invalid branch name");
+
+  const pushed = await shipOverlay(ws, auth, repo, {
+    branch,
+    baseBranch,
+    message: data.message?.trim() || `Helix: update ${ws.name}`,
+    files: overlay.files,
+    deletions: overlay.deletions,
   });
+  if ("error" in pushed) {
+    return apiErrors.badRequest(pushed.error);
+  }
+
+  let prUrl: string | null = null;
+  let prError: string | null = null;
+  if (data.prTitle?.trim()) {
+    if (pushed.branch !== branch) {
+      // Empty repo: the first commit went straight to the default branch, so
+      // there is no diff to open a PR against.
+      prError = `The repo was empty, so the first commit went straight to ${pushed.branch} — no ${meta.prNoun} needed.`;
+    } else {
+      const pr = await withGitAuth(auth, () =>
+        git.createPullRequest(repo, {
+          title: data.prTitle!.trim(),
+          body: data.prBody?.trim() || data.prTitle!.trim(),
+          head: branch,
+        }),
+      );
+      if ("url" in pr) prUrl = pr.url;
+      else prError = pr.error;
+    }
+  }
+
+  return ok({ repo, branch: pushed.branch, commitUrl: pushed.commitUrl, prUrl, prError });
 }

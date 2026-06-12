@@ -27,12 +27,20 @@ export function runnerEnabled(): boolean {
   return process.env.NODE_ENV === "development" || process.env.HELIX_LOCAL_RUNNER === "1";
 }
 
+/**
+ * True when the cloud sandbox backend is active (so push uses git-native
+ * push, run_command executes, etc.). Mirrors backend() selection.
+ */
+export function usingSandboxBackend(): boolean {
+  if (process.env.HELIX_RUNNER === "sandbox") return true;
+  if (process.env.HELIX_RUNNER === "local") return false;
+  return !runnerEnabled();
+}
+
 function backend(): RunnerBackend {
   // HELIX_RUNNER=sandbox|local overrides the default selection — handy for
   // exercising the cloud backend from local dev (needs VERCEL_OIDC_TOKEN).
-  if (process.env.HELIX_RUNNER === "sandbox") return sandboxBackend;
-  if (process.env.HELIX_RUNNER === "local") return localBackend;
-  return runnerEnabled() ? localBackend : sandboxBackend;
+  return usingSandboxBackend() ? sandboxBackend : localBackend;
 }
 
 export function startRun(ws: Workspace): Promise<RunInfo | { error: string }> {
