@@ -135,3 +135,15 @@ export async function applySubscriptionToSpace(sub: SubscriptionLike): Promise<b
   });
   return true;
 }
+
+/**
+ * Re-fetch a subscription from Stripe (the source of truth) and apply it.
+ * Used for events that reference a subscription by id but don't carry the
+ * full object — e.g. invoice.payment_failed. Returns false if the id is
+ * missing or no matching Space exists.
+ */
+export async function syncSubscriptionById(subscriptionId: string | null | undefined): Promise<boolean> {
+  if (!subscriptionId) return false;
+  const sub = (await getStripe().subscriptions.retrieve(subscriptionId)) as unknown as SubscriptionLike;
+  return applySubscriptionToSpace(sub);
+}

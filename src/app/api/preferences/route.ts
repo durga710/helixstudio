@@ -94,7 +94,20 @@ export async function PATCH(req: Request) {
   const data: Record<string, string | null> = {};
   if (p.aiProvider !== undefined) data.aiProvider = p.aiProvider;
   if (p.aiModel !== undefined) data.aiModel = p.aiModel.trim() === "default" ? "" : p.aiModel.trim();
-  if (p.aiBaseUrl !== undefined) data.aiBaseUrl = p.aiBaseUrl.trim() || null;
+  // aiBaseUrl is user input passed server-side to the AI client — sanitize it
+  // (https only, http for localhost) so it can't point the server at cloud
+  // metadata (169.254.169.254) or internal hosts. Same policy as the git URLs.
+  if (p.aiBaseUrl !== undefined) {
+    if (!p.aiBaseUrl.trim()) {
+      data.aiBaseUrl = null;
+    } else {
+      const clean = sanitizeBaseUrl(p.aiBaseUrl);
+      if (!clean) {
+        return apiErrors.badRequest("AI base URL must be a plain https:// origin (http allowed only for localhost).");
+      }
+      data.aiBaseUrl = clean;
+    }
+  }
   if (p.openaiKey !== undefined) data.openaiKey = p.openaiKey.trim() || null;
   if (p.anthropicKey !== undefined) data.anthropicKey = p.anthropicKey.trim() || null;
   if (p.localKey !== undefined) data.localKey = p.localKey.trim() || null;

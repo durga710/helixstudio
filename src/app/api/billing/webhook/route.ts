@@ -11,7 +11,7 @@
 
 import type Stripe from "stripe";
 import { db, dbEnabled, schemaReady } from "@/lib/db";
-import { billingEnabled, getStripe, applySubscriptionToSpace, type SubscriptionLike } from "@/lib/billing";
+import { billingEnabled, getStripe, applySubscriptionToSpace, syncSubscriptionById, type SubscriptionLike } from "@/lib/billing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,6 +58,16 @@ export async function POST(req: Request) {
     case "customer.subscription.updated":
     case "customer.subscription.deleted": {
       const handled = await applySubscriptionToSpace(event.data.object as unknown as SubscriptionLike);
+      return new Response(handled ? "ok" : "no matching space", { status: 200 });
+    }
+
+    case "invoice.payment_failed": {
+      // A renewal failed — re-sync from Stripe so the space reflects the
+      // un-advanced period end immediately (the 3-day grace in billing.ts
+      // then applies from the due date, not weeks later).
+      const invoice = event.data.object as { subscription?: string | { id: string } | null };
+      const subId = typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription?.id;
+      const handled = await syncSubscriptionById(subId);
       return new Response(handled ? "ok" : "no matching space", { status: 200 });
     }
 

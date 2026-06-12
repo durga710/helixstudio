@@ -97,7 +97,60 @@ export function GradebookScreen({ spaceId }: { spaceId: string }) {
               : "No students yet — share the invite link from the classroom page."}
           </Card>
         ) : (
-          <Card className="overflow-x-auto">
+          <>
+          {/* Mobile: one card per student (the wide grid is unreadable on
+              narrow screens). Table view takes over at md+. */}
+          <div className="space-y-3 md:hidden">
+            {data.students.map((s) => {
+              const reviewed = data.assignments.filter(
+                (a) => data.cells[`${a.id}:${s.userId}`]?.status === "reviewed",
+              ).length;
+              return (
+                <Card key={s.userId} className="p-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full border border-border bg-panel2 text-[10px] font-semibold text-txt2">
+                      {s.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={s.image} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        initials(s.name)
+                      )}
+                    </span>
+                    <span className="flex-1 truncate text-[13px] font-medium text-txt">{s.name}</span>
+                    <span className="font-mono text-[11px] text-txt3">
+                      {reviewed}/{data.assignments.length}
+                    </span>
+                  </div>
+                  <ul className="divide-y divide-border">
+                    {data.assignments.map((a) => {
+                      const cell = data.cells[`${a.id}:${s.userId}`];
+                      const status = cell?.status ?? "not_started";
+                      return (
+                        <li key={a.id} className="flex items-center justify-between gap-2 py-1.5">
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/space/assignments/${a.id}?s=${spaceId}`)}
+                            className="min-w-0 flex-1 truncate text-left text-[12px] text-txt2 transition-colors hover:text-accent"
+                          >
+                            {a.title}
+                          </button>
+                          {cell?.grade && status === "reviewed" ? (
+                            <Pill tone="green">{cell.grade}</Pill>
+                          ) : (
+                            <span className={cn("shrink-0 font-mono text-[11px]", CELL_STYLE[status])}>
+                              {status.replace("_", " ")}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </Card>
+              );
+            })}
+          </div>
+
+          <Card className="hidden overflow-x-auto md:block">
             <table className="w-full border-collapse text-[12.5px]">
               <thead>
                 <tr className="border-b border-border">
@@ -163,6 +216,7 @@ export function GradebookScreen({ spaceId }: { spaceId: string }) {
               </tbody>
             </table>
           </Card>
+          </>
         )}
       </div>
     </div>

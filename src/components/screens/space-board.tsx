@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, KanbanSquare, Loader2, Plus, Trash2, UserRound } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, KanbanSquare, Loader2, Plus, Trash2, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -232,15 +232,23 @@ export function SpaceBoard({
                         {t.note && <p className="mt-1 text-[11px] leading-snug text-txt3">{t.note}</p>}
                         <div className="mt-2 flex items-center gap-1.5">
                           {/* Assignee select, disguised as a chip. */}
-                          <span className="relative inline-flex items-center">
-                            <span className="grid h-5 w-5 place-items-center rounded-full border border-border bg-panel3 text-[8.5px] font-semibold text-txt2">
-                              {t.assigneeName ? initials(t.assigneeName) : <UserRound className="h-3 w-3" />}
+                          {/* Assignee picker — a chip with a caret signals
+                              it's interactive; the select overlays it. */}
+                          <span
+                            className="relative inline-flex cursor-pointer items-center gap-1 rounded-full border border-border2 bg-panel3 py-0.5 pl-0.5 pr-1.5 transition-colors hover:border-accent"
+                            title={t.assigneeName ?? "Assign"}
+                          >
+                            <span className="grid h-4 w-4 place-items-center rounded-full bg-panel2 text-[8px] font-semibold text-txt2">
+                              {t.assigneeName ? initials(t.assigneeName) : <UserRound className="h-2.5 w-2.5" />}
                             </span>
+                            <span className="max-w-[96px] truncate text-[10px] text-txt2">
+                              {t.assigneeName ?? "Assign"}
+                            </span>
+                            <ChevronDown className="h-2.5 w-2.5 text-txt3" />
                             <select
                               value={t.assigneeId ?? ""}
                               onChange={(e) => void patchTask(t.id, { assigneeId: e.target.value || null }).then(load)}
                               aria-label={`Assign task ${t.title}`}
-                              title={t.assigneeName ?? "Unassigned"}
                               className="absolute inset-0 cursor-pointer opacity-0"
                             >
                               <option value="">Unassigned</option>
@@ -251,9 +259,6 @@ export function SpaceBoard({
                               ))}
                             </select>
                           </span>
-                          {t.assigneeName && (
-                            <span className="max-w-[110px] truncate text-[10.5px] text-txt3">{t.assigneeName}</span>
-                          )}
                           <span className="ml-auto flex gap-0.5">
                             <button
                               type="button"

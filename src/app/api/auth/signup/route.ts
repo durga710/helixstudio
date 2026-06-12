@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { dbEnabled, db, schemaReady } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +14,28 @@ const signupSchema = z.object({
   password: z.string().min(8).max(200),
 });
 
+/** Client IP from the proxy chain (Vercel sets x-forwarded-for). */
+function clientIp(req: NextRequest): string {
+  const fwd = req.headers.get("x-forwarded-for");
+  return fwd ? fwd.split(",")[0]!.trim() : "unknown";
+}
+
 export async function POST(req: NextRequest) {
   if (!dbEnabled()) {
     return Response.json(
       { error: "Account creation needs the database — it isn't connected yet." },
       { status: 503 }
+    );
+  }
+
+  // Throttle account creation per IP to blunt signup spam / enumeration.
+  // (In-memory + per-instance for now; becomes global once the limiter moves
+  // to a shared store — see docs/AUDIT-2026-06.md.)
+  const rl = rateLimit(`signup:${clientIp(req)}`, { limit: 8, windowMs: 60 * 60 * 1000 });
+  if (!rl.success) {
+    return Response.json(
+      { error: "Too many sign-up attempts. Try again later." },
+      { status: 429, headers: { "retry-after": String(Math.ceil((rl.reset - Date.now()) / 1000)) } },
     );
   }
 
