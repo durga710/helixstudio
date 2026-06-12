@@ -1,6 +1,7 @@
 import { oauthProviders } from "@/lib/auth";
 import { aiProviderName } from "@/lib/ai/provider";
 import { redisEnabled } from "@/lib/redis";
+import { adminEmails } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,9 @@ export async function GET() {
       ANTHROPIC_API_KEY: Boolean(process.env.ANTHROPIC_API_KEY),
       REDIS: redisEnabled(),
       SENTRY: Boolean(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN),
+      // Count only — proves /admin is gated and the allowlist env reached this
+      // deployment, without exposing who's on it.
+      ADMIN_ALLOWLIST: adminEmails().length,
     },
     time: new Date().toISOString(),
   });
