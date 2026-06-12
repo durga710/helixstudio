@@ -92,6 +92,7 @@ CREATE TABLE "Workspace" (
     "mode" "WorkspaceMode" NOT NULL,
     "repo" TEXT,
     "baseBranch" TEXT,
+    "notes" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

@@ -9,9 +9,11 @@ import "server-only";
  * non-OpenAI providers just don't get it.
  */
 
-import { getWorkspaceForUser, listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFiles, deleteWorkspaceFile } from "@/lib/workspace";
+import { getWorkspaceForUser, listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFiles, deleteWorkspaceFile, type WorkspaceFileEntry } from "@/lib/workspace";
 import { validateFiles, MAX_TOOL_FILES } from "@/lib/repo-files";
 import { setProgress } from "@/lib/progress";
+import { db } from "@/lib/db";
+import { NOTES_MAX } from "@/lib/chat-context";
 
 /** Live activity label for a tool call — shown in the chat while it runs. */
 function progressLabel(name: string, args: Record<string, unknown>): string {
@@ -29,6 +31,8 @@ function progressLabel(name: string, args: Record<string, unknown>): string {
     }
     case "delete_file":
       return `deleting ${typeof args.path === "string" ? args.path : "a file"}…`;
+    case "remember":
+      return "updating project notes…";
     default:
       return "working…";
   }
@@ -37,6 +41,12 @@ function progressLabel(name: string, args: Record<string, unknown>): string {
 export interface ToolContext {
   userId: string;
   workspaceId: string;
+  /**
+   * Request-scoped cache. The chat route primes `tree` with the listing it
+   * already fetched for the system prompt, so list_files inside the same turn
+   * doesn't refetch the GitHub tree; writes/deletes invalidate it.
+   */
+  cache?: { tree?: WorkspaceFileEntry[] };
 }
 
 const READ_CAP = 24_000;
@@ -101,6 +111,25 @@ export const WORKSPACE_TOOLS = [
     },
     strict: false,
   },
+  {
+    type: "function" as const,
+    name: "remember",
+    description:
+      "Maintain the PROJECT NOTES doc shown to you at the start of every turn: stack choices, " +
+      "conventions, key decisions, gotchas. Pass the COMPLETE new doc — it replaces the old one " +
+      "(max " +
+      NOTES_MAX +
+      " chars; keep it tight, bullet style). Use it after meaningful decisions, not every turn.",
+    parameters: {
+      type: "object",
+      properties: {
+        notes: { type: "string", description: "the full replacement notes doc" },
+      },
+      required: ["notes"],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
 ];
 
 const s = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -129,7 +158,8 @@ async function executeToolInner(
 
   switch (name) {
     case "list_files": {
-      const files = await listWorkspaceFiles(ws);
+      const files = ctx.cache?.tree ?? (await listWorkspaceFiles(ws));
+      if (ctx.cache) ctx.cache.tree = files;
       return { count: files.length, files: files.map((f) => ({ path: f.path, size: f.size })) };
     }
     case "read_file": {
@@ -153,6 +183,7 @@ async function executeToolInner(
       if (!check.ok) return { error: check.error };
       const result = await writeWorkspaceFiles(ws, files);
       if ("error" in result) return result;
+      if (ctx.cache) ctx.cache.tree = undefined; // listing changed
       return { written: true, count: files.length, writtenPaths: result.writtenPaths };
     }
     case "delete_file": {
@@ -160,7 +191,17 @@ async function executeToolInner(
       if (!path) return { error: "path is required" };
       const result = await deleteWorkspaceFile(ws, path);
       if ("error" in result) return result;
+      if (ctx.cache) ctx.cache.tree = undefined; // listing changed
       return { deleted: true, deletedPaths: result.deletedPaths };
+    }
+    case "remember": {
+      const notes = s(args.notes).trim();
+      if (!notes) return { error: "notes is required" };
+      if (notes.length > NOTES_MAX) {
+        return { error: `notes too long — max ${NOTES_MAX} characters; tighten it up` };
+      }
+      await db().workspace.update({ where: { id: ws.id }, data: { notes } });
+      return { saved: true };
     }
     default:
       return { error: `unknown tool: ${name}` };
@@ -183,6 +224,8 @@ export function toolLabel(name: string, result: unknown): string {
       const paths = Array.isArray(r.deletedPaths) ? (r.deletedPaths as string[]) : [];
       return r.deleted ? `deleted ${paths[0] ?? "a file"}` : "tried to delete a file";
     }
+    case "remember":
+      return r.saved ? "updated project notes" : "tried to update notes";
     default:
       return name;
   }

@@ -108,6 +108,10 @@ model Workspace {
   repo       String?
   baseBranch String? // branch pinned at import / first push
 
+  // Agent-curated project notes (the `remember` tool) — shown to the model at
+  // the start of every chat turn. Invisible to the user; never pushed.
+  notes String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

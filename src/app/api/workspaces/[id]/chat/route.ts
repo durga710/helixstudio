@@ -24,10 +24,11 @@ import {
   type ChangeManifest,
   type ToolContext,
 } from "@/lib/workspace-tools";
-import { listWorkspaceFiles } from "@/lib/workspace";
+import { listWorkspaceFiles, readWorkspaceFile } from "@/lib/workspace";
 import { setProgress, clearProgress } from "@/lib/progress";
 import { runAnthropicAgent, runLocalAgent, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
 import { guardWorkspace } from "@/lib/route-helpers";
+import { stackLine, treeOutline, historyContext, fitBudget, estimateTokens } from "@/lib/chat-context";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -36,7 +37,9 @@ const ChatSchema = z.object({
   message: z.string().min(1).max(8000),
 });
 
-const HISTORY_LIMIT = 30;
+// 40 rows feed the context engine: the newest 8 go verbatim, the rest
+// become a one-line-per-turn digest (see src/lib/chat-context.ts).
+const HISTORY_LIMIT = 40;
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -113,17 +116,27 @@ export async function POST(req: Request, { params }: Params) {
 
   const githubToken = await getGitHubToken(user.id);
 
-  // Live file listing in the prompt so the model knows the tree without
-  // burning a tool hop. Capped; IMPORT mode needs the GitHub token.
+  // Context engine (src/lib/chat-context.ts): instead of resending the full
+  // tree and 30 verbatim messages every turn, the model gets a stack line, a
+  // collapsed tree outline, its own curated PROJECT NOTES, a digest of older
+  // turns, and a short verbatim window — under a hard input budget.
   const tree = await withGitHubToken(githubToken, () => listWorkspaceFiles(ws)).catch(() => []);
-  const fileListing = tree
-    .slice(0, 200)
-    .map((f) => f.path)
-    .join("\n");
+  const treePaths = tree.map((f) => f.path);
+  const pkgJson = treePaths.includes("package.json")
+    ? await withGitHubToken(githubToken, () => readWorkspaceFile(ws, "package.json")).catch(() => null)
+    : null;
 
-  const instructions =
+  const history = await db().workspaceMessage.findMany({
+    where: { workspaceId: ws.id },
+    orderBy: { createdAt: "desc" },
+    select: { role: true, content: true, actions: true },
+    take: HISTORY_LIMIT,
+  });
+  const { digest, recent } = historyContext(history.reverse());
+
+  const rules =
     "You are Helix — an AI coding agent working in the user's virtual workspace. The workspace IS the project: " +
-    "its files are listed below, and your tools read and write them directly. The user watches the file tree and " +
+    "its file tree is outlined below, and your tools read and write it directly. The user watches the file tree and " +
     "editor update live as you work.\n\n" +
     "RULES:\n" +
     "- write_files is your ONLY way to produce code. Write COMPLETE file contents — never diffs, never snippets in chat, " +
@@ -133,29 +146,49 @@ export async function POST(req: Request, { params }: Params) {
     "- ALWAYS read_file before modifying an existing file so your rewrite keeps everything that should stay.\n" +
     "- Match the project's existing stack and conventions. For new projects pick a sensible stack: a single index.html " +
     "with embedded CSS/JS for simple pages; Vite or Next.js structure for real apps.\n" +
+    "- Keep PROJECT NOTES current with the `remember` tool after meaningful decisions (stack choices, conventions, " +
+    "gotchas) — it's your only durable memory; older conversation gets compressed.\n" +
     "- The user pushes to GitHub from the UI — you cannot push, don't try, and don't tell them to run git commands.\n" +
     "- After building, reply in 2-4 lines: what you built/changed and any next step worth knowing. No tutorials.\n" +
-    "- Ask at most ONE clarifying question, and only when the request is truly ambiguous — default to building.\n\n" +
-    "--- WORKSPACE ---\n" +
-    `Name: ${ws.name}\n` +
-    `Mode: ${ws.mode === "IMPORT" ? `imported from GitHub repo ${ws.repo} @ ${ws.baseBranch} (edits overlay the repo until pushed)` : "built from scratch (files live here until pushed to GitHub)"}\n` +
-    `Files (${tree.length}):\n${fileListing || "(empty — nothing written yet)"}`;
+    "- Ask at most ONE clarifying question, and only when the request is truly ambiguous — default to building.\n";
 
-  // History: persisted messages + the new user turn.
-  const history = await db().workspaceMessage.findMany({
-    where: { workspaceId: ws.id },
-    orderBy: { createdAt: "desc" },
-    select: { role: true, content: true },
-    take: HISTORY_LIMIT,
+  const fitted = fitBudget({
+    rules,
+    workspaceMeta:
+      `Name: ${ws.name}\n` +
+      `Mode: ${ws.mode === "IMPORT" ? `imported from GitHub repo ${ws.repo} @ ${ws.baseBranch} (edits overlay the repo until pushed)` : "built from scratch (files live here until pushed to GitHub)"}`,
+    stack: stackLine(treePaths, pkgJson),
+    tree: treeOutline(treePaths),
+    notes: ws.notes ?? "",
+    digest,
+    recent,
+    userMessage,
+    treePaths,
   });
-  const messages = [
-    ...history
-      .reverse()
-      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-    { role: "user" as const, content: userMessage },
-  ];
 
-  const ctx: ToolContext = { userId: user.id, workspaceId: ws.id };
+  const instructions =
+    fitted.rules +
+    "\n--- WORKSPACE ---\n" +
+    `${fitted.workspaceMeta}\n` +
+    `${fitted.stack}\n` +
+    `Files (${tree.length}):\n${fitted.tree}` +
+    (fitted.notes ? `\n\n--- PROJECT NOTES (yours — update via remember) ---\n${fitted.notes}` : "") +
+    (fitted.digest ? `\n\n--- EARLIER CONVERSATION (digest) ---\n${fitted.digest}` : "");
+
+  const messages = [...fitted.recent, { role: "user" as const, content: userMessage }];
+
+  if (process.env.NODE_ENV === "development") {
+    const msgChars = messages.reduce((n, m) => n + m.content.length, 0);
+    console.log(
+      `[helix-chat] context: rules=${fitted.rules.length} tree=${fitted.tree.length} notes=${fitted.notes.length} ` +
+        `digest=${fitted.digest.length} recent=${fitted.recent.length}msg/${msgChars}ch ` +
+        `≈${estimateTokens(instructions.length + msgChars)} input tokens`,
+    );
+  }
+
+  // Prime the tool cache with the tree we already fetched — list_files inside
+  // this turn reuses it instead of refetching (writes invalidate).
+  const ctx: ToolContext = { userId: user.id, workspaceId: ws.id, cache: { tree } };
   setProgress(ws.id, "reading your message…");
 
   let text: string;
@@ -296,9 +329,11 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   // If the provider didn't report usage, estimate (~4 chars per token) so
-  // guest metering can't be bypassed by a provider that omits usage.
+  // guest metering can't be bypassed by a provider that omits usage. Counts
+  // the whole input (system + every message), not just the latest turn.
   if (tokensUsed === 0) {
-    tokensUsed = Math.ceil((instructions.length + userMessage.length + text.length) / 4);
+    const msgChars = messages.reduce((n, m) => n + m.content.length, 0);
+    tokensUsed = estimateTokens(instructions.length + msgChars + text.length);
   }
 
   // Persist the turn (best-effort — the reply still goes out if this fails).
