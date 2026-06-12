@@ -7,9 +7,13 @@ import { ACCENTS, useTheme } from "@/components/theme-provider";
 import { useShell } from "./shell-context";
 import { cn } from "@/lib/utils";
 
+// Keyed by the first path segment; sub-pages fall back to it (e.g.
+// /space/gradebook -> "Space", /editor/[id] -> "Editor"). Keep in sync with the
+// rail's NAV_ITEMS so the breadcrumb matches the active nav icon.
 const TITLES: Record<string, string> = {
   "/": "Home",
   "/editor": "Editor",
+  "/space": "Space",
   "/analysis": "Repository Analysis",
   "/agents": "Agents",
   "/skills": "Skills",
