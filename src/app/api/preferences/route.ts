@@ -11,18 +11,20 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { ok, apiErrors } from "@/lib/api-response";
 import { guard } from "@/lib/route-helpers";
+import { isAdminEmail } from "@/lib/admin";
 import { sanitizeBaseUrl, invalidateGitAuth } from "@/lib/git";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PatchSchema = z.object({
-  aiProvider: z.enum(["openai", "anthropic", "local"]).optional(),
+  aiProvider: z.enum(["openai", "anthropic", "local", "gemini"]).optional(),
   aiModel: z.string().max(120).optional(),
   aiBaseUrl: z.string().max(300).optional(),
   openaiKey: z.string().max(300).optional(),
   anthropicKey: z.string().max(300).optional(),
   localKey: z.string().max(300).optional(),
+  geminiKey: z.string().max(300).optional(),
   githubToken: z.string().max(300).optional(),
   gitlabToken: z.string().max(300).optional(),
   gitlabBaseUrl: z.string().max(300).optional(),
@@ -37,6 +39,7 @@ export async function GET() {
   const g = await guard("prefs", { limit: 300, windowMs: 60 * 60 * 1000 });
   if ("response" in g) return g.response;
 
+  const admin = isAdminEmail(g.user.email);
   const [prefs, githubAccount] = await Promise.all([
     db().userPreferences.findUnique({ where: { userId: g.user.id } }),
     db().account.findFirst({
@@ -53,12 +56,15 @@ export async function GET() {
       openai: Boolean(prefs?.openaiKey),
       anthropic: Boolean(prefs?.anthropicKey),
       local: Boolean(prefs?.localKey),
+      gemini: Boolean(prefs?.geminiKey),
     },
-    // Whether the app itself has a key configured per provider (env vars,
-    // paid by the app owner) — lets the UI offer "use the shared key".
+    // Whether the app's own platform key (env var) is available to THIS user.
+    // Platform keys are admin-only — a non-admin signup can't spend our keys,
+    // so we report them as unavailable and the UI tells them to bring their own.
     serverKeys: {
-      openai: Boolean(process.env.OPENAI_API_KEY),
-      anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
+      openai: admin && Boolean(process.env.OPENAI_API_KEY),
+      anthropic: admin && Boolean(process.env.ANTHROPIC_API_KEY),
+      gemini: admin && Boolean(process.env.GEMINI_API_KEY),
     },
     githubTokenSet: Boolean(prefs?.githubToken),
     // Which git hosts are connected (token present + required config).
@@ -111,6 +117,7 @@ export async function PATCH(req: Request) {
   if (p.openaiKey !== undefined) data.openaiKey = p.openaiKey.trim() || null;
   if (p.anthropicKey !== undefined) data.anthropicKey = p.anthropicKey.trim() || null;
   if (p.localKey !== undefined) data.localKey = p.localKey.trim() || null;
+  if (p.geminiKey !== undefined) data.geminiKey = p.geminiKey.trim() || null;
   if (p.githubToken !== undefined) data.githubToken = p.githubToken.trim() || null;
   if (p.gitlabToken !== undefined) data.gitlabToken = p.gitlabToken.trim() || null;
   if (p.bitbucketToken !== undefined) data.bitbucketToken = p.bitbucketToken.trim() || null;

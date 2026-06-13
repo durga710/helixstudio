@@ -17,6 +17,11 @@ export const MODEL_PRESETS: Record<string, { label: string; models: string[]; hi
     models: ["claude-sonnet-4-6", "claude-opus-4-8", "claude-fable-5", "claude-haiku-4-5-20251001"],
     hint: "Strong agentic tool use. Any Claude model id works.",
   },
+  gemini: {
+    label: "Google (Gemini)",
+    models: ["gemini-2.0-flash", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-1.5-pro"],
+    hint: "Google Gemini via its OpenAI-compatible API. Any Gemini model id works — the model must support tool calling to write files.",
+  },
   local: {
     label: "Custom / Local",
     models: ["google/gemma-4-26b-a4b-qat", "qwen2.5-coder:14b", "llama3.1"],

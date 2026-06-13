@@ -266,6 +266,7 @@ model UserPreferences {
   openaiKey    String?
   anthropicKey String?
   localKey     String?
+  geminiKey    String?
 
   // Optional GitHub PAT override. When set, it is used INSTEAD of the OAuth
   // token (e.g. a fine-grained token scoped to specific repos).

@@ -228,6 +228,7 @@ CREATE TABLE "UserPreferences" (
     "openaiKey" TEXT,
     "anthropicKey" TEXT,
     "localKey" TEXT,
+    "geminiKey" TEXT,
     "githubToken" TEXT,
     "gitlabToken" TEXT,
     "gitlabBaseUrl" TEXT,

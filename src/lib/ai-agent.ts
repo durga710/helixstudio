@@ -24,6 +24,12 @@ import {
 } from "@/lib/workspace-tools";
 import { AGENT_LIMITS, ANTHROPIC_MAX_OUTPUT, READONLY_TOOLS, toolResultCapFor } from "@/lib/agent-config";
 import { withRetry } from "@/lib/ai/retry";
+import { resolveAiKey, GEMINI_BASE_URL, PROVIDER_DEFAULT_MODEL } from "@/lib/ai/keys";
+import { isAdminEmail } from "@/lib/admin";
+
+// Re-exported so existing importers (agent-turn, webhook, ai-review) keep their
+// `from "@/lib/ai-agent"` import — the canonical definition lives in ai/keys.ts.
+export { PROVIDER_DEFAULT_MODEL } from "@/lib/ai/keys";
 
 export interface AgentMessage {
   role: "user" | "assistant";
@@ -90,9 +96,8 @@ export async function runAnthropicAgent(opts: {
   /** Live token deltas of the assistant's reply (streaming). */
   onText?: (delta: string) => void;
 }): Promise<AgentResult | { error: string }> {
-  const apiKey = opts.apiKey || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey)
-    return { error: "Anthropic is not configured — add your API key in Settings, or set ANTHROPIC_API_KEY." };
+  const apiKey = opts.apiKey;
+  if (!apiKey) return { error: "Anthropic is not configured — add your API key in Settings → AI model." };
 
   // The SDK handles SSE parsing + tool-use reconstruction (.finalMessage) and
   // transient-error retries (maxRetries), so the runner stays simple.
@@ -186,11 +191,13 @@ export async function runLocalAgent(opts: {
   messages: AgentMessage[];
   ctx: ToolContext;
   apiKey?: string;
+  /** What to call the endpoint in error messages (e.g. "Gemini"). */
+  label?: string;
 }): Promise<AgentResult | { error: string }> {
-  const client = new OpenAI({
-    apiKey: opts.apiKey || process.env.LOCAL_AI_API_KEY || "not-needed",
-    baseURL: opts.baseUrl,
-  });
+  const label = opts.label ?? "the local model";
+  // Many local/custom endpoints need no auth; cloud OpenAI-compatible ones
+  // (e.g. Gemini) get their key resolved upstream and passed in here.
+  const client = new OpenAI({ apiKey: opts.apiKey || "not-needed", baseURL: opts.baseUrl });
 
   const tools = functionTools(opts.ctx.mode).map((t) => ({
     type: "function" as const,
@@ -246,22 +253,35 @@ export async function runLocalAgent(opts: {
     return { error: "agent loop did not terminate" };
   } catch (e) {
     return {
-      error: `Couldn't reach the local model at ${opts.baseUrl} — ${e instanceof Error ? e.message.slice(0, 200) : "unknown error"}. The URL must be reachable from the server (a tunnel, not localhost on your laptop).`,
+      error: `Couldn't reach ${label} at ${opts.baseUrl} — ${e instanceof Error ? e.message.slice(0, 200) : "unknown error"}. The URL must be reachable from the server (a tunnel, not localhost on your laptop).`,
     };
   }
 }
 
-/** Default model per provider when the user hasn't picked one. */
-export const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
-  openai: "", // falls through to OPENAI_MODEL
-  anthropic: "claude-sonnet-4-6",
-  local: "llama3.1",
-};
-
 /* ====================== One-shot completions ======================= */
 
-/** The user's chat AI preferences, resolved the same way for every one-shot
- * caller (review, ledger ask, undo untangle). */
+/** The per-provider preference field holding the user's own key. */
+function userKeyFor(provider: string, prefs: { openaiKey?: string | null; anthropicKey?: string | null; localKey?: string | null; geminiKey?: string | null } | null): string | undefined {
+  switch (provider) {
+    case "openai":
+      return prefs?.openaiKey ?? undefined;
+    case "anthropic":
+      return prefs?.anthropicKey ?? undefined;
+    case "gemini":
+      return prefs?.geminiKey ?? undefined;
+    case "local":
+      return prefs?.localKey ?? undefined;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * The user's chat AI preferences, resolved the same way for every one-shot
+ * caller (review, ledger ask, undo untangle). Key resolution goes through
+ * resolveAiKey: the user's OWN key always works; the platform (env) key
+ * resolves ONLY for admins — so a fresh signup can never spend our keys.
+ */
 export async function resolveAiPrefs(userId: string): Promise<{
   provider: string;
   model: string;
@@ -272,15 +292,28 @@ export async function resolveAiPrefs(userId: string): Promise<{
   const { OPENAI_MODEL } = await import("@/lib/openai");
   const prefs = await db().userPreferences.findUnique({
     where: { userId },
-    select: { aiProvider: true, aiModel: true, aiBaseUrl: true, openaiKey: true, anthropicKey: true, localKey: true },
+    select: {
+      aiProvider: true,
+      aiModel: true,
+      aiBaseUrl: true,
+      openaiKey: true,
+      anthropicKey: true,
+      localKey: true,
+      geminiKey: true,
+      user: { select: { email: true } },
+    },
   });
   const provider = prefs?.aiProvider ?? "openai";
   const prefModel = prefs?.aiModel === "default" ? "" : (prefs?.aiModel ?? "");
   const model = prefModel || PROVIDER_DEFAULT_MODEL[provider] || OPENAI_MODEL;
-  const apiKey =
-    (provider === "openai" ? prefs?.openaiKey : provider === "anthropic" ? prefs?.anthropicKey : prefs?.localKey) ||
-    undefined;
-  return { provider, model, apiKey, baseUrl: prefs?.aiBaseUrl || "http://localhost:1234/v1" };
+  const apiKey = resolveAiKey({
+    provider,
+    userKey: userKeyFor(provider, prefs),
+    isAdmin: isAdminEmail(prefs?.user?.email),
+  });
+  const baseUrl =
+    provider === "gemini" ? GEMINI_BASE_URL : prefs?.aiBaseUrl || "http://localhost:1234/v1";
+  return { provider, model, apiKey, baseUrl };
 }
 
 /**
@@ -299,7 +332,7 @@ export async function runOneShot(opts: {
 }): Promise<{ text: string; tokensUsed: number } | { error: string }> {
   try {
     if (opts.provider === "anthropic") {
-      const apiKey = opts.apiKey || process.env.ANTHROPIC_API_KEY;
+      const apiKey = opts.apiKey;
       if (!apiKey) return { error: "No Anthropic API key — add one in Settings → AI model." };
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -328,13 +361,13 @@ export async function runOneShot(opts: {
       };
     }
 
-    // openai + local share the OpenAI-compatible chat surface.
-    const client =
-      opts.provider === "local"
-        ? new OpenAI({ baseURL: opts.baseUrl, apiKey: opts.apiKey || "not-needed" })
-        : new OpenAI({ apiKey: opts.apiKey || process.env.OPENAI_API_KEY });
-    if (opts.provider !== "local" && !opts.apiKey && !process.env.OPENAI_API_KEY) {
-      return { error: "No OpenAI API key — add one in Settings → AI model." };
+    // openai, gemini, and local all speak the OpenAI-compatible chat surface.
+    // Gemini has a fixed base URL; local is a user-supplied endpoint.
+    const baseURL = opts.provider === "gemini" ? GEMINI_BASE_URL : opts.provider === "local" ? opts.baseUrl : undefined;
+    const client = new OpenAI({ baseURL, apiKey: opts.apiKey || "not-needed" });
+    if (opts.provider !== "local" && !opts.apiKey) {
+      const label = opts.provider === "gemini" ? "Gemini" : "OpenAI";
+      return { error: `No ${label} API key — add one in Settings → AI model.` };
     }
     const resp = await client.chat.completions.create({
       model: opts.model,

@@ -13,7 +13,9 @@ export interface KeyVerdict {
 
 /** Validate the SAVED config for a provider (the chat uses the same
  * resolution). Returns null on a network/transport failure. */
-export async function validateAiKey(provider: "openai" | "anthropic" | "local"): Promise<KeyVerdict | null> {
+export async function validateAiKey(
+  provider: "openai" | "anthropic" | "local" | "gemini",
+): Promise<KeyVerdict | null> {
   try {
     const res = await fetch("/api/ai/validate-key", {
       method: "POST",

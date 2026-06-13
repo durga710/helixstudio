@@ -18,7 +18,9 @@ import type { Workspace } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { GUEST_TOKEN_LIMIT } from "@/lib/auth";
 import { getGitAuth, withGitAuth, PROVIDER_META, getProvider } from "@/lib/git";
-import { getOpenAI, OPENAI_MODEL } from "@/lib/openai";
+import { OPENAI_MODEL } from "@/lib/openai";
+import { resolveAiKey, GEMINI_BASE_URL } from "@/lib/ai/keys";
+import { isAdminEmail } from "@/lib/admin";
 import {
   workspaceTools,
   executeTool,
@@ -118,6 +120,8 @@ export async function runAgentTurn(opts: {
       openaiKey: true,
       anthropicKey: true,
       localKey: true,
+      geminiKey: true,
+      user: { select: { email: true } },
     },
   });
   let aiProvider = prefs?.aiProvider ?? "openai";
@@ -126,12 +130,19 @@ export async function runAgentTurn(opts: {
   let aiModel = prefModel || PROVIDER_DEFAULT_MODEL[aiProvider] || "";
   let aiBaseUrl = prefs?.aiBaseUrl || "http://localhost:1234/v1";
   // Per-provider keys: switching provider can never send the wrong vendor's key.
-  let memberKey =
-    (aiProvider === "openai"
+  // Key resolution goes through resolveAiKey — the user's OWN key always works;
+  // the platform (env) key resolves ONLY for admins, so a fresh signup can
+  // never spend our keys.
+  const isAdmin = isAdminEmail(prefs?.user?.email);
+  const ownKey =
+    aiProvider === "openai"
       ? prefs?.openaiKey
       : aiProvider === "anthropic"
         ? prefs?.anthropicKey
-        : prefs?.localKey) || undefined;
+        : aiProvider === "gemini"
+          ? prefs?.geminiKey
+          : prefs?.localKey;
+  let memberKey = resolveAiKey({ provider: aiProvider, userKey: ownKey, isAdmin });
 
   // Guest beta model: when GUEST_AI_PROVIDER is set, ALL guests are pinned to
   // it (e.g. a local LM Studio model) so trial traffic never spends the
@@ -143,9 +154,9 @@ export async function runAgentTurn(opts: {
     memberKey = undefined;
   }
 
-  const ai = aiProvider === "openai" ? (memberKey ? new OpenAI({ apiKey: memberKey }) : getOpenAI()) : null;
+  const ai = aiProvider === "openai" && memberKey ? new OpenAI({ apiKey: memberKey }) : null;
   if (aiProvider === "openai" && !ai) {
-    return { error: "AI is not configured — add your API key in Settings, or set OPENAI_API_KEY on the server." };
+    return { error: "AI is not configured — add your own API key in Settings → AI model." };
   }
 
   const gitAuth = await getGitAuth(userId, ws.provider);
@@ -259,11 +270,21 @@ export async function runAgentTurn(opts: {
   let changes: ChangeManifest;
   let tokensUsed = 0;
   try {
-    if (aiProvider === "anthropic" || aiProvider === "local") {
+    if (aiProvider === "anthropic" || aiProvider === "local" || aiProvider === "gemini") {
+      // Gemini speaks the OpenAI chat API over a fixed base URL, so it runs
+      // through the same OpenAI-compatible runner as the local provider.
       const result = await withGitAuth(gitAuth, () =>
         aiProvider === "anthropic"
           ? runAnthropicAgent({ model: aiModel, instructions, messages, ctx, apiKey: memberKey, onText })
-          : runLocalAgent({ model: aiModel, baseUrl: aiBaseUrl, instructions, messages, ctx, apiKey: memberKey }),
+          : runLocalAgent({
+              model: aiModel,
+              baseUrl: aiProvider === "gemini" ? GEMINI_BASE_URL : aiBaseUrl,
+              instructions,
+              messages,
+              ctx,
+              apiKey: memberKey,
+              label: aiProvider === "gemini" ? "Gemini" : "the local model",
+            }),
       );
       if ("error" in result) return { error: result.error };
       ({ text, actions, changes, tokensUsed } = result);

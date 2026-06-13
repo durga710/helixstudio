@@ -10,8 +10,7 @@
 import { ok, apiErrors } from "@/lib/api-response";
 import { db } from "@/lib/db";
 import { getOverlay } from "@/lib/workspace";
-import { runReviewer, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
-import { OPENAI_MODEL } from "@/lib/openai";
+import { runReviewer, resolveAiPrefs } from "@/lib/ai-agent";
 import { guard } from "@/lib/route-helpers";
 import { checkTokenBudget } from "@/lib/token-budget";
 import { aiUsageOps } from "@/lib/ai-usage";
@@ -69,23 +68,15 @@ export async function POST(_req: Request, { params }: Params) {
     reviewText += `=== ${f.path} ===\n${f.content.slice(0, 12_000)}\n\n`;
   }
 
-  // The instructor's model/key, exactly like the workspace review route.
-  const prefs = await db().userPreferences.findUnique({
-    where: { userId: g.user.id },
-    select: { aiProvider: true, aiModel: true, aiBaseUrl: true, openaiKey: true, anthropicKey: true, localKey: true },
-  });
-  const provider = prefs?.aiProvider ?? "openai";
-  const prefModel = prefs?.aiModel === "default" ? "" : (prefs?.aiModel ?? "");
-  const model = prefModel || PROVIDER_DEFAULT_MODEL[provider] || OPENAI_MODEL;
-  const apiKey =
-    (provider === "openai" ? prefs?.openaiKey : provider === "anthropic" ? prefs?.anthropicKey : prefs?.localKey) ||
-    undefined;
+  // The instructor's model/key, resolved exactly like the workspace review
+  // route (platform key is admin-only; otherwise their own key).
+  const { provider, model, apiKey, baseUrl } = await resolveAiPrefs(g.user.id);
 
   const result = await runReviewer({
     provider,
     model,
     apiKey,
-    baseUrl: prefs?.aiBaseUrl || "http://localhost:1234/v1",
+    baseUrl,
     diffText: reviewText.slice(0, REVIEW_TEXT_CAP + 2_000),
     system:
       "You are a teaching assistant reviewing a student's submitted code against the assignment brief. " +

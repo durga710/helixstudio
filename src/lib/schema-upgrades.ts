@@ -297,4 +297,7 @@ CREATE TABLE IF NOT EXISTS "Template" (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "Template_templateId_key" ON "Template"("templateId");
+
+-- 2026-06 · Gemini provider (per-user key)
+ALTER TABLE "UserPreferences" ADD COLUMN IF NOT EXISTS "geminiKey" TEXT;
 `;

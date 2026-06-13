@@ -10,12 +10,14 @@ import { z } from "zod";
 import { ok, apiErrors } from "@/lib/api-response";
 import { db } from "@/lib/db";
 import { guard } from "@/lib/route-helpers";
+import { isAdminEmail } from "@/lib/admin";
+import { envKeyFor, GEMINI_BASE_URL } from "@/lib/ai/keys";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 15;
 
-const Schema = z.object({ provider: z.enum(["openai", "anthropic", "local"]) });
+const Schema = z.object({ provider: z.enum(["openai", "anthropic", "local", "gemini"]) });
 
 type Verdict = { valid: boolean; usingServerKey: boolean; reason?: string };
 
@@ -40,7 +42,7 @@ export async function POST(req: Request) {
 
   const prefs = await db().userPreferences.findUnique({
     where: { userId: g.user.id },
-    select: { openaiKey: true, anthropicKey: true, localKey: true, aiBaseUrl: true },
+    select: { openaiKey: true, anthropicKey: true, localKey: true, geminiKey: true, aiBaseUrl: true },
   });
 
   if (provider === "local") {
@@ -56,15 +58,25 @@ export async function POST(req: Request) {
     });
   }
 
-  const personal = provider === "openai" ? prefs?.openaiKey : prefs?.anthropicKey;
-  const envKey = provider === "openai" ? process.env.OPENAI_API_KEY : process.env.ANTHROPIC_API_KEY;
+  const personal =
+    provider === "openai" ? prefs?.openaiKey : provider === "anthropic" ? prefs?.anthropicKey : prefs?.geminiKey;
+  // The platform (env) key is admin-only — non-admins must bring their own.
+  const envKey = isAdminEmail(g.user.email) ? envKeyFor(provider) : undefined;
   const key = personal || envKey;
-  if (!key) return ok<Verdict>({ valid: false, usingServerKey: false, reason: "No API key set" });
+  if (!key) {
+    return ok<Verdict>({
+      valid: false,
+      usingServerKey: false,
+      reason: envKeyFor(provider) ? "No key set — add your own key" : "No API key set",
+    });
+  }
 
   const r =
     provider === "openai"
       ? await probe("https://api.openai.com/v1/models", { Authorization: `Bearer ${key}` })
-      : await probe("https://api.anthropic.com/v1/models", { "x-api-key": key, "anthropic-version": "2023-06-01" });
+      : provider === "gemini"
+        ? await probe(`${GEMINI_BASE_URL}models`, { Authorization: `Bearer ${key}` })
+        : await probe("https://api.anthropic.com/v1/models", { "x-api-key": key, "anthropic-version": "2023-06-01" });
 
   return ok<Verdict>({
     valid: r === true,

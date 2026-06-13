@@ -12,9 +12,11 @@ interface Prefs {
   aiProvider: string;
   aiModel: string;
   aiBaseUrl: string;
-  keySet: { openai: boolean; anthropic: boolean; local: boolean };
-  serverKeys: { openai: boolean; anthropic: boolean };
+  keySet: { openai: boolean; anthropic: boolean; local: boolean; gemini: boolean };
+  serverKeys: { openai: boolean; anthropic: boolean; gemini: boolean };
 }
+
+type CloudProvider = "openai" | "anthropic" | "gemini";
 
 const fieldCls =
   "rounded-lg border border-border2 bg-bg2 px-2 py-1.5 font-mono text-[11px] text-txt placeholder:text-txt3 focus:border-accent focus:outline-none";
@@ -52,7 +54,7 @@ export function ModelPicker() {
   const [keyState, setKeyState] = useState<KeyState>("idle");
   const [keyMsg, setKeyMsg] = useState<string | null>(null);
   const checkKey = useCallback(async (p: string) => {
-    if (p !== "openai" && p !== "anthropic" && p !== "local") return;
+    if (p !== "openai" && p !== "anthropic" && p !== "local" && p !== "gemini") return;
     setKeyState("checking");
     setKeyMsg(null);
     const v = await validateAiKey(p);
@@ -164,7 +166,13 @@ export function ModelPicker() {
     }
     try {
       const keyField =
-        provider === "openai" ? "openaiKey" : provider === "anthropic" ? "anthropicKey" : "localKey";
+        provider === "openai"
+          ? "openaiKey"
+          : provider === "anthropic"
+            ? "anthropicKey"
+            : provider === "gemini"
+              ? "geminiKey"
+              : "localKey";
       // "Shared key" clears any saved personal key so the chat falls back to
       // the app's env key. "Own key" saves a new key if one was typed.
       const keyPatch =
@@ -192,6 +200,7 @@ export function ModelPicker() {
             openai: p?.keySet.openai ?? false,
             anthropic: p?.keySet.anthropic ?? false,
             local: p?.keySet.local ?? false,
+            gemini: p?.keySet.gemini ?? false,
           };
           const k = provider as keyof typeof keySet;
           if (provider !== "local" && keyMode === "shared") keySet[k] = false;
@@ -201,7 +210,7 @@ export function ModelPicker() {
             aiModel: model.trim(),
             aiBaseUrl: baseUrl,
             keySet,
-            serverKeys: p?.serverKeys ?? { openai: false, anthropic: false },
+            serverKeys: p?.serverKeys ?? { openai: false, anthropic: false, gemini: false },
           };
         });
         setApiKey("");
@@ -363,13 +372,13 @@ export function ModelPicker() {
                       className="mt-0.5 accent-accent"
                     />
                     <span className="text-[11px] leading-snug">
-                      <span className="text-txt">Use the app&apos;s shared key</span>{" "}
-                      {prefs?.serverKeys?.[provider as "openai" | "anthropic"] ? (
+                      <span className="text-txt">Use the app&apos;s platform key</span>{" "}
+                      {prefs?.serverKeys?.[provider as CloudProvider] ? (
                         <span className="text-ok">· available</span>
                       ) : (
-                        <span className="text-warn">· not configured on this server</span>
+                        <span className="text-warn">· admins only — add your own key</span>
                       )}
-                      <span className="block text-txt3">No setup — usage is paid by the app.</span>
+                      <span className="block text-txt3">No setup — usage is paid by the app (admins only).</span>
                     </span>
                   </label>
                   <label className="flex cursor-pointer items-start gap-2">

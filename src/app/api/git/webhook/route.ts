@@ -14,8 +14,7 @@ import { db } from "@/lib/db";
 import { withGitAuth } from "@/lib/git";
 import { getGitAuth } from "@/lib/git";
 import { fetchPullFiles, alreadyReviewed, postPullReview } from "@/lib/git/github";
-import { runReviewer, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
-import { OPENAI_MODEL } from "@/lib/openai";
+import { runReviewer, resolveAiPrefs } from "@/lib/ai-agent";
 import { reportError } from "@/lib/observability";
 
 export const runtime = "nodejs";
@@ -83,18 +82,10 @@ export async function POST(req: Request) {
           diffText += `=== ${f.filename} (${f.status}) ===\n${(f.patch ?? "(no textual diff)").slice(0, 8_000)}\n\n`;
         }
 
-        const prefs = await db().userPreferences.findUnique({
-          where: { userId: watch.userId },
-          select: { aiProvider: true, aiModel: true, aiBaseUrl: true, openaiKey: true, anthropicKey: true, localKey: true },
-        });
-        const provider = prefs?.aiProvider ?? "openai";
-        const prefModel = prefs?.aiModel === "default" ? "" : (prefs?.aiModel ?? "");
-        const model = prefModel || PROVIDER_DEFAULT_MODEL[provider] || OPENAI_MODEL;
-        const apiKey =
-          (provider === "openai" ? prefs?.openaiKey : provider === "anthropic" ? prefs?.anthropicKey : prefs?.localKey) ||
-          undefined;
+        // The repo owner's model/key (platform key admin-only; else their own).
+        const { provider, model, apiKey, baseUrl } = await resolveAiPrefs(watch.userId);
 
-        const review = await runReviewer({ provider, model, apiKey, baseUrl: prefs?.aiBaseUrl || undefined, diffText });
+        const review = await runReviewer({ provider, model, apiKey, baseUrl, diffText });
         if ("error" in review) return;
 
         // Parse "path:line: comment" lines into inline comments; the rest is

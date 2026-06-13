@@ -13,19 +13,21 @@ import { MODEL_PRESETS } from "@/lib/model-presets";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 import { KeyStatusDot, validateAiKey, type KeyState } from "@/components/studio/key-status";
 
-type ProviderId = "openai" | "anthropic" | "local";
-const KEY_FIELD: Record<ProviderId, "openaiKey" | "anthropicKey" | "localKey"> = {
+type ProviderId = "openai" | "anthropic" | "local" | "gemini";
+const KEY_FIELD: Record<ProviderId, "openaiKey" | "anthropicKey" | "localKey" | "geminiKey"> = {
   openai: "openaiKey",
   anthropic: "anthropicKey",
   local: "localKey",
+  gemini: "geminiKey",
 };
+const PROVIDER_IDS: ProviderId[] = ["openai", "anthropic", "gemini", "local"];
 
 interface Prefs {
   aiProvider: string;
   aiModel: string;
   aiBaseUrl: string;
-  keySet: { openai: boolean; anthropic: boolean; local: boolean };
-  serverKeys: { openai: boolean; anthropic: boolean };
+  keySet: { openai: boolean; anthropic: boolean; local: boolean; gemini: boolean };
+  serverKeys: { openai: boolean; anthropic: boolean; gemini: boolean };
   githubTokenSet: boolean;
   githubOauthConnected?: boolean;
   gitConnections?: Partial<Record<GitProviderName, boolean>>;
@@ -75,7 +77,7 @@ export function AiSection() {
   const [model, setModel] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [keySet, setKeySet] = useState({ openai: false, anthropic: false, local: false });
+  const [keySet, setKeySet] = useState({ openai: false, anthropic: false, local: false, gemini: false });
   const [aiSaving, setAiSaving] = useState(false);
   const [keyState, setKeyState] = useState<KeyState>("idle");
   const [keyMsg, setKeyMsg] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export function AiSection() {
       .then((json) => {
         const d = (json?.data ?? json) as Prefs;
         setPrefs(d);
-        const p = (["openai", "anthropic", "local"].includes(d.aiProvider) ? d.aiProvider : "openai") as ProviderId;
+        const p = (PROVIDER_IDS.includes(d.aiProvider as ProviderId) ? d.aiProvider : "openai") as ProviderId;
         setProvider(p);
         setModel(d.aiModel);
         setBaseUrl(d.aiBaseUrl ?? "");
@@ -122,10 +124,10 @@ export function AiSection() {
 
   const preset = MODEL_PRESETS[provider] ?? MODEL_PRESETS.openai;
   const apiKeySet = keySet[provider];
+  // Platform (server) keys are admin-only — serverKeys reflects what THIS user
+  // can actually use, so a non-admin always sees "bring your own key".
   const keyMissing =
-    prefs !== null &&
-    ((provider === "openai" && !prefs.serverKeys.openai && !apiKeySet) ||
-      (provider === "anthropic" && !prefs.serverKeys.anthropic && !apiKeySet));
+    prefs !== null && provider !== "local" && !prefs.serverKeys[provider] && !apiKeySet;
 
   async function saveAi() {
     setAiSaving(true);
@@ -247,7 +249,7 @@ export function AiSection() {
         {keyMissing && (
           <p className="mt-1.5 flex items-center gap-1.5 text-xs text-warn">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            No {preset.label} key on the server — paste yours above to use this provider.
+            No {preset.label} key available — paste your own above to use this provider.
           </p>
         )}
         <div className="mt-3 flex items-center gap-3">
