@@ -42,6 +42,82 @@ function pick<T>(arr: T[], i: number): T {
 }
 
 /**
+ * A small but REAL static navbar project (the assignment) so a seeded workspace
+ * opens with actual code and renders in the live preview — not an empty shell.
+ * This is database content (WorkspaceFile rows), not front-end smoke code.
+ */
+function navbarProject(brand: string): { path: string; content: string }[] {
+  return [
+    {
+      path: "index.html",
+      content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${brand} — Responsive Navbar</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav" aria-label="Main">
+      <a class="brand" href="#">${brand}</a>
+      <button class="nav-toggle" aria-expanded="false" aria-controls="menu" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+      <ul id="menu" class="nav-menu">
+        <li><a href="#home">Home</a></li>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main class="hero">
+    <h1>Build something great</h1>
+    <p>A responsive navbar with a mobile hamburger menu.</p>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>
+`,
+    },
+    {
+      path: "styles.css",
+      content: `:root { --bg:#0d1117; --fg:#e6edf3; --accent:#3b82f6; }
+* { box-sizing: border-box; }
+body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+.site-header { border-bottom:1px solid #1f2937; }
+.nav { display:flex; align-items:center; gap:1rem; max-width:960px; margin:0 auto; padding:1rem; }
+.brand { font-weight:700; color:var(--fg); text-decoration:none; }
+.nav-menu { display:flex; gap:1.25rem; list-style:none; margin:0 0 0 auto; padding:0; }
+.nav-menu a { color:var(--fg); text-decoration:none; opacity:.85; }
+.nav-menu a:hover { opacity:1; color:var(--accent); }
+.nav-toggle { display:none; flex-direction:column; gap:4px; background:none; border:0; cursor:pointer; margin-left:auto; }
+.nav-toggle span { width:24px; height:2px; background:var(--fg); }
+.hero { max-width:960px; margin:0 auto; padding:4rem 1rem; }
+.hero h1 { font-size:2.25rem; }
+@media (max-width:640px) {
+  .nav-toggle { display:flex; }
+  .nav-menu { position:absolute; inset:56px 0 auto 0; flex-direction:column; background:var(--bg); padding:1rem; display:none; }
+  .nav-menu.open { display:flex; }
+}
+`,
+    },
+    {
+      path: "script.js",
+      content: `const toggle = document.querySelector('.nav-toggle');
+const menu = document.getElementById('menu');
+toggle.addEventListener('click', () => {
+  const open = menu.classList.toggle('open');
+  toggle.setAttribute('aria-expanded', String(open));
+});
+`,
+    },
+  ];
+}
+
+/**
  * Deletes every seed user by exact email match. CASCADE removes the entire
  * downstream graph (workspaces, files, messages, intents/changes, tasks,
  * deploys, usage; owned spaces → assignments/submissions/members/events/tasks;
@@ -69,6 +145,10 @@ export async function seedTestData(): Promise<SeedSummary> {
       name: "Durga (test)",
       passwordHash: hashPassword(TEST_USER_PASSWORD),
       tier: "pro",
+      // tokenLimit 0 HARD-disables AI for every test account at the budget gate
+      // (belt-and-suspenders: they also have no key and aren't admins). So all
+      // their "AI" data is the pre-seeded mock below — they can never spend.
+      tokenLimit: 0,
       tokensUsed: 418_500,
       periodTokens: 84_200,
       periodStart: new Date(),
@@ -91,6 +171,7 @@ export async function seedTestData(): Promise<SeedSummary> {
       name: "Aanya (test)",
       passwordHash: hashPassword(TEST_USER_PASSWORD),
       tier: "free",
+      tokenLimit: 0, // test accounts can never spend on real AI
       tokensUsed: 32_000,
       createdAt: daysAgo(30),
     },
@@ -106,6 +187,7 @@ export async function seedTestData(): Promise<SeedSummary> {
         name: `${studentNames[i]} (test)`,
         passwordHash: hashPassword(TEST_USER_PASSWORD),
         tier: "free",
+        tokenLimit: 0, // test accounts can never spend on real AI
         tokensUsed: 4_000 + i * 1_500,
         createdAt: daysAgo(20 - i),
       },
@@ -377,6 +459,57 @@ export async function seedTestData(): Promise<SeedSummary> {
     bump("spaceEvents");
   }
 
+  // ── Student projects + contribution activity (powers the Contributions card)
+  // Sam is active, Mei has some activity, Leo is left QUIET (no activity at all)
+  // so the "no activity yet" tag is visible. AI usage is pre-seeded mock — the
+  // students can't actually call the model (tokenLimit 0).
+  const studentActivity = [
+    { student: students[0], wsName: "sam-navbar", pushes: 4, builds: 9 },
+    { student: students[1], wsName: "mei-navbar", pushes: 2, builds: 4 },
+    // students[2] (Leo) → nothing on purpose.
+  ];
+  for (const sa of studentActivity) {
+    const sw = await db().workspace.create({
+      data: {
+        userId: sa.student.id,
+        name: sa.wsName,
+        mode: "SCRATCH",
+        provider: "github",
+        spaceId: classroom.id, // shared into the classroom
+        createdAt: daysAgo(14),
+        files: { create: navbarProject(sa.student.name?.split(" ")[0] ?? "Nav") },
+        messages: {
+          create: [
+            { role: "user", content: "Build a responsive navbar with a hamburger menu.", createdAt: daysAgo(13) },
+            { role: "assistant", content: "Added a responsive <nav> with a mobile hamburger toggle, focus states, and a media query for the mobile menu (index.html, styles.css, script.js).", createdAt: daysAgo(13, -1) },
+          ],
+        },
+      },
+    });
+    bump("workspaces");
+    bump("files", 3);
+    bump("messages", 2);
+
+    for (let p = 0; p < sa.pushes; p++) {
+      await db().spaceEvent.create({
+        data: { spaceId: classroom.id, userId: sa.student.id, actorName: sa.student.name ?? "student", action: "pushed", target: sa.wsName, createdAt: daysAgo(12 - p, p) },
+      });
+    }
+    bump("spaceEvents", sa.pushes);
+
+    const buildRows = Array.from({ length: sa.builds }, (_, i) => ({
+      userId: sa.student.id,
+      workspaceId: sw.id,
+      kind: "chat",
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      tokens: 800 + ((i * 333) % 4000),
+      createdAt: daysAgo(12 - (i % 10), (i * 5) % 24),
+    }));
+    await db().aiUsageEvent.createMany({ data: buildRows });
+    bump("usageEvents", sa.builds);
+  }
+
   // ── Team Space owned by the teammate; primary user is a member ────────────
   const team = await db().space.create({
     data: {
@@ -399,8 +532,9 @@ export async function seedTestData(): Promise<SeedSummary> {
   bump("spaceMembers", 2);
 
   // Workspaces the teammate shared into the team space (show up as "shared").
+  let teamWsId: string | null = null;
   for (const name of ["design-system", "infra-scripts"]) {
-    await db().workspace.create({
+    const tw = await db().workspace.create({
       data: {
         userId: teammate.id,
         name,
@@ -408,11 +542,18 @@ export async function seedTestData(): Promise<SeedSummary> {
         provider: "github",
         spaceId: team.id,
         createdAt: daysAgo(22),
-        files: { create: [{ path: "README.md", content: `# ${name}\n\nShared into the Helix Core Team space.\n` }] },
+        files: {
+          create: [
+            { path: "README.md", content: `# ${name}\n\nShared into the Helix Core Team space.\n` },
+            { path: "src/index.ts", content: `// ${name} — shared library entry point\nexport const version = "1.0.0";\nexport function init() {\n  return { name: "${name}", ready: true };\n}\n` },
+            { path: "package.json", content: `{\n  "name": "${name}",\n  "version": "1.0.0",\n  "scripts": { "build": "tsc -p ." }\n}\n` },
+          ],
+        },
       },
     });
+    if (!teamWsId) teamWsId = tw.id;
     bump("workspaces");
-    bump("files");
+    bump("files", 3);
   }
   await db().spaceEvent.create({
     data: { spaceId: team.id, userId: primary.id, actorName: "Durga (test)", action: "joined", target: "Helix Core Team", createdAt: daysAgo(24) },
@@ -421,6 +562,30 @@ export async function seedTestData(): Promise<SeedSummary> {
     data: { spaceId: team.id, userId: teammate.id, actorName: "Aanya (test)", action: "shared", target: "design-system", createdAt: daysAgo(22) },
   });
   bump("spaceEvents", 2);
+
+  // Team contribution activity: pushes for both members + AI builds for the owner,
+  // so the team's Contributions card is populated (mock AI — tokenLimit 0).
+  for (const tp of [{ user: teammate, n: 5 }, { user: primary, n: 3 }]) {
+    for (let p = 0; p < tp.n; p++) {
+      await db().spaceEvent.create({
+        data: { spaceId: team.id, userId: tp.user.id, actorName: tp.user.name ?? "member", action: "pushed", target: "design-system", createdAt: daysAgo(10 - p, p) },
+      });
+    }
+    bump("spaceEvents", tp.n);
+  }
+  if (teamWsId) {
+    const teamBuilds = Array.from({ length: 7 }, (_, i) => ({
+      userId: teammate.id,
+      workspaceId: teamWsId,
+      kind: "chat",
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      tokens: 700 + ((i * 411) % 3000),
+      createdAt: daysAgo(9 - (i % 7), (i * 3) % 24),
+    }));
+    await db().aiUsageEvent.createMany({ data: teamBuilds });
+    bump("usageEvents", 7);
+  }
 
   // ── AI usage events spread over the last 30 days (flat batch) ─────────────
   const kinds = ["chat", "review", "chat", "chat", "rerank"];
