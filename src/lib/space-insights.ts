@@ -81,15 +81,35 @@ export async function getSpaceInsights(spaceId: string): Promise<SpaceInsights> 
   for (const w of workspaces) wsMap.set(w.userId, (wsMap.get(w.userId) ?? 0) + 1);
 
   const weekAgo = Date.now() - 7 * DAY;
+
+  // Bucket events by user in ONE pass (Map), then each member is an O(1) lookup —
+  // the same pattern the overview/gradebook routes use. Avoids re-scanning every
+  // event per member (was O(members × events); now O(events + members)).
+  interface Agg {
+    pushes: number;
+    last: Date | null;
+    days: Set<number>;
+    any: boolean;
+  }
+  const byUser = new Map<string, Agg>();
+  for (const e of events) {
+    if (!e.userId) continue;
+    let agg = byUser.get(e.userId);
+    if (!agg) {
+      agg = { pushes: 0, last: null, days: new Set(), any: false };
+      byUser.set(e.userId, agg);
+    }
+    agg.any = true;
+    if (e.action === "pushed") agg.pushes++;
+    if (!agg.last || e.createdAt > agg.last) agg.last = e.createdAt;
+    if (e.createdAt.getTime() >= weekAgo) agg.days.add(Math.floor(e.createdAt.getTime() / DAY));
+  }
+
   let totalPushes = 0;
   const members: MemberStat[] = space.members.map((m) => {
-    const mine = events.filter((e) => e.userId === m.userId);
-    const pushes = mine.filter((e) => e.action === "pushed").length;
+    const agg = byUser.get(m.userId);
+    const pushes = agg?.pushes ?? 0;
     totalPushes += pushes;
-    const lastActive = mine.reduce<Date | null>((acc, e) => (!acc || e.createdAt > acc ? e.createdAt : acc), null);
-    const days = new Set(
-      mine.filter((e) => e.createdAt.getTime() >= weekAgo).map((e) => Math.floor(e.createdAt.getTime() / DAY)),
-    );
     const aiBuilds = aiMap.get(m.userId) ?? 0;
     const submissions = subMap.get(m.userId) ?? 0;
     return {
@@ -100,10 +120,10 @@ export async function getSpaceInsights(spaceId: string): Promise<SpaceInsights> 
       pushes,
       aiBuilds,
       workspaces: wsMap.get(m.userId) ?? 0,
-      lastActive: lastActive ? lastActive.toISOString() : null,
-      activeDays7: days.size,
+      lastActive: agg?.last ? agg.last.toISOString() : null,
+      activeDays7: agg?.days.size ?? 0,
       submissions,
-      quiet: mine.length === 0 && aiBuilds === 0 && submissions === 0,
+      quiet: !agg?.any && aiBuilds === 0 && submissions === 0,
     };
   });
 
