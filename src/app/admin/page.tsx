@@ -16,6 +16,7 @@ import { WORKSPACE_TOOLS } from "@/lib/workspace-tools";
 import { PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
 import { OPENAI_MODEL } from "@/lib/openai";
 import { AdminAutoRefresh } from "./auto-refresh";
+import { SeedActions } from "./seed-actions";
 import { Stat, Row, fmt, usd } from "./ui";
 
 export const metadata = { title: "Helix · Admin", robots: { index: false, follow: false } };
@@ -137,6 +138,12 @@ export default async function AdminPage() {
         ) : (
           <p className="text-[13px] text-txt3">No database configured — usage stats unavailable (demo mode).</p>
         )}
+      </section>
+
+      {/* Test data */}
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold text-txt">Test data</h2>
+        <SeedActions />
       </section>
 
       {/* Move logic */}
