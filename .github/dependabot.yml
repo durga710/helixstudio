@@ -1,0 +1,36 @@
+version: 2
+# Keep the starter templates' dependencies current. Dependabot opens PRs; the
+# refresh-templates build-gate (and CI) is what proves a bump is safe before it
+# reaches users. Scoped to the npm-based template dirs.
+updates:
+  - package-ecosystem: "npm"
+    directory: "/templates/nextjs-app"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(templates)"
+
+  - package-ecosystem: "npm"
+    directory: "/templates/vite-spa"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(templates)"
+
+  - package-ecosystem: "npm"
+    directory: "/templates/express-api"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(templates)"
+
+  - package-ecosystem: "pip"
+    directory: "/templates/flask-api"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(templates)"

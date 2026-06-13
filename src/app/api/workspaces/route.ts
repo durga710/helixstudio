@@ -13,6 +13,8 @@ import { ok, apiErrors } from "@/lib/api-response";
 import { getProvider, getGitAuth, withGitAuth, isValidRepoId, PROVIDER_META } from "@/lib/git";
 import { isValidBranchName } from "@/lib/repo-files";
 import { guard } from "@/lib/route-helpers";
+import { TEMPLATES } from "@/lib/templates/registry.generated";
+import { buildTemplateNote } from "@/lib/templates/router";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +25,8 @@ const CreateSchema = z.discriminatedUnion("mode", [
   z.object({
     mode: z.literal("SCRATCH"),
     name: z.string().min(1).max(80).optional(),
+    // Optional starter template to scaffold (0-token file injection).
+    templateId: z.string().min(1).max(64).optional(),
   }),
   z.object({
     mode: z.literal("IMPORT"),
@@ -68,14 +72,22 @@ export async function POST(req: Request) {
   if (!parsed.success) return apiErrors.validation(parsed.error);
 
   if (parsed.data.mode === "SCRATCH") {
+    // Optional template injection: seed the workspace's files + notes from a
+    // pre-made starter (0 AI tokens). Invalid/absent templateId → empty
+    // workspace (today's behavior, byte-for-byte).
+    const tpl = parsed.data.templateId ? TEMPLATES[parsed.data.templateId] : undefined;
     const ws = await db().workspace.create({
       data: {
         userId: g.user.id,
         name: parsed.data.name?.trim() || "Untitled project",
         mode: "SCRATCH",
+        ...(tpl && {
+          notes: buildTemplateNote(tpl.manifest.id),
+          files: { create: tpl.files.map((f) => ({ path: f.path, content: f.content })) },
+        }),
       },
     });
-    return ok({ id: ws.id });
+    return ok({ id: ws.id, templateId: tpl?.manifest.id });
   }
 
   // IMPORT — verify access on the chosen git host and pin the branch.

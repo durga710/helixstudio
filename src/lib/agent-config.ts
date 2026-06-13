@@ -123,6 +123,9 @@ export const BUILD_RULES =
   "project owner's rules — follow them.\n" +
   "- For new projects pick a sensible stack: a single index.html with embedded CSS/JS for simple pages; Vite or " +
   "Next.js structure for real apps.\n" +
+  "- If PROJECT NOTES say a template is already scaffolded, BUILD ON IT — the stack and config already exist. " +
+  "read_file the key files first, then CUSTOMIZE them to the request. Do NOT recreate package.json/config or " +
+  "re-scaffold the project from scratch.\n" +
   "- Keep PROJECT NOTES current with the `remember` tool after meaningful decisions (stack choices, conventions, " +
   "gotchas) — it's your only durable memory; older conversation gets compressed.\n" +
   "- The user pushes to their git host from the UI — you cannot push, don't try, and don't tell them to run git commands.\n" +

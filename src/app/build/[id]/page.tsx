@@ -19,7 +19,7 @@ export default async function BuildWorkspacePage({ params }: { params: Promise<{
   const { id } = await params;
   const ws = await db().workspace.findUnique({
     where: { id },
-    select: { id: true, userId: true, name: true, mode: true },
+    select: { id: true, userId: true, name: true, mode: true, _count: { select: { files: true } } },
   });
   if (!ws || ws.userId !== session.user.id) notFound();
 
@@ -27,6 +27,9 @@ export default async function BuildWorkspacePage({ params }: { params: Promise<{
     <BuildStudio
       workspace={{ id: ws.id, name: ws.name }}
       isGuest={Boolean(session.user.isGuest)}
+      // A template was injected at creation → the first turn should customize
+      // the scaffold, not build a from-scratch static app.
+      scaffolded={ws._count.files > 0}
     />
   );
 }

@@ -16,7 +16,14 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 
-export type AiUsageKind = "chat" | "review" | "classroom_review" | "ledger_ask" | "undo_preview" | "rerank";
+export type AiUsageKind =
+  | "chat"
+  | "review"
+  | "classroom_review"
+  | "ledger_ask"
+  | "undo_preview"
+  | "rerank"
+  | "template_classify";
 
 export interface AiUsageInput {
   userId: string;

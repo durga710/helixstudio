@@ -26,6 +26,8 @@ import { cn } from "@/lib/utils";
 interface BuildStudioProps {
   workspace: { id: string; name: string };
   isGuest: boolean;
+  /** The workspace was created from a starter template (already has files). */
+  scaffolded?: boolean;
 }
 
 interface ChatMessage {
@@ -45,9 +47,15 @@ Quality bar: genuinely beautiful — modern type scale, generous spacing, a cohe
 
 Request: `;
 
+/* When the workspace was scaffolded from a starter template, the stack and
+ * config already exist — steer the agent to customize on top, not re-scaffold. */
+const TEMPLATE_BRIEF = `This workspace is already scaffolded from a starter template (see PROJECT NOTES for the stack and key files). Build the request below ON TOP of it: read the existing files first, then customize and extend them. Do NOT recreate package.json/config or re-scaffold. Implement real, working functionality with a polished UI. Don't ask questions; make tasteful decisions and build it now.
+
+Request: `;
+
 const FOLLOW_UPS = ["Add a dark mode toggle", "Make it feel more premium", "Improve the mobile layout"];
 
-export function BuildStudio({ workspace, isGuest }: BuildStudioProps) {
+export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStudioProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activities, setActivities] = useState<string[]>([]);
   const [building, setBuilding] = useState(false);
@@ -106,7 +114,7 @@ export function BuildStudio({ workspace, isGuest }: BuildStudioProps) {
   /* ----------------------------- agent turn ------------------------- */
 
   const send = useCallback(
-    async (text: string, withBrief: boolean) => {
+    async (text: string, brief: "static" | "template" | "none" = "none") => {
       const trimmed = text.trim();
       if (!trimmed) return;
       setMessages((prev) => [...prev, { id: nextId.current++, role: "user", content: trimmed }]);
@@ -114,12 +122,13 @@ export function BuildStudio({ workspace, isGuest }: BuildStudioProps) {
       setError(null);
       setBuilding(true);
 
+      const prefix = brief === "static" ? BUILD_BRIEF : brief === "template" ? TEMPLATE_BRIEF : "";
       let turnLog: string[] = [];
       try {
         const res = await fetch(`/api/workspaces/${workspace.id}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: withBrief ? BUILD_BRIEF + trimmed : trimmed, mode: "build" }),
+          body: JSON.stringify({ message: prefix + trimmed, mode: "build" }),
         });
 
         if (!res.headers.get("content-type")?.includes("application/x-ndjson")) {
@@ -188,13 +197,13 @@ export function BuildStudio({ workspace, isGuest }: BuildStudioProps) {
       const stash = sessionStorage.getItem(`helix.build.${workspace.id}`);
       if (stash) {
         sessionStorage.removeItem(`helix.build.${workspace.id}`);
-        void send(stash, true);
+        void send(stash, scaffolded ? "template" : "static");
       } else {
         void refreshPreview();
       }
     }, 0);
     return () => clearTimeout(t);
-  }, [workspace.id, send, refreshPreview]);
+  }, [workspace.id, send, refreshPreview, scaffolded]);
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
@@ -481,7 +490,7 @@ export function BuildStudio({ workspace, isGuest }: BuildStudioProps) {
                 {FOLLOW_UPS.map((f) => (
                   <button
                     key={f}
-                    onClick={() => void send(f, false)}
+                    onClick={() => void send(f)}
                     className="cursor-pointer rounded-full border border-border bg-panel px-2.5 py-1 text-[11px] text-txt2 transition-colors hover:border-accent hover:text-txt"
                   >
                     {f}
@@ -497,7 +506,7 @@ export function BuildStudio({ workspace, isGuest }: BuildStudioProps) {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     if (!building && input.trim()) {
-                      void send(input, false);
+                      void send(input);
                       setInput("");
                     }
                   }
@@ -511,7 +520,7 @@ export function BuildStudio({ workspace, isGuest }: BuildStudioProps) {
               <button
                 onClick={() => {
                   if (!building && input.trim()) {
-                    void send(input, false);
+                    void send(input);
                     setInput("");
                   }
                 }}

@@ -1,0 +1,9 @@
+{
+  "id": "flask-api",
+  "label": "Flask API (Python)",
+  "framework": "flask",
+  "description": "A minimal Flask REST API with a health route and a sample resource. JSON in, JSON out.",
+  "keywords": ["flask", "python", "api", "backend", "rest", "service", "endpoint", "server", "crud", "microservice"],
+  "notesBlurb": "Scaffolded from the Flask API (Python) template. app.py + requirements.txt exist with a health route and a sample /api/items resource. read_file app.py, then CUSTOMIZE — add routes, models, and logic. Do NOT recreate the boilerplate or re-pick a stack.",
+  "cli": "overlay-only"
+}

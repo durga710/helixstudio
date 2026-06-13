@@ -1,0 +1,9 @@
+{
+  "id": "static-web",
+  "label": "Static site (HTML/CSS/JS)",
+  "framework": "static",
+  "description": "A single-page static site — HTML, CSS, and vanilla JS. No build step; previews instantly.",
+  "keywords": ["landing", "page", "html", "static", "marketing", "brochure", "simple", "website", "site", "one-page", "promo"],
+  "notesBlurb": "Scaffolded from the Static site template: index.html + style.css + script.js, no build step. Customize these files to the user's request — do NOT recreate the HTML boilerplate or re-pick a stack.",
+  "cli": "overlay-only"
+}
