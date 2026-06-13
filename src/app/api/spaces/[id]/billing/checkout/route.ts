@@ -49,29 +49,34 @@ export async function POST(req: Request, { params }: Params) {
     );
   }
 
-  const stripe = getStripe();
+  try {
+    const stripe = getStripe();
 
-  let customerId = space.stripeCustomerId;
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: g.user.email ?? undefined,
-      name: g.user.name ?? undefined,
-      metadata: { spaceId: space.id },
+    let customerId = space.stripeCustomerId;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: g.user.email ?? undefined,
+        name: g.user.name ?? undefined,
+        metadata: { spaceId: space.id },
+      });
+      customerId = customer.id;
+      await db().space.update({ where: { id: space.id }, data: { stripeCustomerId: customerId } });
+    }
+
+    const origin = appOrigin(req);
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      line_items: [{ price: priceIdForSpace(space), quantity: parsed.data.seats }],
+      client_reference_id: space.id,
+      subscription_data: { metadata: { spaceId: space.id } },
+      success_url: `${origin}/space?s=${space.id}&billing=success`,
+      cancel_url: `${origin}/space?s=${space.id}`,
     });
-    customerId = customer.id;
-    await db().space.update({ where: { id: space.id }, data: { stripeCustomerId: customerId } });
+    if (!session.url) return apiErrors.internal();
+    return ok({ url: session.url });
+  } catch {
+    // Stripe misconfig (bad price id / portal not set up) must not 500 raw.
+    return apiErrors.badRequest("Couldn't start checkout — billing may not be fully configured yet.");
   }
-
-  const origin = appOrigin(req);
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer: customerId,
-    line_items: [{ price: priceIdForSpace(space), quantity: parsed.data.seats }],
-    client_reference_id: space.id,
-    subscription_data: { metadata: { spaceId: space.id } },
-    success_url: `${origin}/space?s=${space.id}&billing=success`,
-    cancel_url: `${origin}/space?s=${space.id}`,
-  });
-  if (!session.url) return apiErrors.internal();
-  return ok({ url: session.url });
 }

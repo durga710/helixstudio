@@ -25,9 +25,13 @@ export async function POST(req: Request) {
   if (!user?.stripeCustomerId) return apiErrors.badRequest("No billing history yet — upgrade first.");
 
   const origin = process.env.NEXT_PUBLIC_APP_URL || process.env.AUTH_URL || new URL(req.url).origin;
-  const session = await getStripe().billingPortal.sessions.create({
-    customer: user.stripeCustomerId,
-    return_url: `${origin}/settings`,
-  });
-  return ok({ url: session.url });
+  try {
+    const session = await getStripe().billingPortal.sessions.create({
+      customer: user.stripeCustomerId,
+      return_url: `${origin}/settings`,
+    });
+    return ok({ url: session.url });
+  } catch {
+    return apiErrors.badRequest("Couldn't open the billing portal — it may not be set up in Stripe yet.");
+  }
 }

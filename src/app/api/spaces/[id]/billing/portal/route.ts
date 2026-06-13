@@ -29,9 +29,13 @@ export async function POST(req: Request, { params }: Params) {
 
   const origin =
     process.env.NEXT_PUBLIC_APP_URL || process.env.AUTH_URL || new URL(req.url).origin;
-  const session = await getStripe().billingPortal.sessions.create({
-    customer: space.stripeCustomerId,
-    return_url: `${origin}/space?s=${space.id}`,
-  });
-  return ok({ url: session.url });
+  try {
+    const session = await getStripe().billingPortal.sessions.create({
+      customer: space.stripeCustomerId,
+      return_url: `${origin}/space?s=${space.id}`,
+    });
+    return ok({ url: session.url });
+  } catch {
+    return apiErrors.badRequest("Couldn't open the billing portal — it may not be set up in Stripe yet.");
+  }
 }

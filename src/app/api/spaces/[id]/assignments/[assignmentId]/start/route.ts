@@ -60,19 +60,25 @@ export async function POST(_req: Request, { params }: Params) {
   if (!submission) return apiErrors.internal();
   if (submission.workspaceId) return ok({ workspaceId: submission.workspaceId, existing: true });
 
-  // Build the student's copy (retry path lands here too).
-  const ws = assignment.starterWorkspace
-    ? await copyWorkspaceAsScratch(assignment.starterWorkspace, g.user.id, assignment.title)
-    : await db()
-        .workspace.create({
-          data: { userId: g.user.id, name: assignment.title.slice(0, 80), mode: "SCRATCH" },
-          select: { id: true },
-        })
-        .then((w) => ({ id: w.id, fileCount: 0 }));
+  // Build the student's copy (retry path lands here too). Wrapped so a fork
+  // failure returns a clean error, not a raw 500 — the submission row persists,
+  // so a retry simply re-attempts the fork.
+  try {
+    const ws = assignment.starterWorkspace
+      ? await copyWorkspaceAsScratch(assignment.starterWorkspace, g.user.id, assignment.title)
+      : await db()
+          .workspace.create({
+            data: { userId: g.user.id, name: assignment.title.slice(0, 80), mode: "SCRATCH" },
+            select: { id: true },
+          })
+          .then((w) => ({ id: w.id, fileCount: 0 }));
 
-  await db().assignmentSubmission.update({
-    where: { id: submission.id },
-    data: { workspaceId: ws.id },
-  });
-  return ok({ workspaceId: ws.id, fileCount: ws.fileCount, existing: false });
+    await db().assignmentSubmission.update({
+      where: { id: submission.id },
+      data: { workspaceId: ws.id },
+    });
+    return ok({ workspaceId: ws.id, fileCount: ws.fileCount, existing: false });
+  } catch {
+    return apiErrors.internal();
+  }
 }

@@ -1,15 +1,19 @@
-import { NextRequest } from "next/server";
 import { z } from "zod";
-import { auth } from "@/lib/auth";
-import { db, dbEnabled, schemaReady } from "@/lib/db";
+import { ok, apiErrors } from "@/lib/api-response";
+import { db, dbEnabled } from "@/lib/db";
+import { guard } from "@/lib/route-helpers";
 import { deleteMemory, store, upsertMemory } from "@/lib/store";
 
 /**
  * Project/user memory — the entries shown in Settings → Memory. Backed by the
  * real MemoryEntry table when a database is configured (scoped to the signed-in
  * user); falls back to the in-memory demo store only in no-DB demo mode.
+ *
+ * Goes through guard() like every other route: enforces suspension + rate
+ * limits and returns the standard ok()/apiErrors envelope.
  */
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const upsertSchema = z.object({
@@ -29,55 +33,52 @@ function wire(r: { id: string; scope: string; title: string; content: string; up
 }
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  if (!dbEnabled()) return Response.json({ memory: store().memory });
-  await schemaReady();
+  const g = await guard("memory", { limit: 300, windowMs: 60 * 60 * 1000 });
+  if ("response" in g) return g.response;
+  if (!dbEnabled()) return ok({ memory: store().memory });
   const rows = await db().memoryEntry.findMany({
-    where: { userId: session.user.id },
+    where: { userId: g.user.id },
     orderBy: { updatedAt: "desc" },
     select: { id: true, scope: true, title: true, content: true, updatedAt: true },
   });
-  return Response.json({ memory: rows.map(wire) });
+  return ok({ memory: rows.map(wire) });
 }
 
-export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function POST(req: Request) {
+  const g = await guard("memory", { limit: 120, windowMs: 60 * 60 * 1000 });
+  if ("response" in g) return g.response;
 
   const parsed = upsertSchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return Response.json({ error: "Invalid memory entry" }, { status: 400 });
+  if (!parsed.success) return apiErrors.validation(parsed.error);
   const { id, scope, title, content } = parsed.data;
 
-  if (!dbEnabled()) return Response.json({ entry: upsertMemory(parsed.data) }, { status: 201 });
-  await schemaReady();
+  if (!dbEnabled()) return ok({ entry: upsertMemory(parsed.data) });
 
   if (id) {
     // Guard ownership before editing an existing entry.
-    const existing = await db().memoryEntry.findFirst({ where: { id, userId: session.user.id }, select: { id: true } });
-    if (!existing) return Response.json({ error: "Entry not found" }, { status: 404 });
+    const existing = await db().memoryEntry.findFirst({ where: { id, userId: g.user.id }, select: { id: true } });
+    if (!existing) return apiErrors.notFound("Memory entry");
     const entry = await db().memoryEntry.update({ where: { id }, data: { scope: toDb(scope), title, content } });
-    return Response.json({ entry: wire(entry) }, { status: 201 });
+    return ok({ entry: wire(entry) });
   }
   const entry = await db().memoryEntry.create({
-    data: { userId: session.user.id, scope: toDb(scope), title, content },
+    data: { userId: g.user.id, scope: toDb(scope), title, content },
   });
-  return Response.json({ entry: wire(entry) }, { status: 201 });
+  return ok({ entry: wire(entry) });
 }
 
-export async function DELETE(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function DELETE(req: Request) {
+  const g = await guard("memory", { limit: 120, windowMs: 60 * 60 * 1000 });
+  if ("response" in g) return g.response;
 
-  const id = req.nextUrl.searchParams.get("id");
-  if (!id) return Response.json({ error: "Entry not found" }, { status: 404 });
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return apiErrors.badRequest("id is required");
 
   if (!dbEnabled()) {
-    if (!deleteMemory(id)) return Response.json({ error: "Entry not found" }, { status: 404 });
-    return Response.json({ ok: true });
+    if (!deleteMemory(id)) return apiErrors.notFound("Memory entry");
+    return ok({ deleted: true });
   }
-  await schemaReady();
-  const res = await db().memoryEntry.deleteMany({ where: { id, userId: session.user.id } });
-  if (res.count === 0) return Response.json({ error: "Entry not found" }, { status: 404 });
-  return Response.json({ ok: true });
+  const res = await db().memoryEntry.deleteMany({ where: { id, userId: g.user.id } });
+  if (res.count === 0) return apiErrors.notFound("Memory entry");
+  return ok({ deleted: true });
 }

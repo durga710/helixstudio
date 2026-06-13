@@ -143,7 +143,7 @@ export function SettingsScreen({
     try {
       const res = await fetch("/api/memory");
       if (!res.ok) throw new Error();
-      setMemory(((await res.json()) as { memory: MemoryEntry[] }).memory);
+      setMemory(((await res.json()) as { data?: { memory: MemoryEntry[] } }).data?.memory ?? []);
       setMemError(false);
     } catch {
       setMemError(true);
@@ -167,27 +167,39 @@ export function SettingsScreen({
     if (!keyInput.trim()) return;
     setKeySaving(true);
     setKeyError(null);
-    const res = await fetch("/api/keys", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ apiKey: keyInput.trim() }),
-    });
-    if (res.ok) {
-      setKeyInput("");
-      setByok((b) => ({ byok: true, platformKey: b?.platformKey ?? false }));
-      toast("API key saved — chat now streams real Claude");
-    } else {
-      const err = (await res.json().catch(() => null)) as { error?: string } | null;
-      setKeyError(err?.error ?? "Couldn't save the key");
+    try {
+      const res = await fetch("/api/keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: keyInput.trim() }),
+      });
+      if (res.ok) {
+        setKeyInput("");
+        setByok((b) => ({ byok: true, platformKey: b?.platformKey ?? false }));
+        toast("API key saved — chat now streams real Claude");
+      } else {
+        const err = (await res.json().catch(() => null)) as { error?: { message?: string } | string } | null;
+        const msg = typeof err?.error === "string" ? err.error : err?.error?.message;
+        setKeyError(msg ?? "Couldn't save the key");
+      }
+    } catch {
+      setKeyError("Network error — try again.");
+    } finally {
+      setKeySaving(false);
     }
-    setKeySaving(false);
   }
 
   async function removeKey() {
-    const res = await fetch("/api/keys", { method: "DELETE" });
-    if (res.ok) {
-      setByok((b) => ({ byok: false, platformKey: b?.platformKey ?? false }));
-      toast("API key removed");
+    try {
+      const res = await fetch("/api/keys", { method: "DELETE" });
+      if (res.ok) {
+        setByok((b) => ({ byok: false, platformKey: b?.platformKey ?? false }));
+        toast("API key removed");
+      } else {
+        toast("Couldn't remove the key — try again.");
+      }
+    } catch {
+      toast("Network error — try again.");
     }
   }
 
