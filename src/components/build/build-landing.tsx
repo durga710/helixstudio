@@ -15,6 +15,7 @@ import {
   Joystick,
   Map as MapIcon,
   Globe,
+  Blocks,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand";
 import { GAME_CATEGORIES, GAME_ENGINES } from "@/lib/templates/engines";
@@ -47,6 +48,7 @@ const CATEGORY_ICONS: Record<string, typeof AppWindow> = {
   Joystick,
   Map: MapIcon,
   Globe,
+  Blocks,
   Sparkles,
 };
 
@@ -209,7 +211,7 @@ export function BuildLanding({ signedIn, isGuest, dbReady, isAdmin }: BuildLandi
         {kind === "game" && (
           <div className="mt-4 w-full max-w-[680px]">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="group" aria-label="Kind of game">
-              {GAME_CATEGORIES.map((c) => {
+              {GAME_CATEGORIES.filter((c) => !c.adminOnly || isAdmin).map((c) => {
                 const Icon = CATEGORY_ICONS[c.icon] ?? Sparkles;
                 const active = gameCat === c.id;
                 return (

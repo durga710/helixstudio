@@ -1,0 +1,10 @@
+{
+  "id": "game-godot",
+  "label": "Game Studio (Godot)",
+  "framework": "game",
+  "engine": "godot",
+  "description": "A real game project built with the Godot engine (GDScript + scenes). Edit the code, then press Build & Play to compile it to the web. Great for learning real game development — 2D or 3D.",
+  "keywords": ["godot", "game studio", "real engine", "gdscript", "scene", "tscn", "engine game"],
+  "notesBlurb": "Scaffolded as a Godot 4 project: project.godot + main.tscn (the main scene) + main.gd (GDScript) + export_presets.cfg (a 'Web' preset) + icon.svg. Build the user's game by editing main.gd and main.tscn — add nodes, scenes, input, physics, and game logic in GDScript. Use Godot's built-in nodes and shapes (ColorRect, Polygon2D, CSG/MeshInstance3D for 3D); there are NO imported image/model assets. GDScript uses TAB indentation. Built-in input actions ui_left/ui_right/ui_up/ui_down/ui_accept work with no input-map setup. Do NOT edit export_presets.cfg or the export settings, and do NOT rename project.godot — the server compiles the project to the web with the existing 'Web' preset. This project is NOT previewed live; the user presses Build & Play to compile and run it.",
+  "cli": "overlay-only"
+}

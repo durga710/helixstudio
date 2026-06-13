@@ -352,6 +352,48 @@ export const TEMPLATES: Record<string, Template> = {
       }
     ]
   },
+  "game-godot": {
+    "manifest": {
+      "id": "game-godot",
+      "label": "Game Studio (Godot)",
+      "framework": "game",
+      "engine": "godot",
+      "description": "A real game project built with the Godot engine (GDScript + scenes). Edit the code, then press Build & Play to compile it to the web. Great for learning real game development — 2D or 3D.",
+      "keywords": [
+        "godot",
+        "game studio",
+        "real engine",
+        "gdscript",
+        "scene",
+        "tscn",
+        "engine game"
+      ],
+      "notesBlurb": "Scaffolded as a Godot 4 project: project.godot + main.tscn (the main scene) + main.gd (GDScript) + export_presets.cfg (a 'Web' preset) + icon.svg. Build the user's game by editing main.gd and main.tscn — add nodes, scenes, input, physics, and game logic in GDScript. Use Godot's built-in nodes and shapes (ColorRect, Polygon2D, CSG/MeshInstance3D for 3D); there are NO imported image/model assets. GDScript uses TAB indentation. Built-in input actions ui_left/ui_right/ui_up/ui_down/ui_accept work with no input-map setup. Do NOT edit export_presets.cfg or the export settings, and do NOT rename project.godot — the server compiles the project to the web with the existing 'Web' preset. This project is NOT previewed live; the user presses Build & Play to compile and run it.",
+      "cli": "overlay-only"
+    },
+    "files": [
+      {
+        "path": "export_presets.cfg",
+        "content": "[preset.0]\n\nname=\"Web\"\nplatform=\"Web\"\nrunnable=true\nadvanced_options=false\ndedicated_server=false\ncustom_features=\"\"\nexport_filter=\"all_resources\"\ninclude_filter=\"\"\nexclude_filter=\"\"\nexport_path=\"build/index.html\"\npatches=PackedStringArray()\nencryption_include_filters=\"\"\nencryption_exclude_filters=\"\"\nseed=0\nencrypt_pck=false\nencrypt_directory=false\n\n[preset.0.options]\n\ncustom_template/debug=\"\"\ncustom_template/release=\"\"\nvariant/extensions_support=false\nvariant/thread_support=true\nvram_texture_compression/for_desktop=true\nvram_texture_compression/for_mobile=false\nhtml/export_icon=true\nhtml/custom_html_shell=\"\"\nhtml/head_include=\"\"\nhtml/canvas_resize_policy=2\nhtml/focus_canvas_on_start=true\nhtml/experimental_virtual_keyboard=false\nprogressive_web_app/enabled=false\nprogressive_web_app/ensure_cross_origin_isolation_headers=true\n"
+      },
+      {
+        "path": "icon.svg",
+        "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"128\" height=\"128\" viewBox=\"0 0 128 128\">\n  <rect width=\"128\" height=\"128\" rx=\"24\" fill=\"#1d2b53\" />\n  <rect x=\"44\" y=\"44\" width=\"40\" height=\"40\" rx=\"6\" fill=\"#ff004d\" />\n</svg>\n"
+      },
+      {
+        "path": "main.gd",
+        "content": "extends Node2D\n\n# Godot starter — move the box with the arrow keys.\n# Build your game by editing this script and main.tscn: add nodes, scenes,\n# input, physics, and game logic in GDScript. This is a real Godot project,\n# compiled to the web when you press Build & Play.\n# (GDScript uses TAB indentation.)\n\nconst SPEED := 320.0\n\n@onready var player: ColorRect = $Player\n\n\nfunc _process(delta: float) -> void:\n\tvar dir := Vector2.ZERO\n\tif Input.is_action_pressed(\"ui_right\"):\n\t\tdir.x += 1.0\n\tif Input.is_action_pressed(\"ui_left\"):\n\t\tdir.x -= 1.0\n\tif Input.is_action_pressed(\"ui_down\"):\n\t\tdir.y += 1.0\n\tif Input.is_action_pressed(\"ui_up\"):\n\t\tdir.y -= 1.0\n\tplayer.position += dir.normalized() * SPEED * delta\n\tplayer.position = player.position.clamp(Vector2.ZERO, Vector2(760, 410))\n"
+      },
+      {
+        "path": "main.tscn",
+        "content": "[gd_scene load_steps=2 format=3 uid=\"uid://b1helixgame01\"]\n\n[ext_resource type=\"Script\" path=\"res://main.gd\" id=\"1_main\"]\n\n[node name=\"Main\" type=\"Node2D\"]\nscript = ExtResource(\"1_main\")\n\n[node name=\"Background\" type=\"ColorRect\" parent=\".\"]\noffset_right = 800.0\noffset_bottom = 450.0\ncolor = Color(0.113725, 0.168627, 0.32549, 1)\n\n[node name=\"Player\" type=\"ColorRect\" parent=\".\"]\noffset_left = 120.0\noffset_top = 200.0\noffset_right = 160.0\noffset_bottom = 240.0\ncolor = Color(1, 0, 0.301961, 1)\n\n[node name=\"Label\" type=\"Label\" parent=\".\"]\noffset_left = 20.0\noffset_top = 16.0\noffset_right = 400.0\noffset_bottom = 44.0\ntext = \"Arrow keys to move\"\n"
+      },
+      {
+        "path": "project.godot",
+        "content": "; Godot 4 project file. Do not rename this file — the web export needs it.\n\nconfig_version=5\n\n[application]\n\nconfig/name=\"My Game\"\nrun/main_scene=\"res://main.tscn\"\nconfig/features=PackedStringArray(\"4.3\", \"GL Compatibility\")\nconfig/icon=\"res://icon.svg\"\n\n[display]\n\nwindow/size/viewport_width=800\nwindow/size/viewport_height=450\nwindow/stretch/mode=\"canvas_items\"\nwindow/stretch/aspect=\"keep\"\n\n[rendering]\n\nrenderer/rendering_method=\"gl_compatibility\"\nrenderer/rendering_method.mobile=\"gl_compatibility\"\n"
+      }
+    ]
+  },
   "nextjs-app": {
     "manifest": {
       "id": "nextjs-app",

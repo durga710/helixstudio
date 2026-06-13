@@ -320,4 +320,26 @@ CREATE INDEX IF NOT EXISTS "FileEmbedding_workspaceId_idx" ON "FileEmbedding"("w
 DO $$ BEGIN
   ALTER TABLE "FileEmbedding" ADD CONSTRAINT "FileEmbedding_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- 2026-06 · Godot web-export builds (Game Agent Phase 2)
+CREATE TABLE IF NOT EXISTS "GodotBuild" (
+    "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'queued',
+    "hash" TEXT,
+    "pckKey" TEXT,
+    "runtime" TEXT,
+    "exportLog" TEXT,
+    "error" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "finishedAt" TIMESTAMP(3),
+
+    CONSTRAINT "GodotBuild_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "GodotBuild_workspaceId_createdAt_idx" ON "GodotBuild"("workspaceId", "createdAt");
+
+DO $$ BEGIN
+  ALTER TABLE "GodotBuild" ADD CONSTRAINT "GodotBuild_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 `;

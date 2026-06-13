@@ -25,6 +25,8 @@ const TEXT_EXT = new Set([
   ".html", ".css", ".scss", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".json", ".jsonc",
   ".md", ".txt", ".py", ".rb", ".go", ".rs", ".java", ".php", ".vue", ".svelte", ".svg",
   ".yml", ".yaml", ".toml", ".ini", ".cfg", ".env", ".sh", ".sql", ".xml",
+  // Godot project sources (game-godot template).
+  ".gd", ".tscn", ".godot", ".tres", ".import", ".gdshader",
 ]);
 const ALLOW_DOTFILES = new Set([".gitignore", ".env.example", ".npmrc", ".nvmrc", ".editorconfig"]);
 

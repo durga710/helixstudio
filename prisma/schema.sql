@@ -777,3 +777,25 @@ CREATE INDEX "FileEmbedding_workspaceId_idx" ON "FileEmbedding"("workspaceId");
 
 -- AddForeignKey
 ALTER TABLE "FileEmbedding" ADD CONSTRAINT "FileEmbedding_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- CreateTable
+CREATE TABLE "GodotBuild" (
+    "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'queued',
+    "hash" TEXT,
+    "pckKey" TEXT,
+    "runtime" TEXT,
+    "exportLog" TEXT,
+    "error" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "finishedAt" TIMESTAMP(3),
+
+    CONSTRAINT "GodotBuild_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "GodotBuild_workspaceId_createdAt_idx" ON "GodotBuild"("workspaceId", "createdAt");
+
+-- AddForeignKey
+ALTER TABLE "GodotBuild" ADD CONSTRAINT "GodotBuild_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -347,11 +347,12 @@ model Workspace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  files    WorkspaceFile[]
-  messages WorkspaceMessage[]
-  tasks    WorkspaceTask[]
-  intents  WorkspaceIntent[]
-  deploy   WorkspaceDeploy?
+  files       WorkspaceFile[]
+  messages    WorkspaceMessage[]
+  tasks       WorkspaceTask[]
+  intents     WorkspaceIntent[]
+  deploy      WorkspaceDeploy?
+  godotBuilds GodotBuild[]
 
   // Classroom assignments (v2): this workspace as a starter template, and as
   // a student's submission copy.
@@ -395,6 +396,27 @@ model WorkspaceFile {
   updatedAt   DateTime  @updatedAt
 
   @@unique([workspaceId, path])
+}
+
+// A Godot project's web-export build. The project (project.godot + scenes +
+// GDScript) is compiled to a WebAssembly pack in a Vercel Sandbox on demand
+// ("Build & Play"). `hash` is the project content hash, so an unchanged project
+// reuses the last ready build. `pckKey` points at the per-game .pck in blob
+// storage; the shared engine runtime is stored once platform-wide.
+model GodotBuild {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  status      String    @default("queued") // queued | exporting | ready | error
+  hash        String? // sha of the project files this build was made from
+  pckKey      String? // blob key of the exported game.pck
+  runtime     String? // godot runtime version the pack targets
+  exportLog   String? // tail of the export stdout/stderr
+  error       String?
+  createdAt   DateTime  @default(now())
+  finishedAt  DateTime?
+
+  @@index([workspaceId, createdAt])
 }
 
 // ---------- Deploy integrations ----------

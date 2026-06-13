@@ -23,6 +23,7 @@ export const GAME_ENGINES: GameEngine[] = [
   { id: "phaser", label: "2D · Phaser", templateId: "game-2d" },
   { id: "playcanvas", label: "3D · PlayCanvas", templateId: "game-3d-pc" },
   { id: "babylon", label: "3D · Babylon", templateId: "game-3d" },
+  { id: "godot", label: "Godot (real engine)", templateId: "game-godot" },
 ];
 
 export interface GameCategory {
@@ -39,6 +40,10 @@ export interface GameCategory {
   /** Category-aware prompt placeholder + example chips. */
   placeholder: string;
   suggestions: string[];
+  /** Hidden from students until proven — only rendered for admins/testers.
+   * (Godot's "Game Studio" rides on a compile step, so we validate it quietly
+   * before flipping it on for everyone.) */
+  adminOnly?: boolean;
 }
 
 /** The six game-type cards — the entire student-facing menu. Cards that will
@@ -91,6 +96,16 @@ export const GAME_CATEGORIES: GameCategory[] = [
     suggestions: ["A 3D world I can walk around", "A first-person scene to explore", "A 3D ball that rolls to collect coins"],
   },
   {
+    id: "studio",
+    label: "Game Studio",
+    example: "Build with a real engine",
+    icon: "Blocks",
+    templateId: "game-godot",
+    adminOnly: true,
+    placeholder: "A real game built in the Godot engine — describe it, then press Build & Play…",
+    suggestions: ["A little platformer where I collect coins", "A top-down game where I explore", "A 2D game with an enemy to dodge"],
+  },
+  {
     id: "own",
     label: "My Own Idea",
     example: "Describe anything",
@@ -100,6 +115,12 @@ export const GAME_CATEGORIES: GameCategory[] = [
     suggestions: ["A puzzle game with falling blocks", "A whack-a-mole game", "A 2-player tag game"],
   },
 ];
+
+/** A Godot project is detected by its `project.godot` manifest — used to branch
+ * the preview (compile + served route) instead of the instant srcDoc iframe. */
+export function isGodotProject(paths: string[]): boolean {
+  return paths.some((p) => p === "project.godot");
+}
 
 /** Resolve a category id → its forced starter id (null = let the prompt decide). */
 export function templateForCategory(id: string): string | null {
