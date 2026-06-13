@@ -16,6 +16,7 @@ import {
   Map as MapIcon,
   Globe,
   Blocks,
+  Brain,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand";
 import { GAME_CATEGORIES, GAME_ENGINES } from "@/lib/templates/engines";
@@ -34,11 +35,12 @@ interface BuildLandingProps {
   isAdmin: boolean;
 }
 
-type BuildKind = "app" | "game";
+type BuildKind = "app" | "game" | "lab";
 
 const KINDS: { id: BuildKind; label: string; icon: typeof AppWindow; blurb: string }[] = [
   { id: "app", label: "App", icon: AppWindow, blurb: "Sites, tools & dashboards" },
   { id: "game", label: "Game", icon: Gamepad2, blurb: "Build, play & share" },
+  { id: "lab", label: "AI Lab", icon: Brain, blurb: "Learn AI & train models" },
 ];
 
 /** Lucide icon for each game category (keyed by the icon string in engines.ts). */
@@ -125,6 +127,23 @@ export function BuildLanding({ signedIn, isGuest, dbReady, isAdmin }: BuildLandi
         sessionStorage.setItem(`helix.build.mode.${json.data.id}`, isGodot ? "godot" : "game");
       }
       router.push(`/build/${json.data.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong — try again.");
+      setBusy(false);
+    }
+  }
+
+  // The AI Lab isn't a prompt-built project — just ensure a session and go.
+  async function enterLab() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (!signedIn && !isGuest) {
+        const res = await signIn("guest", { redirect: false });
+        if (res?.error) throw new Error("Couldn't start a session — try again or sign in.");
+      }
+      router.push("/lab");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong — try again.");
       setBusy(false);
@@ -266,7 +285,25 @@ export function BuildLanding({ signedIn, isGuest, dbReady, isAdmin }: BuildLandi
           </div>
         )}
 
+        {/* AI Lab — no prompt; step into the guided learning surface */}
+        {kind === "lab" && (
+          <div className="mt-6 w-full max-w-[540px] text-center">
+            <p className="text-[14px] leading-relaxed text-[#9cadc4]">
+              Train your own AI models and learn how they think — hands-on, step by step, no code.
+            </p>
+            <button
+              onClick={() => void enterLab()}
+              disabled={busy || !dbReady}
+              className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-[12px] border-none bg-accent px-5 py-2.5 text-[14px] font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
+              Enter the AI Lab
+            </button>
+          </div>
+        )}
+
         {/* Prompt box */}
+        {kind !== "lab" && (
         <div
           className={cn(
             "mt-4 w-full max-w-[680px] rounded-2xl border bg-[color-mix(in_srgb,#0d1626_88%,transparent)] shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur transition-colors",
@@ -303,6 +340,7 @@ export function BuildLanding({ signedIn, isGuest, dbReady, isAdmin }: BuildLandi
             </button>
           </div>
         </div>
+        )}
 
         {error && (
           <div role="alert" className="mt-4 rounded-[10px] border border-[color-mix(in_srgb,#f87171_40%,transparent)] bg-[color-mix(in_srgb,#f87171_10%,transparent)] px-4 py-2.5 text-[12.5px] text-[#fca5a5]">
@@ -316,6 +354,7 @@ export function BuildLanding({ signedIn, isGuest, dbReady, isAdmin }: BuildLandi
         )}
 
         {/* Suggestions */}
+        {kind !== "lab" && (
         <div className="mt-7 flex max-w-[680px] flex-wrap items-center justify-center gap-2">
           {suggestions.map((s) => (
             <button
@@ -331,6 +370,7 @@ export function BuildLanding({ signedIn, isGuest, dbReady, isAdmin }: BuildLandi
             </button>
           ))}
         </div>
+        )}
       </main>
 
       <footer className="relative z-10 pb-6 text-center text-[11.5px] text-[#5f6f86]">

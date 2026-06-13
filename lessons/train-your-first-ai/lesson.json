@@ -1,0 +1,54 @@
+{
+  "id": "train-your-first-ai",
+  "title": "Train your first AI",
+  "blurb": "Teach a computer to tell two things apart — using your own camera. No code.",
+  "level": "beginner",
+  "estMinutes": 10,
+  "icon": "Sparkles",
+  "concept": "classification",
+  "steps": [
+    {
+      "kind": "explain",
+      "title": "What does it mean to *train* an AI?",
+      "body": "An AI doesn't come knowing things. You **teach** it — by showing it examples, over and over, until it spots the pattern itself.\n\nThat's it. That's the whole secret. You're about to teach a real AI to tell two things apart, just by showing it pictures. Let's go."
+    },
+    {
+      "kind": "widget",
+      "widget": "classifier",
+      "title": "Show it some examples",
+      "body": "Pick two things to tell apart — like ✌️ vs 👍, or a pen vs your hand. Add a bunch of example photos of each, then press **Train**. Watch how sure it gets — that's it *learning*.",
+      "config": { "classes": ["Thing A", "Thing B"] }
+    },
+    {
+      "kind": "quiz",
+      "title": "Quick check",
+      "question": "How did your AI know what each thing looked like?",
+      "choices": [
+        "It already knew",
+        "From the example photos you showed it",
+        "It guessed randomly",
+        "It looked it up online"
+      ],
+      "answer": 1,
+      "explain": "Exactly — it learned **only** from the examples you gave it. More (and better) examples make a smarter model."
+    },
+    {
+      "kind": "explain",
+      "title": "Why does it sometimes get things wrong?",
+      "body": "If you showed it 3 photos of one thing and 30 of the other, it gets **lopsided** — it leans toward whatever it saw most. That's called **bias**, and it's one of the most important ideas in all of AI.\n\nGo back and add more examples of the thing it keeps missing — then watch it get better. *You* are making it smarter."
+    },
+    {
+      "kind": "quiz",
+      "title": "Last one",
+      "question": "Your AI keeps guessing \"Thing B.\" What's the most likely fix?",
+      "choices": [
+        "Add more examples of Thing A",
+        "Turn it off and on again",
+        "Nothing — AIs are just like that",
+        "Ask it nicely"
+      ],
+      "answer": 0,
+      "explain": "Right — a model that always picks one answer usually hasn't seen enough of the *other* one. Balance your examples and it evens out."
+    }
+  ]
+}

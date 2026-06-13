@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
+  Brain,
   Code2,
   Home,
   LogOut,
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 export const NAV_ITEMS = [
   { href: "/", title: "Home", icon: Home },
   { href: "/editor", title: "Editor", icon: Code2 },
+  { href: "/lab", title: "AI Lab", icon: Brain },
   { href: "/space", title: "Space", icon: Users },
   { href: "/deployments", title: "Deployments", icon: Rocket },
 ] as const;
