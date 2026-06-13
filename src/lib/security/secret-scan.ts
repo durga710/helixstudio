@@ -55,6 +55,9 @@ function looksBenign(t: string): boolean {
   if (/^[0-9a-f]{32,64}$/i.test(t)) return true; // md5/sha hashes, git shas
   if (/^[0-9]+$/.test(t)) return true; // long numbers
   if (/^(data|https?|blob):/i.test(t)) return true; // urls / data uris
+  // Very long base64 is asset data (inline images, encoded blobs), not a secret —
+  // real keys are far shorter. (A private key block is still caught by PATTERNS.)
+  if (t.length >= 200 && /^[A-Za-z0-9+/=]+$/.test(t)) return true;
   return false;
 }
 
@@ -100,8 +103,9 @@ export function scanContent(path: string, content: string): SecretFinding[] {
 export function scanFiles(files: { path: string; content: string }[], cap = 200): SecretFinding[] {
   const out: SecretFinding[] = [];
   for (const f of files) {
-    // Skip lockfiles / vendored / obvious non-source where hashes abound.
-    if (/(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|\.min\.(js|css)$)/.test(f.path)) continue;
+    // Skip lockfiles / vendored / obvious non-source where hashes abound, and
+    // .env.example (placeholder values are meant to be committed).
+    if (/(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|(^|\/)\.env\.example$|\.min\.(js|css)$)/.test(f.path)) continue;
     for (const finding of scanContent(f.path, f.content)) {
       out.push(finding);
       if (out.length >= cap) return out;

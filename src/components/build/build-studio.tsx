@@ -106,6 +106,9 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   const nextId = useRef(1);
   const kicked = useRef(false);
   const composeSeq = useRef(0);
+  // Trailing-edge debounce for the live preview: a 20-file build fires 20 write
+  // activities, but we only need to re-compose the preview once they settle.
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // True while THIS session is running a turn — so the resume poller backs off
   // and doesn't fight the live stream.
   const localTurn = useRef(false);
@@ -226,7 +229,8 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             // feed the board a real write signal so cards advance for real.
             if (/^(wrote|deleted)/.test(evt.label)) {
               if (isInitialBuild) setBoardWrites((w) => w + 1);
-              void refreshPreview();
+              if (refreshTimer.current) clearTimeout(refreshTimer.current);
+              refreshTimer.current = setTimeout(() => void refreshPreview(), 400);
             }
           } else if (evt.type === "final") {
             setMessages((prev) => [

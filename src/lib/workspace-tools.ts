@@ -272,6 +272,41 @@ export function workspaceTools(mode: "plan" | "build" = "build") {
 
 const s = (v: unknown): string => (typeof v === "string" ? v : "");
 
+/**
+ * Whitespace-tolerant fallback for edit_file: when an exact substring match
+ * fails (the #1 agent edit failure — the model re-types code with slightly
+ * different indentation), match by comparing TRIMMED lines. Returns the rewritten
+ * content + how many places matched (so the caller can flag ambiguity), or null
+ * if there's no line-trimmed match. Only the first match is replaced.
+ */
+function fuzzyLineReplace(current: string, oldString: string, newString: string): { result: string; count: number } | null {
+  const curLines = current.split("\n");
+  const oldLines = oldString.split("\n");
+  if (oldLines.length > 1 && oldLines[oldLines.length - 1] === "") oldLines.pop(); // drop a trailing newline
+  const n = oldLines.length;
+  if (n === 0) return null;
+  const oldTrim = oldLines.map((l) => l.trim());
+
+  const starts: number[] = [];
+  for (let i = 0; i + n <= curLines.length; i++) {
+    let hit = true;
+    for (let j = 0; j < n; j++) {
+      if (curLines[i + j].trim() !== oldTrim[j]) {
+        hit = false;
+        break;
+      }
+    }
+    if (hit) starts.push(i);
+  }
+  if (starts.length === 0) return null;
+
+  const newLines = newString.split("\n");
+  if (newLines.length > 1 && newLines[newLines.length - 1] === "" && oldString.endsWith("\n")) newLines.pop();
+  const start = starts[0];
+  const result = [...curLines.slice(0, start), ...newLines, ...curLines.slice(start + n)].join("\n");
+  return { result, count: starts.length };
+}
+
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,
@@ -345,23 +380,37 @@ async function executeToolInner(
       if (current === null) return { error: `${path} not found — use write_files to create it` };
 
       const occurrences = current.split(oldString).length - 1;
-      if (occurrences === 0) {
-        return { error: `old_string not found in ${path} — read_file again and copy the exact text (whitespace matters)` };
+      let updated: string;
+      let replacements: number;
+      if (occurrences > 0) {
+        if (occurrences > 1 && !replaceAll) {
+          return {
+            error: `old_string appears ${occurrences} times in ${path} — add more surrounding context to make it unique, or set replace_all`,
+          };
+        }
+        updated = replaceAll ? current.split(oldString).join(newString) : current.replace(oldString, newString);
+        replacements = replaceAll ? occurrences : 1;
+      } else {
+        // Exact match failed — try a whitespace-tolerant line-trimmed match
+        // before giving up (handles re-typed code with different indentation).
+        const fuzzy = fuzzyLineReplace(current, oldString, newString);
+        if (!fuzzy) {
+          return { error: `old_string not found in ${path} — read_file again and copy the exact text (whitespace matters)` };
+        }
+        if (fuzzy.count > 1) {
+          return {
+            error: `old_string matches ${fuzzy.count} places in ${path} (ignoring indentation) — add more surrounding context to make it unique`,
+          };
+        }
+        updated = fuzzy.result;
+        replacements = 1;
       }
-      if (occurrences > 1 && !replaceAll) {
-        return {
-          error: `old_string appears ${occurrences} times in ${path} — add more surrounding context to make it unique, or set replace_all`,
-        };
-      }
-      const updated = replaceAll
-        ? current.split(oldString).join(newString)
-        : current.replace(oldString, newString);
 
       const intentId = ctx.getIntentId ? await ctx.getIntentId() : null;
       const result = await writeWorkspaceFiles(ws, [{ path, content: updated }], intentId ? { intentId } : undefined);
       if ("error" in result) return result;
       if (ctx.cache) ctx.cache.tree = undefined; // size may have changed
-      return { edited: true, path, replacements: replaceAll ? occurrences : 1 };
+      return { edited: true, path, replacements };
     }
     case "delete_file": {
       const path = s(args.path);
