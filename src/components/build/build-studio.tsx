@@ -88,6 +88,8 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewNonce, setPreviewNonce] = useState(0);
   const [tab, setTab] = useState<"preview" | "code">("preview");
+  // Left column switches between the conversation and the live build board.
+  const [chatTab, setChatTab] = useState<"chat" | "board">("chat");
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedContent, setSelectedContent] = useState<string | null>(null);
@@ -493,6 +495,41 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
 
         {/* Chat / build timeline */}
         <section className="flex min-h-0 flex-col border-t border-border bg-bg2 lg:border-r lg:border-t-0">
+          {/* Left-column tabs: the conversation, or the live build board. */}
+          <div className="flex shrink-0 items-center gap-1 border-b border-border bg-bg2 px-2 py-1.5">
+            {(["chat", "board"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setChatTab(t)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] transition-colors",
+                  chatTab === t ? "bg-panel2 text-txt" : "text-txt3 hover:text-txt",
+                )}
+              >
+                {t === "chat" ? "Chat" : "Build plan"}
+                {t === "board" && boardTasks.length > 0 && (
+                  <span className="rounded-full bg-panel px-1.5 text-[10px] text-txt3">{boardTasks.length}</span>
+                )}
+                {t === "board" && boardBuilding && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-label="building" />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {chatTab === "board" ? (
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <BuildBoard
+                tasks={boardTasks}
+                sessionId={boardSession}
+                detected={boardDetected}
+                building={boardBuilding}
+                writes={boardWrites}
+                steps={boardSteps}
+                errored={boardErrored}
+              />
+            </div>
+          ) : (
           <div ref={bodyRef} className="scroll-area flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
             {messages.length === 0 && !building && (
               <div className="rounded-[10px] border border-border2 bg-panel px-3.5 py-3 text-[12.5px] leading-relaxed text-txt2">
@@ -581,6 +618,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
               </div>
             )}
           </div>
+          )}
 
           {/* Composer */}
           <div className="shrink-0 border-t border-border p-3">
@@ -642,17 +680,6 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
           </div>
         </section>
       </div>
-
-      {/* Live build tracker — floating, terminal-styled, read-only. */}
-      <BuildBoard
-        tasks={boardTasks}
-        sessionId={boardSession}
-        detected={boardDetected}
-        building={boardBuilding}
-        writes={boardWrites}
-        steps={boardSteps}
-        errored={boardErrored}
-      />
     </div>
   );
 }

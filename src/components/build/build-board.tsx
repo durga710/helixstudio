@@ -4,17 +4,18 @@
 "use client";
 
 /**
- * BuildBoard — a live, read-only build tracker on the /build page, styled like
- * the admin batch-job terminal popup (dark chrome, traffic-lights, mono, accent
- * pulse). It's a visualization, not an interactive tool: cards flow Up next →
- * In progress → Done on their own, driven by the REAL build telemetry passed in
- * (write count + activity steps) with a gentle timer so it never stalls. On a
- * successful turn every card goes green; on error the active card flashes red
- * and fades out. Floating + draggable + collapsible to a bubble.
+ * BuildBoard — a live, read-only build tracker rendered INLINE as a tab beside
+ * the chat on the /build page, styled like the admin batch-job terminal (dark
+ * chrome, traffic-lights, mono, accent pulse). It's a visualization, not an
+ * interactive tool: cards flow Up next → In progress → Done on their own, driven
+ * by the REAL build telemetry passed in (write count + activity steps) with a
+ * gentle timer so it never stalls. On a successful turn every card goes green;
+ * on error the active card flashes red and drops out. The board can grow
+ * mid-build as new work (verify/fix/test) is detected.
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Check, GripVertical, Loader2, X, LayoutList } from "lucide-react";
+import { Check, Loader2, X, LayoutList } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BuildBoardProps {
@@ -39,11 +40,8 @@ type Lane = "next" | "active" | "done" | "closed";
 
 export function BuildBoard({ tasks, sessionId, detected = [], building, writes, steps, errored = false }: BuildBoardProps) {
   const detectedSet = new Set(detected);
-  const [open, setOpen] = useState(true);
   const [cursor, setCursor] = useState(0); // index of the active card
   const [dropped, setDropped] = useState(false); // active card closed (red→gone)
-  const [pos, setPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const drag = useRef<{ dx: number; dy: number } | null>(null);
 
   // A NEW build → reset the flow. Cards appended mid-build (verify/fix/test)
   // keep the cursor where it is, so detected work just extends the plan.
@@ -51,11 +49,6 @@ export function BuildBoard({ tasks, sessionId, detected = [], building, writes, 
     setCursor(0);
     setDropped(false);
   }, [sessionId]);
-
-  // Auto-open when a build starts so the user sees it kick in.
-  useEffect(() => {
-    if (building) setOpen(true);
-  }, [building]);
 
   // Advance from REAL telemetry: each file-write (or, early on, activity step)
   // pushes the cursor forward. Never exceeds the last card while building.
@@ -88,8 +81,6 @@ export function BuildBoard({ tasks, sessionId, detected = [], building, writes, 
     wasBuilding.current = building;
   }, [building, errored, tasks.length]);
 
-  if (tasks.length === 0) return null;
-
   const laneOf = (i: number): Lane => {
     if (errored && building && i === cursor) return "closed";
     if (i < cursor) return "done";
@@ -103,35 +94,16 @@ export function BuildBoard({ tasks, sessionId, detected = [], building, writes, 
 
   const doneCount = cards.filter((c) => c.lane === "done").length;
 
-  function onPointerDown(e: React.PointerEvent) {
-    drag.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }
-  function onPointerMove(e: React.PointerEvent) {
-    if (!drag.current) return;
-    setPos({ x: e.clientX - drag.current.dx, y: e.clientY - drag.current.dy });
-  }
-  function onPointerUp(e: React.PointerEvent) {
-    drag.current = null;
-    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-  }
-
-  // Collapsed → a small terminal-tinted bubble anchored bottom-right.
-  if (!open) {
+  // No build yet → a calm empty state so the tab never looks broken.
+  if (tasks.length === 0) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
-        className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-full border border-border2 bg-[#0d1220] px-3.5 py-2 text-[12px] text-txt2 shadow-pop transition hover:border-accent"
-      >
-        <LayoutList className="h-3.5 w-3.5 text-accent" />
-        Build plan
-        <span className="rounded-full bg-panel2 px-1.5 text-[10.5px] text-txt3">
-          {doneCount}/{tasks.length}
-        </span>
-        {building && <Loader2 className="h-3 w-3 animate-spin text-accent" />}
-      </button>
+      <div className="grid h-full place-items-center bg-[#0a0e16] p-6 text-center">
+        <div className="text-txt3">
+          <LayoutList className="mx-auto mb-2 h-6 w-6 text-txt3/70" />
+          <div className="text-[12.5px]">No build running yet.</div>
+          <div className="mt-1 text-[11px] text-txt3/70">Describe an app and the plan appears here as it builds.</div>
+        </div>
+      </div>
     );
   }
 
@@ -142,44 +114,34 @@ export function BuildBoard({ tasks, sessionId, detected = [], building, writes, 
   ];
 
   return (
-    <div
-      style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
-      className="fixed bottom-5 right-5 z-40 w-[340px] overflow-hidden rounded-xl border border-border2 bg-[#0a0e16] shadow-pop"
-    >
-      {/* Terminal header — same language as the admin batch popup. */}
-      <header
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        className="flex cursor-grab items-center gap-2 border-b border-border bg-[#0d1220] px-3 py-2 active:cursor-grabbing"
-      >
+    <div className="flex h-full min-h-0 flex-col bg-[#0a0e16]">
+      {/* Terminal-style status strip — same language as the admin batch popup. */}
+      <header className="flex shrink-0 items-center gap-2 border-b border-border bg-[#0d1220] px-3 py-2">
         <span className="flex gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f56]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[#27c93f]" />
         </span>
         <span className="text-[12px] font-medium text-txt2">Build plan · live</span>
+        <span className="ml-auto font-mono text-[11px] text-txt3">
+          {doneCount}/{tasks.length}
+        </span>
         {building ? (
-          <span className="ml-auto animate-pulse text-[11px] text-accent">running…</span>
+          <span className="animate-pulse text-[11px] text-accent">running…</span>
         ) : (
-          <span className="ml-auto text-[11px] text-ok">{doneCount === tasks.length ? "done" : "idle"}</span>
+          <span className="text-[11px] text-ok">{doneCount === tasks.length ? "done" : "idle"}</span>
         )}
-        <GripVertical className="h-3.5 w-3.5 text-txt3" />
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          aria-label="Minimize build plan"
-          className="text-txt3 transition-colors hover:text-txt"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
       </header>
 
-      {/* Three lanes */}
-      <div className="grid grid-cols-3 gap-2 bg-[#0a0e16] p-2.5">
+      {/* Three lanes, filling the tab. */}
+      <div className="grid min-h-0 flex-1 grid-cols-3 gap-2 overflow-auto p-2.5">
         {LANES.map((lane) => {
           const laneCards = cards.filter((c) =>
-            lane.key === "done" ? c.lane === "done" : lane.key === "active" ? c.lane === "active" || c.lane === "closed" : c.lane === "next",
+            lane.key === "done"
+              ? c.lane === "done"
+              : lane.key === "active"
+                ? c.lane === "active" || c.lane === "closed"
+                : c.lane === "next",
           );
           return (
             <div key={lane.key} className="min-w-0">
