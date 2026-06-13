@@ -1,0 +1,25 @@
+.app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 96px 24px;
+  text-align: center;
+}
+
+.app h1 {
+  margin: 0 0 12px;
+}
+
+.counter {
+  margin-top: 24px;
+  padding: 10px 20px;
+  font: inherit;
+  font-weight: 600;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+.counter:hover {
+  border-color: var(--accent);
+}

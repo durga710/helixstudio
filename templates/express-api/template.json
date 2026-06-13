@@ -1,9 +1,9 @@
 {
   "id": "express-api",
-  "label": "Express API (Node.js)",
+  "label": "Express API (Node.js, MVC)",
   "framework": "express",
-  "description": "A minimal Express REST API with a health route and a sample resource. JSON in, JSON out.",
-  "keywords": ["express", "node", "nodejs", "api", "backend", "rest", "service", "endpoint", "server", "crud", "javascript"],
-  "notesBlurb": "Scaffolded from the Express API (Node.js) template. package.json + index.js exist with a health route and a sample /api/items resource. read_file index.js, then CUSTOMIZE — add routes, middleware, and a database. Do NOT recreate the boilerplate or re-pick a stack.",
+  "description": "A production-structured Express REST API: MVC layout (routes/controllers/models/middleware), helmet + cors security, morgan logging, dotenv config, centralized error handling.",
+  "keywords": ["express", "node", "nodejs", "api", "backend", "rest", "service", "endpoint", "server", "crud", "javascript", "mvc"],
+  "notesBlurb": "Scaffolded from the Express MVC template. Structure: src/server.js (entry), src/app.js (middleware: helmet/cors/json + error handler), src/config.js, src/routes/, src/controllers/, src/models/, src/middleware/. read_file these, then CUSTOMIZE — add routes/controllers/models. Do NOT recreate the boilerplate or collapse it into one file.",
   "cli": "overlay-only"
 }

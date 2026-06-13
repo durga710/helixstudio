@@ -1,0 +1,9 @@
+{
+  "id": "django-app",
+  "label": "Django app (Python, MVC)",
+  "framework": "django",
+  "description": "A Django project with secure, env-driven settings and a starter app (models/views/urls/admin). The classic batteries-included MVC (MVT) framework.",
+  "keywords": ["django", "python", "fullstack", "web app", "admin", "orm", "crud", "backend", "mvc", "mvt", "dashboard", "saas"],
+  "notesBlurb": "Scaffolded from the Django MVC template. Structure: manage.py (entry), config/ (settings/urls/wsgi/asgi — settings are env-driven and secure), core/ (an app: models.py, views.py, urls.py, admin.py). read_file these, then CUSTOMIZE — add models, views, and run migrations. Do NOT recreate the project layout or re-scaffold.",
+  "cli": "overlay-only"
+}

@@ -2,8 +2,8 @@
   "id": "vite-spa",
   "label": "Vite + React SPA (TypeScript)",
   "framework": "vite",
-  "description": "A client-side React single-page app powered by Vite + TypeScript. Fast HMR, no server.",
+  "description": "Official create-vite react-ts starter: Vite + React + TypeScript with ESLint and project-reference tsconfigs. Fast HMR, no server.",
   "keywords": ["vite", "react", "spa", "single page", "client", "interactive", "tool", "kanban", "dashboard", "app", "typescript", "frontend"],
-  "notesBlurb": "Scaffolded from the Vite + React (TypeScript) SPA template. Config exists (package.json, vite.config.ts, tsconfig.json, index.html, src/main.tsx, src/App.tsx). read_file the key files, then CUSTOMIZE src/App.tsx and add components/state. Do NOT recreate the config or re-scaffold.",
+  "notesBlurb": "Scaffolded from the official Vite + React (TypeScript) starter. Config exists (package.json, vite.config.ts, tsconfig*.json, eslint.config.js, index.html, src/main.tsx, src/App.tsx). read_file the key files, then CUSTOMIZE src/App.tsx and add components/state. Do NOT recreate the config or re-scaffold.",
   "cli": "npm create vite@latest . -- --template react-ts"
 }

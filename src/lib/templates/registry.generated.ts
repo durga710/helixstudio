@@ -3,12 +3,106 @@
 import type { Template } from "./types";
 
 export const TEMPLATES: Record<string, Template> = {
+  "django-app": {
+    "manifest": {
+      "id": "django-app",
+      "label": "Django app (Python, MVC)",
+      "framework": "django",
+      "description": "A Django project with secure, env-driven settings and a starter app (models/views/urls/admin). The classic batteries-included MVC (MVT) framework.",
+      "keywords": [
+        "django",
+        "python",
+        "fullstack",
+        "web app",
+        "admin",
+        "orm",
+        "crud",
+        "backend",
+        "mvc",
+        "mvt",
+        "dashboard",
+        "saas"
+      ],
+      "notesBlurb": "Scaffolded from the Django MVC template. Structure: manage.py (entry), config/ (settings/urls/wsgi/asgi — settings are env-driven and secure), core/ (an app: models.py, views.py, urls.py, admin.py). read_file these, then CUSTOMIZE — add models, views, and run migrations. Do NOT recreate the project layout or re-scaffold.",
+      "cli": "overlay-only"
+    },
+    "files": [
+      {
+        "path": ".env.example",
+        "content": "DJANGO_SECRET_KEY=change-me-to-a-long-random-string\nDJANGO_DEBUG=1\nDJANGO_ALLOWED_HOSTS=localhost,127.0.0.1\n"
+      },
+      {
+        "path": ".gitignore",
+        "content": "__pycache__/\n*.pyc\n.venv/\nvenv/\n.env\ndb.sqlite3\n/staticfiles/\n"
+      },
+      {
+        "path": "config/__init__.py",
+        "content": ""
+      },
+      {
+        "path": "config/asgi.py",
+        "content": "\"\"\"ASGI entry point (for async servers).\"\"\"\nimport os\n\nfrom django.core.asgi import get_asgi_application\n\nos.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"config.settings\")\napplication = get_asgi_application()\n"
+      },
+      {
+        "path": "config/settings.py",
+        "content": "\"\"\"Django settings — env-driven and secure by default.\n\nSecrets and environment toggles come from the environment (with a .env file\nloaded in development), never hard-coded.\n\"\"\"\nimport os\nfrom pathlib import Path\n\ntry:\n    from dotenv import load_dotenv\n\n    load_dotenv()\nexcept ImportError:\n    pass\n\nBASE_DIR = Path(__file__).resolve().parent.parent\n\nSECRET_KEY = os.environ.get(\"DJANGO_SECRET_KEY\", \"dev-only-insecure-change-me\")\nDEBUG = os.environ.get(\"DJANGO_DEBUG\", \"1\") == \"1\"\nALLOWED_HOSTS = [h for h in os.environ.get(\"DJANGO_ALLOWED_HOSTS\", \"localhost,127.0.0.1\").split(\",\") if h]\n\nINSTALLED_APPS = [\n    \"django.contrib.admin\",\n    \"django.contrib.auth\",\n    \"django.contrib.contenttypes\",\n    \"django.contrib.sessions\",\n    \"django.contrib.messages\",\n    \"django.contrib.staticfiles\",\n    \"core\",\n]\n\nMIDDLEWARE = [\n    \"django.middleware.security.SecurityMiddleware\",\n    \"django.contrib.sessions.middleware.SessionMiddleware\",\n    \"django.middleware.common.CommonMiddleware\",\n    \"django.middleware.csrf.CsrfViewMiddleware\",\n    \"django.contrib.auth.middleware.AuthenticationMiddleware\",\n    \"django.contrib.messages.middleware.MessageMiddleware\",\n    \"django.middleware.clickjacking.XFrameOptionsMiddleware\",\n]\n\nROOT_URLCONF = \"config.urls\"\n\nTEMPLATES = [\n    {\n        \"BACKEND\": \"django.template.backends.django.DjangoTemplates\",\n        \"DIRS\": [],\n        \"APP_DIRS\": True,\n        \"OPTIONS\": {\n            \"context_processors\": [\n                \"django.template.context_processors.request\",\n                \"django.contrib.auth.context_processors.auth\",\n                \"django.contrib.messages.context_processors.messages\",\n            ],\n        },\n    },\n]\n\nWSGI_APPLICATION = \"config.wsgi.application\"\n\nDATABASES = {\n    \"default\": {\n        \"ENGINE\": \"django.db.backends.sqlite3\",\n        \"NAME\": BASE_DIR / \"db.sqlite3\",\n    }\n}\n\nAUTH_PASSWORD_VALIDATORS = [\n    {\"NAME\": \"django.contrib.auth.password_validation.UserAttributeSimilarityValidator\"},\n    {\"NAME\": \"django.contrib.auth.password_validation.MinimumLengthValidator\"},\n    {\"NAME\": \"django.contrib.auth.password_validation.CommonPasswordValidator\"},\n    {\"NAME\": \"django.contrib.auth.password_validation.NumericPasswordValidator\"},\n]\n\nLANGUAGE_CODE = \"en-us\"\nTIME_ZONE = \"UTC\"\nUSE_I18N = True\nUSE_TZ = True\n\nSTATIC_URL = \"static/\"\nDEFAULT_AUTO_FIELD = \"django.db.models.BigAutoField\"\n\n# Production hardening — enabled automatically when DEBUG is off.\nif not DEBUG:\n    SECURE_SSL_REDIRECT = True\n    SESSION_COOKIE_SECURE = True\n    CSRF_COOKIE_SECURE = True\n    SECURE_HSTS_SECONDS = 31536000\n    SECURE_HSTS_INCLUDE_SUBDOMAINS = True\n    SECURE_CONTENT_TYPE_NOSNIFF = True\n"
+      },
+      {
+        "path": "config/urls.py",
+        "content": "\"\"\"Project URL configuration.\"\"\"\nfrom django.contrib import admin\nfrom django.urls import include, path\n\nurlpatterns = [\n    path(\"admin/\", admin.site.urls),\n    path(\"\", include(\"core.urls\")),\n]\n"
+      },
+      {
+        "path": "config/wsgi.py",
+        "content": "\"\"\"WSGI entry point for production servers (gunicorn config.wsgi).\"\"\"\nimport os\n\nfrom django.core.wsgi import get_wsgi_application\n\nos.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"config.settings\")\napplication = get_wsgi_application()\n"
+      },
+      {
+        "path": "core/__init__.py",
+        "content": ""
+      },
+      {
+        "path": "core/admin.py",
+        "content": "from django.contrib import admin\n\nfrom .models import Item\n\nadmin.site.register(Item)\n"
+      },
+      {
+        "path": "core/apps.py",
+        "content": "from django.apps import AppConfig\n\n\nclass CoreConfig(AppConfig):\n    default_auto_field = \"django.db.models.BigAutoField\"\n    name = \"core\"\n"
+      },
+      {
+        "path": "core/migrations/__init__.py",
+        "content": ""
+      },
+      {
+        "path": "core/models.py",
+        "content": "from django.db import models\n\n\nclass Item(models.Model):\n    \"\"\"A sample model. Replace with your own; run makemigrations + migrate.\"\"\"\n\n    name = models.CharField(max_length=200)\n    created_at = models.DateTimeField(auto_now_add=True)\n\n    def __str__(self) -> str:\n        return self.name\n"
+      },
+      {
+        "path": "core/urls.py",
+        "content": "from django.urls import path\n\nfrom . import views\n\nurlpatterns = [\n    path(\"\", views.home, name=\"home\"),\n    path(\"health/\", views.health, name=\"health\"),\n]\n"
+      },
+      {
+        "path": "core/views.py",
+        "content": "from django.http import JsonResponse\n\n\ndef health(_request):\n    return JsonResponse({\"status\": \"ok\"})\n\n\ndef home(_request):\n    return JsonResponse({\"message\": \"Your Django app is running. Edit core/views.py.\"})\n"
+      },
+      {
+        "path": "manage.py",
+        "content": "#!/usr/bin/env python\n\"\"\"Django's command-line utility for administrative tasks.\"\"\"\nimport os\nimport sys\n\n\ndef main():\n    os.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"config.settings\")\n    try:\n        from django.core.management import execute_from_command_line\n    except ImportError as exc:\n        raise ImportError(\n            \"Couldn't import Django. Are you sure it's installed and \"\n            \"available on your PYTHONPATH? Did you forget to activate a venv?\"\n        ) from exc\n    execute_from_command_line(sys.argv)\n\n\nif __name__ == \"__main__\":\n    main()\n"
+      },
+      {
+        "path": "README.md",
+        "content": "# Django app\n\nA Django project with secure, env-driven settings and a starter app.\n\n```\nmanage.py            Django CLI\nconfig/              project: settings.py (env-driven, secure), urls.py, wsgi.py, asgi.py\ncore/                an app: models.py, views.py, urls.py, admin.py, migrations/\n```\n\n## Run\n\n```bash\npython -m venv .venv && source .venv/bin/activate   # Windows: .venv\\Scripts\\activate\npip install -r requirements.txt\ncp .env.example .env                                 # then edit DJANGO_SECRET_KEY\npython manage.py migrate\npython manage.py runserver\n```\n\n- `GET /` and `GET /health/` are JSON views in `core/views.py`\n- `/admin/` is the Django admin (run `python manage.py createsuperuser`)\n\nIn production set `DJANGO_DEBUG=0` and a real `DJANGO_SECRET_KEY` + `DJANGO_ALLOWED_HOSTS`;\nsettings auto-enable SSL redirect, secure cookies, and HSTS when DEBUG is off.\n"
+      },
+      {
+        "path": "requirements.txt",
+        "content": "Django>=5.0,<6.0\ngunicorn>=21.0\npython-dotenv>=1.0\n"
+      }
+    ]
+  },
   "express-api": {
     "manifest": {
       "id": "express-api",
-      "label": "Express API (Node.js)",
+      "label": "Express API (Node.js, MVC)",
       "framework": "express",
-      "description": "A minimal Express REST API with a health route and a sample resource. JSON in, JSON out.",
+      "description": "A production-structured Express REST API: MVC layout (routes/controllers/models/middleware), helmet + cors security, morgan logging, dotenv config, centralized error handling.",
       "keywords": [
         "express",
         "node",
@@ -20,36 +114,69 @@ export const TEMPLATES: Record<string, Template> = {
         "endpoint",
         "server",
         "crud",
-        "javascript"
+        "javascript",
+        "mvc"
       ],
-      "notesBlurb": "Scaffolded from the Express API (Node.js) template. package.json + index.js exist with a health route and a sample /api/items resource. read_file index.js, then CUSTOMIZE — add routes, middleware, and a database. Do NOT recreate the boilerplate or re-pick a stack.",
+      "notesBlurb": "Scaffolded from the Express MVC template. Structure: src/server.js (entry), src/app.js (middleware: helmet/cors/json + error handler), src/config.js, src/routes/, src/controllers/, src/models/, src/middleware/. read_file these, then CUSTOMIZE — add routes/controllers/models. Do NOT recreate the boilerplate or collapse it into one file.",
       "cli": "overlay-only"
     },
     "files": [
+      {
+        "path": ".env.example",
+        "content": "PORT=3000\nNODE_ENV=development\nCORS_ORIGIN=*\n"
+      },
       {
         "path": ".gitignore",
         "content": "node_modules\n.env\n.env*.local\n.DS_Store\nnpm-debug.log*\n"
       },
       {
-        "path": "index.js",
-        "content": "// A minimal Express REST API. Run: npm install && npm start\nimport express from \"express\";\n\nconst app = express();\napp.use(express.json());\n\n// In-memory sample store. Replace with a real database.\nconst items = [\n  { id: 1, name: \"First item\" },\n  { id: 2, name: \"Second item\" },\n];\n\napp.get(\"/health\", (_req, res) => {\n  res.json({ status: \"ok\" });\n});\n\napp.get(\"/api/items\", (_req, res) => {\n  res.json(items);\n});\n\napp.post(\"/api/items\", (req, res) => {\n  const name = (req.body?.name ?? \"\").trim();\n  if (!name) return res.status(400).json({ error: \"name is required\" });\n  const item = { id: items.length ? items[items.length - 1].id + 1 : 1, name };\n  items.push(item);\n  res.status(201).json(item);\n});\n\nconst port = process.env.PORT || 3000;\napp.listen(port, () => console.log(`API listening on http://localhost:${port}`));\n"
-      },
-      {
         "path": "package.json",
-        "content": "{\n  \"name\": \"express-api\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": {\n    \"start\": \"node index.js\",\n    \"dev\": \"node --watch index.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"^4.21.2\"\n  }\n}\n"
+        "content": "{\n  \"name\": \"express-api\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"main\": \"src/server.js\",\n  \"scripts\": {\n    \"start\": \"node src/server.js\",\n    \"dev\": \"node --watch src/server.js\"\n  },\n  \"dependencies\": {\n    \"cors\": \"^2.8.5\",\n    \"dotenv\": \"^16.4.7\",\n    \"express\": \"^4.21.2\",\n    \"helmet\": \"^8.0.0\",\n    \"morgan\": \"^1.10.0\"\n  }\n}\n"
       },
       {
         "path": "README.md",
-        "content": "# Express API\n\nA minimal Express REST API starter.\n\n## Run\n\n```bash\nnpm install\nnpm start\n```\n\n- `GET /health` → `{ \"status\": \"ok\" }`\n- `GET /api/items` → list items\n- `POST /api/items` `{ \"name\": \"...\" }` → create an item\n\nReplace the in-memory store in `index.js` with a real database when you're ready.\n"
+        "content": "# Express API\n\nA production-structured Express REST API with an **MVC** layout and security\ndefaults (helmet, cors).\n\n```\nsrc/server.js              entry point\nsrc/app.js                 express app: helmet/cors/json + error handling\nsrc/config.js              env-driven config (dotenv)\nsrc/routes/                route definitions\nsrc/controllers/           request handlers (validate → model → response)\nsrc/models/                data layer (swap the in-memory store for a DB/ORM)\nsrc/middleware/error.js    404 + centralized error handler\n```\n\n## Run\n\n```bash\nnpm install\nnpm run dev     # node --watch\n# npm start     # production\n```\n\n- `GET /health` → `{ \"status\": \"ok\" }`\n- `GET /api/items` · `POST /api/items` `{ \"name\": \"...\" }`\n\nCopy `.env.example` → `.env` and adjust. Set `CORS_ORIGIN` to your frontend in production.\n"
+      },
+      {
+        "path": "src/app.js",
+        "content": "// The Express app: security + parsing middleware, routes, error handler.\n// Kept separate from server.js so it's easy to import in tests.\nimport express from \"express\";\nimport helmet from \"helmet\";\nimport cors from \"cors\";\nimport morgan from \"morgan\";\n\nimport { config } from \"./config.js\";\nimport routes from \"./routes/index.js\";\nimport { notFound, errorHandler } from \"./middleware/error.js\";\n\nexport function createApp() {\n  const app = express();\n\n  app.use(helmet()); // secure HTTP headers\n  app.use(cors({ origin: config.corsOrigin }));\n  app.use(express.json({ limit: \"1mb\" }));\n  if (config.env !== \"test\") app.use(morgan(\"dev\"));\n\n  app.get(\"/health\", (_req, res) => res.json({ status: \"ok\" }));\n  app.use(\"/api\", routes);\n\n  app.use(notFound);\n  app.use(errorHandler);\n  return app;\n}\n"
+      },
+      {
+        "path": "src/config.js",
+        "content": "// Centralized, env-driven config. Never hard-code secrets.\nimport \"dotenv/config\";\n\nexport const config = {\n  port: Number(process.env.PORT) || 3000,\n  env: process.env.NODE_ENV || \"development\",\n  corsOrigin: process.env.CORS_ORIGIN || \"*\",\n};\n"
+      },
+      {
+        "path": "src/controllers/items.controller.js",
+        "content": "// Controllers — validate input, call the model, shape the response.\nimport * as Items from \"../models/items.model.js\";\n\nexport function listItems(_req, res) {\n  res.json(Items.all());\n}\n\nexport function createItem(req, res) {\n  const name = (req.body?.name ?? \"\").trim();\n  if (!name) return res.status(400).json({ error: \"name is required\" });\n  res.status(201).json(Items.create(name));\n}\n"
+      },
+      {
+        "path": "src/middleware/error.js",
+        "content": "// 404 + centralized error handler. Throw or next(err) anywhere; this formats it.\nexport function notFound(_req, res) {\n  res.status(404).json({ error: \"not found\" });\n}\n\n// eslint-disable-next-line no-unused-vars\nexport function errorHandler(err, _req, res, _next) {\n  const status = err.status || 500;\n  if (status >= 500) console.error(err);\n  res.status(status).json({ error: err.message || \"internal server error\" });\n}\n"
+      },
+      {
+        "path": "src/models/items.model.js",
+        "content": "// Data layer. In-memory store standing in for a database — swap for your ORM\n// (Prisma, Sequelize, Mongoose). Controllers only talk to this module.\nconst items = [\n  { id: 1, name: \"First item\" },\n  { id: 2, name: \"Second item\" },\n];\n\nexport function all() {\n  return items;\n}\n\nexport function create(name) {\n  const item = { id: items.length ? items[items.length - 1].id + 1 : 1, name };\n  items.push(item);\n  return item;\n}\n"
+      },
+      {
+        "path": "src/routes/index.js",
+        "content": "// Mounts feature routers under /api.\nimport { Router } from \"express\";\nimport itemsRoutes from \"./items.routes.js\";\n\nconst router = Router();\nrouter.use(\"/items\", itemsRoutes);\n\nexport default router;\n"
+      },
+      {
+        "path": "src/routes/items.routes.js",
+        "content": "// Routes for the items resource → controller handlers.\nimport { Router } from \"express\";\nimport { listItems, createItem } from \"../controllers/items.controller.js\";\n\nconst router = Router();\nrouter.get(\"/\", listItems);\nrouter.post(\"/\", createItem);\n\nexport default router;\n"
+      },
+      {
+        "path": "src/server.js",
+        "content": "// Entry point — boot the HTTP server.\nimport { createApp } from \"./app.js\";\nimport { config } from \"./config.js\";\n\ncreateApp().listen(config.port, () => {\n  console.log(`API listening on http://localhost:${config.port} (${config.env})`);\n});\n"
       }
     ]
   },
   "flask-api": {
     "manifest": {
       "id": "flask-api",
-      "label": "Flask API (Python)",
+      "label": "Flask API (Python, app-factory MVC)",
       "framework": "flask",
-      "description": "A minimal Flask REST API with a health route and a sample resource. JSON in, JSON out.",
+      "description": "A production-structured Flask REST API: application-factory, blueprints (controllers), a models layer, env-driven config, and gunicorn for production.",
       "keywords": [
         "flask",
         "python",
@@ -60,36 +187,65 @@ export const TEMPLATES: Record<string, Template> = {
         "endpoint",
         "server",
         "crud",
-        "microservice"
+        "microservice",
+        "mvc"
       ],
-      "notesBlurb": "Scaffolded from the Flask API (Python) template. app.py + requirements.txt exist with a health route and a sample /api/items resource. read_file app.py, then CUSTOMIZE — add routes, models, and logic. Do NOT recreate the boilerplate or re-pick a stack.",
+      "notesBlurb": "Scaffolded from the Flask app-factory MVC template. Structure: wsgi.py (entry), config.py (env config), app/__init__.py (create_app + blueprints), app/api/routes.py (controllers), app/models/item.py (data layer). read_file these, then CUSTOMIZE — add blueprints/models. Do NOT recreate the boilerplate or collapse it into one file.",
       "cli": "overlay-only"
     },
     "files": [
+      {
+        "path": ".env.example",
+        "content": "SECRET_KEY=change-me-to-a-long-random-string\nFLASK_ENV=development\nFLASK_DEBUG=1\n"
+      },
       {
         "path": ".gitignore",
         "content": "__pycache__/\n*.pyc\n.venv/\nvenv/\n.env\ninstance/\n"
       },
       {
-        "path": "app.py",
-        "content": "\"\"\"A minimal Flask REST API. Run: pip install -r requirements.txt && flask run.\"\"\"\nfrom flask import Flask, jsonify, request\n\napp = Flask(__name__)\n\n# In-memory sample store. Replace with a real database (SQLAlchemy, etc.).\nitems = [\n    {\"id\": 1, \"name\": \"First item\"},\n    {\"id\": 2, \"name\": \"Second item\"},\n]\n\n\n@app.get(\"/health\")\ndef health():\n    return jsonify(status=\"ok\")\n\n\n@app.get(\"/api/items\")\ndef list_items():\n    return jsonify(items)\n\n\n@app.post(\"/api/items\")\ndef create_item():\n    data = request.get_json(silent=True) or {}\n    name = (data.get(\"name\") or \"\").strip()\n    if not name:\n        return jsonify(error=\"name is required\"), 400\n    item = {\"id\": (items[-1][\"id\"] + 1) if items else 1, \"name\": name}\n    items.append(item)\n    return jsonify(item), 201\n\n\nif __name__ == \"__main__\":\n    app.run(host=\"0.0.0.0\", port=5000, debug=True)\n"
+        "path": "app/__init__.py",
+        "content": "\"\"\"Application factory. Keeps app creation testable and config-driven.\"\"\"\nfrom flask import Flask, jsonify\n\nfrom config import get_config\n\n\ndef create_app() -> Flask:\n    app = Flask(__name__)\n    app.config.from_object(get_config())\n\n    # Blueprints (controllers) — register feature modules here.\n    from app.api.routes import bp as api_bp\n\n    app.register_blueprint(api_bp, url_prefix=\"/api\")\n\n    @app.get(\"/health\")\n    def health():\n        return jsonify(status=\"ok\")\n\n    @app.errorhandler(404)\n    def not_found(_e):\n        return jsonify(error=\"not found\"), 404\n\n    return app\n"
+      },
+      {
+        "path": "app/api/__init__.py",
+        "content": ""
+      },
+      {
+        "path": "app/api/routes.py",
+        "content": "\"\"\"API controllers — the routes for the items resource.\"\"\"\nfrom flask import Blueprint, jsonify, request\n\nfrom app.models.item import all_items, add_item\n\nbp = Blueprint(\"api\", __name__)\n\n\n@bp.get(\"/items\")\ndef list_items():\n    return jsonify(all_items())\n\n\n@bp.post(\"/items\")\ndef create_item():\n    data = request.get_json(silent=True) or {}\n    name = (data.get(\"name\") or \"\").strip()\n    if not name:\n        return jsonify(error=\"name is required\"), 400\n    return jsonify(add_item(name)), 201\n"
+      },
+      {
+        "path": "app/models/__init__.py",
+        "content": ""
+      },
+      {
+        "path": "app/models/item.py",
+        "content": "\"\"\"Item model. This in-memory store stands in for a database (swap in\nSQLAlchemy / your ORM here). The controller talks only to this module.\"\"\"\nfrom dataclasses import dataclass, asdict\n\n\n@dataclass\nclass Item:\n    id: int\n    name: str\n\n    def to_dict(self) -> dict:\n        return asdict(self)\n\n\n_items: list[Item] = [Item(1, \"First item\"), Item(2, \"Second item\")]\n\n\ndef all_items() -> list[dict]:\n    return [i.to_dict() for i in _items]\n\n\ndef add_item(name: str) -> dict:\n    next_id = (_items[-1].id + 1) if _items else 1\n    item = Item(next_id, name)\n    _items.append(item)\n    return item.to_dict()\n"
+      },
+      {
+        "path": "config.py",
+        "content": "\"\"\"Configuration. Secrets come from the environment — never hard-code them.\"\"\"\nimport os\n\n\nclass Config:\n    SECRET_KEY = os.environ.get(\"SECRET_KEY\", \"dev-only-change-me\")\n    JSON_SORT_KEYS = False\n    DEBUG = os.environ.get(\"FLASK_DEBUG\", \"0\") == \"1\"\n\n\nclass ProductionConfig(Config):\n    DEBUG = False\n\n\ndef get_config() -> type[Config]:\n    return ProductionConfig if os.environ.get(\"FLASK_ENV\") == \"production\" else Config\n"
       },
       {
         "path": "README.md",
-        "content": "# Flask API\n\nA minimal Flask REST API starter.\n\n## Run\n\n```bash\npip install -r requirements.txt\nflask run\n```\n\n- `GET /health` → `{ \"status\": \"ok\" }`\n- `GET /api/items` → list items\n- `POST /api/items` `{ \"name\": \"...\" }` → create an item\n\nReplace the in-memory store in `app.py` with a real database when you're ready.\n"
+        "content": "# Flask API\n\nA Flask REST API using the **application-factory** pattern with blueprints,\nconfig, and a models layer — a clean MVC-style structure to grow into.\n\n```\nwsgi.py            entry point (create_app)\nconfig.py          env-driven config (SECRET_KEY, DEBUG)\napp/__init__.py    the app factory + health route + error handlers\napp/api/routes.py  controllers (the /api/items resource)\napp/models/item.py the data layer (swap the in-memory store for a DB)\n```\n\n## Run\n\n```bash\npython -m venv .venv && source .venv/bin/activate   # Windows: .venv\\Scripts\\activate\npip install -r requirements.txt\nflask --app wsgi run            # dev\n# gunicorn wsgi:app             # production\n```\n\n- `GET /health` → `{ \"status\": \"ok\" }`\n- `GET /api/items` · `POST /api/items` `{ \"name\": \"...\" }`\n\nSet `SECRET_KEY` and `FLASK_ENV=production` in the environment for production.\n"
       },
       {
         "path": "requirements.txt",
-        "content": "Flask>=3.0,<4.0\n"
+        "content": "Flask>=3.0,<4.0\ngunicorn>=21.0\npython-dotenv>=1.0\n"
+      },
+      {
+        "path": "wsgi.py",
+        "content": "\"\"\"Entry point. Run: flask --app wsgi run  (or: gunicorn wsgi:app).\"\"\"\nfrom app import create_app\n\napp = create_app()\n\nif __name__ == \"__main__\":\n    app.run(host=\"127.0.0.1\", port=5000, debug=app.config[\"DEBUG\"])\n"
       }
     ]
   },
   "nextjs-app": {
     "manifest": {
       "id": "nextjs-app",
-      "label": "Next.js app (TypeScript)",
+      "label": "Next.js app (TypeScript + Tailwind)",
       "framework": "next",
-      "description": "Next.js App Router + TypeScript starter. Server components, a home page, and global styles.",
+      "description": "Official create-next-app starter: App Router, TypeScript, Tailwind CSS v4, ESLint. Production-ready defaults.",
       "keywords": [
         "next",
         "nextjs",
@@ -102,39 +258,80 @@ export const TEMPLATES: Record<string, Template> = {
         "web app",
         "ssr",
         "server",
-        "typescript"
+        "typescript",
+        "tailwind"
       ],
-      "notesBlurb": "Scaffolded from the Next.js (App Router + TypeScript) template. The stack and config exist (package.json, next.config.mjs, tsconfig.json, app/layout.tsx, app/page.tsx, app/globals.css). read_file the key files, then CUSTOMIZE — add routes under app/, components, and logic. Do NOT recreate the config or re-scaffold.",
-      "cli": "npx --yes create-next-app@latest . --ts --app --eslint --no-tailwind --no-src-dir --import-alias \"@/*\" --use-npm --skip-install"
+      "notesBlurb": "Scaffolded from the official Next.js (App Router + TypeScript + Tailwind v4 + ESLint) starter. The stack and config already exist (package.json, next.config.ts, tsconfig.json, eslint.config.mjs, app/layout.tsx, app/page.tsx, app/globals.css). read_file the key files, then CUSTOMIZE — add routes under app/, components, and logic. Do NOT recreate the config or re-scaffold.",
+      "cli": "npx --yes create-next-app@latest . --ts --app --eslint --tailwind --no-src-dir --import-alias \"@/*\" --use-npm --skip-install --disable-git --yes"
     },
     "files": [
       {
         "path": ".gitignore",
-        "content": "/node_modules\n/.next\n/out\n/build\nnext-env.d.ts\n*.tsbuildinfo\n.env*.local\n.DS_Store\n"
+        "content": "# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.\n\n# dependencies\n/node_modules\n/.pnp\n.pnp.*\n.yarn/*\n!.yarn/patches\n!.yarn/plugins\n!.yarn/releases\n!.yarn/versions\n\n# testing\n/coverage\n\n# next.js\n/.next/\n/out/\n\n# production\n/build\n\n# misc\n.DS_Store\n*.pem\n\n# debug\nnpm-debug.log*\nyarn-debug.log*\nyarn-error.log*\n.pnpm-debug.log*\n\n# env files (can opt-in for committing if needed)\n.env*\n\n# vercel\n.vercel\n\n# typescript\n*.tsbuildinfo\nnext-env.d.ts\n"
+      },
+      {
+        "path": "AGENTS.md",
+        "content": "# Project notes\n\nNext.js (App Router) + TypeScript + Tailwind CSS v4 + ESLint.\n\n- Routes live under `app/` (folders → routes; `page.tsx`, `layout.tsx`, `loading.tsx`, `route.ts`).\n- Use Server Components by default; add `\"use client\"` only when you need state/effects/browser APIs.\n- Styling is Tailwind v4 (`app/globals.css` with `@import \"tailwindcss\"`); the `@/*` import alias maps to the project root.\n- Keep `npm run build` and `npm run lint` green.\n"
       },
       {
         "path": "app/globals.css",
-        "content": ":root {\n  color-scheme: dark;\n  --bg: #0b0f1a;\n  --text: #e8edf5;\n  --muted: #9aa7bd;\n  --accent: #6d8bff;\n}\n\n* { box-sizing: border-box; }\n\nhtml, body {\n  margin: 0;\n  padding: 0;\n  background: var(--bg);\n  color: var(--text);\n  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;\n}\n\n.main {\n  max-width: 680px;\n  margin: 0 auto;\n  padding: 96px 24px;\n}\n\n.main h1 {\n  font-size: clamp(2rem, 6vw, 3rem);\n  letter-spacing: -0.03em;\n  margin: 0 0 16px;\n}\n\n.main p { color: var(--muted); font-size: 1.1rem; line-height: 1.6; }\n\ncode {\n  background: rgba(255, 255, 255, 0.08);\n  padding: 2px 6px;\n  border-radius: 6px;\n  font-size: 0.9em;\n}\n\n.link {\n  display: inline-block;\n  margin-top: 24px;\n  color: var(--accent);\n  text-decoration: none;\n  font-weight: 600;\n}\n.link:hover { text-decoration: underline; }\n"
+        "content": "@import \"tailwindcss\";\n\n:root {\n  --background: #ffffff;\n  --foreground: #171717;\n}\n\n@theme inline {\n  --color-background: var(--background);\n  --color-foreground: var(--foreground);\n  --font-sans: var(--font-geist-sans);\n  --font-mono: var(--font-geist-mono);\n}\n\n@media (prefers-color-scheme: dark) {\n  :root {\n    --background: #0a0a0a;\n    --foreground: #ededed;\n  }\n}\n\nbody {\n  background: var(--background);\n  color: var(--foreground);\n  font-family: Arial, Helvetica, sans-serif;\n}\n"
       },
       {
         "path": "app/layout.tsx",
-        "content": "import type { Metadata } from \"next\";\nimport \"./globals.css\";\n\nexport const metadata: Metadata = {\n  title: \"Next.js App\",\n  description: \"Scaffolded with Helix\",\n};\n\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <html lang=\"en\">\n      <body>{children}</body>\n    </html>\n  );\n}\n"
+        "content": "import type { Metadata } from \"next\";\nimport { Geist, Geist_Mono } from \"next/font/google\";\nimport \"./globals.css\";\n\nconst geistSans = Geist({\n  variable: \"--font-geist-sans\",\n  subsets: [\"latin\"],\n});\n\nconst geistMono = Geist_Mono({\n  variable: \"--font-geist-mono\",\n  subsets: [\"latin\"],\n});\n\nexport const metadata: Metadata = {\n  title: \"Create Next App\",\n  description: \"Generated by create next app\",\n};\n\nexport default function RootLayout({\n  children,\n}: Readonly<{\n  children: React.ReactNode;\n}>) {\n  return (\n    <html\n      lang=\"en\"\n      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}\n    >\n      <body className=\"min-h-full flex flex-col\">{children}</body>\n    </html>\n  );\n}\n"
       },
       {
         "path": "app/page.tsx",
-        "content": "export default function Home() {\n  return (\n    <main className=\"main\">\n      <h1>Your Next.js app</h1>\n      <p>\n        Edit <code>app/page.tsx</code> to get started. Add routes as folders under <code>app/</code>, drop\n        components alongside, and wire up your data.\n      </p>\n      <a className=\"link\" href=\"https://nextjs.org/docs\" target=\"_blank\" rel=\"noreferrer\">\n        Next.js docs →\n      </a>\n    </main>\n  );\n}\n"
+        "content": "import Image from \"next/image\";\n\nexport default function Home() {\n  return (\n    <div className=\"flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black\">\n      <main className=\"flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start\">\n        <Image\n          className=\"dark:invert\"\n          src=\"/next.svg\"\n          alt=\"Next.js logo\"\n          width={100}\n          height={20}\n          priority\n        />\n        <div className=\"flex flex-col items-center gap-6 text-center sm:items-start sm:text-left\">\n          <h1 className=\"max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50\">\n            To get started, edit the page.tsx file.\n          </h1>\n          <p className=\"max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400\">\n            Looking for a starting point or more instructions? Head over to{\" \"}\n            <a\n              href=\"https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app\"\n              className=\"font-medium text-zinc-950 dark:text-zinc-50\"\n            >\n              Templates\n            </a>{\" \"}\n            or the{\" \"}\n            <a\n              href=\"https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app\"\n              className=\"font-medium text-zinc-950 dark:text-zinc-50\"\n            >\n              Learning\n            </a>{\" \"}\n            center.\n          </p>\n        </div>\n        <div className=\"flex flex-col gap-4 text-base font-medium sm:flex-row\">\n          <a\n            className=\"flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]\"\n            href=\"https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app\"\n            target=\"_blank\"\n            rel=\"noopener noreferrer\"\n          >\n            <Image\n              className=\"dark:invert\"\n              src=\"/vercel.svg\"\n              alt=\"Vercel logomark\"\n              width={16}\n              height={16}\n            />\n            Deploy Now\n          </a>\n          <a\n            className=\"flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]\"\n            href=\"https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app\"\n            target=\"_blank\"\n            rel=\"noopener noreferrer\"\n          >\n            Documentation\n          </a>\n        </div>\n      </main>\n    </div>\n  );\n}\n"
       },
       {
-        "path": "next.config.mjs",
-        "content": "/** @type {import('next').NextConfig} */\nconst nextConfig = {};\n\nexport default nextConfig;\n"
+        "path": "eslint.config.mjs",
+        "content": "import { defineConfig, globalIgnores } from \"eslint/config\";\nimport nextVitals from \"eslint-config-next/core-web-vitals\";\nimport nextTs from \"eslint-config-next/typescript\";\n\nconst eslintConfig = defineConfig([\n  ...nextVitals,\n  ...nextTs,\n  // Override default ignores of eslint-config-next.\n  globalIgnores([\n    // Default ignores of eslint-config-next:\n    \".next/**\",\n    \"out/**\",\n    \"build/**\",\n    \"next-env.d.ts\",\n  ]),\n]);\n\nexport default eslintConfig;\n"
+      },
+      {
+        "path": "next-env.d.ts",
+        "content": "/// <reference types=\"next\" />\n/// <reference types=\"next/image-types/global\" />\nimport \"./.next/types/routes.d.ts\";\n\n// NOTE: This file should not be edited\n// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.\n"
+      },
+      {
+        "path": "next.config.ts",
+        "content": "import type { NextConfig } from \"next\";\n\nconst nextConfig: NextConfig = {\n  /* config options here */\n};\n\nexport default nextConfig;\n"
       },
       {
         "path": "package.json",
-        "content": "{\n  \"name\": \"nextjs-app\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"dev\": \"next dev\",\n    \"build\": \"next build\",\n    \"start\": \"next start\",\n    \"lint\": \"next lint\"\n  },\n  \"dependencies\": {\n    \"next\": \"^15.1.0\",\n    \"react\": \"^19.0.0\",\n    \"react-dom\": \"^19.0.0\"\n  },\n  \"devDependencies\": {\n    \"@types/node\": \"^20\",\n    \"@types/react\": \"^19\",\n    \"@types/react-dom\": \"^19\",\n    \"typescript\": \"^5\"\n  }\n}\n"
+        "content": "{\n  \"name\": \"nextjs-app\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"dev\": \"next dev\",\n    \"build\": \"next build\",\n    \"start\": \"next start\",\n    \"lint\": \"eslint\"\n  },\n  \"dependencies\": {\n    \"next\": \"16.2.9\",\n    \"react\": \"19.2.4\",\n    \"react-dom\": \"19.2.4\"\n  },\n  \"devDependencies\": {\n    \"@tailwindcss/postcss\": \"^4\",\n    \"@types/node\": \"^20\",\n    \"@types/react\": \"^19\",\n    \"@types/react-dom\": \"^19\",\n    \"eslint\": \"^9\",\n    \"eslint-config-next\": \"16.2.9\",\n    \"tailwindcss\": \"^4\",\n    \"typescript\": \"^5\"\n  }\n}\n"
+      },
+      {
+        "path": "postcss.config.mjs",
+        "content": "const config = {\n  plugins: {\n    \"@tailwindcss/postcss\": {},\n  },\n};\n\nexport default config;\n"
+      },
+      {
+        "path": "public/file.svg",
+        "content": "<svg fill=\"none\" viewBox=\"0 0 16 16\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z\" clip-rule=\"evenodd\" fill=\"#666\" fill-rule=\"evenodd\"/></svg>"
+      },
+      {
+        "path": "public/globe.svg",
+        "content": "<svg fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\"><g clip-path=\"url(#a)\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1\" fill=\"#666\"/></g><defs><clipPath id=\"a\"><path fill=\"#fff\" d=\"M0 0h16v16H0z\"/></clipPath></defs></svg>"
+      },
+      {
+        "path": "public/next.svg",
+        "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 394 80\"><path fill=\"#000\" d=\"M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z\"/><path fill=\"#000\" d=\"M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z\"/></svg>"
+      },
+      {
+        "path": "public/vercel.svg",
+        "content": "<svg fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1155 1000\"><path d=\"m577.3 0 577.4 1000H0z\" fill=\"#fff\"/></svg>"
+      },
+      {
+        "path": "public/window.svg",
+        "content": "<svg fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5M7 4.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0m1.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5\" fill=\"#666\"/></svg>"
+      },
+      {
+        "path": "README.md",
+        "content": "This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).\n\n## Getting Started\n\nFirst, run the development server:\n\n```bash\nnpm run dev\n# or\nyarn dev\n# or\npnpm dev\n# or\nbun dev\n```\n\nOpen [http://localhost:3000](http://localhost:3000) with your browser to see the result.\n\nYou can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.\n\nThis project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.\n\n## Learn More\n\nTo learn more about Next.js, take a look at the following resources:\n\n- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.\n- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.\n\nYou can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!\n\n## Deploy on Vercel\n\nThe easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.\n\nCheck out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.\n"
       },
       {
         "path": "tsconfig.json",
-        "content": "{\n  \"compilerOptions\": {\n    \"target\": \"ES2020\",\n    \"lib\": [\"dom\", \"dom.iterable\", \"esnext\"],\n    \"allowJs\": true,\n    \"skipLibCheck\": true,\n    \"strict\": true,\n    \"noEmit\": true,\n    \"esModuleInterop\": true,\n    \"module\": \"esnext\",\n    \"moduleResolution\": \"bundler\",\n    \"resolveJsonModule\": true,\n    \"isolatedModules\": true,\n    \"jsx\": \"preserve\",\n    \"incremental\": true,\n    \"plugins\": [{ \"name\": \"next\" }],\n    \"paths\": { \"@/*\": [\"./*\"] }\n  },\n  \"include\": [\"next-env.d.ts\", \"**/*.ts\", \"**/*.tsx\", \".next/types/**/*.ts\"],\n  \"exclude\": [\"node_modules\"]\n}\n"
+        "content": "{\n  \"compilerOptions\": {\n    \"target\": \"ES2017\",\n    \"lib\": [\"dom\", \"dom.iterable\", \"esnext\"],\n    \"allowJs\": true,\n    \"skipLibCheck\": true,\n    \"strict\": true,\n    \"noEmit\": true,\n    \"esModuleInterop\": true,\n    \"module\": \"esnext\",\n    \"moduleResolution\": \"bundler\",\n    \"resolveJsonModule\": true,\n    \"isolatedModules\": true,\n    \"jsx\": \"react-jsx\",\n    \"incremental\": true,\n    \"plugins\": [\n      {\n        \"name\": \"next\"\n      }\n    ],\n    \"paths\": {\n      \"@/*\": [\"./*\"]\n    }\n  },\n  \"include\": [\n    \"next-env.d.ts\",\n    \"**/*.ts\",\n    \"**/*.tsx\",\n    \".next/types/**/*.ts\",\n    \".next/dev/types/**/*.ts\",\n    \"**/*.mts\"\n  ],\n  \"exclude\": [\"node_modules\"]\n}\n"
       }
     ]
   },
@@ -180,7 +377,7 @@ export const TEMPLATES: Record<string, Template> = {
       "id": "vite-spa",
       "label": "Vite + React SPA (TypeScript)",
       "framework": "vite",
-      "description": "A client-side React single-page app powered by Vite + TypeScript. Fast HMR, no server.",
+      "description": "Official create-vite react-ts starter: Vite + React + TypeScript with ESLint and project-reference tsconfigs. Fast HMR, no server.",
       "keywords": [
         "vite",
         "react",
@@ -195,41 +392,69 @@ export const TEMPLATES: Record<string, Template> = {
         "typescript",
         "frontend"
       ],
-      "notesBlurb": "Scaffolded from the Vite + React (TypeScript) SPA template. Config exists (package.json, vite.config.ts, tsconfig.json, index.html, src/main.tsx, src/App.tsx). read_file the key files, then CUSTOMIZE src/App.tsx and add components/state. Do NOT recreate the config or re-scaffold.",
+      "notesBlurb": "Scaffolded from the official Vite + React (TypeScript) starter. Config exists (package.json, vite.config.ts, tsconfig*.json, eslint.config.js, index.html, src/main.tsx, src/App.tsx). read_file the key files, then CUSTOMIZE src/App.tsx and add components/state. Do NOT recreate the config or re-scaffold.",
       "cli": "npm create vite@latest . -- --template react-ts"
     },
     "files": [
       {
         "path": ".gitignore",
-        "content": "node_modules\ndist\ndist-ssr\n*.local\n.DS_Store\n.env*.local\n"
+        "content": "# Logs\nlogs\n*.log\nnpm-debug.log*\nyarn-debug.log*\nyarn-error.log*\npnpm-debug.log*\nlerna-debug.log*\n\nnode_modules\ndist\ndist-ssr\n*.local\n\n# Editor directories and files\n.vscode/*\n!.vscode/extensions.json\n.idea\n.DS_Store\n*.suo\n*.ntvs*\n*.njsproj\n*.sln\n*.sw?\n"
+      },
+      {
+        "path": "eslint.config.js",
+        "content": "import js from '@eslint/js'\nimport globals from 'globals'\nimport reactHooks from 'eslint-plugin-react-hooks'\nimport reactRefresh from 'eslint-plugin-react-refresh'\nimport tseslint from 'typescript-eslint'\nimport { defineConfig, globalIgnores } from 'eslint/config'\n\nexport default defineConfig([\n  globalIgnores(['dist']),\n  {\n    files: ['**/*.{ts,tsx}'],\n    extends: [\n      js.configs.recommended,\n      tseslint.configs.recommended,\n      reactHooks.configs.flat.recommended,\n      reactRefresh.configs.vite,\n    ],\n    languageOptions: {\n      globals: globals.browser,\n    },\n  },\n])\n"
       },
       {
         "path": "index.html",
-        "content": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>Vite + React</title>\n  </head>\n  <body>\n    <div id=\"root\"></div>\n    <script type=\"module\" src=\"/src/main.tsx\"></script>\n  </body>\n</html>\n"
+        "content": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <link rel=\"icon\" type=\"image/svg+xml\" href=\"/favicon.svg\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>Vite + React</title>\n  </head>\n  <body>\n    <div id=\"root\"></div>\n    <script type=\"module\" src=\"/src/main.tsx\"></script>\n  </body>\n</html>\n"
       },
       {
         "path": "package.json",
-        "content": "{\n  \"name\": \"vite-spa\",\n  \"private\": true,\n  \"version\": \"0.1.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"vite build\",\n    \"preview\": \"vite preview\"\n  },\n  \"dependencies\": {\n    \"react\": \"^19.0.0\",\n    \"react-dom\": \"^19.0.0\"\n  },\n  \"devDependencies\": {\n    \"@types/react\": \"^19\",\n    \"@types/react-dom\": \"^19\",\n    \"@vitejs/plugin-react\": \"^4.3.4\",\n    \"typescript\": \"^5\",\n    \"vite\": \"^6.0.5\"\n  }\n}\n"
+        "content": "{\n  \"name\": \"vite-spa\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"tsc -b && vite build\",\n    \"lint\": \"eslint .\",\n    \"preview\": \"vite preview\"\n  },\n  \"dependencies\": {\n    \"react\": \"^19.2.6\",\n    \"react-dom\": \"^19.2.6\"\n  },\n  \"devDependencies\": {\n    \"@eslint/js\": \"^10.0.1\",\n    \"@types/node\": \"^24.12.3\",\n    \"@types/react\": \"^19.2.14\",\n    \"@types/react-dom\": \"^19.2.3\",\n    \"@vitejs/plugin-react\": \"^6.0.1\",\n    \"eslint\": \"^10.3.0\",\n    \"eslint-plugin-react-hooks\": \"^7.1.1\",\n    \"eslint-plugin-react-refresh\": \"^0.5.2\",\n    \"globals\": \"^17.6.0\",\n    \"typescript\": \"~6.0.2\",\n    \"typescript-eslint\": \"^8.59.2\",\n    \"vite\": \"^8.0.12\"\n  }\n}\n"
+      },
+      {
+        "path": "public/favicon.svg",
+        "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"48\" height=\"46\" fill=\"none\" viewBox=\"0 0 48 46\"><path fill=\"#863bff\" d=\"M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z\" style=\"fill:#863bff;fill:color(display-p3 .5252 .23 1);fill-opacity:1\"/><mask id=\"a\" width=\"48\" height=\"46\" x=\"0\" y=\"0\" maskUnits=\"userSpaceOnUse\" style=\"mask-type:alpha\"><path fill=\"#000\" d=\"M25.842 44.938c-.664.844-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.183c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.498 0-3.579-1.842-3.579H1.133c-.92 0-1.456-1.04-.92-1.787L9.91.473c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.578 1.842 3.578h11.377c.943 0 1.473 1.088.89 1.832L25.843 44.94z\" style=\"fill:#000;fill-opacity:1\"/></mask><g mask=\"url(#a)\"><g filter=\"url(#b)\"><ellipse cx=\"5.508\" cy=\"14.704\" fill=\"#ede6ff\" rx=\"5.508\" ry=\"14.704\" style=\"fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1\" transform=\"matrix(.00324 1 1 -.00324 -4.47 31.516)\"/></g><g filter=\"url(#c)\"><ellipse cx=\"10.399\" cy=\"29.851\" fill=\"#ede6ff\" rx=\"10.399\" ry=\"29.851\" style=\"fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1\" transform=\"matrix(.00324 1 1 -.00324 -39.328 7.883)\"/></g><g filter=\"url(#d)\"><ellipse cx=\"5.508\" cy=\"30.487\" fill=\"#7e14ff\" rx=\"5.508\" ry=\"30.487\" style=\"fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1\" transform=\"rotate(89.814 -25.913 -14.639)scale(1 -1)\"/></g><g filter=\"url(#e)\"><ellipse cx=\"5.508\" cy=\"30.599\" fill=\"#7e14ff\" rx=\"5.508\" ry=\"30.599\" style=\"fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1\" transform=\"rotate(89.814 -32.644 -3.334)scale(1 -1)\"/></g><g filter=\"url(#f)\"><ellipse cx=\"5.508\" cy=\"30.599\" fill=\"#7e14ff\" rx=\"5.508\" ry=\"30.599\" style=\"fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1\" transform=\"matrix(.00324 1 1 -.00324 -34.34 30.47)\"/></g><g filter=\"url(#g)\"><ellipse cx=\"14.072\" cy=\"22.078\" fill=\"#ede6ff\" rx=\"14.072\" ry=\"22.078\" style=\"fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1\" transform=\"rotate(93.35 24.506 48.493)scale(-1 1)\"/></g><g filter=\"url(#h)\"><ellipse cx=\"3.47\" cy=\"21.501\" fill=\"#7e14ff\" rx=\"3.47\" ry=\"21.501\" style=\"fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1\" transform=\"rotate(89.009 28.708 47.59)scale(-1 1)\"/></g><g filter=\"url(#i)\"><ellipse cx=\"3.47\" cy=\"21.501\" fill=\"#7e14ff\" rx=\"3.47\" ry=\"21.501\" style=\"fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1\" transform=\"rotate(89.009 28.708 47.59)scale(-1 1)\"/></g><g filter=\"url(#j)\"><ellipse cx=\".387\" cy=\"8.972\" fill=\"#7e14ff\" rx=\"4.407\" ry=\"29.108\" style=\"fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1\" transform=\"rotate(39.51 .387 8.972)\"/></g><g filter=\"url(#k)\"><ellipse cx=\"47.523\" cy=\"-6.092\" fill=\"#7e14ff\" rx=\"4.407\" ry=\"29.108\" style=\"fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1\" transform=\"rotate(37.892 47.523 -6.092)\"/></g><g filter=\"url(#l)\"><ellipse cx=\"41.412\" cy=\"6.333\" fill=\"#47bfff\" rx=\"5.971\" ry=\"9.665\" style=\"fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1\" transform=\"rotate(37.892 41.412 6.333)\"/></g><g filter=\"url(#m)\"><ellipse cx=\"-1.879\" cy=\"38.332\" fill=\"#7e14ff\" rx=\"4.407\" ry=\"29.108\" style=\"fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1\" transform=\"rotate(37.892 -1.88 38.332)\"/></g><g filter=\"url(#n)\"><ellipse cx=\"-1.879\" cy=\"38.332\" fill=\"#7e14ff\" rx=\"4.407\" ry=\"29.108\" style=\"fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1\" transform=\"rotate(37.892 -1.88 38.332)\"/></g><g filter=\"url(#o)\"><ellipse cx=\"35.651\" cy=\"29.907\" fill=\"#7e14ff\" rx=\"4.407\" ry=\"29.108\" style=\"fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1\" transform=\"rotate(37.892 35.651 29.907)\"/></g><g filter=\"url(#p)\"><ellipse cx=\"38.418\" cy=\"32.4\" fill=\"#47bfff\" rx=\"5.971\" ry=\"15.297\" style=\"fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1\" transform=\"rotate(37.892 38.418 32.4)\"/></g></g><defs><filter id=\"b\" width=\"60.045\" height=\"41.654\" x=\"-19.77\" y=\"16.149\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"7.659\"/></filter><filter id=\"c\" width=\"90.34\" height=\"51.437\" x=\"-54.613\" y=\"-7.533\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"7.659\"/></filter><filter id=\"d\" width=\"79.355\" height=\"29.4\" x=\"-49.64\" y=\"2.03\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"4.596\"/></filter><filter id=\"e\" width=\"79.579\" height=\"29.4\" x=\"-45.045\" y=\"20.029\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"4.596\"/></filter><filter id=\"f\" width=\"79.579\" height=\"29.4\" x=\"-43.513\" y=\"21.178\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"4.596\"/></filter><filter id=\"g\" width=\"74.749\" height=\"58.852\" x=\"15.756\" y=\"-17.901\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"7.659\"/></filter><filter id=\"h\" width=\"61.377\" height=\"25.362\" x=\"23.548\" y=\"2.284\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"4.596\"/></filter><filter id=\"i\" width=\"61.377\" height=\"25.362\" x=\"23.548\" y=\"2.284\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"4.596\"/></filter><filter id=\"j\" width=\"56.045\" height=\"63.649\" x=\"-27.636\" y=\"-22.853\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"4.596\"/></filter><filter id=\"k\" width=\"54.814\" height=\"64.646\" x=\"20.116\" y=\"-38.415\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"4.596\"/></filter><filter id=\"l\" width=\"33.541\" height=\"35.313\" x=\"24.641\" y=\"-11.323\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"4.596\"/></filter><filter id=\"m\" width=\"54.814\" height=\"64.646\" x=\"-29.286\" y=\"6.009\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"4.596\"/></filter><filter id=\"n\" width=\"54.814\" height=\"64.646\" x=\"-29.286\" y=\"6.009\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"4.596\"/></filter><filter id=\"o\" width=\"54.814\" height=\"64.646\" x=\"8.244\" y=\"-2.416\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"4.596\"/></filter><filter id=\"p\" width=\"39.409\" height=\"43.623\" x=\"18.713\" y=\"10.588\" color-interpolation-filters=\"sRGB\" filterUnits=\"userSpaceOnUse\"><feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/><feBlend in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/><feGaussianBlur result=\"effect1_foregroundBlur_2002_17158\" stdDeviation=\"4.596\"/></filter></defs></svg>"
+      },
+      {
+        "path": "public/icons.svg",
+        "content": "<svg xmlns=\"http://www.w3.org/2000/svg\">\n  <symbol id=\"bluesky-icon\" viewBox=\"0 0 16 17\">\n    <g clip-path=\"url(#bluesky-clip)\"><path fill=\"#08060d\" d=\"M7.75 7.735c-.693-1.348-2.58-3.86-4.334-5.097-1.68-1.187-2.32-.981-2.74-.79C.188 2.065.1 2.812.1 3.251s.241 3.602.398 4.13c.52 1.744 2.367 2.333 4.07 2.145-2.495.37-4.71 1.278-1.805 4.512 3.196 3.309 4.38-.71 4.987-2.746.608 2.036 1.307 5.91 4.93 2.746 2.72-2.746.747-4.143-1.747-4.512 1.702.189 3.55-.4 4.07-2.145.156-.528.397-3.691.397-4.13s-.088-1.186-.575-1.406c-.42-.19-1.06-.395-2.741.79-1.755 1.24-3.64 3.752-4.334 5.099\"/></g>\n    <defs><clipPath id=\"bluesky-clip\"><path fill=\"#fff\" d=\"M.1.85h15.3v15.3H.1z\"/></clipPath></defs>\n  </symbol>\n  <symbol id=\"discord-icon\" viewBox=\"0 0 20 19\">\n    <path fill=\"#08060d\" d=\"M16.224 3.768a14.5 14.5 0 0 0-3.67-1.153c-.158.286-.343.67-.47.976a13.5 13.5 0 0 0-4.067 0c-.128-.306-.317-.69-.476-.976A14.4 14.4 0 0 0 3.868 3.77C1.546 7.28.916 10.703 1.231 14.077a14.7 14.7 0 0 0 4.5 2.306q.545-.748.965-1.587a9.5 9.5 0 0 1-1.518-.74q.191-.14.372-.293c2.927 1.369 6.107 1.369 8.999 0q.183.152.372.294-.723.437-1.52.74.418.838.963 1.588a14.6 14.6 0 0 0 4.504-2.308c.37-3.911-.63-7.302-2.644-10.309m-9.13 8.234c-.878 0-1.599-.82-1.599-1.82 0-.998.705-1.82 1.6-1.82.894 0 1.614.82 1.599 1.82.001 1-.705 1.82-1.6 1.82m5.91 0c-.878 0-1.599-.82-1.599-1.82 0-.998.705-1.82 1.6-1.82.893 0 1.614.82 1.599 1.82 0 1-.706 1.82-1.6 1.82\"/>\n  </symbol>\n  <symbol id=\"documentation-icon\" viewBox=\"0 0 21 20\">\n    <path fill=\"none\" stroke=\"#aa3bff\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.35\" d=\"m15.5 13.333 1.533 1.322c.645.555.967.833.967 1.178s-.322.623-.967 1.179L15.5 18.333m-3.333-5-1.534 1.322c-.644.555-.966.833-.966 1.178s.322.623.966 1.179l1.534 1.321\"/>\n    <path fill=\"none\" stroke=\"#aa3bff\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.35\" d=\"M17.167 10.836v-4.32c0-1.41 0-2.117-.224-2.68-.359-.906-1.118-1.621-2.08-1.96-.599-.21-1.349-.21-2.848-.21-2.623 0-3.935 0-4.983.369-1.684.591-3.013 1.842-3.641 3.428C3 6.449 3 7.684 3 10.154v2.122c0 2.558 0 3.838.706 4.726q.306.383.713.671c.76.536 1.79.64 3.581.66\"/>\n    <path fill=\"none\" stroke=\"#aa3bff\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.35\" d=\"M3 10a2.78 2.78 0 0 1 2.778-2.778c.555 0 1.209.097 1.748-.047.48-.129.854-.503.982-.982.145-.54.048-1.194.048-1.749a2.78 2.78 0 0 1 2.777-2.777\"/>\n  </symbol>\n  <symbol id=\"github-icon\" viewBox=\"0 0 19 19\">\n    <path fill=\"#08060d\" fill-rule=\"evenodd\" d=\"M9.356 1.85C5.05 1.85 1.57 5.356 1.57 9.694a7.84 7.84 0 0 0 5.324 7.44c.387.079.528-.168.528-.376 0-.182-.013-.805-.013-1.454-2.165.467-2.616-.935-2.616-.935-.349-.91-.864-1.143-.864-1.143-.71-.48.051-.48.051-.48.787.051 1.2.805 1.2.805.695 1.194 1.817.857 2.268.649.064-.507.27-.857.49-1.052-1.728-.182-3.545-.857-3.545-3.87 0-.857.31-1.558.8-2.104-.078-.195-.349-1 .077-2.078 0 0 .657-.208 2.14.805a7.5 7.5 0 0 1 1.946-.26c.657 0 1.328.092 1.946.26 1.483-1.013 2.14-.805 2.14-.805.426 1.078.155 1.883.078 2.078.502.546.799 1.247.799 2.104 0 3.013-1.818 3.675-3.558 3.87.284.247.528.714.528 1.454 0 1.052-.012 1.896-.012 2.156 0 .208.142.455.528.377a7.84 7.84 0 0 0 5.324-7.441c.013-4.338-3.48-7.844-7.773-7.844\" clip-rule=\"evenodd\"/>\n  </symbol>\n  <symbol id=\"social-icon\" viewBox=\"0 0 20 20\">\n    <path fill=\"none\" stroke=\"#aa3bff\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.35\" d=\"M12.5 6.667a4.167 4.167 0 1 0-8.334 0 4.167 4.167 0 0 0 8.334 0\"/>\n    <path fill=\"none\" stroke=\"#aa3bff\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.35\" d=\"M2.5 16.667a5.833 5.833 0 0 1 8.75-5.053m3.837.474.513 1.035c.07.144.257.282.414.309l.93.155c.596.1.736.536.307.965l-.723.73a.64.64 0 0 0-.152.531l.207.903c.164.715-.213.991-.84.618l-.872-.52a.63.63 0 0 0-.577 0l-.872.52c-.624.373-1.003.094-.84-.618l.207-.903a.64.64 0 0 0-.152-.532l-.723-.729c-.426-.43-.289-.864.306-.964l.93-.156a.64.64 0 0 0 .412-.31l.513-1.034c.28-.562.735-.562 1.012 0\"/>\n  </symbol>\n  <symbol id=\"x-icon\" viewBox=\"0 0 19 19\">\n    <path fill=\"#08060d\" fill-rule=\"evenodd\" d=\"M1.893 1.98c.052.072 1.245 1.769 2.653 3.77l2.892 4.114c.183.261.333.48.333.486s-.068.089-.152.183l-.522.593-.765.867-3.597 4.087c-.375.426-.734.834-.798.905a1 1 0 0 0-.118.148c0 .01.236.017.664.017h.663l.729-.83c.4-.457.796-.906.879-.999a692 692 0 0 0 1.794-2.038c.034-.037.301-.34.594-.675l.551-.624.345-.392a7 7 0 0 1 .34-.374c.006 0 .93 1.306 2.052 2.903l2.084 2.965.045.063h2.275c1.87 0 2.273-.003 2.266-.021-.008-.02-1.098-1.572-3.894-5.547-2.013-2.862-2.28-3.246-2.273-3.266.008-.019.282-.332 2.085-2.38l2-2.274 1.567-1.782c.022-.028-.016-.03-.65-.03h-.674l-.3.342a871 871 0 0 1-1.782 2.025c-.067.075-.405.458-.75.852a100 100 0 0 1-.803.91c-.148.172-.299.344-.99 1.127-.304.343-.32.358-.345.327-.015-.019-.904-1.282-1.976-2.808L6.365 1.85H1.8zm1.782.91 8.078 11.294c.772 1.08 1.413 1.973 1.425 1.984.016.017.241.02 1.05.017l1.03-.004-2.694-3.766L7.796 5.75 5.722 2.852l-1.039-.004-1.039-.004z\" clip-rule=\"evenodd\"/>\n  </symbol>\n</svg>\n"
+      },
+      {
+        "path": "README.md",
+        "content": "# React + TypeScript + Vite\n\nThis template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.\n\nCurrently, two official plugins are available:\n\n- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)\n- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)\n\n## React Compiler\n\nThe React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).\n\n## Expanding the ESLint configuration\n\nIf you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:\n\n```js\nexport default defineConfig([\n  globalIgnores(['dist']),\n  {\n    files: ['**/*.{ts,tsx}'],\n    extends: [\n      // Other configs...\n\n      // Remove tseslint.configs.recommended and replace with this\n      tseslint.configs.recommendedTypeChecked,\n      // Alternatively, use this for stricter rules\n      tseslint.configs.strictTypeChecked,\n      // Optionally, add this for stylistic rules\n      tseslint.configs.stylisticTypeChecked,\n\n      // Other configs...\n    ],\n    languageOptions: {\n      parserOptions: {\n        project: ['./tsconfig.node.json', './tsconfig.app.json'],\n        tsconfigRootDir: import.meta.dirname,\n      },\n      // other options...\n    },\n  },\n])\n```\n\nYou can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:\n\n```js\n// eslint.config.js\nimport reactX from 'eslint-plugin-react-x'\nimport reactDom from 'eslint-plugin-react-dom'\n\nexport default defineConfig([\n  globalIgnores(['dist']),\n  {\n    files: ['**/*.{ts,tsx}'],\n    extends: [\n      // Other configs...\n      // Enable lint rules for React\n      reactX.configs['recommended-typescript'],\n      // Enable lint rules for React DOM\n      reactDom.configs.recommended,\n    ],\n    languageOptions: {\n      parserOptions: {\n        project: ['./tsconfig.node.json', './tsconfig.app.json'],\n        tsconfigRootDir: import.meta.dirname,\n      },\n      // other options...\n    },\n  },\n])\n```\n"
+      },
+      {
+        "path": "src/App.css",
+        "content": ".app {\n  max-width: 640px;\n  margin: 0 auto;\n  padding: 96px 24px;\n  text-align: center;\n}\n\n.app h1 {\n  margin: 0 0 12px;\n}\n\n.counter {\n  margin-top: 24px;\n  padding: 10px 20px;\n  font: inherit;\n  font-weight: 600;\n  border: 1px solid var(--accent-border);\n  border-radius: 999px;\n  background: var(--accent-bg);\n  color: var(--text-h);\n  cursor: pointer;\n}\n.counter:hover {\n  border-color: var(--accent);\n}\n"
       },
       {
         "path": "src/App.tsx",
-        "content": "import { useState } from \"react\";\n\nexport default function App() {\n  const [count, setCount] = useState(0);\n\n  return (\n    <main className=\"app\">\n      <h1>Vite + React</h1>\n      <p>Edit <code>src/App.tsx</code> and save to start building your app.</p>\n      <button onClick={() => setCount((c) => c + 1)}>count is {count}</button>\n    </main>\n  );\n}\n"
+        "content": "import { useState } from \"react\";\nimport \"./App.css\";\n\nfunction App() {\n  const [count, setCount] = useState(0);\n\n  return (\n    <main className=\"app\">\n      <h1>Vite + React</h1>\n      <p>\n        Edit <code>src/App.tsx</code> and save to test HMR. Add components, state, and styling to build your app.\n      </p>\n      <button type=\"button\" className=\"counter\" onClick={() => setCount((c) => c + 1)}>\n        count is {count}\n      </button>\n    </main>\n  );\n}\n\nexport default App;\n"
       },
       {
         "path": "src/index.css",
-        "content": ":root {\n  color-scheme: dark;\n  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;\n  background: #0b0f1a;\n  color: #e8edf5;\n}\n\n* { box-sizing: border-box; }\nbody { margin: 0; }\n\n.app {\n  max-width: 640px;\n  margin: 0 auto;\n  padding: 96px 24px;\n  text-align: center;\n}\n\n.app h1 {\n  font-size: clamp(2rem, 6vw, 3rem);\n  letter-spacing: -0.03em;\n  margin: 0 0 12px;\n}\n\n.app p { color: #9aa7bd; }\n\ncode {\n  background: rgba(255, 255, 255, 0.08);\n  padding: 2px 6px;\n  border-radius: 6px;\n}\n\nbutton {\n  margin-top: 24px;\n  background: #6d8bff;\n  color: #0b0f1a;\n  border: 0;\n  border-radius: 999px;\n  padding: 10px 20px;\n  font-weight: 600;\n  font-size: 1rem;\n  cursor: pointer;\n}\nbutton:hover { filter: brightness(1.08); }\n"
+        "content": ":root {\n  --text: #6b6375;\n  --text-h: #08060d;\n  --bg: #fff;\n  --accent: #aa3bff;\n  --accent-bg: rgba(170, 59, 255, 0.1);\n  --accent-border: rgba(170, 59, 255, 0.5);\n\n  font-family: system-ui, \"Segoe UI\", Roboto, sans-serif;\n  line-height: 1.5;\n  color-scheme: light dark;\n  color: var(--text);\n  background: var(--bg);\n  -webkit-font-smoothing: antialiased;\n}\n\n@media (prefers-color-scheme: dark) {\n  :root {\n    --text: #9ca3af;\n    --text-h: #f3f4f6;\n    --bg: #16171d;\n    --accent: #c084fc;\n    --accent-bg: rgba(192, 132, 252, 0.15);\n    --accent-border: rgba(192, 132, 252, 0.5);\n  }\n}\n\n* {\n  box-sizing: border-box;\n}\nbody {\n  margin: 0;\n}\n\nh1 {\n  color: var(--text-h);\n}\ncode {\n  font-family: ui-monospace, Consolas, monospace;\n  background: var(--accent-bg);\n  padding: 2px 6px;\n  border-radius: 4px;\n  color: var(--text-h);\n}\n"
       },
       {
         "path": "src/main.tsx",
-        "content": "import { StrictMode } from \"react\";\nimport { createRoot } from \"react-dom/client\";\nimport App from \"./App\";\nimport \"./index.css\";\n\ncreateRoot(document.getElementById(\"root\")!).render(\n  <StrictMode>\n    <App />\n  </StrictMode>,\n);\n"
+        "content": "import { StrictMode } from 'react'\nimport { createRoot } from 'react-dom/client'\nimport './index.css'\nimport App from './App.tsx'\n\ncreateRoot(document.getElementById('root')!).render(\n  <StrictMode>\n    <App />\n  </StrictMode>,\n)\n"
+      },
+      {
+        "path": "tsconfig.app.json",
+        "content": "{\n  \"compilerOptions\": {\n    \"tsBuildInfoFile\": \"./node_modules/.tmp/tsconfig.app.tsbuildinfo\",\n    \"target\": \"es2023\",\n    \"lib\": [\"ES2023\", \"DOM\"],\n    \"module\": \"esnext\",\n    \"types\": [\"vite/client\"],\n    \"skipLibCheck\": true,\n\n    /* Bundler mode */\n    \"moduleResolution\": \"bundler\",\n    \"allowImportingTsExtensions\": true,\n    \"verbatimModuleSyntax\": true,\n    \"moduleDetection\": \"force\",\n    \"noEmit\": true,\n    \"jsx\": \"react-jsx\",\n\n    /* Linting */\n    \"noUnusedLocals\": true,\n    \"noUnusedParameters\": true,\n    \"erasableSyntaxOnly\": true,\n    \"noFallthroughCasesInSwitch\": true\n  },\n  \"include\": [\"src\"]\n}\n"
       },
       {
         "path": "tsconfig.json",
-        "content": "{\n  \"compilerOptions\": {\n    \"target\": \"ES2020\",\n    \"useDefineForClassFields\": true,\n    \"lib\": [\"ES2020\", \"DOM\", \"DOM.Iterable\"],\n    \"module\": \"ESNext\",\n    \"skipLibCheck\": true,\n    \"moduleResolution\": \"bundler\",\n    \"allowImportingTsExtensions\": true,\n    \"resolveJsonModule\": true,\n    \"isolatedModules\": true,\n    \"noEmit\": true,\n    \"jsx\": \"react-jsx\",\n    \"strict\": true\n  },\n  \"include\": [\"src\"]\n}\n"
+        "content": "{\n  \"files\": [],\n  \"references\": [\n    { \"path\": \"./tsconfig.app.json\" },\n    { \"path\": \"./tsconfig.node.json\" }\n  ]\n}\n"
+      },
+      {
+        "path": "tsconfig.node.json",
+        "content": "{\n  \"compilerOptions\": {\n    \"tsBuildInfoFile\": \"./node_modules/.tmp/tsconfig.node.tsbuildinfo\",\n    \"target\": \"es2023\",\n    \"lib\": [\"ES2023\"],\n    \"module\": \"esnext\",\n    \"types\": [\"node\"],\n    \"skipLibCheck\": true,\n\n    /* Bundler mode */\n    \"moduleResolution\": \"bundler\",\n    \"allowImportingTsExtensions\": true,\n    \"verbatimModuleSyntax\": true,\n    \"moduleDetection\": \"force\",\n    \"noEmit\": true,\n\n    /* Linting */\n    \"noUnusedLocals\": true,\n    \"noUnusedParameters\": true,\n    \"erasableSyntaxOnly\": true,\n    \"noFallthroughCasesInSwitch\": true\n  },\n  \"include\": [\"vite.config.ts\"]\n}\n"
       },
       {
         "path": "vite.config.ts",
-        "content": "import { defineConfig } from \"vite\";\nimport react from \"@vitejs/plugin-react\";\n\nexport default defineConfig({\n  plugins: [react()],\n});\n"
+        "content": "import { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'\n\n// https://vite.dev/config/\nexport default defineConfig({\n  plugins: [react()],\n})\n"
       }
     ]
   }

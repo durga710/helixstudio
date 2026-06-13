@@ -1,9 +1,9 @@
 {
   "id": "nextjs-app",
-  "label": "Next.js app (TypeScript)",
+  "label": "Next.js app (TypeScript + Tailwind)",
   "framework": "next",
-  "description": "Next.js App Router + TypeScript starter. Server components, a home page, and global styles.",
-  "keywords": ["next", "nextjs", "react", "fullstack", "app", "dashboard", "saas", "blog", "web app", "ssr", "server", "typescript"],
-  "notesBlurb": "Scaffolded from the Next.js (App Router + TypeScript) template. The stack and config exist (package.json, next.config.mjs, tsconfig.json, app/layout.tsx, app/page.tsx, app/globals.css). read_file the key files, then CUSTOMIZE — add routes under app/, components, and logic. Do NOT recreate the config or re-scaffold.",
-  "cli": "npx --yes create-next-app@latest . --ts --app --eslint --no-tailwind --no-src-dir --import-alias \"@/*\" --use-npm --skip-install"
+  "description": "Official create-next-app starter: App Router, TypeScript, Tailwind CSS v4, ESLint. Production-ready defaults.",
+  "keywords": ["next", "nextjs", "react", "fullstack", "app", "dashboard", "saas", "blog", "web app", "ssr", "server", "typescript", "tailwind"],
+  "notesBlurb": "Scaffolded from the official Next.js (App Router + TypeScript + Tailwind v4 + ESLint) starter. The stack and config already exist (package.json, next.config.ts, tsconfig.json, eslint.config.mjs, app/layout.tsx, app/page.tsx, app/globals.css). read_file the key files, then CUSTOMIZE — add routes under app/, components, and logic. Do NOT recreate the config or re-scaffold.",
+  "cli": "npx --yes create-next-app@latest . --ts --app --eslint --tailwind --no-src-dir --import-alias \"@/*\" --use-npm --skip-install --disable-git --yes"
 }

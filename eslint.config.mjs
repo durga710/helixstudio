@@ -18,6 +18,9 @@ const eslintConfig = defineConfig([
     "scripts/**",
     // Generated Prisma client (built by postinstall).
     "src/generated/**",
+    // Scaffold starters — templates for OTHER projects, each with its own
+    // framework/conventions; Helix's lint rules don't apply to them.
+    "templates/**",
   ]),
 ]);
 

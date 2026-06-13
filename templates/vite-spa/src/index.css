@@ -1,43 +1,44 @@
 :root {
-  color-scheme: dark;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  background: #0b0f1a;
-  color: #e8edf5;
+  --text: #6b6375;
+  --text-h: #08060d;
+  --bg: #fff;
+  --accent: #aa3bff;
+  --accent-bg: rgba(170, 59, 255, 0.1);
+  --accent-border: rgba(170, 59, 255, 0.5);
+
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
 }
 
-* { box-sizing: border-box; }
-body { margin: 0; }
-
-.app {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 96px 24px;
-  text-align: center;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #9ca3af;
+    --text-h: #f3f4f6;
+    --bg: #16171d;
+    --accent: #c084fc;
+    --accent-bg: rgba(192, 132, 252, 0.15);
+    --accent-border: rgba(192, 132, 252, 0.5);
+  }
 }
 
-.app h1 {
-  font-size: clamp(2rem, 6vw, 3rem);
-  letter-spacing: -0.03em;
-  margin: 0 0 12px;
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
 }
 
-.app p { color: #9aa7bd; }
-
+h1 {
+  color: var(--text-h);
+}
 code {
-  background: rgba(255, 255, 255, 0.08);
+  font-family: ui-monospace, Consolas, monospace;
+  background: var(--accent-bg);
   padding: 2px 6px;
-  border-radius: 6px;
+  border-radius: 4px;
+  color: var(--text-h);
 }
-
-button {
-  margin-top: 24px;
-  background: #6d8bff;
-  color: #0b0f1a;
-  border: 0;
-  border-radius: 999px;
-  padding: 10px 20px;
-  font-weight: 600;
-  font-size: 1rem;
-  cursor: pointer;
-}
-button:hover { filter: brightness(1.08); }
