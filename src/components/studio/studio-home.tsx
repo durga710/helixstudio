@@ -78,10 +78,11 @@ export function StudioHome({
     if (!window.confirm("Delete this workspace? Its files and chat are gone for good (GitHub repos are untouched).")) return;
     setDeleting(id);
     try {
-      await fetch(`/api/workspaces/${id}`, { method: "DELETE" });
-      router.refresh();
+      const res = await fetch(`/api/workspaces/${id}`, { method: "DELETE" });
+      if (res.ok) router.refresh();
+      else setError("Couldn't delete that workspace — try again.");
     } catch {
-      // refresh shows the truth either way
+      setError("Network error — couldn't delete the workspace.");
     }
     setDeleting(null);
   }

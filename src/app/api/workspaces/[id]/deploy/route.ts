@@ -100,10 +100,14 @@ export async function GET(_req: Request, { params }: Params) {
     if (!("error" in status)) {
       state = status.state;
       deploymentUrl = status.url;
+      // Only bump lastDeployAt when the state actually changed — otherwise a
+      // routine status poll (e.g. opening the dialog) would overwrite the real
+      // "last deployed" time with "now".
+      const stateChanged = state !== link.lastState;
       await db()
         .workspaceDeploy.update({
           where: { workspaceId: g.ws.id },
-          data: { lastState: state, lastDeployAt: new Date() },
+          data: { lastState: state, ...(stateChanged ? { lastDeployAt: new Date() } : {}) },
         })
         .catch(() => {});
     }

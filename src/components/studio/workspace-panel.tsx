@@ -766,10 +766,13 @@ export function WorkspacePanel({
     if (runBusy) return;
     setRunBusy(true);
     try {
-      await fetch(`/api/workspaces/${workspace.id}/run`, { method: "DELETE" });
-      setRun(null);
+      const res = await fetch(`/api/workspaces/${workspace.id}/run`, { method: "DELETE" });
+      // Only clear the run UI when the stop actually succeeded — otherwise the
+      // app keeps running (and billing the VM) while we'd falsely show "stopped".
+      if (res.ok) setRun(null);
+      else setNote("Couldn't stop the app — it may still be running.");
     } catch {
-      // poll will reflect reality
+      setNote("Couldn't reach the server — the app may still be running.");
     }
     setRunBusy(false);
   }

@@ -68,6 +68,7 @@ export function ClassroomOverview({ spaceId, refreshKey }: { spaceId: string; re
   const router = useRouter();
   const [data, setData] = useState<Overview | null>(() => readCache<Overview>(`space:${spaceId}:overview`));
   const [loading, setLoading] = useState(false);
+  const [errored, setErrored] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,9 +78,12 @@ export function ClassroomOverview({ spaceId, refreshKey }: { spaceId: string; re
       if (res.ok && json?.ok) {
         setData(json.data as Overview);
         writeCache(`space:${spaceId}:overview`, json.data);
+        setErrored(false);
+      } else {
+        setErrored(true);
       }
     } catch {
-      /* keep last snapshot */
+      setErrored(true); // keep any last snapshot
     }
     setLoading(false);
   }, [spaceId]);
@@ -89,6 +93,18 @@ export function ClassroomOverview({ spaceId, refreshKey }: { spaceId: string; re
   }, [load, refreshKey]);
 
   if (!data) {
+    // No cached snapshot and the load failed → show an error + retry, never spin
+    // forever.
+    if (errored && !loading) {
+      return (
+        <Card className="flex items-center gap-2 p-4 text-xs text-txt3">
+          Couldn&apos;t load the classroom overview.
+          <button type="button" onClick={() => void load()} className="text-accent hover:brightness-110">
+            Retry
+          </button>
+        </Card>
+      );
+    }
     return (
       <Card className="flex items-center gap-2 p-4 text-xs text-txt3">
         <Loader2 className="h-4 w-4 animate-spin" /> loading classroom overview…

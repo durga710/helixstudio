@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Users, Check, Loader2, Globe, Lock, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 
 interface SpaceOption {
   id: string;
@@ -30,6 +31,7 @@ export function ShareMenu({
    * to share it (one dismissible hint under the button). */
   promptOnMount?: boolean;
 }) {
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [spaces, setSpaces] = useState<SpaceOption[] | null>(null);
   const [current, setCurrent] = useState<string | null>(currentSpaceId ?? null);
@@ -98,9 +100,11 @@ export function ShareMenu({
         setCurrent(spaceId);
         onChanged?.(spaceId);
         setOpen(false);
+      } else {
+        toast(json?.error?.message ?? "Couldn't update sharing — try again.");
       }
     } catch {
-      // leave open so the user can retry
+      toast("Network error — try again.");
     }
     setBusy(false);
   }

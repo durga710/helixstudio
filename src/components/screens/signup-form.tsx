@@ -32,7 +32,12 @@ export function SignupForm() {
       }
       // Account created — sign straight in.
       const result = await signIn("credentials", { email, password, redirect: false });
-      if (result?.error) throw new Error("Account created — sign in on the login page");
+      if (result?.error) {
+        // The account exists; auto-sign-in just didn't take. Send them to the
+        // login page to sign in (don't strand them on a failure-looking screen).
+        router.push("/login");
+        return;
+      }
       router.push("/");
       router.refresh();
     } catch (err) {

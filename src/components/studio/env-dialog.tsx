@@ -54,15 +54,21 @@ export function EnvDialog({ workspaceId, onClose }: { workspaceId: string; onClo
   }
 
   async function rebuild() {
-    const res = await fetch(`/api/workspaces/${workspaceId}/env`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "rebuild" }),
-    });
-    if (res.ok) {
-      toast("Cache cleared — the next run reinstalls and re-snapshots.");
-      setCached(false);
-      setReadyAt(null);
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/env`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "rebuild" }),
+      });
+      if (res.ok) {
+        toast("Cache cleared — the next run reinstalls and re-snapshots.");
+        setCached(false);
+        setReadyAt(null);
+      } else {
+        toast("Couldn't rebuild the environment — try again.");
+      }
+    } catch {
+      toast("Network error — try again.");
     }
   }
 
