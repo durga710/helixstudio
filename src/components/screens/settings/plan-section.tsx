@@ -53,8 +53,8 @@ export function PlanSection() {
     };
   }, []);
 
-  async function go(path: string, body?: unknown) {
-    setBusy(path);
+  async function go(key: string, path: string, body?: unknown) {
+    setBusy(key);
     try {
       const res = await fetch(path, {
         method: "POST",
@@ -117,22 +117,22 @@ export function PlanSection() {
                 {plan.upgradesEnabled && plan.tier !== "team" && (
                   <>
                     {plan.tier !== "pro" && (
-                      <Button onClick={() => go("/api/billing/checkout", { tier: "pro" })} disabled={busy !== null}>
-                        {busy ? <Loader2 size={13} className="animate-spin" /> : "Upgrade to Pro"}
+                      <Button onClick={() => go("pro", "/api/billing/checkout", { tier: "pro" })} disabled={busy !== null}>
+                        {busy === "pro" ? <Loader2 size={13} className="animate-spin" /> : "Upgrade to Pro"}
                       </Button>
                     )}
                     <Button
                       variant="ghost"
-                      onClick={() => go("/api/billing/checkout", { tier: "team" })}
+                      onClick={() => go("team", "/api/billing/checkout", { tier: "team" })}
                       disabled={busy !== null}
                     >
-                      Upgrade to Team
+                      {busy === "team" ? <Loader2 size={13} className="animate-spin" /> : "Upgrade to Team"}
                     </Button>
                   </>
                 )}
                 {plan.manageable && (
-                  <Button variant="ghost" onClick={() => go("/api/billing/portal")} disabled={busy !== null}>
-                    Manage billing
+                  <Button variant="ghost" onClick={() => go("portal", "/api/billing/portal")} disabled={busy !== null}>
+                    {busy === "portal" ? <Loader2 size={13} className="animate-spin" /> : "Manage billing"}
                   </Button>
                 )}
               </div>

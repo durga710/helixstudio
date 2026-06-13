@@ -135,7 +135,7 @@ export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) 
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (e.key === "Enter" && !e.shiftKey && dbReady) {
                 e.preventDefault();
                 start(prompt);
               }
@@ -152,7 +152,7 @@ export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) 
             </span>
             <button
               onClick={() => start(prompt)}
-              disabled={busy || prompt.trim().length === 0}
+              disabled={busy || !dbReady || prompt.trim().length === 0}
               aria-label="Start building"
               className="ml-auto grid h-9 w-9 cursor-pointer place-items-center rounded-[11px] border-none bg-accent text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
             >
