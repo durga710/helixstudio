@@ -240,6 +240,85 @@ export const TEMPLATES: Record<string, Template> = {
       }
     ]
   },
+  "game-2d": {
+    "manifest": {
+      "id": "game-2d",
+      "label": "2D Game (Phaser)",
+      "framework": "game",
+      "description": "A playable 2D browser game starter using Phaser 3 from a CDN. No build step — edit game.js. Great for platformers, runners, flappy-style, and arcade games.",
+      "keywords": [
+        "game",
+        "2d",
+        "flappy",
+        "platformer",
+        "mario",
+        "arcade",
+        "snake",
+        "pong",
+        "runner",
+        "jetpack",
+        "canvas",
+        "shooter",
+        "play",
+        "browser game",
+        "side scroller"
+      ],
+      "notesBlurb": "Scaffolded from the 2D Game template: Phaser 3 (loaded from a CDN in index.html) + game.js + style.css, no build step. Build the user's game by editing game.js — set up the scenes, sprites, physics, input, and scoring. Use Phaser graphics/generated textures for sprites (there are NO image asset files). Keep game.js a PLAIN (non-module) script using the global `Phaser` — do NOT use ES module imports (the preview inlines local scripts and strips module type). Keep Phaser loaded via the existing CDN <script> and do NOT add a build step or recreate index.html. Phaser's loop handles animation.",
+      "cli": "overlay-only"
+    },
+    "files": [
+      {
+        "path": "game.js",
+        "content": "// 2D game starter — Phaser 3 (global `Phaser`, no imports).\n// A player you move with the arrow keys, with gravity and a ground to stand on.\n// Build your game by editing this file: add scenes, enemies, scoring, levels…\n// Sprites use generated shapes/textures (there are no image asset files).\n\nconst config = {\n  type: Phaser.AUTO,\n  parent: \"game\",\n  width: 800,\n  height: 450,\n  backgroundColor: \"#1d2b53\",\n  physics: { default: \"arcade\", arcade: { gravity: { y: 900 }, debug: false } },\n  scene: { create, update },\n  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },\n};\n\nlet player;\nlet cursors;\n\nfunction create() {\n  // Ground — a static physics body the player lands on.\n  const ground = this.add.rectangle(400, 432, 800, 36, 0x29366f);\n  this.physics.add.existing(ground, true);\n\n  // Player — a simple rectangle with physics.\n  player = this.add.rectangle(120, 200, 34, 34, 0xff004d);\n  this.physics.add.existing(player);\n  player.body.setCollideWorldBounds(true);\n  this.physics.add.collider(player, ground);\n\n  cursors = this.input.keyboard.createCursorKeys();\n\n  this.add.text(16, 14, \"Arrow keys to move · Up to jump\", {\n    fontFamily: \"monospace\",\n    fontSize: \"16px\",\n    color: \"#ffffff\",\n  });\n}\n\nfunction update() {\n  const speed = 260;\n  if (cursors.left.isDown) player.body.setVelocityX(-speed);\n  else if (cursors.right.isDown) player.body.setVelocityX(speed);\n  else player.body.setVelocityX(0);\n\n  const onGround = player.body.blocked.down || player.body.touching.down;\n  if (cursors.up.isDown && onGround) player.body.setVelocityY(-520);\n}\n\nnew Phaser.Game(config);\n"
+      },
+      {
+        "path": "index.html",
+        "content": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n    <title>My Game</title>\n    <link rel=\"stylesheet\" href=\"style.css\" />\n    <!-- Phaser 3 from a CDN — leave this here; game.js uses the global `Phaser`. -->\n    <script src=\"https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js\"></script>\n  </head>\n  <body>\n    <div id=\"game\"></div>\n    <script src=\"game.js\"></script>\n  </body>\n</html>\n"
+      },
+      {
+        "path": "style.css",
+        "content": "html,\nbody {\n  margin: 0;\n  height: 100%;\n  background: #0b0f1a;\n  display: grid;\n  place-items: center;\n  font-family: system-ui, sans-serif;\n}\n\n#game {\n  width: 100%;\n  max-width: 800px;\n  aspect-ratio: 16 / 9;\n}\n\ncanvas {\n  display: block;\n  border-radius: 10px;\n  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);\n}\n"
+      }
+    ]
+  },
+  "game-3d": {
+    "manifest": {
+      "id": "game-3d",
+      "label": "3D Game (Babylon.js)",
+      "framework": "game",
+      "description": "A playable 3D browser game starter using Babylon.js from a CDN. No build step — edit game.js. Great for 3D scenes, mazes, and simple first- or third-person games.",
+      "keywords": [
+        "3d game",
+        "3d",
+        "babylon",
+        "three.js",
+        "maze",
+        "fps",
+        "first person",
+        "third person",
+        "voxel",
+        "3d scene",
+        "cube",
+        "world"
+      ],
+      "notesBlurb": "Scaffolded from the 3D Game template: Babylon.js (loaded from a CDN in index.html) + game.js + style.css, no build step. Build the user's 3D game by editing game.js — set up the scene, camera, lights, meshes (use Babylon's MeshBuilder; there are NO external 3D model assets), input, and game logic. Keep game.js a PLAIN (non-module) script using the global `BABYLON` — do NOT use ES module imports (the preview inlines local scripts and strips module type), and do NOT switch to Three.js (its CDN is ES-module only and will break here). engine.runRenderLoop handles animation. Keep Babylon loaded via the existing CDN <script>.",
+      "cli": "overlay-only"
+    },
+    "files": [
+      {
+        "path": "game.js",
+        "content": "// 3D game starter — Babylon.js (global `BABYLON`, no imports).\n// An orbit camera, a light, a ground, and a spinning box to get you started.\n// Build your game by editing this file: add meshes, materials, input, physics,\n// and game logic. Use BABYLON.MeshBuilder for shapes (no external 3D models).\n\nconst canvas = document.getElementById(\"renderCanvas\");\nconst engine = new BABYLON.Engine(canvas, true);\n\nfunction createScene() {\n  const scene = new BABYLON.Scene(engine);\n  scene.clearColor = new BABYLON.Color4(0.06, 0.09, 0.16, 1);\n\n  // Camera — drag to orbit, scroll to zoom.\n  const camera = new BABYLON.ArcRotateCamera(\n    \"camera\",\n    -Math.PI / 2,\n    Math.PI / 2.6,\n    9,\n    new BABYLON.Vector3(0, 0.5, 0),\n    scene,\n  );\n  camera.attachControl(canvas, true);\n\n  // Light.\n  const light = new BABYLON.HemisphericLight(\"light\", new BABYLON.Vector3(0, 1, 0), scene);\n  light.intensity = 0.9;\n\n  // Ground.\n  BABYLON.MeshBuilder.CreateGround(\"ground\", { width: 12, height: 12 }, scene);\n\n  // A spinning box — your player / object.\n  const box = BABYLON.MeshBuilder.CreateBox(\"box\", { size: 1 }, scene);\n  box.position.y = 0.5;\n  const mat = new BABYLON.StandardMaterial(\"mat\", scene);\n  mat.diffuseColor = new BABYLON.Color3(1, 0, 0.3);\n  box.material = mat;\n  scene.registerBeforeRender(() => {\n    box.rotation.y += 0.01;\n  });\n\n  return scene;\n}\n\nconst scene = createScene();\nengine.runRenderLoop(() => scene.render());\nwindow.addEventListener(\"resize\", () => engine.resize());\n"
+      },
+      {
+        "path": "index.html",
+        "content": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n    <title>My 3D Game</title>\n    <link rel=\"stylesheet\" href=\"style.css\" />\n    <!-- Babylon.js from a CDN — leave this here; game.js uses the global `BABYLON`. -->\n    <script src=\"https://cdn.babylonjs.com/babylon.js\"></script>\n  </head>\n  <body>\n    <canvas id=\"renderCanvas\"></canvas>\n    <script src=\"game.js\"></script>\n  </body>\n</html>\n"
+      },
+      {
+        "path": "style.css",
+        "content": "html,\nbody {\n  margin: 0;\n  height: 100%;\n  overflow: hidden;\n  background: #0b0f1a;\n}\n\n#renderCanvas {\n  width: 100%;\n  height: 100%;\n  display: block;\n  outline: none;\n  touch-action: none;\n}\n"
+      }
+    ]
+  },
   "nextjs-app": {
     "manifest": {
       "id": "nextjs-app",

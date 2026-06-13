@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { ArrowUp, Loader2, Sparkles } from "lucide-react";
+import { ArrowUp, Gamepad2, Loader2, Box, Sparkles, AppWindow } from "lucide-react";
 import { BrandMark } from "@/components/brand";
 import { cn } from "@/lib/utils";
 
@@ -17,14 +17,46 @@ interface BuildLandingProps {
   dbReady: boolean;
 }
 
-const SUGGESTIONS = [
-  "A pomodoro timer with daily stats",
-  "Landing page for a specialty coffee brand",
-  "Kanban board with drag and drop",
-  "Personal portfolio with project gallery",
-  "Expense splitter for trips with friends",
-  "Markdown note-taking app",
+type BuildMode = "web" | "game2d" | "game3d";
+
+/** The build modes — the "agent" the user is talking to. Functional: each
+ * picks a different starter + brief so the same engine builds the right thing. */
+const MODES: { id: BuildMode; label: string; icon: typeof AppWindow; blurb: string }[] = [
+  { id: "web", label: "Web app", icon: AppWindow, blurb: "Sites, tools & dashboards" },
+  { id: "game2d", label: "2D Game", icon: Gamepad2, blurb: "Platformers, runners, arcade" },
+  { id: "game3d", label: "3D Game", icon: Box, blurb: "3D scenes & worlds" },
 ];
+
+const SUGGESTIONS_BY_MODE: Record<BuildMode, string[]> = {
+  web: [
+    "A pomodoro timer with daily stats",
+    "Landing page for a specialty coffee brand",
+    "Kanban board with drag and drop",
+    "Personal portfolio with project gallery",
+    "Expense splitter for trips with friends",
+    "Markdown note-taking app",
+  ],
+  game2d: [
+    "A Flappy Bird game",
+    "A Mario-style platformer",
+    "An endless runner like Jetpack Joyride",
+    "A snake game that speeds up",
+    "A space shooter with waves of enemies",
+    "A breakout / brick-breaker game",
+  ],
+  game3d: [
+    "A 3D maze I can walk through",
+    "A first-person world to explore",
+    "A 3D ball that rolls to collect coins",
+    "A simple 3D racing track",
+  ],
+};
+
+const PLACEHOLDER_BY_MODE: Record<BuildMode, string> = {
+  web: "An app that tracks my reading list, with covers, ratings and a stats page…",
+  game2d: "A Flappy Bird game where I tap to flap through pipes, with a score…",
+  game3d: "A 3D maze I can walk through with the arrow keys to reach the exit…",
+};
 
 /** A short workspace name from the first words of the prompt. */
 function nameFromPrompt(prompt: string): string {
@@ -36,6 +68,7 @@ function nameFromPrompt(prompt: string): string {
 export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) {
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
+  const [mode, setMode] = useState<BuildMode>("web");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -57,13 +90,14 @@ export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) 
       const res = await fetch("/api/workspaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "SCRATCH", name: nameFromPrompt(trimmed), prompt: trimmed }),
+        body: JSON.stringify({ mode: "SCRATCH", name: nameFromPrompt(trimmed), prompt: trimmed, buildMode: mode }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
         throw new Error(json?.error?.message ?? "Couldn't create your project — try again.");
       }
       sessionStorage.setItem(`helix.build.${json.data.id}`, trimmed);
+      if (mode !== "web") sessionStorage.setItem(`helix.build.mode.${json.data.id}`, mode);
       router.push(`/build/${json.data.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong — try again.");
@@ -119,14 +153,43 @@ export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) 
           ?
         </h1>
         <p className="mt-4 max-w-[520px] text-center text-[15px] leading-relaxed text-[#9cadc4]">
-          Describe it in a sentence. Helix plans it, writes the code, and shows you the app live —
+          Describe it in a sentence. Helix plans it, writes the code, and shows you it live —
           then keep refining it in plain English.
         </p>
+
+        {/* Build-mode selector — web app, 2D game, or 3D game */}
+        <div className="mt-7 flex flex-wrap items-center justify-center gap-2" role="group" aria-label="What to build">
+          {MODES.map((m) => {
+            const Icon = m.icon;
+            const active = mode === m.id;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setMode(m.id)}
+                aria-pressed={active}
+                disabled={busy}
+                className={cn(
+                  "flex items-center gap-2 rounded-xl border px-3.5 py-2 text-left transition-colors disabled:opacity-50",
+                  active
+                    ? "border-accent bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[#f8fbff]"
+                    : "border-[#1d2940] bg-[color-mix(in_srgb,#0d1626_60%,transparent)] text-[#9cadc4] hover:border-accent hover:text-[#f8fbff]",
+                )}
+              >
+                <Icon className={cn("h-4 w-4", active ? "text-accent" : "")} strokeWidth={1.8} />
+                <span className="flex flex-col leading-tight">
+                  <span className="text-[13px] font-semibold">{m.label}</span>
+                  <span className="text-[10.5px] text-[#5f6f86]">{m.blurb}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
         {/* Prompt box */}
         <div
           className={cn(
-            "mt-9 w-full max-w-[680px] rounded-2xl border bg-[color-mix(in_srgb,#0d1626_88%,transparent)] shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur transition-colors",
+            "mt-4 w-full max-w-[680px] rounded-2xl border bg-[color-mix(in_srgb,#0d1626_88%,transparent)] shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur transition-colors",
             busy ? "border-[#28364f]" : "border-[#28364f] focus-within:border-accent focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_18%,transparent),0_18px_60px_rgba(0,0,0,0.45)]"
           )}
         >
@@ -142,8 +205,8 @@ export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) 
             }}
             disabled={busy}
             rows={3}
-            placeholder="An app that tracks my reading list, with covers, ratings and a stats page…"
-            aria-label="Describe the app you want to build"
+            placeholder={PLACEHOLDER_BY_MODE[mode]}
+            aria-label="Describe what you want to build"
             className="w-full resize-none border-none bg-transparent px-5 pt-4 font-sans text-[15px] leading-relaxed text-[#f8fbff] outline-none placeholder:text-[#5f6f86] disabled:opacity-60"
           />
           <div className="flex items-center gap-2 px-3.5 pb-3">
@@ -174,7 +237,7 @@ export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) 
 
         {/* Suggestions */}
         <div className="mt-7 flex max-w-[680px] flex-wrap items-center justify-center gap-2">
-          {SUGGESTIONS.map((s) => (
+          {SUGGESTIONS_BY_MODE[mode].map((s) => (
             <button
               key={s}
               onClick={() => {

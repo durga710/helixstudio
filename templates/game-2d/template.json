@@ -1,0 +1,9 @@
+{
+  "id": "game-2d",
+  "label": "2D Game (Phaser)",
+  "framework": "game",
+  "description": "A playable 2D browser game starter using Phaser 3 from a CDN. No build step — edit game.js. Great for platformers, runners, flappy-style, and arcade games.",
+  "keywords": ["game", "2d", "flappy", "platformer", "mario", "arcade", "snake", "pong", "runner", "jetpack", "canvas", "shooter", "play", "browser game", "side scroller"],
+  "notesBlurb": "Scaffolded from the 2D Game template: Phaser 3 (loaded from a CDN in index.html) + game.js + style.css, no build step. Build the user's game by editing game.js — set up the scenes, sprites, physics, input, and scoring. Use Phaser graphics/generated textures for sprites (there are NO image asset files). Keep game.js a PLAIN (non-module) script using the global `Phaser` — do NOT use ES module imports (the preview inlines local scripts and strips module type). Keep Phaser loaded via the existing CDN <script> and do NOT add a build step or recreate index.html. Phaser's loop handles animation.",
+  "cli": "overlay-only"
+}

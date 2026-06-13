@@ -56,6 +56,13 @@ const TEMPLATE_BRIEF = `This workspace is already scaffolded with the right stac
 
 Request: `;
 
+/* Game build mode: the workspace is scaffolded from a game starter (Phaser for
+ * 2D, Babylon.js for 3D, loaded from a CDN). Steer toward a genuinely playable
+ * game while keeping the no-module / no-build constraints the preview needs. */
+const GAME_BRIEF = `This workspace is already scaffolded with a game starter (see PROJECT NOTES for the library and files — Phaser for 2D, Babylon.js for 3D, loaded from a CDN). Build the request below into a complete, PLAYABLE browser game by editing the existing game.js (and style.css). Read the existing files first. Keep the CDN <script> and use the global library — do NOT switch to ES module imports or add a build step (the preview inlines local scripts and strips module type). Make it genuinely fun: a clear goal, responsive controls, a real game loop, collisions/scoring where they fit, a way to win or lose and restart, and a little juice (motion, color, feedback). Use the library's built-in shapes/graphics for sprites — there are no image assets. Don't ask questions; make tasteful decisions and build it now.
+
+Request: `;
+
 const FOLLOW_UPS = ["Add a dark mode toggle", "Make it feel more premium", "Improve the mobile layout"];
 
 /** The first turn's stored message carries a build brief prefix; show only the
@@ -151,7 +158,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   /* ----------------------------- agent turn ------------------------- */
 
   const send = useCallback(
-    async (text: string, brief: "static" | "template" | "none" = "none") => {
+    async (text: string, brief: "static" | "template" | "game" | "none" = "none") => {
       const trimmed = text.trim();
       if (!trimmed) return;
       localTurn.current = true;
@@ -176,7 +183,14 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
 
       // The brief is a MODEL-only instruction — send it separately so only the
       // user's clean request is persisted/shown (never leaks into the editor).
-      const prefix = brief === "static" ? BUILD_BRIEF : brief === "template" ? TEMPLATE_BRIEF : "";
+      const prefix =
+        brief === "static"
+          ? BUILD_BRIEF
+          : brief === "game"
+            ? GAME_BRIEF
+            : brief === "template"
+              ? TEMPLATE_BRIEF
+              : "";
       let turnLog: string[] = [];
       try {
         const res = await fetch(`/api/workspaces/${workspace.id}/chat`, {
@@ -358,9 +372,14 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       const stash = sessionStorage.getItem(`helix.build.${workspace.id}`);
       if (stash) {
         sessionStorage.removeItem(`helix.build.${workspace.id}`);
+        // A game mode (set on the landing page) uses the game brief; otherwise
+        // template vs. blank-static as before.
+        const gameMode = sessionStorage.getItem(`helix.build.mode.${workspace.id}`);
+        sessionStorage.removeItem(`helix.build.mode.${workspace.id}`);
         // Scaffolded projects get the genuine setup checklist over the warm-up.
         if (scaffolded) void runCreationSequence();
-        void send(stash, scaffolded ? "template" : "static");
+        const kickBrief = gameMode ? "game" : scaffolded ? "template" : "static";
+        void send(stash, kickBrief);
       } else {
         // Revisit: restore the conversation + resume any in-flight build.
         void refreshPreview();

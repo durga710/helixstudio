@@ -30,6 +30,10 @@ const CreateSchema = z.discriminatedUnion("mode", [
     // The user's idea. When present (and no explicit templateId), the server
     // silently picks the best starter and injects it — the picker is invisible.
     prompt: z.string().max(2000).optional(),
+    // The build mode chosen on the landing page. "game2d"/"game3d" force the
+    // matching game starter so the user's choice is honored even on a vague
+    // prompt; "web" (default) lets the prompt classifier pick.
+    buildMode: z.enum(["web", "game2d", "game3d"]).optional(),
   }),
   z.object({
     mode: z.literal("IMPORT"),
@@ -82,6 +86,12 @@ export async function POST(req: Request) {
     // prompt silently (the engine is hidden from the user — it just feels like
     // the AI chose the stack).
     let templateId = parsed.data.templateId;
+    // A game build mode forces the matching starter (the user's explicit pick
+    // wins over the prompt classifier — honored even on a vague prompt).
+    if (!templateId) {
+      if (parsed.data.buildMode === "game2d") templateId = "game-2d";
+      else if (parsed.data.buildMode === "game3d") templateId = "game-3d";
+    }
     if (!templateId && parsed.data.prompt?.trim()) {
       try {
         templateId = (await classifyPrompt(parsed.data.prompt.trim(), g.user.id)).templateId;

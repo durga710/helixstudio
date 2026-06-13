@@ -1,0 +1,9 @@
+{
+  "id": "game-3d",
+  "label": "3D Game (Babylon.js)",
+  "framework": "game",
+  "description": "A playable 3D browser game starter using Babylon.js from a CDN. No build step — edit game.js. Great for 3D scenes, mazes, and simple first- or third-person games.",
+  "keywords": ["3d game", "3d", "babylon", "three.js", "maze", "fps", "first person", "third person", "voxel", "3d scene", "cube", "world"],
+  "notesBlurb": "Scaffolded from the 3D Game template: Babylon.js (loaded from a CDN in index.html) + game.js + style.css, no build step. Build the user's 3D game by editing game.js — set up the scene, camera, lights, meshes (use Babylon's MeshBuilder; there are NO external 3D model assets), input, and game logic. Keep game.js a PLAIN (non-module) script using the global `BABYLON` — do NOT use ES module imports (the preview inlines local scripts and strips module type), and do NOT switch to Three.js (its CDN is ES-module only and will break here). engine.runRenderLoop handles animation. Keep Babylon loaded via the existing CDN <script>.",
+  "cli": "overlay-only"
+}

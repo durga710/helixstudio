@@ -21,8 +21,10 @@ import {
   X,
   ArrowRight,
   GraduationCap,
+  Play,
 } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
+import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
@@ -583,6 +585,8 @@ function SpaceDetailPanel({
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [busy, setBusy] = useState(false);
+  // A shared project being played in the read-only preview modal.
+  const [playing, setPlaying] = useState<{ id: string; name: string } | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -877,13 +881,24 @@ function SpaceDetailPanel({
             {detail.workspaces.map((w) => {
               const meta = PROVIDER_META[w.provider as GitProviderName];
               return (
-                <li key={w.id}>
+                <li key={w.id} className="relative">
+                  {/* Play — runs the shared project read-only in a preview modal
+                      (no editor, no owner access). Great for classmates' games. */}
+                  <button
+                    type="button"
+                    onClick={() => setPlaying({ id: w.id, name: w.name })}
+                    aria-label={`Play ${w.name}`}
+                    title="Play"
+                    className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full border border-accent/40 bg-hl px-2.5 py-1 text-[11px] font-semibold text-accent transition-colors hover:border-accent hover:bg-accent hover:text-white"
+                  >
+                    <Play className="h-3 w-3 fill-current" /> Play
+                  </button>
                   <button
                     type="button"
                     onClick={() => router.push(`/editor/${w.id}`)}
                     className="block w-full rounded-card border border-border bg-panel p-4 text-left shadow-card transition-all duration-150 hover:-translate-y-px hover:border-accent"
                   >
-                    <div className="mb-2 flex items-center gap-2">
+                    <div className="mb-2 flex items-center gap-2 pr-16">
                       {w.mode === "IMPORT" ? (
                         <FolderGit2 className="h-4 w-4 shrink-0 text-accent" />
                       ) : (
@@ -927,6 +942,133 @@ function SpaceDetailPanel({
 
       {/* Recent activity */}
       <SpaceActivityFeed key={`feed-${detail.id}`} spaceId={detail.id} />
+
+      {playing && (
+        <PlayModal
+          workspaceId={playing.id}
+          name={playing.name}
+          onClose={() => setPlaying(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------ play modal ------------------------------ */
+
+/** Runs a shared workspace's static app/game read-only in a sandboxed iframe —
+ * the exact preview pipeline the builder uses, so canvas games (Phaser/Babylon
+ * from a CDN) just play. No editor, no write access to the owner's project. */
+function PlayModal({
+  workspaceId,
+  name,
+  onClose,
+}: {
+  workspaceId: string;
+  name: string;
+  onClose: () => void;
+}) {
+  const [html, setHtml] = useState<string | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error">("loading");
+
+  const fetchFile = useCallback(
+    async (path: string): Promise<string | null> => {
+      try {
+        const res = await fetch(`/api/workspaces/${workspaceId}/file?path=${encodeURIComponent(path)}`);
+        const json = await res.json().catch(() => null);
+        return res.ok && json?.ok ? (json.data.content as string) : null;
+      } catch {
+        return null;
+      }
+    },
+    [workspaceId],
+  );
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/workspaces/${workspaceId}/files`, { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) {
+          if (alive) setStatus("error");
+          return;
+        }
+        const paths = (json.data.files as Array<{ path: string }>).map((f) => f.path);
+        const entry = pickPreviewEntry(paths);
+        if (!entry) {
+          if (alive) setStatus("empty");
+          return;
+        }
+        const composed = await composePreviewHtml(entry, fetchFile);
+        if (!alive) return;
+        if (!composed) {
+          setStatus("empty");
+          return;
+        }
+        setHtml(composed.html);
+        setStatus("ready");
+      } catch {
+        if (alive) setStatus("error");
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [workspaceId, fetchFile]);
+
+  // Esc to close.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-black/80 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Playing ${name}`}
+    >
+      <div className="flex items-center gap-3 border-b border-border bg-panel px-4 py-2.5">
+        <Play className="h-4 w-4 fill-current text-accent" />
+        <span className="truncate text-[13px] font-semibold text-txt">{name}</span>
+        <span className="text-[11px] text-txt3">preview · read-only</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="ml-auto inline-flex items-center gap-1 rounded-card border border-border2 bg-panel2 px-2.5 py-1 text-[12px] text-txt2 transition-colors hover:border-accent hover:text-txt"
+        >
+          <X className="h-3.5 w-3.5" /> Close
+        </button>
+      </div>
+      <div className="grid flex-1 place-items-center overflow-hidden bg-[#070b12]">
+        {status === "loading" && (
+          <span className="flex items-center gap-2 text-sm text-txt3">
+            <Loader2 className="h-4 w-4 animate-spin" /> loading…
+          </span>
+        )}
+        {status === "empty" && (
+          <span className="px-6 text-center text-sm text-txt3">
+            Nothing to play yet — this project has no previewable page.
+          </span>
+        )}
+        {status === "error" && (
+          <span className="px-6 text-center text-sm text-bad">Couldn&apos;t load this project.</span>
+        )}
+        {status === "ready" && html && (
+          <iframe
+            title={`Play ${name}`}
+            srcDoc={html}
+            sandbox="allow-scripts allow-pointer-lock"
+            className="h-full w-full border-0 bg-white"
+          />
+        )}
+      </div>
     </div>
   );
 }
