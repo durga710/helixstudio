@@ -7,6 +7,7 @@
  * build-gates them, and updates them in the DB live (no redeploy).
  */
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface TemplateStatus {
@@ -111,6 +112,9 @@ export function TemplateRefresh() {
         <button type="button" disabled={running} onClick={() => void run()} className={btn}>
           {running ? "Running…" : "Run refresh"}
         </button>
+        <Link href="/admin/templates" className={btn}>
+          View stored templates →
+        </Link>
         {items.some((t) => t.refreshState === "building") && (
           <span className="text-[11px] text-accent">a build is in progress…</span>
         )}
