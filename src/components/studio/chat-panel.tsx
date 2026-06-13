@@ -543,8 +543,12 @@ export function ChatPanel({
                   content: m.role === "user" ? stripBrief(m.content) : m.content,
                   actions: m.actions ?? undefined,
                 }));
-                setMessages(fresh);
-                writeCache(`ws:${workspace.id}:messages`, fresh);
+                // Only replace when the reload actually returned rows — a
+                // replica-lag empty read must never wipe a live conversation.
+                if (fresh.length) {
+                  setMessages(fresh);
+                  writeCache(`ws:${workspace.id}:messages`, fresh);
+                }
               }
             } catch {
               /* keep what's shown */

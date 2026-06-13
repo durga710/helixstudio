@@ -301,6 +301,13 @@ export async function runAgentTurn(opts: {
       changes = { written: [], deleted: [] };
       // Stream the reply token-by-token; on any streaming error fall back to a
       // normal (retried) create so a streaming bug can never break chat.
+      //
+      // Context-safety: the fallback re-issues the SAME `params` — including
+      // `previous_response_id` (which points at the prior hop's ALREADY-STORED
+      // response) and the same tool outputs — so no tool context is dropped; the
+      // retry cleanly redoes the failed hop. A partial stream-then-error only
+      // double-emits some onText deltas mid-turn (cosmetic — the client replaces
+      // the streamed buffer with the final message), never the persisted reply.
       const oai = ai!;
       const streamOrCreate = async (
         params: OpenAI.Responses.ResponseCreateParamsNonStreaming,

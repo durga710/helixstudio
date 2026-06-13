@@ -738,19 +738,25 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
                   }
                 }}
                 rows={2}
-                placeholder={building ? "Helix is building…" : "Describe a change — “make the header sticky”…"}
+                placeholder={
+                  limitHit
+                    ? "Guest allowance used — sign in to keep building"
+                    : building
+                      ? "Helix is building…"
+                      : "Describe a change — “make the header sticky”…"
+                }
                 aria-label="Message Helix"
-                disabled={building}
+                disabled={building || limitHit}
                 className="max-h-32 w-full resize-none border-none bg-transparent font-sans text-[13px] text-txt outline-none placeholder:text-txt3 disabled:opacity-60"
               />
               <button
                 onClick={() => {
-                  if (!building && input.trim()) {
+                  if (!building && !limitHit && input.trim()) {
                     void send(input);
                     setInput("");
                   }
                 }}
-                disabled={building || input.trim().length === 0}
+                disabled={building || limitHit || input.trim().length === 0}
                 aria-label="Send"
                 className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-[9px] border-none bg-accent text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               >
