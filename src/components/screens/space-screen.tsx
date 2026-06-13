@@ -622,7 +622,8 @@ function SpaceDetailPanel({
       });
       if (res.ok) {
         setRenaming(false);
-        await load();
+        // Optimistic: the only thing that changed is the name — no full refetch.
+        setDetail((d) => (d ? { ...d, name } : d));
         await onChanged();
         toast("Renamed");
       } else {
@@ -644,7 +645,10 @@ function SpaceDetailPanel({
         body: JSON.stringify({ action: "regenerate-code" }),
       });
       if (res.ok) {
-        await load();
+        // The PATCH returns the new code — update in place, no full refetch.
+        const json = await res.json().catch(() => null);
+        const joinCode = json?.data?.joinCode as string | undefined;
+        if (joinCode) setDetail((d) => (d ? { ...d, joinCode } : d));
         await onChanged();
         toast("New invite link generated");
       } else {

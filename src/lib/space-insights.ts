@@ -64,8 +64,9 @@ export async function getSpaceInsights(spaceId: string): Promise<SpaceInsights> 
           by: ["userId"],
           where: { kind: "chat", workspaceId: { in: wsIds } },
           _count: { _all: true },
+          _max: { createdAt: true }, // so AI activity also counts toward "last active"
         })
-      : Promise.resolve([] as { userId: string; _count: { _all: number } }[]),
+      : Promise.resolve([] as { userId: string; _count: { _all: number }; _max: { createdAt: Date | null } }[]),
     space.kind === "classroom"
       ? db().assignmentSubmission.groupBy({
           by: ["userId"],
@@ -76,6 +77,7 @@ export async function getSpaceInsights(spaceId: string): Promise<SpaceInsights> 
   ]);
 
   const aiMap = new Map(aiByUser.map((r) => [r.userId, r._count._all]));
+  const aiLastMap = new Map(aiByUser.map((r) => [r.userId, r._max.createdAt]));
   const subMap = new Map(subsByUser.map((r) => [r.userId, r._count._all]));
   const wsMap = new Map<string, number>();
   for (const w of workspaces) wsMap.set(w.userId, (wsMap.get(w.userId) ?? 0) + 1);
@@ -112,6 +114,10 @@ export async function getSpaceInsights(spaceId: string): Promise<SpaceInsights> 
     totalPushes += pushes;
     const aiBuilds = aiMap.get(m.userId) ?? 0;
     const submissions = subMap.get(m.userId) ?? 0;
+    // Last active = the most recent of a space event OR an AI build.
+    const eventLast = agg?.last ?? null;
+    const aiLast = aiLastMap.get(m.userId) ?? null;
+    const last = eventLast && aiLast ? (eventLast > aiLast ? eventLast : aiLast) : (eventLast ?? aiLast);
     return {
       userId: m.userId,
       name: m.user.name ?? m.user.email ?? "member",
@@ -120,7 +126,7 @@ export async function getSpaceInsights(spaceId: string): Promise<SpaceInsights> 
       pushes,
       aiBuilds,
       workspaces: wsMap.get(m.userId) ?? 0,
-      lastActive: agg?.last ? agg.last.toISOString() : null,
+      lastActive: last ? last.toISOString() : null,
       activeDays7: agg?.days.size ?? 0,
       submissions,
       quiet: !agg?.any && aiBuilds === 0 && submissions === 0,
