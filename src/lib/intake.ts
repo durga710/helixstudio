@@ -19,6 +19,7 @@ import "server-only";
 import { classifyPrompt } from "@/lib/templates/router";
 import { resolveAiPrefs, runOneShot } from "@/lib/ai-agent";
 import { recordAiUsage } from "@/lib/ai-usage";
+import { matchArchetype, applyImplications } from "@/lib/intake-knowledge";
 
 export interface IntakeQuestion {
   key: string;
@@ -65,18 +66,12 @@ export function clarityScore(idea: string, features: string[]): number {
 
 /** A model-only brief assembled from the rule findings + the user's answers. */
 export function synthesizeBrief(opts: {
-  classificationLabel: string;
-  classificationConfident: boolean;
+  stack: string;
   features: string[];
   answers?: Record<string, string>;
 }): string {
   const answers = opts.answers ?? {};
-  const pickedStack =
-    answers.stack && answers.stack !== "You decide"
-      ? answers.stack
-      : opts.classificationConfident
-        ? opts.classificationLabel
-        : "";
+  const pickedStack = answers.stack && answers.stack !== "You decide" ? answers.stack : opts.stack;
 
   const parts: string[] = [];
   if (pickedStack) parts.push(`Preferred stack: ${pickedStack}. Build with it unless it's clearly unsuitable.`);
@@ -155,50 +150,45 @@ export async function curate(opts: {
 }): Promise<IntakeResult> {
   const { idea, userId } = opts;
   const classification = await classifyPrompt(idea, userId); // rules + (maybe) tiny B for stack
-  const features = extractFeatures(idea);
+
+  // KNOWLEDGE BASE: a matched archetype contributes a stack hint, default
+  // features, and the best clarifying question — all free. Implications then
+  // auto-complete the feature list (e.g. payments → auth + a database).
+  const archetype = matchArchetype(idea);
+  const ideaFeatures = extractFeatures(idea);
+  const features = applyImplications(Array.from(new Set([...ideaFeatures, ...(archetype?.features ?? [])])));
+  // Prefer the classifier's stack when it's confident; otherwise the archetype's.
+  const stack = classification.confident ? classification.label : archetype?.stack ?? classification.label;
 
   // Round 2 → synthesize and finish.
   if (opts.answers) {
-    return {
-      done: true,
-      stack: classification.label,
-      brief: synthesizeBrief({
-        classificationLabel: classification.label,
-        classificationConfident: classification.confident,
-        features,
-        answers: opts.answers,
-      }),
-    };
+    return { done: true, stack, brief: synthesizeBrief({ stack, features, answers: opts.answers }) };
   }
 
   // Round 1 → gate.
   const questions: IntakeQuestion[] = [];
-  if (!classification.confident) questions.push(stackQuestion(classification.label, classification.alternatives));
+  // Only ask the stack when neither the classifier nor an archetype knows it.
+  if (!classification.confident && !archetype)
+    questions.push(stackQuestion(classification.label, classification.alternatives));
 
-  if (clarityScore(idea, features) <= 1) {
-    const scope = await aiScopeQuestions({ idea, userId, stackLabel: classification.label, features });
-    if (scope.length) questions.push(...scope);
-    else if (features.length === 0)
-      // Rules fallback when B is unavailable and we learned nothing.
-      questions.push({
-        key: "scope",
-        text: "Anything specific I should include?",
-        options: ["User accounts", "A database", "A dashboard", "Keep it simple"],
-      });
+  // Vague idea → a clarifying question. Prefer the archetype's curated one
+  // (free); only fall back to a tiny AI call when we have no archetype.
+  if (clarityScore(idea, ideaFeatures) <= 1) {
+    if (archetype?.question) questions.push(archetype.question);
+    else {
+      const scope = await aiScopeQuestions({ idea, userId, stackLabel: stack, features });
+      if (scope.length) questions.push(...scope);
+      else if (features.length === 0)
+        questions.push({
+          key: "scope",
+          text: "Anything specific I should include?",
+          options: ["User accounts", "A database", "A dashboard", "Keep it simple"],
+        });
+    }
   }
 
-  // Clear + confident → no questions, build straight away (zero extra tokens).
-  if (questions.length === 0) {
-    return {
-      done: true,
-      stack: classification.label,
-      brief: synthesizeBrief({
-        classificationLabel: classification.label,
-        classificationConfident: classification.confident,
-        features,
-      }),
-    };
-  }
+  // Clear + known → no questions, build straight away (zero extra tokens).
+  if (questions.length === 0) return { done: true, stack, brief: synthesizeBrief({ stack, features }) };
 
-  return { done: false, questions, stack: classification.label };
+  return { done: false, questions, stack };
 }

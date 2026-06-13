@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "npm run gen:templates",
+    "prebuild": "npm run gen:docs && npm run gen:templates",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
+    "gen:docs": "node scripts/gen-docs.mjs",
     "gen:templates": "node scripts/gen-templates.mjs",
     "gen:schema-sql": "node -e \"const fs=require('fs');const s=fs.readFileSync('prisma/schema.sql','utf8');fs.writeFileSync('src/lib/schema-sql.ts','export const SCHEMA_SQL = '+JSON.stringify(s)+';\\n')\""
   },

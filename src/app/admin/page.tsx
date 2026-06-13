@@ -153,6 +153,24 @@ export default async function AdminPage() {
         <TemplateRefresh />
       </section>
 
+      {/* System architecture — living docs & diagrams, bundled from the repo */}
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold text-txt">System architecture</h2>
+        <div className="rounded-card-lg border border-border bg-panel p-4">
+          <p className="text-[12.5px] text-txt2">
+            Living docs &amp; diagrams (how the intake engine, agent platform, context engine, etc. work) — bundled
+            from <code className="rounded bg-panel2 px-1 text-[11px]">docs/</code> on every deploy and written to be
+            understandable by non-engineers.
+          </p>
+          <Link
+            href="/admin/architecture"
+            className="mt-3 inline-block rounded-lg border border-border2 bg-panel2 px-3 py-1.5 text-[12px] font-medium text-txt2 hover:border-accent hover:text-txt"
+          >
+            View architecture docs →
+          </Link>
+        </div>
+      </section>
+
       {/* Move logic */}
       <section className="mb-8 grid gap-3 md:grid-cols-2">
         <div className="rounded-card-lg border border-border bg-panel p-4">
