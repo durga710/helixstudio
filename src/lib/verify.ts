@@ -69,7 +69,21 @@ export function selectVerifyCommand(
     return { skip: "static site — open the preview to check it" };
   }
   if (detection.kind === "python") {
-    return { skip: "Python verify coming soon" };
+    // Django: the management CLI's own system check (fast, no test files needed).
+    if (treePaths.includes("manage.py")) return { command: "python manage.py check" };
+    // Real tests present → run them. Module form works whenever pytest is on
+    // the path (installed via requirements.txt in the setup step).
+    const hasTests = treePaths.some(
+      (p) =>
+        /(^|\/)conftest\.py$/.test(p) ||
+        /(^|\/)tests?\//.test(p) ||
+        /(^|\/)test_[^/]+\.py$/.test(p) ||
+        /_test\.py$/.test(p),
+    );
+    if (hasTests) return { command: "python -m pytest -q" };
+    // No tests — a byte-compile of the project is a dependency-free syntax/
+    // import smoke test that catches the most common breakage.
+    return { command: "python -m compileall -q ." };
   }
   // node
   let scripts: Record<string, string> = {};
