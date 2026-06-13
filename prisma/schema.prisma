@@ -84,6 +84,22 @@ model AiUsageEvent {
   @@index([createdAt])
 }
 
+// Cached chunk embeddings for semantic code search (Phase B). Content-addressed
+// by chunkHash so unchanged chunks are reused across searches. Gated by
+// SEMANTIC_EMBEDDINGS + an OpenAI key; BM25 is the always-on fallback.
+model FileEmbedding {
+  id          String   @id @default(cuid())
+  workspaceId String
+  path        String
+  chunkHash   String
+  startLine   Int
+  vector      String // JSON-encoded number[] (1536 floats)
+  createdAt   DateTime @default(now())
+
+  @@unique([workspaceId, chunkHash])
+  @@index([workspaceId])
+}
+
 // ---------- Helix Space · lightweight team collaboration ----------
 // A Space groups people who can see and open each other's shared workspaces
 // (separate-but-visible: each member owns their own; only the owner edits).

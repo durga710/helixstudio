@@ -19,6 +19,7 @@ import "server-only";
 import { resolveAiPrefs, runOneShot } from "@/lib/ai-agent";
 import { recordAiUsage } from "@/lib/ai-usage";
 import { rankBm25, type Bm25Doc } from "./bm25";
+import { embedRankChunks } from "@/lib/embeddings";
 
 export interface Chunk {
   path: string;
@@ -77,20 +78,12 @@ export function lexicalScore(queryTokens: string[], chunk: Chunk): number {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// TODO(phase-b): SEMANTIC CANDIDATE GENERATION — do this LATER, at large scale.
-//
-// This function is Stage 1 — it currently finds candidates by KEYWORD overlap,
-// so a query like "where users log in" misses code that says authenticateSession()
-// with no shared words. The reranker can only sort what this hands it.
-//
-// Phase B upgrade (parked until repos get big — see memory helix-agent-search):
-//   1. On file save, chunk + embed each chunk (OpenAI text-embedding-3-small,
-//      ~pennies) and store the vectors in a Postgres column (no new service).
-//   2. Embed the query and replace/augment the lexical prefilter below with a
-//      cosine-similarity nearest-neighbour lookup — finds code by MEANING.
-//   3. The matched chunks still flow into the same reranker (rerankSearch) and
-//      the same semantic_search tool — this is the only function that changes.
-// Cheapest path: OpenAI tiny-embeddings + Postgres column + in-Node cosine.
+// PHASE B (SHIPPED, gated): embedding-based candidate generation lives in
+// src/lib/embeddings.ts and is wired into selectCandidates() below. When
+// SEMANTIC_EMBEDDINGS=1 and an OpenAI key is available, candidates are picked by
+// MEANING (cosine over cached chunk embeddings) so "where users log in" finds
+// authenticateSession() with no shared words. Otherwise this BM25 prefilter
+// (keyword overlap, IDF-weighted) is the zero-cost default and fallback.
 // ───────────────────────────────────────────────────────────────────────────
 
 /** Top PREFILTER chunks by BM25 (IDF-weighted, length-normalized — far better
@@ -156,15 +149,38 @@ async function llmRerank(userId: string, query: string, docs: string[], topN: nu
   }
 }
 
+/**
+ * Stage-1 candidates: embedding cosine similarity when enabled (finds code by
+ * MEANING), else the BM25 lexical prefilter. Either way the candidates flow into
+ * the same Stage-2 reranker below.
+ */
+async function selectCandidates(opts: {
+  userId: string;
+  workspaceId: string;
+  query: string;
+  chunks: Chunk[];
+}): Promise<Chunk[]> {
+  const ranked = await embedRankChunks({
+    userId: opts.userId,
+    workspaceId: opts.workspaceId,
+    query: opts.query,
+    chunks: opts.chunks.map((c) => ({ path: c.path, startLine: c.startLine, text: c.text })),
+    topK: PREFILTER,
+  });
+  if (ranked) return ranked.map((r) => opts.chunks[r.index]).filter((c): c is Chunk => Boolean(c));
+  return prefilter(opts.query, opts.chunks); // BM25 fallback (disabled / no key)
+}
+
 /** Find the most relevant code for a natural-language query. */
 export async function rerankSearch(opts: {
   userId: string;
+  workspaceId: string;
   query: string;
   chunks: Chunk[];
   topN?: number;
 }): Promise<{ hits: RankedHit[]; method: "reranker" | "model" | "lexical" }> {
   const topN = opts.topN ?? 8;
-  const candidates = prefilter(opts.query, opts.chunks);
+  const candidates = await selectCandidates(opts);
   if (candidates.length === 0) return { hits: [], method: "lexical" };
 
   const docs = candidates.map((c) => `${c.path}:${c.startLine}\n${c.text.slice(0, CHUNK_CHAR_CAP)}`);

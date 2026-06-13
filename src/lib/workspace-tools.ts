@@ -516,7 +516,7 @@ async function executeToolInner(
 
       const chunks = buildChunks(files);
       if (chunks.length === 0) return { query, hits: [], scannedFiles: files.length };
-      const { hits, method } = await rerankSearch({ userId: ctx.userId, query, chunks, topN: SEMANTIC_TOP_N });
+      const { hits, method } = await rerankSearch({ userId: ctx.userId, workspaceId: ctx.workspaceId, query, chunks, topN: SEMANTIC_TOP_N });
       return {
         query,
         hits,

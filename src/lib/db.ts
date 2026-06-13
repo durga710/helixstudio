@@ -50,7 +50,7 @@ async function ensureSchema(): Promise<void> {
     // mistaken for success just because the base tables exist.
     try {
       const c = await pool.connect();
-      const r = await c.query(`SELECT to_regclass('public."Template"') AS t`);
+      const r = await c.query(`SELECT to_regclass('public."FileEmbedding"') AS t`);
       c.release();
       if (r.rows[0]?.t) return;
     } catch {

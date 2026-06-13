@@ -300,4 +300,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS "Template_templateId_key" ON "Template"("templ
 
 -- 2026-06 · Gemini provider (per-user key)
 ALTER TABLE "UserPreferences" ADD COLUMN IF NOT EXISTS "geminiKey" TEXT;
+
+-- 2026-06 · Semantic code search (Phase B) — cached chunk embeddings
+CREATE TABLE IF NOT EXISTS "FileEmbedding" (
+    "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "path" TEXT NOT NULL,
+    "chunkHash" TEXT NOT NULL,
+    "startLine" INTEGER NOT NULL,
+    "vector" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "FileEmbedding_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "FileEmbedding_workspaceId_chunkHash_key" ON "FileEmbedding"("workspaceId", "chunkHash");
+CREATE INDEX IF NOT EXISTS "FileEmbedding_workspaceId_idx" ON "FileEmbedding"("workspaceId");
+
+DO $$ BEGIN
+  ALTER TABLE "FileEmbedding" ADD CONSTRAINT "FileEmbedding_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 `;

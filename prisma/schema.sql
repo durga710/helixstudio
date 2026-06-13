@@ -755,3 +755,25 @@ CREATE TABLE "Template" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Template_templateId_key" ON "Template"("templateId");
+
+-- CreateTable
+CREATE TABLE "FileEmbedding" (
+    "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "path" TEXT NOT NULL,
+    "chunkHash" TEXT NOT NULL,
+    "startLine" INTEGER NOT NULL,
+    "vector" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "FileEmbedding_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "FileEmbedding_workspaceId_chunkHash_key" ON "FileEmbedding"("workspaceId", "chunkHash");
+
+-- CreateIndex
+CREATE INDEX "FileEmbedding_workspaceId_idx" ON "FileEmbedding"("workspaceId");
+
+-- AddForeignKey
+ALTER TABLE "FileEmbedding" ADD CONSTRAINT "FileEmbedding_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
