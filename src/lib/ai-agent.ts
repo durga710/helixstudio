@@ -13,6 +13,7 @@ import "server-only";
  */
 
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import {
   workspaceTools,
   executeTool,
@@ -80,113 +81,89 @@ export async function runToolCalls<C>(
 
 /* ============================ Anthropic ============================ */
 
-/** POST to Anthropic Messages with transient-error retry (429/5xx/overloaded). */
-async function anthropicMessages(apiKey: string, body: unknown): Promise<unknown> {
-  return withRetry(async () => {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify(body),
-      cache: "no-store",
-    });
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      throw Object.assign(new Error(`Anthropic error ${res.status}: ${detail.slice(0, 300)}`), { status: res.status });
-    }
-    return res.json();
-  });
-}
-
-interface AnthropicContentBlock {
-  type: string;
-  text?: string;
-  id?: string;
-  name?: string;
-  input?: Record<string, unknown>;
-}
-
 export async function runAnthropicAgent(opts: {
   model: string;
   instructions: string;
   messages: AgentMessage[];
   ctx: ToolContext;
   apiKey?: string;
+  /** Live token deltas of the assistant's reply (streaming). */
+  onText?: (delta: string) => void;
 }): Promise<AgentResult | { error: string }> {
   const apiKey = opts.apiKey || process.env.ANTHROPIC_API_KEY;
   if (!apiKey)
     return { error: "Anthropic is not configured — add your API key in Settings, or set ANTHROPIC_API_KEY." };
 
-  type CacheControl = { type: "ephemeral" };
-  type AnthropicTool = { name: string; description: string; input_schema: unknown; cache_control?: CacheControl };
-  const tools: AnthropicTool[] = functionTools(opts.ctx.mode).map((t) => ({
+  // The SDK handles SSE parsing + tool-use reconstruction (.finalMessage) and
+  // transient-error retries (maxRetries), so the runner stays simple.
+  const client = new Anthropic({ apiKey, maxRetries: 2 });
+
+  const tools: Anthropic.Tool[] = functionTools(opts.ctx.mode).map((t) => ({
     name: t.name,
     description: t.description,
-    input_schema: t.parameters,
+    input_schema: t.parameters as Anthropic.Tool.InputSchema,
   }));
   // Prompt caching: the tools block and the large, stable system prompt are
   // identical on every hop of a turn (and across turns until the workspace
   // changes), so mark them cacheable. Anthropic serves the prefix from cache —
   // ~90% cheaper input tokens and noticeably lower latency on multi-hop tasks.
   if (tools.length) tools[tools.length - 1] = { ...tools[tools.length - 1], cache_control: { type: "ephemeral" } };
-  const system = [{ type: "text" as const, text: opts.instructions, cache_control: { type: "ephemeral" as const } }];
+  const system: Anthropic.TextBlockParam[] = [
+    { type: "text", text: opts.instructions, cache_control: { type: "ephemeral" } },
+  ];
 
-  const messages: Array<{ role: "user" | "assistant"; content: unknown }> = opts.messages.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
+  const messages: Anthropic.MessageParam[] = opts.messages.map((m) => ({ role: m.role, content: m.content }));
 
   const actions: AgentResult["actions"] = [];
   const changes: ChangeManifest = { written: [], deleted: [] };
   let tokensUsed = 0;
 
   for (let hop = 0; hop <= MAX_HOPS; hop++) {
-    let data: {
-      content: AnthropicContentBlock[];
-      stop_reason?: string;
-      usage?: { input_tokens?: number; output_tokens?: number };
-    };
+    let msg: Anthropic.Message;
     try {
-      data = (await anthropicMessages(apiKey, {
+      const stream = client.messages.stream({
         model: opts.model,
         max_tokens: ANTHROPIC_MAX_OUTPUT,
         system,
         messages,
         tools,
-      })) as typeof data;
+      });
+      stream.on("text", (delta) => opts.onText?.(delta));
+      msg = await stream.finalMessage();
     } catch (e) {
       return { error: e instanceof Error ? e.message : "Anthropic request failed" };
     }
 
-    tokensUsed += (data.usage?.input_tokens ?? 0) + (data.usage?.output_tokens ?? 0);
-    const toolUses = data.content.filter((b) => b.type === "tool_use");
+    tokensUsed += (msg.usage?.input_tokens ?? 0) + (msg.usage?.output_tokens ?? 0);
+    const toolUses = msg.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
 
-    if (data.stop_reason !== "tool_use" || toolUses.length === 0 || hop === MAX_HOPS || outOfBudget(tokensUsed)) {
-      const text = data.content
-        .filter((b) => b.type === "text")
-        .map((b) => b.text ?? "")
+    if (msg.stop_reason !== "tool_use" || toolUses.length === 0 || hop === MAX_HOPS || outOfBudget(tokensUsed)) {
+      const text = msg.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text)
         .join("\n")
         .trim();
       return { text: text || "(no reply)", actions, changes, tokensUsed };
     }
 
-    messages.push({ role: "assistant", content: data.content });
+    messages.push({ role: "assistant", content: msg.content });
 
     const settled = await runToolCalls(
       toolUses,
-      (c) => c.name ?? "",
+      (c) => c.name,
       async (call) => {
         let result: unknown;
         try {
-          result = await executeTool(call.name ?? "", call.input ?? {}, opts.ctx);
+          result = await executeTool(call.name, (call.input ?? {}) as Record<string, unknown>, opts.ctx);
         } catch (e) {
           result = { error: e instanceof Error ? e.message : "tool failed" };
         }
         return { call, result };
       },
     );
-    const results = [];
+    const results: Anthropic.ToolResultBlockParam[] = [];
     for (const { call, result } of settled) {
-      actions.push({ tool: call.name ?? "", label: toolLabel(call.name ?? "", result) });
+      actions.push({ tool: call.name, label: toolLabel(call.name, result) });
       mergeChanges(changes, result);
       results.push({
         type: "tool_result",

@@ -58,10 +58,7 @@ import {
 // become a one-line-per-turn digest (see src/lib/chat-context.ts).
 const HISTORY_LIMIT = 40;
 
-export interface TurnEvent {
-  type: "activity";
-  label: string;
-}
+export type TurnEvent = { type: "activity"; label: string } | { type: "delta"; text: string };
 
 /** A tool/marker shown under a message. `log` rides on verify markers only. */
 export type TurnAction = { tool: string; label: string; log?: string };
@@ -103,6 +100,8 @@ export async function runAgentTurn(opts: {
   const mode = opts.mode ?? "build";
   const userMessage = opts.message.trim();
   const emit = (label: string) => onEvent?.({ type: "activity", label });
+  // Live token deltas of the assistant's reply (streaming providers call this).
+  const onText = (text: string) => onEvent?.({ type: "delta", text });
 
   // Token budget: suspension, admin per-user limits, tier monthly quotas and
   // the guest allowance — all checked in one place before any AI spend.
@@ -263,7 +262,7 @@ export async function runAgentTurn(opts: {
     if (aiProvider === "anthropic" || aiProvider === "local") {
       const result = await withGitAuth(gitAuth, () =>
         aiProvider === "anthropic"
-          ? runAnthropicAgent({ model: aiModel, instructions, messages, ctx, apiKey: memberKey })
+          ? runAnthropicAgent({ model: aiModel, instructions, messages, ctx, apiKey: memberKey, onText })
           : runLocalAgent({ model: aiModel, baseUrl: aiBaseUrl, instructions, messages, ctx, apiKey: memberKey }),
       );
       if ("error" in result) return { error: result.error };
@@ -272,16 +271,30 @@ export async function runAgentTurn(opts: {
       // OpenAI Responses API with multi-hop function tools.
       actions = [];
       changes = { written: [], deleted: [] };
+      // Stream the reply token-by-token; on any streaming error fall back to a
+      // normal (retried) create so a streaming bug can never break chat.
+      const oai = ai!;
+      const streamOrCreate = async (
+        params: OpenAI.Responses.ResponseCreateParamsNonStreaming,
+      ): Promise<OpenAI.Responses.Response> => {
+        try {
+          const s = oai.responses.stream(params as Parameters<typeof oai.responses.stream>[0]);
+          for await (const ev of s) {
+            if (ev.type === "response.output_text.delta") onText(ev.delta);
+          }
+          return await s.finalResponse();
+        } catch {
+          return withRetry(() => oai.responses.create(params));
+        }
+      };
       try {
-        let resp = await withRetry(() =>
-          ai!.responses.create({
-            model: aiModel || OPENAI_MODEL,
-            instructions,
-            input: messages,
-            tools: workspaceTools(mode),
-            store: true,
-          }),
-        );
+        let resp = await streamOrCreate({
+          model: aiModel || OPENAI_MODEL,
+          instructions,
+          input: messages,
+          tools: workspaceTools(mode),
+          store: true,
+        });
         tokensUsed += resp.usage?.total_tokens ?? 0;
 
         for (const item of resp.output ?? []) {
@@ -323,15 +336,13 @@ export async function runAgentTurn(opts: {
             });
           }
 
-          resp = await withRetry(() =>
-            ai!.responses.create({
-              model: aiModel || OPENAI_MODEL,
-              previous_response_id: resp.id,
-              input: outputs,
-              tools: workspaceTools(mode),
-              store: true,
-            }),
-          );
+          resp = await streamOrCreate({
+            model: aiModel || OPENAI_MODEL,
+            previous_response_id: resp.id,
+            input: outputs,
+            tools: workspaceTools(mode),
+            store: true,
+          });
           tokensUsed += resp.usage?.total_tokens ?? 0;
 
           for (const item of resp.output ?? []) {
@@ -346,7 +357,7 @@ export async function runAgentTurn(opts: {
         // a real answer about what happened.
         if (!text) {
           try {
-            const wrap = await ai!.responses.create({
+            const wrap = await streamOrCreate({
               model: aiModel || OPENAI_MODEL,
               previous_response_id: resp.id,
               input: [

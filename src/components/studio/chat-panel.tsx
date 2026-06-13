@@ -129,6 +129,9 @@ export function ChatPanel({
   const [openLog, setOpenLog] = useState<number | null>(null); // message index with expanded log
   const [busy, setBusy] = useState(false);
   const [activity, setActivity] = useState<string | null>(null);
+  // Live assistant reply, streamed token-by-token (replaced by the real message
+  // on the final event).
+  const [streaming, setStreaming] = useState("");
   // null until the first chat turn reports it; counts down to 0.
   const [guestRemaining, setGuestRemaining] = useState<number | null>(null);
   const [tasks, setTasks] = useState<BgTask[]>([]);
@@ -268,6 +271,7 @@ export function ChatPanel({
     setMessages((m) => [...(m ?? []), { role: "user", content }]);
     setInput("");
     setBusy(true);
+    setStreaming("");
 
     // Replicates the old success path: append the assistant turn, update the
     // guest counter, and surface any file changes to the workspace panel.
@@ -312,9 +316,13 @@ export function ChatPanel({
           }
           if (evt.type === "activity") {
             setActivity((evt.label as string) ?? null);
+          } else if (evt.type === "delta") {
+            setStreaming((s) => s + ((evt.text as string) ?? ""));
           } else if (evt.type === "final") {
+            setStreaming("");
             handleFinal(evt as Parameters<typeof handleFinal>[0]);
           } else if (evt.type === "error") {
+            setStreaming("");
             if (evt.code === "GUEST_LIMIT") setGuestRemaining(0);
             setMessages((m) => [
               ...(m ?? []),
@@ -350,6 +358,7 @@ export function ChatPanel({
     } catch {
       setMessages((m) => [...(m ?? []), { role: "assistant", content: "Network error. Try again." }]);
     }
+    setStreaming("");
     setBusy(false);
   }
 
@@ -603,10 +612,17 @@ export function ChatPanel({
                 <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border bg-panel2">
                   <Sparkles className="h-3.5 w-3.5 animate-pulse text-accent" />
                 </span>
-                <div className="flex items-center gap-2 rounded-2xl border border-accent/25 bg-hl px-4 py-2.5 text-sm text-txt2">
-                  <Loader2 className="h-4 w-4 animate-spin text-accent" />
-                  <span className="font-mono text-[12px]">{activity ?? "thinking…"}</span>
-                </div>
+                {streaming ? (
+                  <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl border border-accent/25 bg-hl px-4 py-2.5 text-sm text-txt">
+                    {streaming}
+                    <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-accent align-middle" />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 rounded-2xl border border-accent/25 bg-hl px-4 py-2.5 text-sm text-txt2">
+                    <Loader2 className="h-4 w-4 animate-spin text-accent" />
+                    <span className="font-mono text-[12px]">{activity ?? "thinking…"}</span>
+                  </div>
+                )}
               </div>
             )}
           </>
