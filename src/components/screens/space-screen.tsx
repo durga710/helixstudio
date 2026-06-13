@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
+import { isGodotProject } from "@/lib/templates/engines";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
@@ -969,7 +970,7 @@ function PlayModal({
   onClose: () => void;
 }) {
   const [html, setHtml] = useState<string | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "ready" | "godot" | "empty" | "error">("loading");
 
   const fetchFile = useCallback(
     async (path: string): Promise<string | null> => {
@@ -995,6 +996,12 @@ function PlayModal({
           return;
         }
         const paths = (json.data.files as Array<{ path: string }>).map((f) => f.path);
+        // Godot games are compiled — play them through the served /play route
+        // (cross-origin-isolated), not the static srcDoc composer.
+        if (isGodotProject(paths)) {
+          if (alive) setStatus("godot");
+          return;
+        }
         const entry = pickPreviewEntry(paths);
         if (!entry) {
           if (alive) setStatus("empty");
@@ -1059,6 +1066,14 @@ function PlayModal({
         )}
         {status === "error" && (
           <span className="px-6 text-center text-sm text-bad">Couldn&apos;t load this project.</span>
+        )}
+        {status === "godot" && (
+          <iframe
+            title={`Play ${name}`}
+            src={`/play/${workspaceId}`}
+            sandbox="allow-scripts allow-same-origin allow-pointer-lock"
+            className="h-full w-full border-0 bg-black"
+          />
         )}
         {status === "ready" && html && (
           <iframe

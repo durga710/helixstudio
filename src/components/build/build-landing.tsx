@@ -118,7 +118,12 @@ export function BuildLanding({ signedIn, isGuest, dbReady, isAdmin }: BuildLandi
         throw new Error(json?.error?.message ?? "Couldn't create your project — try again.");
       }
       sessionStorage.setItem(`helix.build.${json.data.id}`, trimmed);
-      if (kind === "game") sessionStorage.setItem(`helix.build.mode.${json.data.id}`, "game");
+      if (kind === "game") {
+        // The Godot "Game Studio" path uses a different brief (real engine,
+        // compiled — no live preview); everything else is an instant game.
+        const isGodot = gameCat === "studio" || (isAdmin && engine === "godot");
+        sessionStorage.setItem(`helix.build.mode.${json.data.id}`, isGodot ? "godot" : "game");
+      }
       router.push(`/build/${json.data.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong — try again.");

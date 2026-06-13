@@ -12,10 +12,13 @@ import {
   RefreshCw,
   Smartphone,
   Sparkles,
+  Play,
+  Hammer,
 } from "lucide-react";
 import { BrandMark, HelixGlyph } from "@/components/brand";
 import { Markdown } from "@/components/ui/markdown";
 import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
+import { isGodotProject } from "@/lib/templates/engines";
 import { scaffoldSteps } from "@/lib/scaffold-steps";
 import { buildTasks } from "@/lib/build-tasks";
 import { BuildBoard } from "@/components/build/build-board";
@@ -60,6 +63,12 @@ Request: `;
  * 2D, Babylon.js for 3D, loaded from a CDN). Steer toward a genuinely playable
  * game while keeping the no-module / no-build constraints the preview needs. */
 const GAME_BRIEF = `This workspace is already scaffolded with a game starter (see PROJECT NOTES for the library and files — Phaser for 2D, Babylon.js for 3D, loaded from a CDN). Build the request below into a complete, PLAYABLE browser game by editing the existing game.js (and style.css). Read the existing files first. Keep the CDN <script> and use the global library — do NOT switch to ES module imports or add a build step (the preview inlines local scripts and strips module type). Make it genuinely fun: a clear goal, responsive controls, a real game loop, collisions/scoring where they fit, a way to win or lose and restart, and a little juice (motion, color, feedback). Use the library's built-in shapes/graphics for sprites — there are no image assets. Don't ask questions; make tasteful decisions and build it now.
+
+Request: `;
+
+/* Godot "Game Studio" mode: a real engine project compiled on demand (Build &
+ * Play). The agent authors GDScript + scenes; it must NOT touch the export. */
+const GODOT_BRIEF = `This workspace is a real Godot 4 project (project.godot + main.tscn + main.gd + export_presets.cfg). Build the request below into a complete, playable game by editing the GDScript (.gd) and scenes (.tscn). Read the existing files first. Use Godot's built-in nodes and procedural shapes (ColorRect, Polygon2D, MeshInstance3D, etc.) — there are NO imported image/model assets. GDScript uses TAB indentation; built-in input actions ui_left/ui_right/ui_up/ui_down/ui_accept work without input-map setup. Do NOT edit export_presets.cfg or rename project.godot — the project is compiled to the web on the server. There is no live preview; the user presses Build & Play to compile and run. Make it genuinely fun: a clear goal, responsive controls, and a way to win or lose. Don't ask questions; make tasteful decisions and build it now.
 
 Request: `;
 
@@ -109,6 +118,13 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedContent, setSelectedContent] = useState<string | null>(null);
 
+  // Godot ("Game Studio") projects compile on demand — no live srcDoc preview.
+  const [godotStatus, setGodotStatus] = useState<"none" | "exporting" | "ready" | "error">("none");
+  const [godotBuildId, setGodotBuildId] = useState<string | null>(null);
+  const [godotBuilding, setGodotBuilding] = useState(false);
+  const [godotLog, setGodotLog] = useState<string[]>([]);
+  const [godotError, setGodotError] = useState<string | null>(null);
+
   const bodyRef = useRef<HTMLDivElement>(null);
   const nextId = useRef(1);
   const kicked = useRef(false);
@@ -155,10 +171,85 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
     }
   }, [workspace.id, fetchFile]);
 
+  /* --------------------------- godot build -------------------------- */
+
+  // Latest build status (so a revisit knows whether there's a playable build).
+  const refreshGodotStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}/godot/build`, { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) return;
+      setGodotStatus(json.data.status ?? "none");
+      setGodotBuildId(json.data.buildId ?? null);
+      if (json.data.error) setGodotError(json.data.error);
+    } catch {
+      /* ignore */
+    }
+  }, [workspace.id]);
+
+  // Compile the Godot project, streaming the log, then play the fresh build.
+  const buildAndPlay = useCallback(async () => {
+    if (godotBuilding) return;
+    setGodotBuilding(true);
+    setGodotStatus("exporting");
+    setGodotError(null);
+    setGodotLog(["Starting the build…"]);
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}/godot/build`, { method: "POST" });
+      if (!res.body) throw new Error("The build couldn't start.");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let buildId: string | null = null;
+      let ok = false;
+      let errMsg: string | null = null;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const evt = JSON.parse(line) as { type: string; line?: string; ok?: boolean; buildId?: string; error?: string };
+            if (evt.type === "log" && evt.line) setGodotLog((prev) => [...prev, evt.line!]);
+            else if (evt.type === "done") {
+              ok = Boolean(evt.ok);
+              buildId = evt.buildId ?? null;
+              errMsg = evt.error ?? null;
+            }
+          } catch {
+            /* ignore malformed line */
+          }
+        }
+      }
+      if (ok) {
+        setGodotStatus("ready");
+        if (buildId) setGodotBuildId(buildId);
+        setTab("preview");
+      } else {
+        setGodotStatus("error");
+        setGodotError(errMsg ?? "The build failed.");
+      }
+    } catch (e) {
+      setGodotStatus("error");
+      setGodotError(e instanceof Error ? e.message : "The build failed.");
+    } finally {
+      setGodotBuilding(false);
+    }
+  }, [workspace.id, godotBuilding]);
+
+  // When a Godot project is detected, fetch its build status once.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch; state is set post-await, not synchronously
+    if (isGodotProject(filePaths)) void refreshGodotStatus();
+  }, [filePaths, refreshGodotStatus]);
+
   /* ----------------------------- agent turn ------------------------- */
 
   const send = useCallback(
-    async (text: string, brief: "static" | "template" | "game" | "none" = "none") => {
+    async (text: string, brief: "static" | "template" | "game" | "godot" | "none" = "none") => {
       const trimmed = text.trim();
       if (!trimmed) return;
       localTurn.current = true;
@@ -186,11 +277,13 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       const prefix =
         brief === "static"
           ? BUILD_BRIEF
-          : brief === "game"
-            ? GAME_BRIEF
-            : brief === "template"
-              ? TEMPLATE_BRIEF
-              : "";
+          : brief === "godot"
+            ? GODOT_BRIEF
+            : brief === "game"
+              ? GAME_BRIEF
+              : brief === "template"
+                ? TEMPLATE_BRIEF
+                : "";
       let turnLog: string[] = [];
       try {
         const res = await fetch(`/api/workspaces/${workspace.id}/chat`, {
@@ -378,7 +471,8 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
         sessionStorage.removeItem(`helix.build.mode.${workspace.id}`);
         // Scaffolded projects get the genuine setup checklist over the warm-up.
         if (scaffolded) void runCreationSequence();
-        const kickBrief = gameMode ? "game" : scaffolded ? "template" : "static";
+        const kickBrief =
+          gameMode === "godot" ? "godot" : gameMode ? "game" : scaffolded ? "template" : "static";
         void send(stash, kickBrief);
       } else {
         // Revisit: restore the conversation + resume any in-flight build.
@@ -421,6 +515,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   }, [tab, selected, filePaths, fetchFile, previewNonce]);
 
   const activeCodePath = selected ?? filePaths[0] ?? null;
+  const isGodot = isGodotProject(filePaths);
   const showEmptyPreview = !previewHtml;
 
   /* -------------------------------- UI ------------------------------ */
@@ -535,7 +630,64 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
 
             {/* Pane body */}
             {tab === "preview" ? (
-              showEmptyPreview ? (
+              isGodot ? (
+                <div className="flex min-h-0 flex-1 flex-col bg-[#0b0f1a]">
+                  {godotStatus === "ready" && godotBuildId ? (
+                    <>
+                      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-bg2 px-3 py-1.5">
+                        <span className="text-[11.5px] text-txt3">Compiled game · Godot</span>
+                        <button
+                          onClick={() => void buildAndPlay()}
+                          disabled={godotBuilding}
+                          className="ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border2 bg-panel2 px-2.5 py-1 text-[11.5px] text-txt2 transition-colors hover:border-accent hover:text-txt disabled:opacity-50"
+                        >
+                          {godotBuilding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Hammer className="h-3.5 w-3.5" />}
+                          Rebuild &amp; Play
+                        </button>
+                      </div>
+                      <iframe
+                        key={godotBuildId}
+                        title="Play"
+                        src={`/play/${workspace.id}?b=${godotBuildId}`}
+                        sandbox="allow-scripts allow-same-origin allow-pointer-lock"
+                        className="w-full min-h-0 flex-1 border-0 bg-black"
+                      />
+                    </>
+                  ) : (
+                    <div className="grid flex-1 place-items-center p-8">
+                      <div className="w-full max-w-[460px] text-center">
+                        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-[var(--brand-cyan,#00ffd1)] via-accent to-[#c084fc]">
+                          <Play className="h-6 w-6 text-white" fill="currentColor" />
+                        </div>
+                        <div className="mt-4 text-[14px] font-semibold">
+                          {godotBuilding ? "Compiling your game…" : "Ready to compile"}
+                        </div>
+                        <div className="mt-1.5 text-[12.5px] leading-relaxed text-txt2">
+                          This is a real Godot project. Press Build &amp; Play to compile it and run it here.
+                        </div>
+                        <button
+                          onClick={() => void buildAndPlay()}
+                          disabled={godotBuilding}
+                          className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-[11px] border-none bg-accent px-4 py-2 text-[13px] font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
+                        >
+                          {godotBuilding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" fill="currentColor" />}
+                          {godotBuilding ? "Building…" : "Build & Play"}
+                        </button>
+                        {godotError && !godotBuilding && (
+                          <div className="mt-3 rounded-[10px] border border-[color-mix(in_srgb,#f87171_40%,transparent)] bg-[color-mix(in_srgb,#f87171_10%,transparent)] px-3 py-2 text-[12px] text-[#fca5a5]">
+                            {godotError}
+                          </div>
+                        )}
+                        {(godotBuilding || godotLog.length > 1) && (
+                          <pre className="scroll-area mt-4 max-h-[200px] overflow-auto rounded-[10px] border border-border bg-[#070b12] p-3 text-left font-mono text-[11px] leading-[1.5] text-txt2">
+                            {godotLog.join("\n")}
+                          </pre>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : showEmptyPreview ? (
                 <div className="grid flex-1 place-items-center p-8">
                   <div className="text-center">
                     <div
