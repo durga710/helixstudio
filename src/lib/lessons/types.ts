@@ -18,6 +18,10 @@ export interface LessonManifest {
   concept: string;
   /** Curriculum sequence position (gallery sorts ascending). */
   order: number;
+  /** Set for teacher/AI-authored (DB) lessons; absent for bundled ones. */
+  authored?: boolean;
+  /** Author display name, for authored lessons ("from your teacher"). */
+  author?: string;
 }
 
 /** A single step in the guided flow. Markdown is allowed in `body`/`explain`. */

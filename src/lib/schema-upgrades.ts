@@ -361,4 +361,24 @@ CREATE TABLE IF NOT EXISTS "LessonProgress" (
 
 CREATE UNIQUE INDEX IF NOT EXISTS "LessonProgress_userId_lessonId_key" ON "LessonProgress"("userId", "lessonId");
 CREATE INDEX IF NOT EXISTS "LessonProgress_userId_updatedAt_idx" ON "LessonProgress"("userId", "updatedAt");
+
+-- 2026-06 · AI Lab authored lessons (teacher/AI-made)
+CREATE TABLE IF NOT EXISTS "Lesson" (
+    "id" TEXT NOT NULL,
+    "authorId" TEXT NOT NULL,
+    "spaceId" TEXT,
+    "title" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'draft',
+    "visibility" TEXT NOT NULL DEFAULT 'space',
+    "source" TEXT NOT NULL DEFAULT 'ai',
+    "manifest" JSONB NOT NULL,
+    "steps" JSONB NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Lesson_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "Lesson_authorId_updatedAt_idx" ON "Lesson"("authorId", "updatedAt");
+CREATE INDEX IF NOT EXISTS "Lesson_spaceId_status_idx" ON "Lesson"("spaceId", "status");
 `;

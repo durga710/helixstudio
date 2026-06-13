@@ -438,6 +438,27 @@ model LessonProgress {
   @@index([userId, updatedAt])
 }
 
+// AI Lab — a teacher/AI-authored lesson (bundled lessons stay bundle-only and
+// are NOT stored here). Published to a classroom Space → its members see it in
+// the Lab. No FKs (light migration; orphans on author/space deletion are
+// harmless). manifest/steps mirror the bundled Lesson shape.
+model Lesson {
+  id         String   @id @default(cuid())
+  authorId   String
+  spaceId    String? // the classroom it's published to (null = unpublished draft)
+  title      String
+  status     String   @default("draft") // draft | published
+  visibility String   @default("space") // space | public (reserved)
+  source     String   @default("ai") // ai | teacher
+  manifest   Json
+  steps      Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([authorId, updatedAt])
+  @@index([spaceId, status])
+}
+
 // ---------- Deploy integrations ----------
 // A user's connection to a hosting platform (Vercel, Netlify, Cloudflare
 // Pages, Render…). One token per provider; `config` holds provider-specific

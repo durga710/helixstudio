@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getLesson } from "@/lib/lessons/store";
+import { getLessonForViewer } from "@/lib/lessons/store-db";
 import { LessonRunner } from "@/components/lab/lesson-runner";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ export default async function LessonPage({ params }: Params) {
   const session = await auth();
   if (!session?.user?.id) redirect("/welcome");
   const { id } = await params;
-  const lesson = getLesson(id);
+  const lesson = await getLessonForViewer(id, session.user.id);
   if (!lesson) notFound();
   return <LessonRunner lesson={lesson} />;
 }

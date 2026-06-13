@@ -14,7 +14,7 @@ import { guard } from "@/lib/route-helpers";
 import { resolveAiPrefs, runOneShot } from "@/lib/ai-agent";
 import { checkTokenBudget } from "@/lib/token-budget";
 import { recordAiUsage } from "@/lib/ai-usage";
-import { getLesson } from "@/lib/lessons/store";
+import { getLessonForViewer } from "@/lib/lessons/store-db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
   const prefs = await resolveAiPrefs(g.user.id);
   if (!prefs.apiKey) return ok({ ok: false, unavailable: true });
 
-  const lesson = getLesson(lessonId);
+  const lesson = await getLessonForViewer(lessonId, g.user.id);
   const step = lesson && stepIndex !== undefined ? lesson.steps[stepIndex] : undefined;
   const stepTitle = step && "title" in step ? step.title : undefined;
   const contextLine = [
