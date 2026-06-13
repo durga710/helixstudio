@@ -79,6 +79,15 @@ const STARTERS = [
   { icon: Newspaper, title: "Mini blog", prompt: "A simple blog with three sample posts and a clean reading layout" },
 ] as const;
 
+/** Older turns may have a model-only build brief baked into the stored user
+ * message; show only the real request. New turns send the brief separately so
+ * it's never persisted (see the chat route's `brief` field). */
+function stripBrief(content: string): string {
+  const marker = "\n\nRequest: ";
+  const i = content.lastIndexOf(marker);
+  return i >= 0 ? content.slice(i + marker.length) : content;
+}
+
 /** Render assistant text with clickable links. */
 function Linkified({ text }: { text: string }) {
   const parts = text.split(/(https?:\/\/[^\s)]+)/g);
@@ -176,7 +185,11 @@ export function ChatPanel({
         if (res.ok && json?.ok) {
           const fresh = (
             json.data.messages as { role: "user" | "assistant"; content: string; actions: Action[] | null }[]
-          ).map((m) => ({ role: m.role, content: m.content, actions: m.actions ?? undefined }));
+          ).map((m) => ({
+                  role: m.role,
+                  content: m.role === "user" ? stripBrief(m.content) : m.content,
+                  actions: m.actions ?? undefined,
+                }));
           setMessages(fresh);
           writeCache(`ws:${workspace.id}:messages`, fresh);
         } else if (!cached) {
@@ -442,7 +455,11 @@ export function ChatPanel({
               if (!cancelled && res.ok && json?.ok) {
                 const fresh = (
                   json.data.messages as { role: "user" | "assistant"; content: string; actions: Action[] | null }[]
-                ).map((m) => ({ role: m.role, content: m.content, actions: m.actions ?? undefined }));
+                ).map((m) => ({
+                  role: m.role,
+                  content: m.role === "user" ? stripBrief(m.content) : m.content,
+                  actions: m.actions ?? undefined,
+                }));
                 setMessages(fresh);
                 writeCache(`ws:${workspace.id}:messages`, fresh);
               }

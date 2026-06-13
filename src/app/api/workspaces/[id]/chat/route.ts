@@ -27,6 +27,10 @@ export const maxDuration = 300;
 
 const ChatSchema = z.object({
   message: z.string().min(1).max(8000),
+  // A model-only instruction prefix (e.g. the build studio's scaffold brief).
+  // The model sees it, but it's never persisted or shown — keeps internal
+  // prompts out of the chat UI / editor history.
+  brief: z.string().max(2000).optional(),
   // "plan": read-only agent turn that replies with an implementation plan.
   mode: z.enum(["plan", "build"]).default("build"),
   // A build turn that writes files runs + verifies in the sandbox (auto-fixing
@@ -77,6 +81,7 @@ export async function POST(req: Request, { params }: Params) {
             ws,
             userId: user.id,
             message,
+            briefPrefix: parsed.data.brief,
             mode: parsed.data.mode,
             verify: parsed.data.verify,
             onEvent: (e) => write(e),

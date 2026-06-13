@@ -96,6 +96,10 @@ export async function runAgentTurn(opts: {
   /** Intent-ledger: fold this turn's writes into an existing intent instead
    * of creating a new one (verify fix turns pass the parent's). */
   intentId?: string;
+  /** A model-only instruction prefix (e.g. the build studio's scaffold brief).
+   * The model sees `briefPrefix + message`, but only the clean `message` is
+   * persisted and shown — internal prompts must never leak into the chat UI. */
+  briefPrefix?: string;
 }): Promise<TurnResult | TurnError> {
   const { ws, userId, onEvent } = opts;
   const persist = opts.persist ?? true;
@@ -223,7 +227,10 @@ export async function runAgentTurn(opts: {
     (fitted.notes ? `\n\n--- PROJECT NOTES (yours — update via remember) ---\n${fitted.notes}` : "") +
     (fitted.digest ? `\n\n--- EARLIER CONVERSATION (digest) ---\n${fitted.digest}` : "");
 
-  const messages = [...fitted.recent, { role: "user" as const, content: userMessage }];
+  // The model sees the (optional) brief prefix; persistence/UI only ever see the
+  // clean userMessage, so internal instructions never surface in the chat.
+  const modelMessage = (opts.briefPrefix ?? "") + userMessage;
+  const messages = [...fitted.recent, { role: "user" as const, content: modelMessage }];
 
   if (process.env.NODE_ENV === "development") {
     const msgChars = messages.reduce((n, m) => n + m.content.length, 0);

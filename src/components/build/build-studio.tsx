@@ -171,13 +171,15 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
         setBoardSession((n) => n + 1);
       }
 
+      // The brief is a MODEL-only instruction — send it separately so only the
+      // user's clean request is persisted/shown (never leaks into the editor).
       const prefix = brief === "static" ? BUILD_BRIEF : brief === "template" ? TEMPLATE_BRIEF : "";
       let turnLog: string[] = [];
       try {
         const res = await fetch(`/api/workspaces/${workspace.id}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: prefix + trimmed, mode: "build" }),
+          body: JSON.stringify({ message: trimmed, brief: prefix || undefined, mode: "build" }),
         });
 
         if (!res.headers.get("content-type")?.includes("application/x-ndjson")) {
