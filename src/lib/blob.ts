@@ -1,5 +1,5 @@
 import "server-only";
-import { put } from "@vercel/blob";
+import { put, list } from "@vercel/blob";
 
 /**
  * Thin wrapper over Vercel Blob for game build artifacts (Godot `.pck` packs +
@@ -38,4 +38,23 @@ export async function putArtifact(
 export async function getArtifactStream(url: string): Promise<ReadableStream<Uint8Array> | null> {
   const res = await fetch(url, { cache: "no-store" });
   return res.ok ? res.body : null;
+}
+
+/** Write a small JSON pointer at a STABLE key (overwrites; no random suffix) —
+ * used for the Godot runtime manifest so the build worker can find it. */
+export async function putJson(key: string, obj: unknown): Promise<string> {
+  const res = await put(key, Buffer.from(JSON.stringify(obj)), {
+    access: "public",
+    contentType: "application/json",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    token: TOKEN,
+  });
+  return res.url;
+}
+
+/** Find the URL of the newest blob under a prefix (null if none). */
+export async function findArtifactUrl(prefix: string): Promise<string | null> {
+  const { blobs } = await list({ prefix, token: TOKEN, limit: 1 });
+  return blobs[0]?.url ?? null;
 }
