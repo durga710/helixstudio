@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, X, PartyPopper } from "lucide-react";
 import type { Lesson } from "@/lib/lessons/types";
 import { Markdown } from "@/components/ui/markdown";
-import { WidgetHost } from "@/components/lab/widgets";
+import { WidgetHost, type LabState } from "@/components/lab/widgets";
+import { TutorPanel } from "@/components/lab/tutor-panel";
 import { cn } from "@/lib/utils";
 
 /* The guided lesson flow: one step at a time, friendly coach tone. Explain
@@ -18,14 +19,44 @@ interface QuizAnswer {
 }
 
 export function LessonRunner({ lesson }: { lesson: Lesson }) {
+  const lessonId = lesson.manifest.id;
   const steps = lesson.steps;
   const [i, setI] = useState(0);
   const [answers, setAnswers] = useState<Record<number, QuizAnswer>>({});
   const [widgetDone, setWidgetDone] = useState<Record<number, boolean>>({});
+  const [labState, setLabState] = useState<LabState>({});
   const [done, setDone] = useState(false);
+  const resumed = useRef(false);
 
   const step = steps[i];
   const total = steps.length;
+  const quizCount = useMemo(() => steps.filter((s) => s.kind === "quiz").length, [steps]);
+
+  const save = useCallback(
+    (currentStep: number, status: "in_progress" | "completed", quizScore?: number) => {
+      void fetch("/api/lab/progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lessonId, currentStep, status, ...(quizScore !== undefined && { quizScore }) }),
+      }).catch(() => {});
+    },
+    [lessonId],
+  );
+
+  // Resume where the student left off (once).
+  useEffect(() => {
+    if (resumed.current) return;
+    resumed.current = true;
+    fetch(`/api/lab/progress?lessonId=${encodeURIComponent(lessonId)}`)
+      .then((r) => r.json())
+      .then((j) => {
+        const row = j?.data?.progress;
+        if (row && row.status !== "completed" && typeof row.currentStep === "number" && row.currentStep > 0 && row.currentStep < total) {
+          setI(row.currentStep);
+        }
+      })
+      .catch(() => {});
+  }, [lessonId, total]);
 
   const canAdvance = useMemo(() => {
     if (step.kind === "quiz") return answers[i] !== undefined;
@@ -39,11 +70,16 @@ export function LessonRunner({ lesson }: { lesson: Lesson }) {
 
   function next() {
     if (!canAdvance) return;
-    if (i + 1 >= total) {
+    const ni = i + 1;
+    if (ni >= total) {
+      const correct = Object.values(answers).filter((a) => a.correct).length;
+      const score = quizCount > 0 ? correct / quizCount : 1;
+      save(total, "completed", score);
       setDone(true);
       return;
     }
-    setI(i + 1);
+    setI(ni);
+    save(ni, "in_progress");
   }
 
   if (done) {
@@ -123,7 +159,12 @@ export function LessonRunner({ lesson }: { lesson: Lesson }) {
                   <Markdown content={step.body} />
                 </div>
               )}
-              <WidgetHost widget={step.widget} config={step.config} onComplete={completeWidget} />
+              <WidgetHost
+                widget={step.widget}
+                config={step.config}
+                onComplete={completeWidget}
+                onState={setLabState}
+              />
             </div>
           )}
 
@@ -162,6 +203,8 @@ export function LessonRunner({ lesson }: { lesson: Lesson }) {
           </button>
         </div>
       </div>
+
+      <TutorPanel lessonId={lessonId} stepIndex={i} state={labState} />
     </div>
   );
 }

@@ -25,7 +25,8 @@ export type AiUsageKind =
   | "rerank"
   | "template_classify"
   | "intake_curation"
-  | "embed";
+  | "embed"
+  | "tutor";
 
 export interface AiUsageInput {
   userId: string;

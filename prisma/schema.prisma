@@ -419,6 +419,25 @@ model GodotBuild {
   @@index([workspaceId, createdAt])
 }
 
+// AI Lab — a student's progress through a lesson. `lessonId` is the lesson's
+// string id (lessons are bundle-only content). No FK to keep the migration
+// light; orphaned rows on user deletion are harmless.
+model LessonProgress {
+  id          String    @id @default(cuid())
+  userId      String
+  lessonId    String
+  currentStep Int       @default(0)
+  status      String    @default("in_progress") // in_progress | completed
+  quizAnswers Json?
+  quizScore   Float?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, lessonId])
+  @@index([userId, updatedAt])
+}
+
 // ---------- Deploy integrations ----------
 // A user's connection to a hosting platform (Vercel, Netlify, Cloudflare
 // Pages, Render…). One token per provider; `config` holds provider-specific

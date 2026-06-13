@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Sparkles, Brain, Boxes, GitBranch, LineChart, ArrowRight, Clock } from "lucide-react";
+import { Sparkles, Brain, Boxes, GitBranch, LineChart, ArrowRight, Clock, Check } from "lucide-react";
 import type { LessonManifest } from "@/lib/lessons/types";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
@@ -12,6 +13,22 @@ import { Pill } from "@/components/ui/pill";
 const ICONS: Record<string, typeof Sparkles> = { Sparkles, Brain, Boxes, GitBranch, LineChart };
 
 export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
+  const [status, setStatus] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/lab/progress")
+      .then((r) => r.json())
+      .then((j) => {
+        const rows = (j?.data?.progress ?? []) as { lessonId: string; status: string }[];
+        if (alive) setStatus(Object.fromEntries(rows.map((r) => [r.lessonId, r.status])));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   return (
     <div className="pad-screen">
       <div className="mx-auto max-w-[1000px]">
@@ -31,6 +48,7 @@ export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
           <ul className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {lessons.map((l) => {
               const Icon = ICONS[l.icon] ?? Sparkles;
+              const st = status[l.id];
               return (
                 <li key={l.id}>
                   <Link
@@ -41,9 +59,17 @@ export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
                       <span className="grid h-10 w-10 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-hl">
                         <Icon className="h-5 w-5 text-accent" strokeWidth={1.8} />
                       </span>
-                      <Pill tone="neutral" className="capitalize">
-                        {l.level}
-                      </Pill>
+                      {st === "completed" ? (
+                        <Pill tone="green" className="inline-flex items-center gap-1">
+                          <Check className="h-3 w-3" /> Done
+                        </Pill>
+                      ) : st === "in_progress" ? (
+                        <Pill tone="accent">In progress</Pill>
+                      ) : (
+                        <Pill tone="neutral" className="capitalize">
+                          {l.level}
+                        </Pill>
+                      )}
                     </div>
                     <div className="text-[15px] font-semibold text-txt">{l.title}</div>
                     <p className="mt-1.5 text-[12.5px] leading-relaxed text-txt2">{l.blurb}</p>
