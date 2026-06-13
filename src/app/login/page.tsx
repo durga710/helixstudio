@@ -2,9 +2,22 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { AlertCircle, ArrowRight, DraftingCompass, Search, Wrench } from "lucide-react";
+import { AuthError } from "next-auth";
 import { auth, demoMode, oauthProviders, signIn, DEMO_USER } from "@/lib/auth";
 import { dbEnabled } from "@/lib/db";
 import { BrandMark } from "@/components/brand";
+
+/**
+ * NextAuth's server-action signIn THROWS on a bad credential (it doesn't
+ * redirect with ?error). Without this, the throw escapes the action and — with
+ * no error boundary — renders as a broken/not-found page. Catch AuthError and
+ * bounce back to /login?error so the form shows "that didn't match"; re-throw
+ * everything else (notably NEXT_REDIRECT, which performs the success redirect).
+ */
+async function handleSignInError(err: unknown): Promise<never> {
+  if (err instanceof AuthError) redirect("/login?error=1");
+  throw err;
+}
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -86,7 +99,11 @@ export default async function LoginPage({
                     action={async () => {
                       "use server";
                       const upgrading = await markGuestUpgrade();
-                      await signIn("github", { redirectTo: upgrading ? "/editor" : "/" });
+                      try {
+                        await signIn("github", { redirectTo: upgrading ? "/editor" : "/" });
+                      } catch (err) {
+                        await handleSignInError(err);
+                      }
                     }}
                   >
                     <button className={oauthBtn}>{GitHubIcon}Continue with GitHub</button>
@@ -97,7 +114,11 @@ export default async function LoginPage({
                     action={async () => {
                       "use server";
                       const upgrading = await markGuestUpgrade();
-                      await signIn("google", { redirectTo: upgrading ? "/editor" : "/" });
+                      try {
+                        await signIn("google", { redirectTo: upgrading ? "/editor" : "/" });
+                      } catch (err) {
+                        await handleSignInError(err);
+                      }
                     }}
                   >
                     <button className={oauthBtn}>{GoogleIcon}Continue with Google</button>
@@ -126,11 +147,15 @@ export default async function LoginPage({
             className={error ? "" : "mt-6"}
             action={async (formData: FormData) => {
               "use server";
-              await signIn("credentials", {
-                email: formData.get("email"),
-                password: formData.get("password"),
-                redirectTo: "/",
-              });
+              try {
+                await signIn("credentials", {
+                  email: formData.get("email"),
+                  password: formData.get("password"),
+                  redirectTo: "/",
+                });
+              } catch (err) {
+                await handleSignInError(err);
+              }
             }}
           >
             <div className="mb-3.5">
@@ -165,7 +190,11 @@ export default async function LoginPage({
             <form
               action={async () => {
                 "use server";
-                await signIn("guest", { redirectTo: "/editor" });
+                try {
+                  await signIn("guest", { redirectTo: "/editor" });
+                } catch (err) {
+                  await handleSignInError(err);
+                }
               }}
               className="mt-4"
             >

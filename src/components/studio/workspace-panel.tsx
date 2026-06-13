@@ -1348,7 +1348,7 @@ export function WorkspacePanel({
                       {run.status === "error" && <span className="text-bad">the app crashed — logs below</span>}
                     </div>
                     <pre className="scroll-area flex-1 overflow-y-auto whitespace-pre-wrap px-4 pb-4 font-mono text-[10px] leading-relaxed text-txt3">
-                      {run.logs.join("\n")}
+                      {(run.logs ?? []).join("\n")}
                       <div ref={logsEndRef} />
                     </pre>
                   </div>

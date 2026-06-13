@@ -79,7 +79,7 @@ export function SpaceBillingCard({
     setBusy(false);
   }
 
-  const memberPct = Math.min(100, Math.round((billing.memberCount / billing.memberCap) * 100));
+  const memberPct = billing.memberCap > 0 ? Math.min(100, Math.round((billing.memberCount / billing.memberCap) * 100)) : 0;
 
   return (
     <Card className="p-4">

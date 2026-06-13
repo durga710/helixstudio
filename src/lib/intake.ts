@@ -19,6 +19,7 @@ import "server-only";
 import { classifyPrompt } from "@/lib/templates/router";
 import { resolveAiPrefs, runOneShot } from "@/lib/ai-agent";
 import { recordAiUsage } from "@/lib/ai-usage";
+import { checkTokenBudget } from "@/lib/token-budget";
 import { matchArchetype, applyImplications } from "@/lib/intake-knowledge";
 
 export interface IntakeQuestion {
@@ -103,6 +104,8 @@ async function aiScopeQuestions(opts: {
   features: string[];
 }): Promise<IntakeQuestion[]> {
   try {
+    // Don't spend for a suspended/over-quota user — fall back to rules.
+    if (!(await checkTokenBudget(opts.userId)).ok) return [];
     const prefs = await resolveAiPrefs(opts.userId);
     if (!prefs.apiKey && prefs.provider !== "local") return []; // no key → rules only
     const res = await runOneShot({

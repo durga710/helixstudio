@@ -14,6 +14,7 @@ import { getAllTemplates } from "./store";
 import type { Template } from "./types";
 import { runOneShot, resolveAiPrefs } from "@/lib/ai-agent";
 import { recordAiUsage } from "@/lib/ai-usage";
+import { checkTokenBudget } from "@/lib/token-budget";
 
 const DEFAULT_ID = "static-web";
 
@@ -81,7 +82,10 @@ export async function classifyPrompt(prompt: string, userId: string): Promise<Cl
   const rules = classifyByKeywords(prompt, templates);
   let chosen = rules.templateId;
 
-  if (!rules.confident) {
+  // Only spend on the model when the rules aren't confident AND the user is
+  // within budget — the budget gate otherwise lives only in runAgentTurn, so a
+  // suspended/over-quota user with their own key could spend here. Rules win otherwise.
+  if (!rules.confident && (await checkTokenBudget(userId)).ok) {
     try {
       const prefs = await resolveAiPrefs(userId);
       const list = ids.map((id) => `${id}: ${templates[id].manifest.description}`).join("\n");
