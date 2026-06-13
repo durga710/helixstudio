@@ -131,7 +131,7 @@ export const TEMPLATES: Record<string, Template> = {
       },
       {
         "path": "package.json",
-        "content": "{\n  \"name\": \"express-api\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"main\": \"src/server.js\",\n  \"scripts\": {\n    \"start\": \"node src/server.js\",\n    \"dev\": \"node --watch src/server.js\"\n  },\n  \"dependencies\": {\n    \"cors\": \"^2.8.5\",\n    \"dotenv\": \"^16.4.7\",\n    \"express\": \"^4.21.2\",\n    \"helmet\": \"^8.0.0\",\n    \"morgan\": \"^1.10.0\"\n  }\n}\n"
+        "content": "{\n  \"name\": \"express-api\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"main\": \"src/server.js\",\n  \"scripts\": {\n    \"start\": \"node src/server.js\",\n    \"dev\": \"node --watch src/server.js\"\n  },\n  \"dependencies\": {\n    \"cors\": \"^2.8.5\",\n    \"dotenv\": \"^17.4.2\",\n    \"express\": \"^4.21.2\",\n    \"helmet\": \"^8.0.0\",\n    \"morgan\": \"^1.10.0\"\n  }\n}\n"
       },
       {
         "path": "README.md",
@@ -232,7 +232,7 @@ export const TEMPLATES: Record<string, Template> = {
       },
       {
         "path": "requirements.txt",
-        "content": "Flask>=3.0,<4.0\ngunicorn>=21.0\npython-dotenv>=1.0\n"
+        "content": "Flask>=3.1.3,<4.0\ngunicorn>=26.0.0\npython-dotenv>=1.2.2\n"
       },
       {
         "path": "wsgi.py",
@@ -453,7 +453,7 @@ export const TEMPLATES: Record<string, Template> = {
       },
       {
         "path": "package.json",
-        "content": "{\n  \"name\": \"nextjs-app\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"dev\": \"next dev\",\n    \"build\": \"next build\",\n    \"start\": \"next start\",\n    \"lint\": \"eslint\"\n  },\n  \"dependencies\": {\n    \"next\": \"16.2.9\",\n    \"react\": \"19.2.4\",\n    \"react-dom\": \"19.2.4\"\n  },\n  \"devDependencies\": {\n    \"@tailwindcss/postcss\": \"^4\",\n    \"@types/node\": \"^20\",\n    \"@types/react\": \"^19\",\n    \"@types/react-dom\": \"^19\",\n    \"eslint\": \"^9\",\n    \"eslint-config-next\": \"16.2.9\",\n    \"tailwindcss\": \"^4\",\n    \"typescript\": \"^5\"\n  }\n}\n"
+        "content": "{\n  \"name\": \"nextjs-app\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"dev\": \"next dev\",\n    \"build\": \"next build\",\n    \"start\": \"next start\",\n    \"lint\": \"eslint\"\n  },\n  \"dependencies\": {\n    \"next\": \"16.2.9\",\n    \"react\": \"19.2.4\",\n    \"react-dom\": \"19.2.7\"\n  },\n  \"devDependencies\": {\n    \"@tailwindcss/postcss\": \"^4\",\n    \"@types/node\": \"^25\",\n    \"@types/react\": \"^19\",\n    \"@types/react-dom\": \"^19\",\n    \"eslint\": \"^9\",\n    \"eslint-config-next\": \"16.2.9\",\n    \"tailwindcss\": \"^4\",\n    \"typescript\": \"^6\"\n  }\n}\n"
       },
       {
         "path": "postcss.config.mjs",
@@ -564,7 +564,7 @@ export const TEMPLATES: Record<string, Template> = {
       },
       {
         "path": "package.json",
-        "content": "{\n  \"name\": \"vite-spa\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"tsc -b && vite build\",\n    \"lint\": \"eslint .\",\n    \"preview\": \"vite preview\"\n  },\n  \"dependencies\": {\n    \"react\": \"^19.2.6\",\n    \"react-dom\": \"^19.2.6\"\n  },\n  \"devDependencies\": {\n    \"@eslint/js\": \"^10.0.1\",\n    \"@types/node\": \"^24.12.3\",\n    \"@types/react\": \"^19.2.14\",\n    \"@types/react-dom\": \"^19.2.3\",\n    \"@vitejs/plugin-react\": \"^6.0.1\",\n    \"eslint\": \"^10.3.0\",\n    \"eslint-plugin-react-hooks\": \"^7.1.1\",\n    \"eslint-plugin-react-refresh\": \"^0.5.2\",\n    \"globals\": \"^17.6.0\",\n    \"typescript\": \"~6.0.2\",\n    \"typescript-eslint\": \"^8.59.2\",\n    \"vite\": \"^8.0.12\"\n  }\n}\n"
+        "content": "{\n  \"name\": \"vite-spa\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"tsc -b && vite build\",\n    \"lint\": \"eslint .\",\n    \"preview\": \"vite preview\"\n  },\n  \"dependencies\": {\n    \"react\": \"^19.2.6\",\n    \"react-dom\": \"^19.2.6\"\n  },\n  \"devDependencies\": {\n    \"@eslint/js\": \"^10.0.1\",\n    \"@types/node\": \"^25.9.3\",\n    \"@types/react\": \"^19.2.14\",\n    \"@types/react-dom\": \"^19.2.3\",\n    \"@vitejs/plugin-react\": \"^6.0.1\",\n    \"eslint\": \"^10.3.0\",\n    \"eslint-plugin-react-hooks\": \"^7.1.1\",\n    \"eslint-plugin-react-refresh\": \"^0.5.2\",\n    \"globals\": \"^17.6.0\",\n    \"typescript\": \"~6.0.2\",\n    \"typescript-eslint\": \"^8.59.2\",\n    \"vite\": \"^8.0.12\"\n  }\n}\n"
       },
       {
         "path": "public/favicon.svg",
