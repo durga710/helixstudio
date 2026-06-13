@@ -13,7 +13,7 @@ import { ok, apiErrors } from "@/lib/api-response";
 import { getProvider, getGitAuth, withGitAuth, isValidRepoId, PROVIDER_META } from "@/lib/git";
 import { isValidBranchName } from "@/lib/repo-files";
 import { guard } from "@/lib/route-helpers";
-import { TEMPLATES } from "@/lib/templates/registry.generated";
+import { getTemplate } from "@/lib/templates/store";
 import { buildTemplateNote } from "@/lib/templates/router";
 
 export const runtime = "nodejs";
@@ -75,14 +75,14 @@ export async function POST(req: Request) {
     // Optional template injection: seed the workspace's files + notes from a
     // pre-made starter (0 AI tokens). Invalid/absent templateId → empty
     // workspace (today's behavior, byte-for-byte).
-    const tpl = parsed.data.templateId ? TEMPLATES[parsed.data.templateId] : undefined;
+    const tpl = parsed.data.templateId ? await getTemplate(parsed.data.templateId) : undefined;
     const ws = await db().workspace.create({
       data: {
         userId: g.user.id,
         name: parsed.data.name?.trim() || "Untitled project",
         mode: "SCRATCH",
         ...(tpl && {
-          notes: buildTemplateNote(tpl.manifest.id),
+          notes: buildTemplateNote(tpl),
           files: { create: tpl.files.map((f) => ({ path: f.path, content: f.content })) },
         }),
       },

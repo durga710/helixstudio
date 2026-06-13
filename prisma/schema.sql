@@ -735,3 +735,22 @@ ALTER TABLE "AuditEvent" ADD CONSTRAINT "AuditEvent_teamId_fkey" FOREIGN KEY ("t
 
 -- AddForeignKey
 ALTER TABLE "AuditEvent" ADD CONSTRAINT "AuditEvent_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- CreateTable
+CREATE TABLE "Template" (
+    "id" TEXT NOT NULL,
+    "templateId" TEXT NOT NULL,
+    "manifest" JSONB NOT NULL,
+    "files" JSONB NOT NULL,
+    "source" TEXT NOT NULL DEFAULT 'bundle',
+    "refreshState" TEXT,
+    "refreshError" TEXT,
+    "refreshedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Template_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Template_templateId_key" ON "Template"("templateId");

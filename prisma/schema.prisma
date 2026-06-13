@@ -733,3 +733,21 @@ model AuditEvent {
 
   @@index([teamId, at])
 }
+
+// ---------- Scaffold templates ----------
+// The starter templates injected into new SCRATCH workspaces. Seeded from the
+// bundled registry (src/lib/templates/registry.generated.ts) on first read;
+// the admin refresh job upserts regenerated, build-verified versions here so
+// updates go live without a redeploy. Standalone — no relations.
+model Template {
+  id           String    @id @default(cuid())
+  templateId   String    @unique // e.g. "nextjs-app"
+  manifest     Json // TemplateManifest
+  files        Json // TemplateFile[]
+  source       String    @default("bundle") // bundle | refresh
+  refreshState String? // ok | building | error
+  refreshError String?
+  refreshedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}

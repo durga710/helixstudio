@@ -279,4 +279,22 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "AiUsageEvent" ADD CONSTRAINT "AiUsageEvent_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- 2026-06 · Scaffold templates (DB-backed; seeded from the bundle, refreshed by the admin job)
+CREATE TABLE IF NOT EXISTS "Template" (
+    "id" TEXT NOT NULL,
+    "templateId" TEXT NOT NULL,
+    "manifest" JSONB NOT NULL,
+    "files" JSONB NOT NULL,
+    "source" TEXT NOT NULL DEFAULT 'bundle',
+    "refreshState" TEXT,
+    "refreshError" TEXT,
+    "refreshedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Template_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "Template_templateId_key" ON "Template"("templateId");
 `;
