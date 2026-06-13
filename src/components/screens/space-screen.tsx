@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { SpaceContributions } from "@/components/screens/space-contributions";
 import {
   Users,
   Plus,
@@ -818,6 +819,10 @@ function SpaceDetailPanel({
           ))}
         </div>
       </Card>
+
+      {/* Contributions — team: all members; classroom: instructor only. Hides
+          itself when there's nothing to show, so it never feels forced. */}
+      {(detail.kind === "team" || detail.isOwner) && <SpaceContributions spaceId={detail.id} />}
 
       {/* Plan & seats (owner only; hidden when billing isn't configured) */}
       {detail.isOwner && (
