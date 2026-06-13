@@ -75,6 +75,11 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   const [boardWrites, setBoardWrites] = useState(0);
   const [boardSteps, setBoardSteps] = useState(0);
   const [boardErrored, setBoardErrored] = useState(false);
+  // Cards the board adds LIVE when the build reveals more work (verify/fix/test).
+  // The session id bumps per build so appended cards don't reset the flow.
+  const [boardSession, setBoardSession] = useState(0);
+  const [boardDetected, setBoardDetected] = useState<string[]>([]);
+  const detectedKinds = useRef<Set<string>>(new Set());
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [limitHit, setLimitHit] = useState(false);
@@ -147,6 +152,9 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
         setBoardWrites(0);
         setBoardSteps(0);
         setBoardErrored(false);
+        setBoardDetected([]);
+        detectedKinds.current = new Set();
+        setBoardSession((n) => n + 1);
       }
 
       const prefix = brief === "static" ? BUILD_BRIEF : brief === "template" ? TEMPLATE_BRIEF : "";
@@ -179,7 +187,25 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             realActivityStarted.current = true;
             turnLog = [...turnLog, evt.label];
             setActivities(turnLog);
-            if (isInitialBuild) setBoardSteps((s) => s + 1);
+            if (isInitialBuild) {
+              setBoardSteps((s) => s + 1);
+              // The board reacts to what the build reveals: real verify/fix/test
+              // activity appends a new card, so completion now needs more steps.
+              const lc = evt.label.toLowerCase();
+              const detections: [RegExp, string][] = [
+                [/verif/, "Verify the build"],
+                [/\bfix|repair|debug|resolve/, "Fix issues found"],
+                [/\btest|spec\b/, "Run tests"],
+                [/install|dependenc/, "Install dependencies"],
+              ];
+              for (const [re, title] of detections) {
+                if (re.test(lc) && !detectedKinds.current.has(title)) {
+                  detectedKinds.current.add(title);
+                  setBoardTasks((t) => [...t, title]);
+                  setBoardDetected((d) => [...d, title]);
+                }
+              }
+            }
             // The app takes shape live: refresh the preview as files land, and
             // feed the board a real write signal so cards advance for real.
             if (/^(wrote|deleted)/.test(evt.label)) {
@@ -620,6 +646,8 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       {/* Live build tracker — floating, terminal-styled, read-only. */}
       <BuildBoard
         tasks={boardTasks}
+        sessionId={boardSession}
+        detected={boardDetected}
         building={boardBuilding}
         writes={boardWrites}
         steps={boardSteps}

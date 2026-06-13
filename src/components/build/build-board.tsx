@@ -1,3 +1,6 @@
+/* eslint-disable react-hooks/set-state-in-effect -- the card flow is a deliberate
+   time/telemetry-driven animation: effects advance the cursor from props + timers,
+   which is exactly the "synchronize with an external system" case the rule allows. */
 "use client";
 
 /**
@@ -15,8 +18,13 @@ import { Check, GripVertical, Loader2, X, LayoutList } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BuildBoardProps {
-  /** Card titles (token-free, derived from the scaffold's MVC structure). */
+  /** Card titles (token-free, derived from the scaffold's MVC structure). Can
+   * grow mid-build as the board detects new work (verify/fix/test). */
   tasks: string[];
+  /** Bumped only when a NEW build starts, so appended cards don't reset flow. */
+  sessionId: number;
+  /** Titles that were added live from real telemetry (get a "new" badge). */
+  detected?: string[];
   /** True while a build turn is running. */
   building: boolean;
   /** Real file-writes seen this turn — the primary progress signal. */
@@ -29,18 +37,20 @@ interface BuildBoardProps {
 
 type Lane = "next" | "active" | "done" | "closed";
 
-export function BuildBoard({ tasks, building, writes, steps, errored = false }: BuildBoardProps) {
+export function BuildBoard({ tasks, sessionId, detected = [], building, writes, steps, errored = false }: BuildBoardProps) {
+  const detectedSet = new Set(detected);
   const [open, setOpen] = useState(true);
   const [cursor, setCursor] = useState(0); // index of the active card
   const [dropped, setDropped] = useState(false); // active card closed (red→gone)
   const [pos, setPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const drag = useRef<{ dx: number; dy: number } | null>(null);
 
-  // New task list → reset the flow.
+  // A NEW build → reset the flow. Cards appended mid-build (verify/fix/test)
+  // keep the cursor where it is, so detected work just extends the plan.
   useEffect(() => {
     setCursor(0);
     setDropped(false);
-  }, [tasks]);
+  }, [sessionId]);
 
   // Auto-open when a build starts so the user sees it kick in.
   useEffect(() => {
@@ -179,7 +189,7 @@ export function BuildBoard({ tasks, building, writes, steps, errored = false }: 
               </div>
               <div className="space-y-1.5">
                 {laneCards.map((c) => (
-                  <Card key={c.i} title={c.title} lane={c.lane} />
+                  <Card key={c.i} title={c.title} lane={c.lane} detected={detectedSet.has(c.title)} />
                 ))}
                 {laneCards.length === 0 && (
                   <div className="rounded-md border border-dashed border-border/50 px-2 py-2 text-center text-[10px] text-txt3/60">
@@ -195,7 +205,7 @@ export function BuildBoard({ tasks, building, writes, steps, errored = false }: 
   );
 }
 
-function Card({ title, lane }: { title: string; lane: Lane }) {
+function Card({ title, lane, detected = false }: { title: string; lane: Lane; detected?: boolean }) {
   return (
     <div
       className={cn(
@@ -217,6 +227,11 @@ function Card({ title, lane }: { title: string; lane: Lane }) {
           <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-txt3" />
         )}
         <span className="min-w-0 break-words">{title}</span>
+        {detected && lane !== "done" && (
+          <span className="ml-auto shrink-0 rounded bg-[color-mix(in_srgb,#ffbd2e_22%,transparent)] px-1 text-[8px] font-semibold uppercase tracking-wide text-[#ffd479]">
+            new
+          </span>
+        )}
       </div>
     </div>
   );
