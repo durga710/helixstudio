@@ -20,11 +20,24 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // The Godot game runtime must be cross-origin-isolated (WASM threads /
+        // SharedArrayBuffer). Same-origin only — the route serves engine + pack
+        // from our origin, and `frame-ancestors 'self'` (below) lets us embed it.
+        source: "/play/:path*",
+        headers: [
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
+        ],
+      },
+      {
         source: "/:path*",
         headers: [
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
           { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "X-Frame-Options", value: "DENY" },
+          // CSP frame-ancestors 'self' replaces X-Frame-Options: DENY — same
+          // protection against third-party framing, but lets Helix embed its own
+          // same-origin previews + the /play game route in an iframe.
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         ],
       },
