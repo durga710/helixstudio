@@ -1,16 +1,19 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
-import { mockCompletion } from "./mock";
 
 /* Multi-provider model routing (ported from gcode's editor).
  *
  * Resolution order per request:
  *   1. The user's own key (BYOK cookie) for the chosen provider
  *   2. A platform key in the environment
- *   3. The deterministic mock provider (demo mode)
+ * With no key, we do NOT fabricate a response — we say so plainly and stop.
  *
  * Providers: Anthropic (Claude), OpenAI, and any OpenAI-compatible local
  * server (LM Studio / Ollama / vLLM) via GUEST_AI_BASE_URL. */
+
+/** Honest no-key message — streamed instead of a fabricated answer. */
+const NO_KEY_MESSAGE =
+  "No AI provider key is configured. Add one in Settings → AI to start building with Helix.";
 
 export type Provider = "anthropic" | "openai" | "local";
 export type ModelTier = "haiku" | "sonnet" | "opus";
@@ -37,8 +40,9 @@ export interface ChatRequest {
   apiKey?: string;
 }
 
-export function aiProviderName(provider: Provider, userKey?: string): "live" | "mock" {
-  return resolveKey(provider, userKey) ? "live" : "mock";
+/** "live" when a key resolves for the provider, "none" when none is configured. */
+export function aiProviderName(provider: Provider, userKey?: string): "live" | "none" {
+  return resolveKey(provider, userKey) ? "live" : "none";
 }
 
 function resolveKey(provider: Provider, userKey?: string): string | undefined {
@@ -89,7 +93,7 @@ export async function* streamCompletion(req: ChatRequest): AsyncGenerator<string
   const provider = req.provider ?? "anthropic";
   const apiKey = resolveKey(provider, req.apiKey);
   if (!apiKey) {
-    yield* mockCompletion(req);
+    yield NO_KEY_MESSAGE;
     return;
   }
   if (provider === "anthropic") {
