@@ -79,6 +79,10 @@ const STARTERS = [
   { icon: Newspaper, title: "Mini blog", prompt: "A simple blog with three sample posts and a clean reading layout" },
 ] as const;
 
+/** Stack choices for the new-project intake. "You decide" = let Helix pick;
+ * the rest map to the real scaffolds the template engine knows. */
+const STACKS = ["You decide", "Next.js", "React (Vite)", "Flask", "Express", "Django"] as const;
+
 /** Older turns may have a model-only build brief baked into the stored user
  * message; show only the real request. New turns send the brief separately so
  * it's never persisted (see the chat route's `brief` field). */
@@ -159,6 +163,11 @@ export function ChatPanel({
   const realActivityStarted = useRef(false);
   // True while THIS tab is running a turn, so the resume poller stands down.
   const localSend = useRef(false);
+
+  // Conversational new-project intake (scratch only): a scripted, ZERO-token
+  // Q&A that curates the request (idea + stack) before the AI's first turn.
+  const [intakeStep, setIntakeStep] = useState<0 | 1 | "done">(0);
+  const [intakeIdea, setIntakeIdea] = useState("");
 
   // Plan/Build is easy to lose track of, so a user toggle pops a brief toast
   // (auto-dismisses) on top of the always-on plan-mode banner.
@@ -303,7 +312,12 @@ export function ChatPanel({
     setQueuingTask(false);
   }
 
-  async function send(text: string, sendMode: "plan" | "build" = mode, sendVerify: boolean = verifyOn) {
+  async function send(
+    text: string,
+    sendMode: "plan" | "build" = mode,
+    sendVerify: boolean = verifyOn,
+    brief?: string,
+  ) {
     const content = text.trim();
     if (!content || busy || messages === null) return;
     localSend.current = true;
@@ -346,7 +360,7 @@ export function ChatPanel({
       const res = await fetch(`/api/workspaces/${workspace.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content, mode: sendMode, verify: sendVerify }),
+        body: JSON.stringify({ message: content, mode: sendMode, verify: sendVerify, brief: brief || undefined }),
       });
 
       const isNdjson = res.headers.get("content-type")?.includes("application/x-ndjson");
@@ -418,6 +432,41 @@ export function ChatPanel({
     setStreaming("");
     setBusy(false);
     localSend.current = false;
+  }
+
+  /* --------------------- new-project intake ----------------------- */
+
+  // Runs only for a brand-new, empty scratch workspace — a scripted, zero-token
+  // conversation that curates idea + stack before the AI's first turn.
+  const intakeActive =
+    messages !== null && messages.length === 0 && !busy && workspace.mode === "SCRATCH" && intakeStep !== "done";
+
+  function chooseIdea(text: string) {
+    const t = text.trim();
+    if (!t) return;
+    setIntakeIdea(t);
+    setIntakeStep(1);
+    setInput("");
+  }
+
+  // Hand off to the real build: the user's idea is the visible first message;
+  // the stack choice rides along as a MODEL-ONLY brief (never shown).
+  function launchIntake(stack: string) {
+    setIntakeStep("done");
+    const brief =
+      stack && stack !== "You decide"
+        ? `The user picked a preferred stack: ${stack}. Build with it unless it's clearly unsuitable for the request. `
+        : "";
+    void send(intakeIdea, mode, verifyOn, brief);
+  }
+
+  // The composer routes here while the intake is active.
+  function intakeSubmit(text: string) {
+    if (intakeStep === 0) chooseIdea(text);
+    else if (intakeStep === 1 && text.trim()) {
+      setInput("");
+      launchIntake(text.trim()); // typed a stack name instead of tapping a chip
+    }
   }
 
   // Resume an in-flight turn on mount: if the workspace has a live progress
@@ -555,6 +604,66 @@ export function ChatPanel({
             </span>
           </div>
         ) : messages.length === 0 && !busy ? (
+          intakeActive ? (
+            // New-project intake: a scripted, zero-token conversation that
+            // curates idea + stack before the AI's first build turn.
+            <div className="space-y-4">
+              <div className="flex justify-start gap-2.5">
+                <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border bg-panel2">
+                  <Sparkles className="h-3.5 w-3.5 text-accent" />
+                </span>
+                <div className="max-w-[88%] rounded-2xl border border-border bg-panel2 px-4 py-2.5 text-sm leading-relaxed text-txt">
+                  New project! Before I build — <span className="font-medium">what are you making?</span> A sentence is plenty.
+                </div>
+              </div>
+
+              {intakeStep === 0 ? (
+                <div className="pl-[38px]">
+                  <p className="mb-1.5 text-[11px] text-txt3">Type it below — or start from one of these:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {STARTERS.map((sx) => (
+                      <button
+                        key={sx.title}
+                        type="button"
+                        onClick={() => chooseIdea(sx.prompt)}
+                        className="rounded-full border border-border2 bg-panel2 px-2.5 py-1 text-[11px] text-txt2 transition-colors hover:border-accent hover:text-txt"
+                      >
+                        {sx.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-end gap-2.5">
+                    <div className="inline-block max-w-[88%] rounded-2xl border border-accent/35 bg-hl px-4 py-2.5 text-sm text-txt">
+                      {intakeIdea}
+                    </div>
+                  </div>
+                  <div className="flex justify-start gap-2.5">
+                    <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border bg-panel2">
+                      <Sparkles className="h-3.5 w-3.5 text-accent" />
+                    </span>
+                    <div className="max-w-[88%] rounded-2xl border border-border bg-panel2 px-4 py-2.5 text-sm leading-relaxed text-txt">
+                      Nice. Any stack in mind, or should I pick the best fit?
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 pl-[38px]">
+                    {STACKS.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => launchIntake(s)}
+                        className="rounded-full border border-border2 bg-panel2 px-3 py-1 text-[11.5px] text-txt2 transition-colors hover:border-accent hover:text-txt"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
           <div className="grid h-full place-items-center text-center">
             <div className="w-full max-w-md px-2">
               <div className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-2xl border border-border2 bg-panel2 shadow-card">
@@ -591,6 +700,7 @@ export function ChatPanel({
               )}
             </div>
           </div>
+          )
         ) : (
           <>
             {messages.map((m, i) => {
@@ -845,7 +955,8 @@ export function ChatPanel({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            void send(input);
+            if (intakeActive) intakeSubmit(input);
+            else void send(input);
           }}
           className="flex items-center gap-2 border-t border-border p-3"
         >
@@ -888,11 +999,15 @@ export function ChatPanel({
             placeholder={
               guestBlocked
                 ? "Guest allowance used — sign in to continue"
-                : mode === "plan"
-                  ? "Describe it — Helix plans first, builds after you approve…"
-                  : workspace.mode === "IMPORT"
-                    ? "Describe a change to this repo…"
-                    : "Describe the app you want built…"
+                : intakeActive
+                  ? intakeStep === 0
+                    ? "Tell Helix what you want to build…"
+                    : "Type a stack, or pick one above…"
+                  : mode === "plan"
+                    ? "Describe it — Helix plans first, builds after you approve…"
+                    : workspace.mode === "IMPORT"
+                      ? "Describe a change to this repo…"
+                      : "Describe the app you want built…"
             }
             className="flex-1 rounded-xl border border-border bg-bg2 px-4 py-2.5 text-sm text-txt placeholder:text-txt3 focus:border-accent focus:outline-none disabled:opacity-60"
           />
