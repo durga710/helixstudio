@@ -26,6 +26,13 @@ interface PushResult {
   prError?: string | null;
 }
 
+interface SecretFinding {
+  path: string;
+  line: number;
+  rule: string;
+  preview: string;
+}
+
 const fieldCls =
   "w-full rounded-lg border border-border bg-bg2 px-3 py-2 text-xs text-txt placeholder:text-txt3 focus:border-accent focus:outline-none";
 
@@ -67,11 +74,13 @@ export function PushDialog({
   const [error, setError] = useState<string | null>(null);
   const [needsGithub, setNeedsGithub] = useState(false);
   const [result, setResult] = useState<PushResult | null>(null);
+  const [secrets, setSecrets] = useState<SecretFinding[] | null>(null);
 
-  async function push() {
+  async function push(force = false) {
     if (busy) return;
     setBusy(true);
     setError(null);
+    if (!force) setSecrets(null);
     try {
       const body = hasRepo
         ? {
@@ -80,12 +89,14 @@ export function PushDialog({
             ...(openPr
               ? { prTitle: prTitle.trim() || `Helix: ${workspace.name}` }
               : { branch: workspace.baseBranch ?? undefined }),
+            ...(force ? { allowSecrets: true } : {}),
           }
         : {
             target: "new-repo" as const,
             name: repoName.trim(),
             private: isPrivate,
             ...(message.trim() ? { message: message.trim() } : {}),
+            ...(force ? { allowSecrets: true } : {}),
           };
 
       const res = await fetch(`/api/workspaces/${workspace.id}/push`, {
@@ -97,6 +108,9 @@ export function PushDialog({
       if (!res.ok || !json?.ok) {
         if (json?.error?.code === "GITHUB_UNAUTHORIZED") setNeedsGithub(true);
         else setError(json?.error?.message ?? "Push failed.");
+      } else if (json.data?.secretsBlocked) {
+        // Possible credentials found — show them and require an explicit override.
+        setSecrets(json.data.secrets as SecretFinding[]);
       } else {
         setResult(json.data);
         router.refresh();
@@ -169,6 +183,32 @@ export function PushDialog({
               <Button variant="ghost" onClick={onClose} className="w-full justify-center">
                 Done
               </Button>
+            </div>
+          ) : secrets ? (
+            <div className="space-y-3 text-sm">
+              <p className="flex items-center gap-1.5 font-medium text-warn">
+                <Lock className="h-3.5 w-3.5" /> Possible secrets found
+              </p>
+              <p className="text-xs text-txt2">
+                These look like hardcoded credentials. Pushing them to a repo can leak them. Remove them (use an
+                environment variable instead) — or push anyway if they&apos;re false positives.
+              </p>
+              <ul className="scroll-area max-h-44 space-y-1.5 overflow-auto rounded-lg border border-border bg-bg2 p-2.5">
+                {secrets.map((s, i) => (
+                  <li key={i} className="font-mono text-[11px] text-txt2">
+                    <span className="text-bad">{s.rule}</span> · {s.path}:{s.line}{" "}
+                    <span className="text-txt3">{s.preview}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setSecrets(null)} className="flex-1 justify-center">
+                  Go back
+                </Button>
+                <Button onClick={() => void push(true)} disabled={busy} className="flex-1 justify-center">
+                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Push anyway
+                </Button>
+              </div>
             </div>
           ) : needsGithub ? (
             isGithub ? (

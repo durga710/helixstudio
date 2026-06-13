@@ -18,6 +18,7 @@ import { getOverlay } from "@/lib/workspace";
 import { usingSandboxBackend } from "@/lib/app-runner";
 import { gitPush } from "@/lib/runner/git-push";
 import { isValidBranchName, validateFiles, MAX_PUSH_FILES } from "@/lib/repo-files";
+import { scanFiles } from "@/lib/security/secret-scan";
 import { guardWorkspace } from "@/lib/route-helpers";
 import { recordSpaceEvent, actorNameOf } from "@/lib/space-events";
 import type { Workspace } from "@/generated/prisma/client";
@@ -62,6 +63,8 @@ const PushSchema = z.discriminatedUnion("target", [
       .regex(/^[a-z0-9][a-z0-9-_.]*$/i, "kebab-case repo name"),
     private: z.boolean().optional(),
     message: z.string().max(200).optional(),
+    // Override the secret-scan block (set after the user reviews the findings).
+    allowSecrets: z.boolean().optional(),
   }),
   z.object({
     target: z.literal("repo"),
@@ -69,6 +72,7 @@ const PushSchema = z.discriminatedUnion("target", [
     message: z.string().max(200).optional(),
     prTitle: z.string().max(200).optional(),
     prBody: z.string().max(4000).optional(),
+    allowSecrets: z.boolean().optional(),
   }),
 ]);
 
@@ -104,6 +108,13 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   const data = parsed.data;
+
+  // Secret scan: block a push that looks like it contains hardcoded credentials,
+  // unless the user reviewed the findings and explicitly overrode (allowSecrets).
+  if (!data.allowSecrets && overlay.files.length > 0) {
+    const secrets = scanFiles(overlay.files);
+    if (secrets.length > 0) return ok({ secretsBlocked: true, secrets: secrets.slice(0, 25) });
+  }
 
   if (data.target === "new-repo") {
     const created = await withGitAuth(auth, () => git.createRepo(data.name, { isPrivate: data.private ?? false }));

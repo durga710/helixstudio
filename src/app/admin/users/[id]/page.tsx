@@ -9,6 +9,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
+import { userUsageAnomaly } from "@/lib/security/usage-anomaly";
 import { db, dbEnabled } from "@/lib/db";
 import { estimateCostUsd } from "@/lib/agent-config";
 import { effectiveLimit } from "@/lib/token-budget";
@@ -102,6 +103,9 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
       _sum: { tokens: true },
     }),
   ]);
+
+  // Statistical outlier check on this user's recent hourly token spend.
+  const anomaly = await userUsageAnomaly(id);
 
   const limit = effectiveLimit(user);
   const used = user.isGuest ? user.tokensUsed : user.periodTokens;
@@ -228,7 +232,17 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
 
       <section className="mb-8">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-txt">Recent AI usage (last {events.length})</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-txt">Recent AI usage (last {events.length})</h2>
+            {anomaly.anomalous && (
+              <span
+                title={anomaly.reason}
+                className="rounded-full border border-[color-mix(in_srgb,var(--red)_45%,transparent)] bg-[color-mix(in_srgb,var(--red)_12%,transparent)] px-2 py-0.5 text-[11px] font-medium text-bad"
+              >
+                ⚠ unusual spend ({anomaly.z}σ)
+              </span>
+            )}
+          </div>
           <a
             href={`/api/admin/usage/export?userId=${user.id}`}
             className="rounded-lg border border-border2 bg-panel2 px-3 py-1.5 text-[12px] font-medium text-txt2 hover:border-accent hover:text-txt"

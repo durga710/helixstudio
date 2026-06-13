@@ -18,6 +18,7 @@ import "server-only";
 
 import { resolveAiPrefs, runOneShot } from "@/lib/ai-agent";
 import { recordAiUsage } from "@/lib/ai-usage";
+import { rankBm25, type Bm25Doc } from "./bm25";
 
 export interface Chunk {
   path: string;
@@ -92,13 +93,16 @@ export function lexicalScore(queryTokens: string[], chunk: Chunk): number {
 // Cheapest path: OpenAI tiny-embeddings + Postgres column + in-Node cosine.
 // ───────────────────────────────────────────────────────────────────────────
 
-/** Top PREFILTER chunks by lexical score. Pads with leftovers when the query
- *  has little literal overlap, so the reranker still has material to judge. */
+/** Top PREFILTER chunks by BM25 (IDF-weighted, length-normalized — far better
+ *  than raw term frequency on big repos). Pads with leftovers (zero-score
+ *  chunks rank last) so the reranker still has material when overlap is thin. */
 function prefilter(query: string, chunks: Chunk[]): Chunk[] {
   const qTokens = tokenize(query);
-  const scored = chunks.map((c, i) => ({ c, i, s: lexicalScore(qTokens, c) }));
-  scored.sort((a, b) => b.s - a.s || a.c.path.length - b.c.path.length || a.i - b.i);
-  return scored.slice(0, PREFILTER).map((x) => x.c);
+  const docs: Bm25Doc[] = chunks.map((c) => ({ tokens: tokenize(c.text), pathTokens: tokenize(c.path) }));
+  const hits = rankBm25(qTokens, docs);
+  // Stable tie-break (BM25 ties — esp. the zero-score pad — by shorter path).
+  hits.sort((a, b) => b.score - a.score || chunks[a.index].path.length - chunks[b.index].path.length || a.index - b.index);
+  return hits.slice(0, PREFILTER).map((h) => chunks[h.index]);
 }
 
 /** Stage-2 option 1: a dedicated reranker endpoint (env-configured). */
