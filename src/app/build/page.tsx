@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { dbEnabled } from "@/lib/db";
+import { isAdminEmail } from "@/lib/admin";
 import { BuildLanding } from "@/components/build/build-landing";
 
 export const metadata: Metadata = {
@@ -18,6 +19,7 @@ export default async function BuildPage() {
       signedIn={Boolean(session?.user && !session.user.isGuest)}
       isGuest={Boolean(session?.user?.isGuest)}
       dbReady={dbEnabled()}
+      isAdmin={isAdminEmail(session?.user?.email)}
     />
   );
 }

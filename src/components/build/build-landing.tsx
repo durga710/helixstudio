@@ -4,79 +4,88 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { ArrowUp, Gamepad2, Loader2, Box, Sparkles, AppWindow } from "lucide-react";
+import {
+  ArrowUp,
+  Loader2,
+  Sparkles,
+  AppWindow,
+  Gamepad2,
+  Footprints,
+  Rabbit,
+  Joystick,
+  Map as MapIcon,
+  Globe,
+} from "lucide-react";
 import { BrandMark } from "@/components/brand";
+import { GAME_CATEGORIES, GAME_ENGINES } from "@/lib/templates/engines";
 import { cn } from "@/lib/utils";
 
-/* Lovable-style start page: one prompt, zero friction. Submit → guest
- * session if needed → SCRATCH workspace → /build/[id] runs the first turn. */
+/* Lovable-style start page: one prompt, zero friction. Pick App or Game (the
+ * two agents); for a game, pick a kid-language category — the engine is chosen
+ * invisibly server-side. Submit → guest session if needed → SCRATCH workspace →
+ * /build/[id] runs the first turn. */
 
 interface BuildLandingProps {
   signedIn: boolean;
   isGuest: boolean;
   dbReady: boolean;
+  /** Admins/testers see a quiet engine-override control (students never do). */
+  isAdmin: boolean;
 }
 
-type BuildMode = "web" | "game2d" | "game3d";
+type BuildKind = "app" | "game";
 
-/** The build modes — the "agent" the user is talking to. Functional: each
- * picks a different starter + brief so the same engine builds the right thing. */
-const MODES: { id: BuildMode; label: string; icon: typeof AppWindow; blurb: string }[] = [
-  { id: "web", label: "Web app", icon: AppWindow, blurb: "Sites, tools & dashboards" },
-  { id: "game2d", label: "2D Game", icon: Gamepad2, blurb: "Platformers, runners, arcade" },
-  { id: "game3d", label: "3D Game", icon: Box, blurb: "3D scenes & worlds" },
+const KINDS: { id: BuildKind; label: string; icon: typeof AppWindow; blurb: string }[] = [
+  { id: "app", label: "App", icon: AppWindow, blurb: "Sites, tools & dashboards" },
+  { id: "game", label: "Game", icon: Gamepad2, blurb: "Build, play & share" },
 ];
 
-const SUGGESTIONS_BY_MODE: Record<BuildMode, string[]> = {
-  web: [
-    "A pomodoro timer with daily stats",
-    "Landing page for a specialty coffee brand",
-    "Kanban board with drag and drop",
-    "Personal portfolio with project gallery",
-    "Expense splitter for trips with friends",
-    "Markdown note-taking app",
-  ],
-  game2d: [
-    "A Flappy Bird game",
-    "A Mario-style platformer",
-    "An endless runner like Jetpack Joyride",
-    "A snake game that speeds up",
-    "A space shooter with waves of enemies",
-    "A breakout / brick-breaker game",
-  ],
-  game3d: [
-    "A 3D maze I can walk through",
-    "A first-person world to explore",
-    "A 3D ball that rolls to collect coins",
-    "A simple 3D racing track",
-  ],
+/** Lucide icon for each game category (keyed by the icon string in engines.ts). */
+const CATEGORY_ICONS: Record<string, typeof AppWindow> = {
+  Footprints,
+  Rabbit,
+  Joystick,
+  Map: MapIcon,
+  Globe,
+  Sparkles,
 };
 
-const PLACEHOLDER_BY_MODE: Record<BuildMode, string> = {
-  web: "An app that tracks my reading list, with covers, ratings and a stats page…",
-  game2d: "A Flappy Bird game where I tap to flap through pipes, with a score…",
-  game3d: "A 3D maze I can walk through with the arrow keys to reach the exit…",
-};
+const WEB_PLACEHOLDER = "An app that tracks my reading list, with covers, ratings and a stats page…";
+const WEB_SUGGESTIONS = [
+  "A pomodoro timer with daily stats",
+  "Landing page for a specialty coffee brand",
+  "Kanban board with drag and drop",
+  "Personal portfolio with project gallery",
+  "Expense splitter for trips with friends",
+  "Markdown note-taking app",
+];
 
 /** A short workspace name from the first words of the prompt. */
 function nameFromPrompt(prompt: string): string {
   const words = prompt.trim().replace(/\s+/g, " ").split(" ").slice(0, 6).join(" ");
   const name = words.length > 48 ? `${words.slice(0, 48)}…` : words;
-  return name || "New app";
+  return name || "New project";
 }
 
-export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) {
+export function BuildLanding({ signedIn, isGuest, dbReady, isAdmin }: BuildLandingProps) {
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
-  const [mode, setMode] = useState<BuildMode>("web");
+  const [kind, setKind] = useState<BuildKind>("app");
+  // For games: the selected category card (defaults to "My Own Idea").
+  const [gameCat, setGameCat] = useState<string>("own");
+  // Admin/tester engine override ("" = Auto). Only sent for games.
+  const [engine, setEngine] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  const activeCat = GAME_CATEGORIES.find((c) => c.id === gameCat) ?? GAME_CATEGORIES[0];
+  const placeholder = kind === "game" ? activeCat.placeholder : WEB_PLACEHOLDER;
+  const suggestions = kind === "game" ? activeCat.suggestions : WEB_SUGGESTIONS;
+
   // One step, no friction: a guest session if needed → create the workspace
-  // (the server silently picks + scaffolds the right starter from the prompt)
-  // → hand the prompt to the builder, which fires the first turn on load. The
-  // template engine is invisible — it just feels like the AI gets to work.
+  // (the server silently picks + scaffolds the right starter) → hand the prompt
+  // to the builder, which fires the first turn on load. The engine is invisible.
   async function start(text: string) {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
@@ -87,17 +96,27 @@ export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) 
         const res = await signIn("guest", { redirect: false });
         if (res?.error) throw new Error("Couldn't start a guest session — try again or sign in.");
       }
+      const body: Record<string, unknown> = {
+        mode: "SCRATCH",
+        name: nameFromPrompt(trimmed),
+        prompt: trimmed,
+        buildKind: kind,
+      };
+      if (kind === "game") {
+        body.gameCategory = gameCat;
+        if (isAdmin && engine) body.engineOverride = engine;
+      }
       const res = await fetch("/api/workspaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "SCRATCH", name: nameFromPrompt(trimmed), prompt: trimmed, buildMode: mode }),
+        body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
         throw new Error(json?.error?.message ?? "Couldn't create your project — try again.");
       }
       sessionStorage.setItem(`helix.build.${json.data.id}`, trimmed);
-      if (mode !== "web") sessionStorage.setItem(`helix.build.mode.${json.data.id}`, mode);
+      if (kind === "game") sessionStorage.setItem(`helix.build.mode.${json.data.id}`, "game");
       router.push(`/build/${json.data.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong — try again.");
@@ -142,7 +161,7 @@ export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) 
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-5 pb-24">
         <div className="mb-5 flex items-center gap-2 rounded-full border border-[#28364f] bg-[color-mix(in_srgb,#0d1626_72%,transparent)] px-3.5 py-1.5 text-xs text-[#9cadc4]">
           <Sparkles className="h-3.5 w-3.5 text-accent" strokeWidth={1.8} />
-          Idea → working app, with a live preview while it builds
+          Idea → working app or game, with a live preview while it builds
         </div>
 
         <h1 className="max-w-[720px] text-center text-[clamp(34px,6vw,58px)] font-extrabold leading-[1.06] tracking-tight">
@@ -157,34 +176,88 @@ export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) 
           then keep refining it in plain English.
         </p>
 
-        {/* Build-mode selector — web app, 2D game, or 3D game */}
-        <div className="mt-7 flex flex-wrap items-center justify-center gap-2" role="group" aria-label="What to build">
-          {MODES.map((m) => {
-            const Icon = m.icon;
-            const active = mode === m.id;
+        {/* App vs Game — the two agents */}
+        <div className="mt-7 flex items-center justify-center gap-2.5" role="group" aria-label="What to build">
+          {KINDS.map((k) => {
+            const Icon = k.icon;
+            const active = kind === k.id;
             return (
               <button
-                key={m.id}
+                key={k.id}
                 type="button"
-                onClick={() => setMode(m.id)}
+                onClick={() => setKind(k.id)}
                 aria-pressed={active}
                 disabled={busy}
                 className={cn(
-                  "flex items-center gap-2 rounded-xl border px-3.5 py-2 text-left transition-colors disabled:opacity-50",
+                  "flex items-center gap-2.5 rounded-xl border px-4 py-2.5 text-left transition-colors disabled:opacity-50",
                   active
                     ? "border-accent bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[#f8fbff]"
                     : "border-[#1d2940] bg-[color-mix(in_srgb,#0d1626_60%,transparent)] text-[#9cadc4] hover:border-accent hover:text-[#f8fbff]",
                 )}
               >
-                <Icon className={cn("h-4 w-4", active ? "text-accent" : "")} strokeWidth={1.8} />
+                <Icon className={cn("h-5 w-5", active ? "text-accent" : "")} strokeWidth={1.8} />
                 <span className="flex flex-col leading-tight">
-                  <span className="text-[13px] font-semibold">{m.label}</span>
-                  <span className="text-[10.5px] text-[#5f6f86]">{m.blurb}</span>
+                  <span className="text-[14px] font-semibold">{k.label}</span>
+                  <span className="text-[10.5px] text-[#5f6f86]">{k.blurb}</span>
                 </span>
               </button>
             );
           })}
         </div>
+
+        {/* Game categories — pick what kind of game (the engine is invisible) */}
+        {kind === "game" && (
+          <div className="mt-4 w-full max-w-[680px]">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="group" aria-label="Kind of game">
+              {GAME_CATEGORIES.map((c) => {
+                const Icon = CATEGORY_ICONS[c.icon] ?? Sparkles;
+                const active = gameCat === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setGameCat(c.id)}
+                    aria-pressed={active}
+                    disabled={busy}
+                    className={cn(
+                      "flex items-start gap-2 rounded-xl border px-3 py-2.5 text-left transition-colors disabled:opacity-50",
+                      active
+                        ? "border-accent bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[#f8fbff]"
+                        : "border-[#1d2940] bg-[color-mix(in_srgb,#0d1626_60%,transparent)] text-[#9cadc4] hover:border-accent hover:text-[#f8fbff]",
+                    )}
+                  >
+                    <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", active ? "text-accent" : "")} strokeWidth={1.8} />
+                    <span className="flex min-w-0 flex-col leading-tight">
+                      <span className="truncate text-[12.5px] font-semibold">{c.label}</span>
+                      <span className="truncate text-[10.5px] text-[#5f6f86]">{c.example}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Engine override — admins/testers only; invisible to students */}
+            {isAdmin && (
+              <div className="mt-2 flex items-center justify-end gap-1.5 text-[11px] text-[#5f6f86]">
+                <label htmlFor="engine-override">Engine</label>
+                <select
+                  id="engine-override"
+                  value={engine}
+                  onChange={(e) => setEngine(e.target.value)}
+                  disabled={busy}
+                  className="rounded-md border border-[#1d2940] bg-[#0d1626] px-2 py-1 text-[11px] text-[#9cadc4] outline-none focus:border-accent"
+                >
+                  <option value="">Auto</option>
+                  {GAME_ENGINES.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Prompt box */}
         <div
@@ -205,7 +278,7 @@ export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) 
             }}
             disabled={busy}
             rows={3}
-            placeholder={PLACEHOLDER_BY_MODE[mode]}
+            placeholder={placeholder}
             aria-label="Describe what you want to build"
             className="w-full resize-none border-none bg-transparent px-5 pt-4 font-sans text-[15px] leading-relaxed text-[#f8fbff] outline-none placeholder:text-[#5f6f86] disabled:opacity-60"
           />
@@ -237,7 +310,7 @@ export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) 
 
         {/* Suggestions */}
         <div className="mt-7 flex max-w-[680px] flex-wrap items-center justify-center gap-2">
-          {SUGGESTIONS_BY_MODE[mode].map((s) => (
+          {suggestions.map((s) => (
             <button
               key={s}
               onClick={() => {

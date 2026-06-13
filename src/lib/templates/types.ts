@@ -16,6 +16,10 @@ export interface TemplateManifest {
   notesBlurb: string;
   /** How the maintenance job regenerates the base ("overlay-only" = no CLI). */
   cli: string;
+  /** For game templates: which engine this starter uses (phaser | babylon |
+   * playcanvas | godot). Metadata only — drives the hidden engine router and
+   * the admin engine-override, never the runtime. Absent for non-game templates. */
+  engine?: string;
 }
 
 export interface TemplateFile {

@@ -1,0 +1,10 @@
+{
+  "id": "game-3d-pc",
+  "label": "3D Game (PlayCanvas)",
+  "framework": "game",
+  "engine": "playcanvas",
+  "description": "A playable 3D browser game starter using the PlayCanvas engine from a CDN. No build step — edit game.js. Great for 3D worlds, first-person exploration, and roll-a-ball games.",
+  "keywords": ["3d game", "3d", "3d world", "playcanvas", "first person", "fps", "explore", "world", "maze", "roll", "ball", "third person", "walk around"],
+  "notesBlurb": "Scaffolded from the 3D Game template: the PlayCanvas engine (loaded from a CDN in index.html) + game.js + style.css, no build step. Build the user's 3D game by editing game.js — create the pc.Application on the canvas, then add entities, camera, light, and game logic with PlayCanvas's API (use procedural primitives via `new pc.Entity()` + `addComponent('render', { type: 'box' })`; there are NO external 3D model assets). Keep game.js a PLAIN (non-module) script using the global `pc` — do NOT use ES module imports or add a build step (the preview inlines local scripts and strips module type), and do NOT switch to Three.js. app.start() / the engine's update loop handles animation. Keep PlayCanvas loaded via the existing CDN <script>.",
+  "cli": "overlay-only"
+}

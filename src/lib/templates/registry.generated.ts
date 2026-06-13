@@ -245,6 +245,7 @@ export const TEMPLATES: Record<string, Template> = {
       "id": "game-2d",
       "label": "2D Game (Phaser)",
       "framework": "game",
+      "engine": "phaser",
       "description": "A playable 2D browser game starter using Phaser 3 from a CDN. No build step — edit game.js. Great for platformers, runners, flappy-style, and arcade games.",
       "keywords": [
         "game",
@@ -286,20 +287,12 @@ export const TEMPLATES: Record<string, Template> = {
       "id": "game-3d",
       "label": "3D Game (Babylon.js)",
       "framework": "game",
-      "description": "A playable 3D browser game starter using Babylon.js from a CDN. No build step — edit game.js. Great for 3D scenes, mazes, and simple first- or third-person games.",
+      "engine": "babylon",
+      "description": "A playable 3D browser game starter using Babylon.js from a CDN. No build step — edit game.js. Great for 3D scenes with Babylon's MeshBuilder.",
       "keywords": [
-        "3d game",
-        "3d",
         "babylon",
-        "three.js",
-        "maze",
-        "fps",
-        "first person",
-        "third person",
-        "voxel",
-        "3d scene",
-        "cube",
-        "world"
+        "babylon.js",
+        "babylonjs"
       ],
       "notesBlurb": "Scaffolded from the 3D Game template: Babylon.js (loaded from a CDN in index.html) + game.js + style.css, no build step. Build the user's 3D game by editing game.js — set up the scene, camera, lights, meshes (use Babylon's MeshBuilder; there are NO external 3D model assets), input, and game logic. Keep game.js a PLAIN (non-module) script using the global `BABYLON` — do NOT use ES module imports (the preview inlines local scripts and strips module type), and do NOT switch to Three.js (its CDN is ES-module only and will break here). engine.runRenderLoop handles animation. Keep Babylon loaded via the existing CDN <script>.",
       "cli": "overlay-only"
@@ -316,6 +309,46 @@ export const TEMPLATES: Record<string, Template> = {
       {
         "path": "style.css",
         "content": "html,\nbody {\n  margin: 0;\n  height: 100%;\n  overflow: hidden;\n  background: #0b0f1a;\n}\n\n#renderCanvas {\n  width: 100%;\n  height: 100%;\n  display: block;\n  outline: none;\n  touch-action: none;\n}\n"
+      }
+    ]
+  },
+  "game-3d-pc": {
+    "manifest": {
+      "id": "game-3d-pc",
+      "label": "3D Game (PlayCanvas)",
+      "framework": "game",
+      "engine": "playcanvas",
+      "description": "A playable 3D browser game starter using the PlayCanvas engine from a CDN. No build step — edit game.js. Great for 3D worlds, first-person exploration, and roll-a-ball games.",
+      "keywords": [
+        "3d game",
+        "3d",
+        "3d world",
+        "playcanvas",
+        "first person",
+        "fps",
+        "explore",
+        "world",
+        "maze",
+        "roll",
+        "ball",
+        "third person",
+        "walk around"
+      ],
+      "notesBlurb": "Scaffolded from the 3D Game template: the PlayCanvas engine (loaded from a CDN in index.html) + game.js + style.css, no build step. Build the user's 3D game by editing game.js — create the pc.Application on the canvas, then add entities, camera, light, and game logic with PlayCanvas's API (use procedural primitives via `new pc.Entity()` + `addComponent('render', { type: 'box' })`; there are NO external 3D model assets). Keep game.js a PLAIN (non-module) script using the global `pc` — do NOT use ES module imports or add a build step (the preview inlines local scripts and strips module type), and do NOT switch to Three.js. app.start() / the engine's update loop handles animation. Keep PlayCanvas loaded via the existing CDN <script>.",
+      "cli": "overlay-only"
+    },
+    "files": [
+      {
+        "path": "game.js",
+        "content": "// 3D game starter — PlayCanvas engine (global `pc`, no imports).\n// A camera, a light, a ground, and a spinning box to get you started.\n// Build your game by editing this file: add entities, materials, input, and\n// game logic with PlayCanvas's API. Use procedural primitives (box/sphere/\n// cylinder via the `render` component) — there are no external 3D models.\n\nconst canvas = document.getElementById(\"application\");\n\nconst app = new pc.Application(canvas, {\n  mouse: new pc.Mouse(canvas),\n  keyboard: new pc.Keyboard(window),\n});\napp.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);\napp.setCanvasResolution(pc.RESOLUTION_AUTO);\nwindow.addEventListener(\"resize\", () => app.resizeCanvas());\n\n// Camera.\nconst camera = new pc.Entity(\"camera\");\ncamera.addComponent(\"camera\", { clearColor: new pc.Color(0.06, 0.09, 0.16) });\ncamera.setPosition(0, 4, 8);\ncamera.lookAt(0, 0.5, 0);\napp.root.addChild(camera);\n\n// Light.\nconst light = new pc.Entity(\"light\");\nlight.addComponent(\"light\", { type: \"directional\", intensity: 1 });\nlight.setEulerAngles(50, 30, 0);\napp.root.addChild(light);\n\n// Ground.\nconst ground = new pc.Entity(\"ground\");\nground.addComponent(\"render\", { type: \"box\" });\nground.setLocalScale(12, 0.5, 12);\nground.setPosition(0, -0.25, 0);\napp.root.addChild(ground);\n\n// A spinning box — your player / object.\nconst box = new pc.Entity(\"box\");\nbox.addComponent(\"render\", { type: \"box\" });\nbox.setPosition(0, 0.5, 0);\nconst mat = new pc.StandardMaterial();\nmat.diffuse = new pc.Color(1, 0, 0.3);\nmat.update();\nbox.render.material = mat;\napp.root.addChild(box);\n\napp.on(\"update\", (dt) => {\n  box.rotate(0, 60 * dt, 0);\n});\n\napp.start();\n"
+      },
+      {
+        "path": "index.html",
+        "content": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n    <title>My 3D Game</title>\n    <link rel=\"stylesheet\" href=\"style.css\" />\n    <!-- PlayCanvas engine from a CDN — leave this here; game.js uses the global `pc`. -->\n    <script src=\"https://code.playcanvas.com/playcanvas-stable.min.js\"></script>\n  </head>\n  <body>\n    <canvas id=\"application\"></canvas>\n    <script src=\"game.js\"></script>\n  </body>\n</html>\n"
+      },
+      {
+        "path": "style.css",
+        "content": "html,\nbody {\n  margin: 0;\n  height: 100%;\n  overflow: hidden;\n  background: #0b0f1a;\n}\n\n#application {\n  width: 100%;\n  height: 100%;\n  display: block;\n  outline: none;\n  touch-action: none;\n}\n"
       }
     ]
   },

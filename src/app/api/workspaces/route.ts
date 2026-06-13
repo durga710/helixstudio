@@ -13,8 +13,10 @@ import { ok, apiErrors } from "@/lib/api-response";
 import { getProvider, getGitAuth, withGitAuth, isValidRepoId, PROVIDER_META } from "@/lib/git";
 import { isValidBranchName } from "@/lib/repo-files";
 import { guard } from "@/lib/route-helpers";
+import { isAdminEmail } from "@/lib/admin";
 import { getTemplate } from "@/lib/templates/store";
-import { buildTemplateNote, classifyPrompt } from "@/lib/templates/router";
+import { buildTemplateNote, classifyPrompt, classifyGameTemplate } from "@/lib/templates/router";
+import { templateForCategory, templateForEngine } from "@/lib/templates/engines";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,9 +32,15 @@ const CreateSchema = z.discriminatedUnion("mode", [
     // The user's idea. When present (and no explicit templateId), the server
     // silently picks the best starter and injects it — the picker is invisible.
     prompt: z.string().max(2000).optional(),
-    // The build mode chosen on the landing page. "game2d"/"game3d" force the
-    // matching game starter so the user's choice is honored even on a vague
-    // prompt; "web" (default) lets the prompt classifier pick.
+    // The Game Agent's hidden routing (all 0-token). buildKind splits app vs
+    // game; gameCategory is the kid-facing card (forces its starter); the engine
+    // is never shown — students pick a category, we pick the engine.
+    buildKind: z.enum(["app", "game"]).optional(),
+    gameCategory: z.string().max(40).optional(),
+    // Admin/tester-only escape hatch: force a specific engine. Ignored unless
+    // the caller is an admin (so a forged body can't bypass routing).
+    engineOverride: z.string().max(40).optional(),
+    // Back-compat with the previous selector ("game2d"/"game3d" force a starter).
     buildMode: z.enum(["web", "game2d", "game3d"]).optional(),
   }),
   z.object({
@@ -86,15 +94,37 @@ export async function POST(req: Request) {
     // prompt silently (the engine is hidden from the user — it just feels like
     // the AI chose the stack).
     let templateId = parsed.data.templateId;
-    // A game build mode forces the matching starter (the user's explicit pick
-    // wins over the prompt classifier — honored even on a vague prompt).
-    if (!templateId) {
-      if (parsed.data.buildMode === "game2d") templateId = "game-2d";
-      else if (parsed.data.buildMode === "game3d") templateId = "game-3d";
+    const promptText = parsed.data.prompt?.trim();
+    const { buildKind, gameCategory, engineOverride, buildMode } = parsed.data;
+
+    // Resolve the starter, highest precedence first (all 0-token):
+    // 1) admin engine override → that engine's starter (silently ignored for
+    //    non-admins so a forged body can't bypass routing);
+    // 2) a chosen game category → its forced starter;
+    // 3) a game with "My Own Idea" (or no category) → keyword game-classify;
+    // 4) back-compat buildMode;
+    // 5) otherwise (app) → the regular prompt classifier (today's behavior).
+    if (!templateId && engineOverride && isAdminEmail(g.user.email)) {
+      templateId = templateForEngine(engineOverride) ?? undefined;
     }
-    if (!templateId && parsed.data.prompt?.trim()) {
+    if (!templateId && gameCategory) {
+      templateId = templateForCategory(gameCategory) ?? undefined;
+    }
+    if (!templateId && buildKind === "game" && promptText) {
+      // "My Own Idea" (category resolved to null) or game with no category.
       try {
-        templateId = (await classifyPrompt(parsed.data.prompt.trim(), g.user.id)).templateId;
+        templateId = await classifyGameTemplate(promptText);
+      } catch {
+        templateId = "game-2d";
+      }
+    }
+    if (!templateId) {
+      if (buildMode === "game2d") templateId = "game-2d";
+      else if (buildMode === "game3d") templateId = "game-3d";
+    }
+    if (!templateId && buildKind !== "game" && promptText) {
+      try {
+        templateId = (await classifyPrompt(promptText, g.user.id)).templateId;
       } catch {
         // classifier unavailable → blank workspace (today's behavior).
       }

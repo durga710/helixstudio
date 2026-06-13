@@ -127,6 +127,24 @@ export async function classifyPrompt(prompt: string, userId: string): Promise<Cl
   };
 }
 
+/**
+ * Pick the best GAME starter for a "My Own Idea" game prompt — keyword scoring
+ * over only the game-engine templates (framework === "game"). Zero tokens: the
+ * Game Agent already knows it's a game, so this just resolves 2D vs 3D vs engine
+ * from the words. Falls back to game-2d (Phaser) when nothing scores.
+ */
+export async function classifyGameTemplate(prompt: string): Promise<string> {
+  const all = await getAllTemplates();
+  const games: Templates = {};
+  for (const [id, t] of Object.entries(all)) {
+    if (t.manifest.framework === "game") games[id] = t;
+  }
+  if (Object.keys(games).length === 0) return "game-2d";
+  const ranked = scoreByKeywords(prompt, games);
+  const top = ranked[0];
+  return top && top.score > 0 ? top.id : (games["game-2d"] ? "game-2d" : Object.keys(games)[0]);
+}
+
 /** Build the Workspace.notes seed for an injected template (kept short). */
 export function buildTemplateNote(tpl: Template): string {
   const keyFiles = tpl.files
