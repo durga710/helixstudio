@@ -16,6 +16,7 @@ import {
 import { BrandMark, HelixGlyph } from "@/components/brand";
 import { Markdown } from "@/components/ui/markdown";
 import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
+import { scaffoldSteps } from "@/lib/scaffold-steps";
 import { cn } from "@/lib/utils";
 
 /* The Lovable-style builder: the agent writes the app while the right pane
@@ -58,6 +59,10 @@ const FOLLOW_UPS = ["Add a dark mode toggle", "Make it feel more premium", "Impr
 export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStudioProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activities, setActivities] = useState<string[]>([]);
+  // Truthful "scaffolding…" checklist shown over the first-turn latency on a
+  // freshly-scaffolded project (derived from the real injected files).
+  const [setupSteps, setSetupSteps] = useState<string[]>([]);
+  const realActivityStarted = useRef(false);
   const [building, setBuilding] = useState(false);
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +124,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       if (!trimmed) return;
       setMessages((prev) => [...prev, { id: nextId.current++, role: "user", content: trimmed }]);
       setActivities([]);
+      setSetupSteps([]); // scaffold checklist is first-turn only
       setError(null);
       setBuilding(true);
 
@@ -148,6 +154,8 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             return;
           }
           if (evt.type === "activity" && evt.label) {
+            // Real agent work has begun — let the scaffold checklist stop.
+            realActivityStarted.current = true;
             turnLog = [...turnLog, evt.label];
             setActivities(turnLog);
             // The app takes shape live: refresh the preview as files land.
@@ -186,6 +194,30 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
     [workspace.id, refreshPreview],
   );
 
+  /* ------------------------- creation sequence ---------------------- */
+
+  // Fill the first-turn warm-up with a paced, TRUE checklist built from the
+  // files the engine actually scaffolded — it reads as genuine setup work and
+  // dissolves into the agent's real activity log the moment that starts.
+  const runCreationSequence = useCallback(async () => {
+    realActivityStarted.current = false;
+    let paths: string[] = [];
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}/files`, { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) paths = (json.data.files as Array<{ path: string }>).map((f) => f.path);
+    } catch {
+      // No file list → skip the sequence; the agent's real log carries it.
+    }
+    const { steps } = scaffoldSteps(paths);
+    for (const step of steps) {
+      if (realActivityStarted.current) break;
+      setSetupSteps((prev) => [...prev, step]);
+      // Randomized pacing so it feels alive, not scripted.
+      await new Promise((r) => setTimeout(r, 360 + Math.floor(Math.random() * 640)));
+    }
+  }, [workspace.id]);
+
   /* ------------------------------ kickoff --------------------------- */
 
   // The landing page stashes the first prompt; fire it once on arrival.
@@ -197,13 +229,15 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       const stash = sessionStorage.getItem(`helix.build.${workspace.id}`);
       if (stash) {
         sessionStorage.removeItem(`helix.build.${workspace.id}`);
+        // Scaffolded projects get the genuine setup checklist over the warm-up.
+        if (scaffolded) void runCreationSequence();
         void send(stash, scaffolded ? "template" : "static");
       } else {
         void refreshPreview();
       }
     }, 0);
     return () => clearTimeout(t);
-  }, [workspace.id, send, refreshPreview, scaffolded]);
+  }, [workspace.id, send, refreshPreview, scaffolded, runCreationSequence]);
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
@@ -354,7 +388,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
                     </div>
                     <div className="mt-1.5 max-w-[300px] text-[12.5px] leading-relaxed text-txt2">
                       {building
-                        ? activities[activities.length - 1] ?? "warming up…"
+                        ? activities[activities.length - 1] ?? setupSteps[setupSteps.length - 1] ?? "warming up…"
                         : "Describe what you want in the chat and the app appears here as it's written."}
                     </div>
                   </div>
@@ -449,21 +483,28 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
                   <HelixGlyph size={12} />
                 </div>
                 <div className="min-w-0 flex-1 rounded-[9px] border border-border2 bg-panel px-3 py-2">
-                  {activities.length === 0 && (
-                    <div className="flex items-center gap-2 py-0.5 text-[11.5px] text-txt3">
-                      <Loader2 className="h-3 w-3 animate-spin" /> thinking…
-                    </div>
-                  )}
-                  {activities.map((step, i) => (
-                    <div key={i} className="flex items-center gap-2 py-0.5 text-[11.5px] text-txt2">
-                      {i === activities.length - 1 ? (
-                        <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" />
-                      ) : (
-                        <Check className="h-3 w-3 shrink-0 text-ok" strokeWidth={2.4} />
-                      )}
-                      {step}
-                    </div>
-                  ))}
+                  {(() => {
+                    // Scaffold checklist first (real, ticked), then the agent's
+                    // live activity — the last line of whichever is active spins.
+                    const steps = [...setupSteps, ...activities];
+                    if (steps.length === 0) {
+                      return (
+                        <div className="flex items-center gap-2 py-0.5 text-[11.5px] text-txt3">
+                          <Loader2 className="h-3 w-3 animate-spin" /> thinking…
+                        </div>
+                      );
+                    }
+                    return steps.map((step, i) => (
+                      <div key={i} className="flex items-center gap-2 py-0.5 text-[11.5px] text-txt2">
+                        {i === steps.length - 1 ? (
+                          <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" />
+                        ) : (
+                          <Check className="h-3 w-3 shrink-0 text-ok" strokeWidth={2.4} />
+                        )}
+                        {step}
+                      </div>
+                    ));
+                  })()}
                 </div>
               </div>
             )}

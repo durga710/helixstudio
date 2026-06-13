@@ -22,6 +22,7 @@ import {
   TriangleAlert,
   ShieldCheck,
   ChevronDown,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { readCache, writeCache } from "@/lib/client-cache";
@@ -139,6 +140,17 @@ export function ChatPanel({
   const guestBlocked = isGuest && guestRemaining === 0;
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Plan/Build is easy to lose track of, so a user toggle pops a brief toast
+  // (auto-dismisses) on top of the always-on plan-mode banner.
+  const [modeToast, setModeToast] = useState<null | "plan" | "build">(null);
+  const modeToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function changeMode(next: "plan" | "build") {
+    setMode(next);
+    setModeToast(next);
+    if (modeToastTimer.current) clearTimeout(modeToastTimer.current);
+    modeToastTimer.current = setTimeout(() => setModeToast(null), 2000);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -400,7 +412,7 @@ export function ChatPanel({
     actions?.length ? Array.from(new Set(actions.map((a) => a.label))) : [];
 
   return (
-    <div className="glass-panel-strong flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="glass-panel-strong relative flex h-full min-h-0 flex-col overflow-hidden">
       {/* Chat header: identity + model switcher */}
       <div className="flex items-center gap-2 border-b border-border px-4 py-2">
         <Sparkles className="h-4 w-4 shrink-0 text-accent" />
@@ -415,6 +427,18 @@ export function ChatPanel({
           )}
         </div>
       </div>
+
+      {/* Plan-mode banner: always on while in plan mode so the state is never a
+          mystery. Violet — distinct from the amber guest bar and cyan accent. */}
+      {mode === "plan" && (
+        <div className="fade-up flex items-center gap-2 border-b border-[color-mix(in_srgb,#c084fc_35%,transparent)] bg-[color-mix(in_srgb,#c084fc_11%,transparent)] px-4 py-2 text-[12px] text-[#d8b4fe]">
+          <ClipboardList className="h-3.5 w-3.5 shrink-0" strokeWidth={1.9} />
+          <span className="font-semibold">Plan mode</span>
+          <span className="text-[#d8b4fe]/80">
+            Helix proposes a step-by-step plan first — nothing changes until you approve it.
+          </span>
+        </div>
+      )}
 
       {/* min-h-0 is required: a flex-1 child in a column flex defaults to
           min-height:auto and won't shrink below its content, so without this
@@ -715,7 +739,7 @@ export function ChatPanel({
               { value: "plan", label: "Plan" },
             ]}
             value={mode}
-            onChange={setMode}
+            onChange={changeMode}
             aria-label="Agent mode"
             className="shrink-0"
           />
@@ -777,6 +801,30 @@ export function ChatPanel({
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </form>
+      )}
+
+      {/* Mode-change toast: slides up over the composer, auto-dismisses. */}
+      {modeToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={cn(
+            "fade-up pointer-events-none absolute bottom-[72px] left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-card border bg-panel px-4 py-2.5 text-[12.5px] shadow-pop",
+            modeToast === "plan"
+              ? "border-[color-mix(in_srgb,#c084fc_45%,transparent)] text-[#d8b4fe]"
+              : "border-accent/45 text-accent",
+          )}
+        >
+          {modeToast === "plan" ? (
+            <ClipboardList className="h-4 w-4 shrink-0" strokeWidth={1.9} />
+          ) : (
+            <Wrench className="h-4 w-4 shrink-0" strokeWidth={1.9} />
+          )}
+          <span className="font-semibold">{modeToast === "plan" ? "Plan mode on" : "Build mode on"}</span>
+          <span className="text-txt3">
+            {modeToast === "plan" ? "— I’ll propose a plan first" : "— I’ll edit files directly"}
+          </span>
+        </div>
       )}
     </div>
   );
