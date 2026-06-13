@@ -9,7 +9,7 @@ import { LESSONS, LESSON_IDS } from "./registry.generated";
 import type { Lesson, LessonManifest } from "./types";
 
 export function getAllLessons(): Lesson[] {
-  return LESSON_IDS.map((id) => LESSONS[id]);
+  return LESSON_IDS.map((id) => LESSONS[id]).sort((a, b) => a.manifest.order - b.manifest.order);
 }
 
 export function getLessonManifests(): LessonManifest[] {

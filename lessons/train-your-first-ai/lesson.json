@@ -6,6 +6,7 @@
   "estMinutes": 10,
   "icon": "Sparkles",
   "concept": "classification",
+  "order": 3,
   "steps": [
     {
       "kind": "explain",

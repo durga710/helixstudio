@@ -16,6 +16,8 @@ export interface LessonManifest {
   icon: string;
   /** The ML concept this teaches (e.g. "classification"). */
   concept: string;
+  /** Curriculum sequence position (gallery sorts ascending). */
+  order: number;
 }
 
 /** A single step in the guided flow. Markdown is allowed in `body`/`explain`. */

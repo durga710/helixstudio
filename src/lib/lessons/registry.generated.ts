@@ -11,7 +11,8 @@ export const LESSONS: Record<string, Lesson> = {
       "level": "beginner",
       "estMinutes": 10,
       "icon": "Sparkles",
-      "concept": "classification"
+      "concept": "classification",
+      "order": 3
     },
     "steps": [
       {
