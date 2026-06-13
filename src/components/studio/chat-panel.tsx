@@ -130,6 +130,10 @@ export function ChatPanel({
   const [openLog, setOpenLog] = useState<number | null>(null); // message index with expanded log
   const [busy, setBusy] = useState(false);
   const [activity, setActivity] = useState<string | null>(null);
+  // The turn's activity as a live ticking checklist (the agent's REAL work —
+  // reading, writing, verifying), so a big "create infrastructure" task reads
+  // as genuine progress instead of one cycling loader line.
+  const [worklog, setWorklog] = useState<string[]>([]);
   // Live assistant reply, streamed token-by-token (replaced by the real message
   // on the final event).
   const [streaming, setStreaming] = useState("");
@@ -192,7 +196,10 @@ export function ChatPanel({
   }, [messages, workspace.id]);
 
   useEffect(() => {
-    if (!busy) setActivity(null);
+    if (!busy) {
+      setActivity(null);
+      setWorklog([]);
+    }
   }, [busy]);
 
   /* ----------------------------- background tasks ------------------------- */
@@ -284,6 +291,7 @@ export function ChatPanel({
     setInput("");
     setBusy(true);
     setStreaming("");
+    setWorklog([]);
 
     // Replicates the old success path: append the assistant turn, update the
     // guest counter, and surface any file changes to the workspace panel.
@@ -327,7 +335,9 @@ export function ChatPanel({
             return; // ignore malformed partials
           }
           if (evt.type === "activity") {
-            setActivity((evt.label as string) ?? null);
+            const label = (evt.label as string) ?? null;
+            setActivity(label);
+            if (label) setWorklog((w) => [...w, label]);
           } else if (evt.type === "delta") {
             setStreaming((s) => s + ((evt.text as string) ?? ""));
           } else if (evt.type === "final") {
@@ -640,6 +650,20 @@ export function ChatPanel({
                   <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl border border-accent/25 bg-hl px-4 py-2.5 text-sm text-txt">
                     {streaming}
                     <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-accent align-middle" />
+                  </div>
+                ) : worklog.length > 0 ? (
+                  // Live checklist of the agent's real work this turn.
+                  <div className="min-w-0 max-w-[85%] rounded-2xl border border-accent/25 bg-hl px-4 py-2.5">
+                    {worklog.map((step, i) => (
+                      <div key={i} className="flex items-center gap-2 py-0.5 text-txt2">
+                        {i === worklog.length - 1 ? (
+                          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent" />
+                        ) : (
+                          <Check className="h-3.5 w-3.5 shrink-0 text-ok" strokeWidth={2.4} />
+                        )}
+                        <span className="font-mono text-[11.5px]">{step}</span>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 rounded-2xl border border-accent/25 bg-hl px-4 py-2.5 text-sm text-txt2">
