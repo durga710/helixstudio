@@ -32,9 +32,17 @@ import { listWorkspaceFiles, readWorkspaceFile } from "@/lib/workspace";
 import { setProgress, clearProgress } from "@/lib/progress";
 import { usingSandboxBackend, runnerEnabled } from "@/lib/app-runner";
 import { verifyBuild, verifyMarker } from "@/lib/verify";
-import { runAnthropicAgent, runLocalAgent, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
+import { runAnthropicAgent, runLocalAgent, runToolCalls, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
+import { withRetry } from "@/lib/ai/retry";
 import { createAgentIntent } from "@/lib/intent-ledger";
-import { AGENT_LIMITS, BUILD_RULES, PLAN_RULES, VERIFY_DEFAULT_ON, VERIFY_MAX_FIX_ATTEMPTS } from "@/lib/agent-config";
+import {
+  AGENT_LIMITS,
+  BUILD_RULES,
+  PLAN_RULES,
+  VERIFY_DEFAULT_ON,
+  VERIFY_MAX_FIX_ATTEMPTS,
+  toolResultCapFor,
+} from "@/lib/agent-config";
 import { checkTokenBudget, type BudgetCode } from "@/lib/token-budget";
 import { aiUsageOps } from "@/lib/ai-usage";
 import {
@@ -265,13 +273,15 @@ export async function runAgentTurn(opts: {
       actions = [];
       changes = { written: [], deleted: [] };
       try {
-        let resp = await ai!.responses.create({
-          model: aiModel || OPENAI_MODEL,
-          instructions,
-          input: messages,
-          tools: workspaceTools(mode),
-          store: true,
-        });
+        let resp = await withRetry(() =>
+          ai!.responses.create({
+            model: aiModel || OPENAI_MODEL,
+            instructions,
+            input: messages,
+            tools: workspaceTools(mode),
+            store: true,
+          }),
+        );
         tokensUsed += resp.usage?.total_tokens ?? 0;
 
         for (const item of resp.output ?? []) {
@@ -288,31 +298,40 @@ export async function runAgentTurn(opts: {
           );
           if (calls.length === 0) break;
 
-          const outputs = [];
-          for (const call of calls) {
-            let result: unknown;
-            try {
-              const parsedArgs = JSON.parse(call.arguments || "{}") as Record<string, unknown>;
-              result = await withGitAuth(gitAuth, () => executeTool(call.name, parsedArgs, ctx));
-            } catch (e) {
-              result = { error: e instanceof Error ? e.message : "tool failed" };
-            }
+          const settled = await runToolCalls(
+            calls,
+            (c) => c.name,
+            async (call) => {
+              let result: unknown;
+              try {
+                const parsedArgs = JSON.parse(call.arguments || "{}") as Record<string, unknown>;
+                result = await withGitAuth(gitAuth, () => executeTool(call.name, parsedArgs, ctx));
+              } catch (e) {
+                result = { error: e instanceof Error ? e.message : "tool failed" };
+              }
+              return { call, result };
+            },
+          );
+          const outputs: { type: "function_call_output"; call_id: string; output: string }[] = [];
+          for (const { call, result } of settled) {
             actions.push({ tool: call.name, label: toolLabel(call.name, result) });
             mergeChanges(changes, result);
             outputs.push({
               type: "function_call_output" as const,
               call_id: call.call_id,
-              output: JSON.stringify(result).slice(0, AGENT_LIMITS.toolResultCap),
+              output: JSON.stringify(result).slice(0, toolResultCapFor(call.name)),
             });
           }
 
-          resp = await ai!.responses.create({
-            model: aiModel || OPENAI_MODEL,
-            previous_response_id: resp.id,
-            input: outputs,
-            tools: workspaceTools(mode),
-            store: true,
-          });
+          resp = await withRetry(() =>
+            ai!.responses.create({
+              model: aiModel || OPENAI_MODEL,
+              previous_response_id: resp.id,
+              input: outputs,
+              tools: workspaceTools(mode),
+              store: true,
+            }),
+          );
           tokensUsed += resp.usage?.total_tokens ?? 0;
 
           for (const item of resp.output ?? []) {

@@ -21,7 +21,8 @@ import {
   type ChangeManifest,
   type ToolContext,
 } from "@/lib/workspace-tools";
-import { AGENT_LIMITS } from "@/lib/agent-config";
+import { AGENT_LIMITS, ANTHROPIC_MAX_OUTPUT, READONLY_TOOLS, toolResultCapFor } from "@/lib/agent-config";
+import { withRetry } from "@/lib/ai/retry";
 
 export interface AgentMessage {
   role: "user" | "assistant";
@@ -36,7 +37,6 @@ export interface AgentResult {
 }
 
 const MAX_HOPS = AGENT_LIMITS.maxHops;
-const TOOL_RESULT_CAP = AGENT_LIMITS.toolResultCap;
 
 /** True once a turn has spent its token budget — stop calling tools, wrap up. */
 function outOfBudget(tokensUsed: number): boolean {
@@ -61,7 +61,41 @@ function functionTools(mode: "plan" | "build" = "build"): FunctionTool[] {
     }));
 }
 
+/**
+ * Execute a hop's tool calls. When every call is read-only there are no
+ * mutations to order, so run them in parallel (big latency win on exploration
+ * hops); otherwise run sequentially to keep write/run ordering deterministic.
+ * Results come back in call order either way.
+ */
+export async function runToolCalls<C>(
+  calls: C[],
+  nameOf: (c: C) => string,
+  exec: (c: C) => Promise<{ call: C; result: unknown }>,
+): Promise<{ call: C; result: unknown }[]> {
+  if (calls.every((c) => READONLY_TOOLS.has(nameOf(c)))) return Promise.all(calls.map(exec));
+  const out: { call: C; result: unknown }[] = [];
+  for (const c of calls) out.push(await exec(c));
+  return out;
+}
+
 /* ============================ Anthropic ============================ */
+
+/** POST to Anthropic Messages with transient-error retry (429/5xx/overloaded). */
+async function anthropicMessages(apiKey: string, body: unknown): Promise<unknown> {
+  return withRetry(async () => {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw Object.assign(new Error(`Anthropic error ${res.status}: ${detail.slice(0, 300)}`), { status: res.status });
+    }
+    return res.json();
+  });
+}
 
 interface AnthropicContentBlock {
   type: string;
@@ -82,11 +116,19 @@ export async function runAnthropicAgent(opts: {
   if (!apiKey)
     return { error: "Anthropic is not configured — add your API key in Settings, or set ANTHROPIC_API_KEY." };
 
-  const tools = functionTools(opts.ctx.mode).map((t) => ({
+  type CacheControl = { type: "ephemeral" };
+  type AnthropicTool = { name: string; description: string; input_schema: unknown; cache_control?: CacheControl };
+  const tools: AnthropicTool[] = functionTools(opts.ctx.mode).map((t) => ({
     name: t.name,
     description: t.description,
     input_schema: t.parameters,
   }));
+  // Prompt caching: the tools block and the large, stable system prompt are
+  // identical on every hop of a turn (and across turns until the workspace
+  // changes), so mark them cacheable. Anthropic serves the prefix from cache —
+  // ~90% cheaper input tokens and noticeably lower latency on multi-hop tasks.
+  if (tools.length) tools[tools.length - 1] = { ...tools[tools.length - 1], cache_control: { type: "ephemeral" } };
+  const system = [{ type: "text" as const, text: opts.instructions, cache_control: { type: "ephemeral" as const } }];
 
   const messages: Array<{ role: "user" | "assistant"; content: unknown }> = opts.messages.map((m) => ({
     role: m.role,
@@ -98,33 +140,23 @@ export async function runAnthropicAgent(opts: {
   let tokensUsed = 0;
 
   for (let hop = 0; hop <= MAX_HOPS; hop++) {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: opts.model,
-        max_tokens: 8192,
-        system: opts.instructions,
-        messages,
-        tools,
-      }),
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      return { error: `Anthropic error ${res.status}: ${detail.slice(0, 300)}` };
-    }
-
-    const data = (await res.json()) as {
+    let data: {
       content: AnthropicContentBlock[];
       stop_reason?: string;
       usage?: { input_tokens?: number; output_tokens?: number };
     };
+    try {
+      data = (await anthropicMessages(apiKey, {
+        model: opts.model,
+        max_tokens: ANTHROPIC_MAX_OUTPUT,
+        system,
+        messages,
+        tools,
+      })) as typeof data;
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Anthropic request failed" };
+    }
+
     tokensUsed += (data.usage?.input_tokens ?? 0) + (data.usage?.output_tokens ?? 0);
     const toolUses = data.content.filter((b) => b.type === "tool_use");
 
@@ -139,20 +171,27 @@ export async function runAnthropicAgent(opts: {
 
     messages.push({ role: "assistant", content: data.content });
 
+    const settled = await runToolCalls(
+      toolUses,
+      (c) => c.name ?? "",
+      async (call) => {
+        let result: unknown;
+        try {
+          result = await executeTool(call.name ?? "", call.input ?? {}, opts.ctx);
+        } catch (e) {
+          result = { error: e instanceof Error ? e.message : "tool failed" };
+        }
+        return { call, result };
+      },
+    );
     const results = [];
-    for (const call of toolUses) {
-      let result: unknown;
-      try {
-        result = await executeTool(call.name ?? "", call.input ?? {}, opts.ctx);
-      } catch (e) {
-        result = { error: e instanceof Error ? e.message : "tool failed" };
-      }
+    for (const { call, result } of settled) {
       actions.push({ tool: call.name ?? "", label: toolLabel(call.name ?? "", result) });
       mergeChanges(changes, result);
       results.push({
         type: "tool_result",
         tool_use_id: call.id,
-        content: JSON.stringify(result).slice(0, TOOL_RESULT_CAP),
+        content: JSON.stringify(result).slice(0, toolResultCapFor(call.name ?? "")),
       });
     }
     messages.push({ role: "user", content: results });
@@ -192,32 +231,38 @@ export async function runLocalAgent(opts: {
 
   try {
     for (let hop = 0; hop <= MAX_HOPS; hop++) {
-      const resp = await client.chat.completions.create({ model: opts.model, messages, tools });
+      const resp = await withRetry(() => client.chat.completions.create({ model: opts.model, messages, tools }));
       tokensUsed += resp.usage?.total_tokens ?? 0;
       const msg = resp.choices[0]?.message;
       if (!msg) return { error: "empty response from the local model" };
 
-      const calls = msg.tool_calls ?? [];
+      const calls = (msg.tool_calls ?? []).filter((c) => c.type === "function");
       if (calls.length === 0 || hop === MAX_HOPS || outOfBudget(tokensUsed)) {
         return { text: (msg.content ?? "").trim() || "(no reply)", actions, changes, tokensUsed };
       }
 
       messages.push(msg);
-      for (const call of calls) {
-        if (call.type !== "function") continue;
-        let result: unknown;
-        try {
-          const args = JSON.parse(call.function.arguments || "{}") as Record<string, unknown>;
-          result = await executeTool(call.function.name, args, opts.ctx);
-        } catch (e) {
-          result = { error: e instanceof Error ? e.message : "tool failed" };
-        }
+      const settled = await runToolCalls(
+        calls,
+        (c) => c.function.name,
+        async (call) => {
+          let result: unknown;
+          try {
+            const args = JSON.parse(call.function.arguments || "{}") as Record<string, unknown>;
+            result = await executeTool(call.function.name, args, opts.ctx);
+          } catch (e) {
+            result = { error: e instanceof Error ? e.message : "tool failed" };
+          }
+          return { call, result };
+        },
+      );
+      for (const { call, result } of settled) {
         actions.push({ tool: call.function.name, label: toolLabel(call.function.name, result) });
         mergeChanges(changes, result);
         messages.push({
           role: "tool",
           tool_call_id: call.id,
-          content: JSON.stringify(result).slice(0, TOOL_RESULT_CAP),
+          content: JSON.stringify(result).slice(0, toolResultCapFor(call.function.name)),
         });
       }
     }

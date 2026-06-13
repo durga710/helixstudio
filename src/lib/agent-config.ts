@@ -33,6 +33,26 @@ export const AGENT_LIMITS = {
   searchMatchCap: 30,
 } as const;
 
+/** Tools that only read state — safe to execute in parallel within one hop. */
+export const READONLY_TOOLS = new Set(["list_files", "read_file", "search_files", "semantic_search"]);
+
+/**
+ * Cap for a tool result fed back to the model. read_file is already capped at
+ * readCap (24k) inside the tool, so the generic 8k cap would re-truncate it —
+ * the model would only see the first third of a file it's about to edit. Give
+ * read_file the larger budget; everything else stays at the lean default.
+ */
+export function toolResultCapFor(toolName: string): number {
+  return toolName === "read_file" ? AGENT_LIMITS.readCap + 2_000 : AGENT_LIMITS.toolResultCap;
+}
+
+/**
+ * Anthropic requires an output-token budget per request. A tool-using build
+ * turn can emit a large write_files payload, so 8k truncated big writes; this
+ * is the headroom (the model is billed for actual output, not this ceiling).
+ */
+export const ANTHROPIC_MAX_OUTPUT = 32_000;
+
 /* ------------------------- tier token quotas ------------------------ */
 
 export type UserTier = "free" | "pro" | "team";
