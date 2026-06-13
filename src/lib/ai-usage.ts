@@ -23,7 +23,8 @@ export type AiUsageKind =
   | "ledger_ask"
   | "undo_preview"
   | "rerank"
-  | "template_classify";
+  | "template_classify"
+  | "intake_curation";
 
 export interface AiUsageInput {
   userId: string;

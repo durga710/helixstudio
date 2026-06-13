@@ -79,9 +79,12 @@ const STARTERS = [
   { icon: Newspaper, title: "Mini blog", prompt: "A simple blog with three sample posts and a clean reading layout" },
 ] as const;
 
-/** Stack choices for the new-project intake. "You decide" = let Helix pick;
- * the rest map to the real scaffolds the template engine knows. */
-const STACKS = ["You decide", "Next.js", "React (Vite)", "Flask", "Express", "Django"] as const;
+/** A curation question returned by the intake engine (/api/.../intake). */
+interface IntakeQ {
+  key: string;
+  text: string;
+  options?: string[];
+}
 
 /** Older turns may have a model-only build brief baked into the stored user
  * message; show only the real request. New turns send the brief separately so
@@ -164,10 +167,14 @@ export function ChatPanel({
   // True while THIS tab is running a turn, so the resume poller stands down.
   const localSend = useRef(false);
 
-  // Conversational new-project intake (scratch only): a scripted, ZERO-token
-  // Q&A that curates the request (idea + stack) before the AI's first turn.
-  const [intakeStep, setIntakeStep] = useState<0 | 1 | "done">(0);
+  // Conversational new-project intake (scratch only): the curation ENGINE
+  // (rules + a tiny gated AI call) drives this — idle → ask the idea, thinking →
+  // engine runs, asking → dynamic questions, done → real build kicks off.
+  const [intakePhase, setIntakePhase] = useState<"idle" | "thinking" | "asking" | "done">("idle");
   const [intakeIdea, setIntakeIdea] = useState("");
+  const [intakeQuestions, setIntakeQuestions] = useState<IntakeQ[]>([]);
+  const [intakeAnswers, setIntakeAnswers] = useState<Record<string, string>>({});
+  const [intakeQIndex, setIntakeQIndex] = useState(0);
 
   // Plan/Build is easy to lose track of, so a user toggle pops a brief toast
   // (auto-dismisses) on top of the always-on plan-mode banner.
@@ -436,37 +443,64 @@ export function ChatPanel({
 
   /* --------------------- new-project intake ----------------------- */
 
-  // Runs only for a brand-new, empty scratch workspace — a scripted, zero-token
-  // conversation that curates idea + stack before the AI's first turn.
+  // Runs only for a brand-new, empty scratch workspace.
   const intakeActive =
-    messages !== null && messages.length === 0 && !busy && workspace.mode === "SCRATCH" && intakeStep !== "done";
+    messages !== null && messages.length === 0 && !busy && workspace.mode === "SCRATCH" && intakePhase !== "done";
+
+  // Hand off to the real build: the idea is the visible first message; the
+  // engine's curated brief rides along as a MODEL-ONLY hint (never shown).
+  function launchIntake(idea: string, brief: string) {
+    setIntakePhase("done");
+    void send(idea, mode, verifyOn, brief || undefined);
+  }
+
+  // Call the curation engine. Round 1 = just the idea; round 2 adds answers.
+  // Never blocks: any failure just builds from the idea directly.
+  async function runEngine(idea: string, answers?: Record<string, string>) {
+    setIntakePhase("thinking");
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}/intake`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idea, ...(answers ? { answers } : {}) }),
+      });
+      const json = await res.json().catch(() => null);
+      const data = json?.ok ? json.data : null;
+      if (!data || data.done) {
+        launchIntake(idea, data?.brief ?? "");
+      } else {
+        setIntakeQuestions(data.questions as IntakeQ[]);
+        setIntakeAnswers({});
+        setIntakeQIndex(0);
+        setIntakePhase("asking");
+      }
+    } catch {
+      launchIntake(idea, "");
+    }
+  }
 
   function chooseIdea(text: string) {
     const t = text.trim();
     if (!t) return;
     setIntakeIdea(t);
-    setIntakeStep(1);
     setInput("");
+    void runEngine(t);
   }
 
-  // Hand off to the real build: the user's idea is the visible first message;
-  // the stack choice rides along as a MODEL-ONLY brief (never shown).
-  function launchIntake(stack: string) {
-    setIntakeStep("done");
-    const brief =
-      stack && stack !== "You decide"
-        ? `The user picked a preferred stack: ${stack}. Build with it unless it's clearly unsuitable for the request. `
-        : "";
-    void send(intakeIdea, mode, verifyOn, brief);
+  function answerQuestion(value: string) {
+    const q = intakeQuestions[intakeQIndex];
+    if (!q) return;
+    const answers = { ...intakeAnswers, [q.key]: value.trim() || "Skip" };
+    setIntakeAnswers(answers);
+    setInput("");
+    if (intakeQIndex < intakeQuestions.length - 1) setIntakeQIndex(intakeQIndex + 1);
+    else void runEngine(intakeIdea, answers);
   }
 
-  // The composer routes here while the intake is active.
+  // The composer routes here while the intake is taking input.
   function intakeSubmit(text: string) {
-    if (intakeStep === 0) chooseIdea(text);
-    else if (intakeStep === 1 && text.trim()) {
-      setInput("");
-      launchIntake(text.trim()); // typed a stack name instead of tapping a chip
-    }
+    if (intakePhase === "idle") chooseIdea(text);
+    else if (intakePhase === "asking" && text.trim()) answerQuestion(text);
   }
 
   // Resume an in-flight turn on mount: if the workspace has a live progress
@@ -605,8 +639,8 @@ export function ChatPanel({
           </div>
         ) : messages.length === 0 && !busy ? (
           intakeActive ? (
-            // New-project intake: a scripted, zero-token conversation that
-            // curates idea + stack before the AI's first build turn.
+            // New-project intake driven by the curation engine (rules + a tiny
+            // gated AI call): greeting → idea → dynamic questions → build.
             <div className="space-y-4">
               <div className="flex justify-start gap-2.5">
                 <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border bg-panel2">
@@ -617,7 +651,7 @@ export function ChatPanel({
                 </div>
               </div>
 
-              {intakeStep === 0 ? (
+              {intakePhase === "idle" ? (
                 <div className="pl-[38px]">
                   <p className="mb-1.5 text-[11px] text-txt3">Type it below — or start from one of these:</p>
                   <div className="flex flex-wrap gap-1.5">
@@ -640,26 +674,64 @@ export function ChatPanel({
                       {intakeIdea}
                     </div>
                   </div>
-                  <div className="flex justify-start gap-2.5">
-                    <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border bg-panel2">
-                      <Sparkles className="h-3.5 w-3.5 text-accent" />
-                    </span>
-                    <div className="max-w-[88%] rounded-2xl border border-border bg-panel2 px-4 py-2.5 text-sm leading-relaxed text-txt">
-                      Nice. Any stack in mind, or should I pick the best fit?
+
+                  {intakeQuestions.map((q) => {
+                    const ans = intakeAnswers[q.key];
+                    const isCurrent = intakePhase === "asking" && intakeQuestions[intakeQIndex]?.key === q.key;
+                    if (!ans && !isCurrent) return null;
+                    return (
+                      <div key={q.key} className="space-y-2">
+                        <div className="flex justify-start gap-2.5">
+                          <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border bg-panel2">
+                            <Sparkles className="h-3.5 w-3.5 text-accent" />
+                          </span>
+                          <div className="max-w-[88%] rounded-2xl border border-border bg-panel2 px-4 py-2.5 text-sm leading-relaxed text-txt">
+                            {q.text}
+                          </div>
+                        </div>
+                        {ans ? (
+                          <div className="flex justify-end gap-2.5">
+                            <div className="inline-block max-w-[88%] rounded-2xl border border-accent/35 bg-hl px-4 py-2.5 text-sm text-txt">
+                              {ans}
+                            </div>
+                          </div>
+                        ) : q.options && q.options.length ? (
+                          <div className="flex flex-wrap gap-1.5 pl-[38px]">
+                            {q.options.map((o) => (
+                              <button
+                                key={o}
+                                type="button"
+                                onClick={() => answerQuestion(o)}
+                                className="rounded-full border border-border2 bg-panel2 px-3 py-1 text-[11.5px] text-txt2 transition-colors hover:border-accent hover:text-txt"
+                              >
+                                {o}
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => answerQuestion("Skip")}
+                              className="rounded-full px-3 py-1 text-[11.5px] text-txt3 transition-colors hover:text-txt"
+                            >
+                              Skip
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="pl-[38px] text-[11px] text-txt3">Type your answer below, or leave it blank to skip.</p>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {intakePhase === "thinking" && (
+                    <div className="flex justify-start gap-2.5">
+                      <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border bg-panel2">
+                        <Sparkles className="h-3.5 w-3.5 animate-pulse text-accent" />
+                      </span>
+                      <div className="flex max-w-[88%] items-center gap-2 rounded-2xl border border-border bg-panel2 px-4 py-2.5 text-sm text-txt2">
+                        <Loader2 className="h-4 w-4 animate-spin text-accent" /> Curating your project…
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 pl-[38px]">
-                    {STACKS.map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => launchIntake(s)}
-                        className="rounded-full border border-border2 bg-panel2 px-3 py-1 text-[11.5px] text-txt2 transition-colors hover:border-accent hover:text-txt"
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
+                  )}
                 </>
               )}
             </div>
@@ -1000,9 +1072,11 @@ export function ChatPanel({
               guestBlocked
                 ? "Guest allowance used — sign in to continue"
                 : intakeActive
-                  ? intakeStep === 0
+                  ? intakePhase === "idle"
                     ? "Tell Helix what you want to build…"
-                    : "Type a stack, or pick one above…"
+                    : intakePhase === "asking"
+                      ? "Type an answer, or tap an option above…"
+                      : "Curating…"
                   : mode === "plan"
                     ? "Describe it — Helix plans first, builds after you approve…"
                     : workspace.mode === "IMPORT"
