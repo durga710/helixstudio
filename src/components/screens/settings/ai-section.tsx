@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { AlertTriangle, Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -82,6 +82,24 @@ export function AiSection() {
   const [keyState, setKeyState] = useState<KeyState>("idle");
   const [keyMsg, setKeyMsg] = useState<string | null>(null);
 
+  // Live model list (what the active key can access) — dynamic per key, so the
+  // dropdown shows real options instead of static guesses. Cloud providers only;
+  // `local` keeps the free-text id (its models come from the endpoint URL).
+  const [liveModels, setLiveModels] = useState<string[] | null>(null);
+  const loadModels = useCallback(async (p: ProviderId) => {
+    if (p === "local") {
+      setLiveModels(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/ai/models?provider=${p}`, { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      setLiveModels(res.ok && json?.ok ? (json.data.models as string[]) : null);
+    } catch {
+      setLiveModels(null);
+    }
+  }, []);
+
   // Validate the saved config for a provider and reflect it in the dot.
   async function checkKey(p: ProviderId) {
     setKeyState("checking");
@@ -114,8 +132,9 @@ export function AiSection() {
         setKeySet(d.keySet);
         setTokenSet(d.githubTokenSet);
         setGitConn(d.gitConnections ?? {});
-        // Show the saved provider's key status on load.
+        // Show the saved provider's key status on load + list its live models.
         void checkKey(p);
+        void loadModels(p);
       })
       .catch(() => setUnavailable(true));
   }, []);
@@ -123,6 +142,8 @@ export function AiSection() {
   if (unavailable) return null;
 
   const preset = MODEL_PRESETS[provider] ?? MODEL_PRESETS.openai;
+  // Live list (dynamic per key) when available, else the static presets.
+  const modelOptions = liveModels?.length ? liveModels : preset.models;
   const apiKeySet = keySet[provider];
   // Platform (server) keys are admin-only — serverKeys reflects what THIS user
   // can actually use, so a non-admin always sees "bring your own key".
@@ -185,6 +206,7 @@ export function AiSection() {
               setProvider(p);
               setModel(MODEL_PRESETS[p].models[0]);
               void checkKey(p); // reflect the newly-selected provider's saved key
+              void loadModels(p); // list models this provider's key can access
             }}
             options={(Object.entries(MODEL_PRESETS) as [ProviderId, (typeof MODEL_PRESETS)[string]][]).map(
               ([value, p]) => ({ value, label: p.label }),
@@ -193,12 +215,12 @@ export function AiSection() {
         </div>
         <div className="flex gap-2">
           <select
-            value={preset.models.includes(model) ? model : "__custom"}
+            value={modelOptions.includes(model) ? model : "__custom"}
             onChange={(e) => e.target.value !== "__custom" && setModel(e.target.value)}
             aria-label="Model preset"
             className="rounded-[9px] border border-border2 bg-panel2 px-2 py-2 font-mono text-xs outline-none focus:border-accent"
           >
-            {preset.models.map((m) => (
+            {modelOptions.map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>

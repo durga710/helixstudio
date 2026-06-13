@@ -127,9 +127,38 @@ export function ModelPicker() {
     [model],
   );
 
-  // When the picker opens on the local provider, fetch what's running.
+  // Live model list for a cloud provider (openai/anthropic/gemini) — the
+  // server resolves the active key and returns only models that key can
+  // access, so the dropdown is dynamic per key.
+  const listCloudModels = useCallback(async (p: string) => {
+    setListing(true);
+    setLiveError(null);
+    try {
+      const res = await fetch(`/api/ai/models?provider=${encodeURIComponent(p)}`, { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        const models = json.data.models as string[];
+        setLiveModels(models);
+        if (models.length > 0 && !models.includes(model)) setModel(models[0]);
+        // Empty list just means "no usable key" — keep the presets silently.
+        if (models.length === 0 && json.data.reason === "auth") setLiveError("The saved key was rejected.");
+      } else {
+        setLiveModels(null);
+      }
+    } catch {
+      setLiveModels(null);
+    }
+    setListing(false);
+  }, [model]);
+
+  // When the picker opens (or the provider changes), refresh the live model
+  // list for whichever provider is selected.
   useEffect(() => {
-    if (open && provider === "local") void listLocalModels(baseUrl);
+    if (!open) return;
+    setLiveModels(null);
+    setLiveError(null);
+    if (provider === "local") void listLocalModels(baseUrl);
+    else void listCloudModels(provider);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, provider]);
 
@@ -140,7 +169,9 @@ export function ModelPicker() {
   }, [open, provider]);
 
   const preset = MODEL_PRESETS[provider] ?? MODEL_PRESETS.openai;
-  const modelOptions = provider === "local" && liveModels?.length ? liveModels : preset.models;
+  // Live list (what the active key can actually access) when we have one;
+  // otherwise the static presets. Applies to every provider now.
+  const modelOptions = liveModels?.length ? liveModels : preset.models;
   const keySaved = prefs?.keySet?.[provider as keyof Prefs["keySet"]] ?? false;
 
   const chipModel = prefs ? prefs.aiModel || "default" : "…";
@@ -269,7 +300,7 @@ export function ModelPicker() {
                       setModel(key === "local" ? "" : MODEL_PRESETS[key].models[0]);
                       setNote(null);
                       setKeyMode(prefs?.keySet?.[key as keyof Prefs["keySet"]] ? "own" : "shared");
-                      if (key === "local") void listLocalModels(baseUrl);
+                      // The open/provider effect refreshes the live model list.
                     }}
                     className={cn(
                       "rounded-lg border px-2.5 py-1 text-[11px] transition-colors",
