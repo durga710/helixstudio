@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { WorkspacePicker } from "@/components/screens/workspace-picker";
 import {
   DraftingCompass,
   ListTodo,
@@ -41,7 +42,15 @@ const CARD_ORDER: Array<{ step: PipelineStep; agentId: string }> = [
   { step: "performance", agentId: "performance" },
 ];
 
-export function AgentsScreen({ agents }: { agents: AgentInfo[] }) {
+export function AgentsScreen({
+  agents,
+  workspaceId,
+  workspaceName,
+}: {
+  agents: AgentInfo[];
+  workspaceId?: string;
+  workspaceName?: string;
+}) {
   const [states, setStates] = useState<Record<PipelineStep, StepState>>(
     () => Object.fromEntries(PIPELINE_STEPS.map((s) => [s, "idle"])) as Record<PipelineStep, StepState>
   );
@@ -59,7 +68,8 @@ export function AgentsScreen({ agents }: { agents: AgentInfo[] }) {
 
   const runStepSSE = useCallback((step: PipelineStep) => {
     return new Promise<void>((resolve, reject) => {
-      const es = new EventSource(`/api/agents/run?step=${step}`);
+      const wsParam = workspaceId ? `&w=${workspaceId}` : "";
+      const es = new EventSource(`/api/agents/run?step=${step}${wsParam}`);
       es.onmessage = (e) => {
         const event = JSON.parse(e.data) as StepEvent;
         if (event.type === "start") {
@@ -134,13 +144,20 @@ export function AgentsScreen({ agents }: { agents: AgentInfo[] }) {
         <div>
           <h1 className="text-[22px] font-bold tracking-tight">Agents</h1>
           <p className="mt-1 text-[13px] text-txt2">
-            Six specialists collaborate on every task — each confirms before it acts.
+            {workspaceName
+              ? `Running on ${workspaceName} — six specialists collaborate on every task.`
+              : "Six specialists collaborate on every task — select a workspace to analyze."}
           </p>
         </div>
-        <Button onClick={run} disabled={running}>
-          <Play className="h-[15px] w-[15px]" strokeWidth={2} />
-          {running ? "Running…" : "Run workflow"}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Suspense>
+            <WorkspacePicker />
+          </Suspense>
+          <Button onClick={run} disabled={running}>
+            <Play className="h-[15px] w-[15px]" strokeWidth={2} />
+            {running ? "Running…" : "Run workflow"}
+          </Button>
+        </div>
       </div>
 
       {/* Pipeline */}

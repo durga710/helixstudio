@@ -5,7 +5,6 @@ import { Bot, Database, Layers, Plus, Scale, Search, ShieldCheck, SquareSlash, W
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Segmented } from "@/components/ui/segmented";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { useShell } from "@/components/shell/shell-context";
@@ -47,7 +46,6 @@ const GROUP_ORDER = [
 export function SkillsScreen() {
   const [query, setQuery] = useState("");
   const [source, setSource] = useState<SourceFilter>("all");
-  const [disabled, setDisabled] = useState<Set<string>>(new Set());
   const [detail, setDetail] = useState<CatalogEntry | null>(null);
   const { setNewProjectOpen } = useShell();
 
@@ -68,17 +66,7 @@ export function SkillsScreen() {
     return GROUP_ORDER.filter((g) => map.has(g)).map((g) => [g, map.get(g)!] as const);
   }, [visible]);
 
-  const scoped = ALL_ENTRIES.filter((e) => source === "all" || e.source === source);
-  const enabledCount = scoped.filter((e) => !disabled.has(e.id)).length;
-
-  function toggle(entry: CatalogEntry) {
-    setDisabled((prev) => {
-      const next = new Set(prev);
-      if (next.has(entry.id)) next.delete(entry.id);
-      else next.add(entry.id);
-      return next;
-    });
-  }
+  const totalCount = ALL_ENTRIES.filter((e) => source === "all" || e.source === source).length;
 
   return (
     <div className="pad-screen">
@@ -119,7 +107,7 @@ export function SkillsScreen() {
             { value: "ecc", label: "ECC" },
           ]}
         />
-        <Pill tone="green">{enabledCount} enabled</Pill>
+        <Pill tone="green">{totalCount} skills</Pill>
         {source !== "all" && <span className="text-[11.5px] text-txt3">{SOURCE_LABELS[source]}</span>}
       </div>
 
@@ -148,41 +136,33 @@ export function SkillsScreen() {
               )}
             </div>
             <div className="grid grid-cols-1 gap-[11px] md:grid-cols-2 xl:grid-cols-3">
-              {entries.map((entry) => {
-                const enabled = !disabled.has(entry.id);
-                return (
-                  <Card
-                    key={entry.id}
-                    className="flex cursor-pointer flex-col gap-[7px] p-3.5 transition-all duration-150 hover:-translate-y-px hover:border-accent"
-                    onClick={() => setDetail(entry)}
-                  >
-                    <div className="flex items-center gap-[9px]">
-                      <div className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] font-mono text-[11px] font-bold uppercase tracking-[0.02em] text-accent">
-                        {entry.code}
-                      </div>
-                      <div className="truncate font-mono text-xs font-semibold text-txt">{entry.name}</div>
+              {entries.map((entry) => (
+                <Card
+                  key={entry.id}
+                  className="flex cursor-pointer flex-col gap-[7px] p-3.5 transition-all duration-150 hover:-translate-y-px hover:border-accent"
+                  onClick={() => setDetail(entry)}
+                >
+                  <div className="flex items-center gap-[9px]">
+                    <div className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] font-mono text-[11px] font-bold uppercase tracking-[0.02em] text-accent">
+                      {entry.code}
                     </div>
-                    <div className="flex-1 text-xs leading-[1.45] text-txt2">{entry.description}</div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-[10px] text-txt3">{entry.tag}</span>
-                      <span className="ml-auto" onClick={(e) => e.stopPropagation()}>
-                        <Switch
-                          size="sm"
-                          checked={enabled}
-                          onCheckedChange={() => toggle(entry)}
-                          aria-label={`Toggle ${entry.name}`}
-                        />
-                      </span>
-                    </div>
-                  </Card>
-                );
-              })}
+                    <div className="truncate font-mono text-xs font-semibold text-txt">{entry.name}</div>
+                  </div>
+                  <div className="flex-1 text-xs leading-[1.45] text-txt2">{entry.description}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-txt3">{entry.tag}</span>
+                    <span className="ml-auto">
+                      <Pill tone="green" className="text-[10px]">active</Pill>
+                    </span>
+                  </div>
+                </Card>
+              ))}
             </div>
           </div>
         );
       })}
 
-      {/* Skill detail view (Phase 0) */}
+      {/* Skill detail view */}
       <Dialog open={detail !== null} onOpenChange={(open) => !open && setDetail(null)}>
         <DialogContent>
           {detail && (
@@ -223,16 +203,6 @@ export function SkillsScreen() {
                       using ECC&apos;s <code className="rounded bg-panel px-1 font-mono text-[11px] text-txt">.claude-plugin/marketplace.json</code>.
                     </>
                   )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-txt2">
-                    {disabled.has(detail.id) ? "Disabled for this workspace" : "Enabled for this workspace"}
-                  </span>
-                  <Switch
-                    checked={!disabled.has(detail.id)}
-                    onCheckedChange={() => toggle(detail)}
-                    aria-label={`Toggle ${detail.name}`}
-                  />
                 </div>
               </div>
             </>

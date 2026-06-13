@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import {
+  BarChart2,
   ChartLine,
   Cpu,
   Database,
@@ -10,12 +12,16 @@ import {
   Package,
   Server,
 } from "lucide-react";
-import { activeProject, activeWorkspace, setActiveProject } from "@/lib/store";
+import { auth } from "@/lib/auth";
+import { db, dbEnabled } from "@/lib/db";
+import { loadWorkspaceSources } from "@/lib/repo/load-sources";
+import { analyzeRepo } from "@/lib/repo/analyze";
 import { timeAgo } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { NextLogo, PrismaLogo } from "@/components/logos";
-import type { AnalysisRisk } from "@/lib/types";
+import { WorkspacePicker } from "@/components/screens/workspace-picker";
+import type { AnalysisRisk, AnalysisReport } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Repository Analysis" };
 export const dynamic = "force-dynamic";
@@ -34,25 +40,13 @@ function riskIcon(risk: AnalysisRisk) {
   return <Package className="h-[18px] w-[18px]" strokeWidth={1.7} />;
 }
 
-export default async function AnalysisPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ project?: string }>;
-}) {
-  const { project: requestedProject } = await searchParams;
-  if (requestedProject) setActiveProject(requestedProject);
-  const { analysis } = activeWorkspace();
-  const project = activeProject();
-
+function AnalysisView({ analysis, wsName }: { analysis: AnalysisReport; wsName: string }) {
   return (
-    <div className="pad-screen">
-      <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">
-        Repository analysis
-      </div>
-      <h1 className="text-[22px] font-bold tracking-tight">{project?.name ?? analysis.projectId}</h1>
+    <>
+      <h1 className="text-[22px] font-bold tracking-tight">{wsName}</h1>
       <p className="mt-1 text-[13px] text-txt2">
-        Static scan completed in {analysis.scanSeconds}s · {analysis.files.toLocaleString()} files · last
-        commit {timeAgo(analysis.lastCommit)}
+        Static scan completed in {analysis.scanSeconds.toFixed(2)}s · {analysis.files.toLocaleString()} files · last
+        scanned {timeAgo(analysis.lastCommit)}
       </p>
 
       <div className="mt-[18px] grid grid-cols-1 gap-3.5 lg:grid-cols-[1.35fr_1fr]">
@@ -118,35 +112,88 @@ export default async function AnalysisPage({
 
       <div className="mb-[11px] mt-6 flex items-center justify-between">
         <h3 className="text-sm font-semibold">Potential risks</h3>
-        <span className="text-[11.5px] text-txt3">Surfaced by Security &amp; Performance agents</span>
+        <span className="text-[11.5px] text-txt3">Surfaced by static analysis</span>
       </div>
-      <Card className="p-[18px]">
-        {analysis.risks.map((risk, i) => (
-          <div
-            key={risk.id}
-            className={`flex items-center gap-[11px] rounded-[9px] border border-border2 bg-panel2 p-3 ${
-              i < analysis.risks.length - 1 ? "mb-[9px]" : ""
-            }`}
-          >
+      {analysis.risks.length === 0 ? (
+        <Card className="p-[18px] text-center text-sm text-txt3">No risks detected — scan clean.</Card>
+      ) : (
+        <Card className="p-[18px]">
+          {analysis.risks.map((risk, i) => (
             <div
-              className={`grid h-[30px] w-[30px] shrink-0 place-items-center rounded-lg ${
-                risk.severity === "high"
-                  ? "bg-[color-mix(in_srgb,var(--red)_12%,transparent)] text-bad"
-                  : "bg-[color-mix(in_srgb,var(--amber)_12%,transparent)] text-warn"
+              key={risk.id}
+              className={`flex items-center gap-[11px] rounded-[9px] border border-border2 bg-panel2 p-3 ${
+                i < analysis.risks.length - 1 ? "mb-[9px]" : ""
               }`}
             >
-              {riskIcon(risk)}
+              <div
+                className={`grid h-[30px] w-[30px] shrink-0 place-items-center rounded-lg ${
+                  risk.severity === "high"
+                    ? "bg-[color-mix(in_srgb,var(--red)_12%,transparent)] text-bad"
+                    : "bg-[color-mix(in_srgb,var(--amber)_12%,transparent)] text-warn"
+                }`}
+              >
+                {riskIcon(risk)}
+              </div>
+              <div className="min-w-0">
+                <h5 className="text-[12.5px] font-semibold">{risk.title}</h5>
+                <p className="text-xs text-txt2">{risk.detail}</p>
+              </div>
+              <Pill tone={riskTone[risk.severity]} className="ml-auto shrink-0 capitalize">
+                {risk.severity}
+              </Pill>
             </div>
-            <div className="min-w-0">
-              <h5 className="text-[12.5px] font-semibold">{risk.title}</h5>
-              <p className="text-xs text-txt2">{risk.detail}</p>
-            </div>
-            <Pill tone={riskTone[risk.severity]} className="ml-auto shrink-0 capitalize">
-              {risk.severity}
-            </Pill>
-          </div>
-        ))}
-      </Card>
+          ))}
+        </Card>
+      )}
+    </>
+  );
+}
+
+export default async function AnalysisPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ w?: string }>;
+}) {
+  const { w } = await searchParams;
+
+  let analysis: AnalysisReport | null = null;
+  let wsName = "Workspace";
+
+  if (w && dbEnabled()) {
+    const session = await auth();
+    if (session?.user) {
+      const ws = await db().workspace.findFirst({
+        where: { id: w, userId: session.user.id },
+        select: { id: true, name: true },
+      });
+      if (ws) {
+        wsName = ws.name;
+        const files = await loadWorkspaceSources(ws.id);
+        analysis = analyzeRepo(ws.id, ws.name, files);
+      }
+    }
+  }
+
+  return (
+    <div className="pad-screen">
+      <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">
+        Repository analysis
+      </div>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <BarChart2 className="h-5 w-5 text-accent" strokeWidth={1.7} />
+        <span className="text-sm font-semibold text-txt2">Select workspace to analyze</span>
+        <Suspense>
+          <WorkspacePicker />
+        </Suspense>
+      </div>
+
+      {analysis ? (
+        <AnalysisView analysis={analysis} wsName={wsName} />
+      ) : (
+        <Card className="p-12 text-center text-sm text-txt3">
+          Select a workspace above to run a static scan.
+        </Card>
+      )}
     </div>
   );
 }

@@ -5,9 +5,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
+  BarChart2,
+  Bot,
   Code2,
   Home,
+  Layers,
   LogOut,
+  Rocket,
   Settings,
   Users,
 } from "lucide-react";
@@ -15,12 +19,14 @@ import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand";
 import { cn } from "@/lib/utils";
 
-// Analysis/Agents/Skills/Deployments/Team are demo-only screens — hidden
-// from the nav until they run on real data (pages still exist by URL).
 export const NAV_ITEMS = [
   { href: "/", title: "Home", icon: Home },
   { href: "/editor", title: "Editor", icon: Code2 },
   { href: "/space", title: "Space", icon: Users },
+  { href: "/agents", title: "Agents", icon: Bot },
+  { href: "/analysis", title: "Analysis", icon: BarChart2 },
+  { href: "/deployments", title: "Deployments", icon: Rocket },
+  { href: "/skills", title: "Skills", icon: Layers },
 ] as const;
 
 export function Rail({ userInitials, userImage }: { userInitials: string; userImage?: string | null }) {

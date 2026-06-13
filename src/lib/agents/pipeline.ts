@@ -129,14 +129,19 @@ async function* runStepScripted(step: PipelineStep): AsyncGenerator<StepEvent> {
   yield { type: "done", step, result: script.result };
 }
 
-/** Real run — the agent analyzes the active workspace with Claude (BYOK or
- * platform key) and streams its findings line by line. */
-async function* runStepReal(step: PipelineStep, apiKey: string): AsyncGenerator<StepEvent> {
+/** Real run — the agent analyzes the workspace with Claude (BYOK or
+ * platform key) and streams its findings line by line.
+ * Pass a pre-built `context` string to skip the seeded store fallback. */
+async function* runStepReal(step: PipelineStep, apiKey: string, context?: string): AsyncGenerator<StepEvent> {
   const { streamCompletion } = await import("@/lib/ai/provider");
-  const { workspaceContext } = await import("@/lib/repo/context");
+
+  if (!context) {
+    const { workspaceContext } = await import("@/lib/repo/context");
+    context = workspaceContext(AGENT_PROMPTS[step]);
+  }
 
   yield { type: "start", step };
-  const system = `${AGENT_PROMPTS[step]} Respond with exactly 3 short bullet lines (no preamble, no markdown headers), each a concrete finding about THIS repository.\n\n${workspaceContext(AGENT_PROMPTS[step])}`;
+  const system = `${AGENT_PROMPTS[step]} Respond with exactly 3 short bullet lines (no preamble, no markdown headers), each a concrete finding about THIS repository.\n\n${context}`;
 
   let buffer = "";
   let emitted = 0;
@@ -168,6 +173,6 @@ async function* runStepReal(step: PipelineStep, apiKey: string): AsyncGenerator<
   }
 }
 
-export function runStep(step: PipelineStep, apiKey?: string): AsyncGenerator<StepEvent> {
-  return apiKey ? runStepReal(step, apiKey) : runStepScripted(step);
+export function runStep(step: PipelineStep, apiKey?: string, context?: string): AsyncGenerator<StepEvent> {
+  return apiKey ? runStepReal(step, apiKey, context) : runStepScripted(step);
 }

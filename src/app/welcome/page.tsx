@@ -100,7 +100,7 @@ const PLANS = [
     per: " / mo",
     popular: false,
     cta: "Start free",
-    items: ["1 repository", "Editor + repo-aware chat", "All 24 skills", "Community support"],
+    items: ["1 repository", "Editor + repo-aware chat", "All 24 skills", "100k AI tokens / mo", "Community support"],
   },
   {
     name: "Pro",
@@ -108,15 +108,15 @@ const PLANS = [
     per: " / mo",
     popular: true,
     cta: "Start Pro trial",
-    items: ["Unlimited repositories", "Full multi-agent pipeline", "One-click deploys", "Project memory", "Priority support"],
+    items: ["Unlimited repositories", "Full multi-agent pipeline", "One-click deploys", "25M AI tokens / mo", "Project memory", "Priority support"],
   },
   {
     name: "Team",
-    price: "$60",
-    per: " / user",
+    price: "$99",
+    per: " / mo",
     popular: false,
     cta: "Contact sales",
-    items: ["Everything in Pro", "Shared workspaces + RBAC", "Audit logs", "SSO"],
+    items: ["Everything in Pro", "100M AI tokens / mo", "Shared workspaces + RBAC", "Audit logs", "SSO"],
   },
 ];
 
