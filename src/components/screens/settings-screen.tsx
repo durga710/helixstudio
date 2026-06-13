@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { ACCENTS, useTheme, type Density, type Theme } from "@/components/theme-provider";
 import { usePrefs } from "@/hooks/use-prefs";
 import { AiSection } from "@/components/screens/settings/ai-section";
+import { PlanSection } from "@/components/screens/settings/plan-section";
 import { DeploySection } from "@/components/screens/settings/deploy-section";
 import { PrReviewSection } from "@/components/screens/settings/pr-review-section";
 import { timeAgo, cn } from "@/lib/utils";
@@ -442,6 +443,9 @@ export function SettingsScreen({
             logged on the server. Get a key at console.anthropic.com.
           </p>
         </Card>
+
+        {/* Plan & usage (tier, monthly token quota, Stripe upgrade/manage) */}
+        <PlanSection />
 
         {/* Editor AI & GitHub (workspace editor preferences, stored per user) */}
         <AiSection />

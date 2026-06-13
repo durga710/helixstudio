@@ -4,21 +4,34 @@
  * trust model as the git webhook. Handlers are payload-driven, idempotent
  * set-writes, so retries and duplicate deliveries are harmless.
  *
- *   checkout.session.completed            → link customer/subscription ids to the Space
- *   customer.subscription.created/updated → plan active, seats, period end
- *   customer.subscription.deleted         → back to the free plan (non-destructive)
+ *   checkout.session.completed            → link customer/subscription ids to the Space or User
+ *   customer.subscription.created/updated → Space: plan/seats/period · User: tier/period
+ *   customer.subscription.deleted         → back to the free plan/tier (non-destructive)
+ *
+ * Space subscriptions carry metadata.spaceId; user-tier subscriptions carry
+ * metadata.userId (both set at checkout) — that's how handlers branch.
  */
 
 import type Stripe from "stripe";
 import { db, dbEnabled, schemaReady } from "@/lib/db";
-import { billingEnabled, getStripe, applySubscriptionToSpace, syncSubscriptionById, type SubscriptionLike } from "@/lib/billing";
+import {
+  billingEnabled,
+  userBillingEnabled,
+  getStripe,
+  applySubscriptionToSpace,
+  applySubscriptionToUser,
+  syncSubscriptionById,
+  type SubscriptionLike,
+} from "@/lib/billing";
 import { reportError } from "@/lib/observability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  if (!billingEnabled() || !dbEnabled()) return new Response("billing not configured", { status: 503 });
+  if ((!billingEnabled() && !userBillingEnabled()) || !dbEnabled()) {
+    return new Response("billing not configured", { status: 503 });
+  }
 
   const raw = await req.text();
   const signature = req.headers.get("stripe-signature");
@@ -51,10 +64,18 @@ async function handleEvent(event: Stripe.Event): Promise<Response> {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object;
-      const spaceId = session.client_reference_id;
       const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
       const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
-      if (spaceId && subscriptionId) {
+      const userId = session.metadata?.userId; // user-tier checkout
+      const spaceId = userId ? null : session.client_reference_id; // Space checkout
+      if (userId && subscriptionId) {
+        await db()
+          .user.update({
+            where: { id: userId },
+            data: { stripeSubscriptionId: subscriptionId, ...(customerId ? { stripeCustomerId: customerId } : {}) },
+          })
+          .catch(() => {}); // unknown user (deleted meanwhile) — ignore
+      } else if (spaceId && subscriptionId) {
         await db()
           .space.update({
             where: { id: spaceId },
@@ -68,8 +89,11 @@ async function handleEvent(event: Stripe.Event): Promise<Response> {
     case "customer.subscription.created":
     case "customer.subscription.updated":
     case "customer.subscription.deleted": {
-      const handled = await applySubscriptionToSpace(event.data.object as unknown as SubscriptionLike);
-      return new Response(handled ? "ok" : "no matching space", { status: 200 });
+      const sub = event.data.object as unknown as SubscriptionLike;
+      const handled = sub.metadata?.userId
+        ? await applySubscriptionToUser(sub)
+        : await applySubscriptionToSpace(sub);
+      return new Response(handled ? "ok" : "no match", { status: 200 });
     }
 
     case "invoice.payment_failed": {

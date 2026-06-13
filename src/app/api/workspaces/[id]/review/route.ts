@@ -11,6 +11,9 @@ import { getGitAuth, withGitAuth, getProvider } from "@/lib/git";
 import { getOverlay } from "@/lib/workspace";
 import { runReviewer, resolveAiPrefs } from "@/lib/ai-agent";
 import { guardWorkspace } from "@/lib/route-helpers";
+import { checkTokenBudget } from "@/lib/token-budget";
+import { aiUsageOps } from "@/lib/ai-usage";
+import { err } from "@/lib/api-response";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -24,6 +27,9 @@ export async function POST(_req: Request, { params }: Params) {
   const g = await guardWorkspace("review", id, { limit: 30, windowMs: 60 * 60 * 1000 });
   if ("response" in g) return g.response;
   const { user, ws } = g;
+
+  const budget = await checkTokenBudget(user.id);
+  if (!budget.ok) return err(budget.code, budget.error, 403);
 
   const overlay = await getOverlay(ws);
   if (overlay.files.length === 0 && overlay.deletions.length === 0) {
@@ -70,7 +76,14 @@ export async function POST(_req: Request, { params }: Params) {
           actions: [{ tool: "review", label: "reviewed the pending changes" }],
         },
       }),
-      db().user.update({ where: { id: user.id }, data: { tokensUsed: { increment: result.tokensUsed } } }),
+      ...aiUsageOps({
+        userId: user.id,
+        tokens: result.tokensUsed,
+        kind: "review",
+        provider: ai.provider,
+        model: ai.model,
+        workspaceId: ws.id,
+      }),
     ]);
   } catch (e) {
     console.error("[helix-review] persist failed", e);

@@ -27,9 +27,25 @@ model User {
   createdAt     DateTime     @default(now())
 
   // Guest trial: anonymous accounts created by "Continue as guest".
-  // tokensUsed meters AI usage; guests are blocked at GUEST_TOKEN_LIMIT.
+  // tokensUsed meters AI usage (lifetime); guests are blocked at GUEST_TOKEN_LIMIT.
   isGuest    Boolean @default(false)
   tokensUsed Int     @default(0)
+
+  // Tiered monthly AI quotas (TIER_TOKEN_LIMITS in agent-config.ts) with
+  // admin overrides. tokenLimit, when set, is the absolute monthly cap and
+  // beats the tier default (0 = AI disabled). periodTokens counts the current
+  // UTC calendar month and is lazily reset by checkTokenBudget.
+  tier         String    @default("free") // free | pro | premium
+  tokenLimit   Int?
+  suspendedAt  DateTime?
+  periodTokens Int       @default(0)
+  periodStart  DateTime  @default(now())
+
+  // User-level subscription (tier upgrades). Mirrors the per-Space billing
+  // fields; the webhook tells the two apart via subscription metadata.
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  currentPeriodEnd     DateTime?
 
   accounts      Account[]
   sessions      Session[]
@@ -46,6 +62,26 @@ model User {
   submissions      AssignmentSubmission[]
   spaceEvents      SpaceEvent[]
   assignedTasks    SpaceTask[]            @relation("TaskAssignee")
+  usageEvents      AiUsageEvent[]
+}
+
+// One row per AI call that spent tokens — powers the admin per-user usage
+// history and CSV export. User.tokensUsed stays the lifetime source of truth;
+// these rows are pruned after USAGE_RETENTION_DAYS (90).
+model AiUsageEvent {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  kind        String     @default("chat") // chat | review | classroom_review | ledger_ask | undo_preview | rerank
+  provider    String     @default("")     // openai | anthropic | local
+  model       String     @default("")
+  tokens      Int
+  createdAt   DateTime   @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
 
 // ---------- Helix Space · lightweight team collaboration ----------
@@ -304,6 +340,7 @@ model Workspace {
   // a student's submission copy.
   starterFor            Assignment[]           @relation("AssignmentStarter")
   assignmentSubmissions AssignmentSubmission[] @relation("SubmissionWorkspace")
+  usageEvents           AiUsageEvent[]
 
   @@index([userId, updatedAt])
   @@index([spaceId])

@@ -16,6 +16,9 @@ import { readWorkspaceFile } from "@/lib/workspace";
 import { computeLineLedger, normalizeEol } from "@/lib/intent-ledger";
 import { runOneShot, resolveAiPrefs } from "@/lib/ai-agent";
 import { guardWorkspace } from "@/lib/route-helpers";
+import { checkTokenBudget } from "@/lib/token-budget";
+import { recordAiUsage } from "@/lib/ai-usage";
+import { err } from "@/lib/api-response";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -104,6 +107,9 @@ export async function POST(req: Request, { params }: Params) {
         : "(none)");
   }
 
+  const budget = await checkTokenBudget(user.id);
+  if (!budget.ok) return err(budget.code, budget.error, 403);
+
   const ai = await resolveAiPrefs(user.id);
   const result = await runOneShot({
     ...ai,
@@ -113,14 +119,14 @@ export async function POST(req: Request, { params }: Params) {
   if ("error" in result) return apiErrors.badRequest(result.error);
 
   // Meter the spend like every other AI route.
-  try {
-    await db().user.update({
-      where: { id: user.id },
-      data: { tokensUsed: { increment: result.tokensUsed } },
-    });
-  } catch (e) {
-    console.error("[ledger-ask] metering failed", e);
-  }
+  await recordAiUsage({
+    userId: user.id,
+    tokens: result.tokensUsed,
+    kind: "ledger_ask",
+    provider: ai.provider,
+    model: ai.model,
+    workspaceId: ws.id,
+  });
 
   return ok({ text: result.text || "(no answer produced)" });
 }

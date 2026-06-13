@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth, GUEST_TOKEN_LIMIT } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
@@ -8,35 +9,37 @@ import {
   VERIFY_DEFAULT_ON,
   VERIFY_MAX_FIX_ATTEMPTS,
   TOKEN_COST_PER_MILLION_USD,
+  TIER_TOKEN_LIMITS,
   estimateCostUsd,
 } from "@/lib/agent-config";
 import { WORKSPACE_TOOLS } from "@/lib/workspace-tools";
 import { PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
 import { OPENAI_MODEL } from "@/lib/openai";
 import { AdminAutoRefresh } from "./auto-refresh";
+import { Stat, Row, fmt, usd } from "./ui";
 
 export const metadata = { title: "Helix · Admin", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
-const fmt = (n: number) => n.toLocaleString();
-const usd = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
 async function loadStats() {
   if (!dbEnabled()) return null;
-  const [users, guests, workspaces, files, messages, intents, tokenAgg, topUsers] = await Promise.all([
-    db().user.count(),
-    db().user.count({ where: { isGuest: true } }),
-    db().workspace.count(),
-    db().workspaceFile.count(),
-    db().workspaceMessage.count(),
-    db().workspaceIntent.count().catch(() => 0),
-    db().user.aggregate({ _sum: { tokensUsed: true } }),
-    db().user.findMany({
-      orderBy: { tokensUsed: "desc" },
-      take: 8,
-      select: { email: true, name: true, isGuest: true, tokensUsed: true },
-    }),
-  ]);
+  const [users, guests, workspaces, files, messages, intents, tokenAgg, topUsers, limited, suspended] =
+    await Promise.all([
+      db().user.count(),
+      db().user.count({ where: { isGuest: true } }),
+      db().workspace.count(),
+      db().workspaceFile.count(),
+      db().workspaceMessage.count(),
+      db().workspaceIntent.count().catch(() => 0),
+      db().user.aggregate({ _sum: { tokensUsed: true } }),
+      db().user.findMany({
+        orderBy: { tokensUsed: "desc" },
+        take: 8,
+        select: { id: true, email: true, name: true, isGuest: true, tokensUsed: true },
+      }),
+      db().user.count({ where: { tokenLimit: { not: null } } }).catch(() => 0),
+      db().user.count({ where: { suspendedAt: { not: null } } }).catch(() => 0),
+    ]);
   return {
     users,
     guests,
@@ -46,26 +49,9 @@ async function loadStats() {
     intents,
     totalTokens: tokenAgg._sum.tokensUsed ?? 0,
     topUsers,
+    limited,
+    suspended,
   };
-}
-
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-card-lg border border-border bg-panel p-4">
-      <div className="label-tactical text-[10px]">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-txt">{value}</div>
-      {sub && <div className="mt-0.5 text-[11px] text-txt3">{sub}</div>}
-    </div>
-  );
-}
-
-function Row({ k, v }: { k: string; v: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-border/60 py-1.5 last:border-0">
-      <span className="text-[12.5px] text-txt2">{k}</span>
-      <span className="text-right font-mono text-[12px] text-txt">{v}</span>
-    </div>
-  );
 }
 
 export default async function AdminPage() {
@@ -108,22 +94,44 @@ export default async function AdminPage() {
               <Stat label="Workspaces" value={fmt(stats.workspaces)} sub={`${fmt(stats.files)} files`} />
               <Stat label="Chat messages" value={fmt(stats.messages)} sub={`${fmt(stats.intents)} ledger intents`} />
             </div>
-            <div className="mt-3 rounded-card-lg border border-border bg-panel p-4">
-              <div className="label-tactical mb-2 text-[10px]">Top token users</div>
-              {stats.topUsers.length === 0 ? (
-                <p className="text-[12px] text-txt3">No usage yet.</p>
-              ) : (
-                stats.topUsers.map((u, i) => (
-                  <Row
-                    key={i}
-                    k={`${u.name ?? u.email ?? "—"}${u.isGuest ? " (guest)" : ""}`}
-                    v={`${fmt(u.tokensUsed)} · ${usd(estimateCostUsd(u.tokensUsed))}`}
-                  />
-                ))
-              )}
-              <p className="mt-2 text-[11px] text-txt3">
-                Cost is an estimate at {usd(TOKEN_COST_PER_MILLION_USD)}/1M blended tokens — not billing.
-              </p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div className="rounded-card-lg border border-border bg-panel p-4">
+                <div className="label-tactical mb-2 text-[10px]">Top token users</div>
+                {stats.topUsers.length === 0 ? (
+                  <p className="text-[12px] text-txt3">No usage yet.</p>
+                ) : (
+                  stats.topUsers.map((u) => (
+                    <Row
+                      key={u.id}
+                      k={
+                        <Link href={`/admin/users/${u.id}`} className="hover:text-accent hover:underline">
+                          {u.name ?? u.email ?? "—"}
+                          {u.isGuest ? " (guest)" : ""}
+                        </Link>
+                      }
+                      v={`${fmt(u.tokensUsed)} · ${usd(estimateCostUsd(u.tokensUsed))}`}
+                    />
+                  ))
+                )}
+                <p className="mt-2 text-[11px] text-txt3">
+                  Cost is an estimate at {usd(TOKEN_COST_PER_MILLION_USD)}/1M blended tokens — not billing.
+                </p>
+              </div>
+              <div className="rounded-card-lg border border-border bg-panel p-4">
+                <div className="label-tactical mb-2 text-[10px]">User management</div>
+                <Row k="Total users" v={fmt(stats.users)} />
+                <Row k="Custom token limits" v={fmt(stats.limited)} />
+                <Row k="Suspended" v={fmt(stats.suspended)} />
+                <Link
+                  href="/admin/users"
+                  className="mt-3 inline-block rounded-lg border border-border2 bg-panel2 px-3 py-1.5 text-[12px] font-medium text-txt2 hover:border-accent hover:text-txt"
+                >
+                  Open user management →
+                </Link>
+                <p className="mt-2 text-[11px] text-txt3">
+                  Inspect any user&apos;s usage, set per-user token limits, change tiers, suspend accounts.
+                </p>
+              </div>
             </div>
           </>
         ) : (
@@ -152,7 +160,13 @@ export default async function AdminPage() {
           <Row k="OpenAI default model" v={OPENAI_MODEL} />
           <Row k="Anthropic default" v={PROVIDER_DEFAULT_MODEL.anthropic} />
           <Row k="Local default" v={PROVIDER_DEFAULT_MODEL.local} />
-          <Row k="Guest token limit" v={fmt(GUEST_TOKEN_LIMIT)} />
+          <Row k="Guest token limit" v={`${fmt(GUEST_TOKEN_LIMIT)} (lifetime)`} />
+          <Row k="Free tier quota" v={`${fmt(TIER_TOKEN_LIMITS.free ?? 0)} / month`} />
+          <Row k="Pro tier quota" v={`${fmt(TIER_TOKEN_LIMITS.pro ?? 0)} / month`} />
+          <Row
+            k="Team tier quota"
+            v={TIER_TOKEN_LIMITS.team === null ? "unlimited" : `${fmt(TIER_TOKEN_LIMITS.team)} / month`}
+          />
           <Row k="Repo-tree cache TTL" v="60s (L1+L2 Redis)" />
           <Row k="Git-auth cache TTL" v="60s (L1 only)" />
           <Row k="Chat rate limit" v="100 / hour / workspace" />

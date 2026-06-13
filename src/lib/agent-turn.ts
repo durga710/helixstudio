@@ -35,6 +35,8 @@ import { verifyBuild, verifyMarker } from "@/lib/verify";
 import { runAnthropicAgent, runLocalAgent, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
 import { createAgentIntent } from "@/lib/intent-ledger";
 import { AGENT_LIMITS, BUILD_RULES, PLAN_RULES, VERIFY_DEFAULT_ON, VERIFY_MAX_FIX_ATTEMPTS } from "@/lib/agent-config";
+import { checkTokenBudget, type BudgetCode } from "@/lib/token-budget";
+import { aiUsageOps } from "@/lib/ai-usage";
 import {
   stackLine,
   treeOutline,
@@ -66,7 +68,7 @@ export interface TurnResult {
   verify?: { status: "passed" | "failed" | "skipped"; command?: string; log?: string };
 }
 
-export type TurnError = { error: string; code?: "GUEST_LIMIT" };
+export type TurnError = { error: string; code?: BudgetCode };
 
 export async function runAgentTurn(opts: {
   ws: Workspace;
@@ -94,18 +96,11 @@ export async function runAgentTurn(opts: {
   const userMessage = opts.message.trim();
   const emit = (label: string) => onEvent?.({ type: "activity", label });
 
-  // Guest metering: anonymous accounts get GUEST_TOKEN_LIMIT of AI usage,
-  // then must sign in. Checked before any AI spend.
-  const dbUser = await db().user.findUnique({
-    where: { id: userId },
-    select: { isGuest: true, tokensUsed: true },
-  });
-  if (dbUser?.isGuest && dbUser.tokensUsed >= GUEST_TOKEN_LIMIT) {
-    return {
-      code: "GUEST_LIMIT",
-      error: `You've used your guest allowance (${GUEST_TOKEN_LIMIT.toLocaleString()} AI tokens). Sign in with GitHub or Google to keep building — it's free, and your work can push to your own repos.`,
-    };
-  }
+  // Token budget: suspension, admin per-user limits, tier monthly quotas and
+  // the guest allowance — all checked in one place before any AI spend.
+  const budget = await checkTokenBudget(userId);
+  if (!budget.ok) return { code: budget.code, error: budget.error };
+  const dbUser = budget.user;
 
   const prefs = await db().userPreferences.findUnique({
     where: { userId },
@@ -475,9 +470,14 @@ export async function runAgentTurn(opts: {
           db().workspaceMessage.create({
             data: { workspaceId: ws.id, role: "assistant", content: text, actions },
           }),
-          db().user.update({
-            where: { id: userId },
-            data: { tokensUsed: { increment: tokensUsed } },
+          ...aiUsageOps({
+            userId,
+            tokens: tokensUsed,
+            kind: "chat",
+            provider: aiProvider,
+            // aiModel is "" when the OpenAI default applies — record the real one.
+            model: aiModel || (aiProvider === "openai" ? OPENAI_MODEL : ""),
+            workspaceId: ws.id,
           }),
         ]);
       } catch (e) {
@@ -485,8 +485,10 @@ export async function runAgentTurn(opts: {
       }
     }
 
+    // The client meter reflects the effective guest cap (an admin-set
+    // tokenLimit overrides the default allowance).
     const guestRemaining = dbUser?.isGuest
-      ? Math.max(0, GUEST_TOKEN_LIMIT - (dbUser.tokensUsed + tokensUsed))
+      ? Math.max(0, (dbUser.tokenLimit ?? GUEST_TOKEN_LIMIT) - (dbUser.tokensUsed + tokensUsed))
       : null;
 
     return { text, actions, changes, tokensUsed, guestRemaining, verify };

@@ -16,8 +16,8 @@ import "server-only";
  * which matters most on large repos. Phase A: no embeddings, no vector DB.
  */
 
-import { db } from "@/lib/db";
 import { resolveAiPrefs, runOneShot } from "@/lib/ai-agent";
+import { recordAiUsage } from "@/lib/ai-usage";
 
 export interface Chunk {
   path: string;
@@ -132,14 +132,14 @@ async function llmRerank(userId: string, query: string, docs: string[], topN: nu
   const user = `SEARCH: ${query}\n\nSNIPPETS:\n${docs.map((d, i) => `[${i + 1}]\n${d}`).join("\n\n")}`;
   const r = await runOneShot({ ...ai, system, user, maxTokens: 200 });
   if ("error" in r) return null;
-  // Meter the rerank spend like every other AI call (keeps guest limits honest).
-  if (r.tokensUsed > 0) {
-    try {
-      await db().user.update({ where: { id: userId }, data: { tokensUsed: { increment: r.tokensUsed } } });
-    } catch {
-      /* best-effort */
-    }
-  }
+  // Meter the rerank spend like every other AI call (keeps limits honest).
+  await recordAiUsage({
+    userId,
+    tokens: r.tokensUsed,
+    kind: "rerank",
+    provider: ai.provider,
+    model: ai.model,
+  });
   const m = /\[[\d,\s]*\]/.exec(r.text);
   if (!m) return null;
   try {

@@ -33,6 +33,33 @@ export const AGENT_LIMITS = {
   searchMatchCap: 30,
 } as const;
 
+/* ------------------------- tier token quotas ------------------------ */
+
+export type UserTier = "free" | "pro" | "team";
+
+/**
+ * Monthly AI token quotas per tier (UTC calendar month; null = unlimited).
+ * Enforced by checkTokenBudget (token-budget.ts) before any AI spend. An
+ * admin-set User.tokenLimit overrides the tier default; guests keep the
+ * lifetime GUEST_TOKEN_LIMIT instead. Tiers come from Stripe subscriptions
+ * (billing.ts) or are assigned by an admin on /admin/users.
+ *
+ * Pricing model: free evaluates the product, Pro ($20/mo) covers individual
+ * heavy use, Team ($99/mo) covers small teams. Every tier is CAPPED so a
+ * handful of users can't consume the infrastructure — beyond Team the path
+ * is pay-as-you-go/enterprise (TODO: Stripe metered billing), not unlimited.
+ */
+export const TIER_TOKEN_LIMITS: Record<UserTier, number | null> = {
+  free: 100_000,
+  pro: 25_000_000,
+  team: 100_000_000,
+};
+
+export function tierMonthlyLimit(tier: string): number | null {
+  // Unknown tiers fall back to the free quota — safer than unlimited.
+  return tier in TIER_TOKEN_LIMITS ? TIER_TOKEN_LIMITS[tier as UserTier] : TIER_TOKEN_LIMITS.free;
+}
+
 /**
  * Auto-verify: after a build turn that wrote files, run the project's
  * build/test in the sandbox and fix failures. Default ON now (Plan→Build→

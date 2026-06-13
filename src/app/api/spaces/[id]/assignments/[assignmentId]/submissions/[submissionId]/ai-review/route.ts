@@ -13,6 +13,9 @@ import { getOverlay } from "@/lib/workspace";
 import { runReviewer, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
 import { OPENAI_MODEL } from "@/lib/openai";
 import { guard } from "@/lib/route-helpers";
+import { checkTokenBudget } from "@/lib/token-budget";
+import { aiUsageOps } from "@/lib/ai-usage";
+import { err } from "@/lib/api-response";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -25,6 +28,9 @@ export async function POST(_req: Request, { params }: Params) {
   const { id, assignmentId, submissionId } = await params;
   const g = await guard("assignment.review", { limit: 30, windowMs: 60 * 60 * 1000 });
   if ("response" in g) return g.response;
+
+  const budget = await checkTokenBudget(g.user.id);
+  if (!budget.ok) return err(budget.code, budget.error, 403);
 
   const submission = await db().assignmentSubmission.findUnique({
     where: { id: submissionId },
@@ -94,7 +100,14 @@ export async function POST(_req: Request, { params }: Params) {
       where: { id: submission.id },
       data: { aiReview: result.text },
     }),
-    db().user.update({ where: { id: g.user.id }, data: { tokensUsed: { increment: result.tokensUsed } } }),
+    ...aiUsageOps({
+      userId: g.user.id,
+      tokens: result.tokensUsed,
+      kind: "classroom_review",
+      provider,
+      model,
+      workspaceId: submission.workspace.id,
+    }),
   ]);
 
   return ok({ text: result.text });

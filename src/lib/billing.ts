@@ -86,6 +86,42 @@ export function priceIdForSpace(space: { kind: string }): string {
   return (space.kind === "classroom" ? process.env.STRIPE_PRICE_EDU : process.env.STRIPE_PRICE_TEAM) ?? "";
 }
 
+/* --------------------- user-level tier subscriptions --------------------- */
+/*
+ * Individual users subscribe to a tier (pro/team) the same way Spaces buy
+ * seats. The webhook tells the two apart via subscription metadata (spaceId
+ * vs userId). Tier ↔ quota mapping lives in agent-config.ts.
+ *
+ * Admin override interplay: the webhook only touches users it can match to a
+ * Stripe subscription, so a tier an admin assigned by hand to a non-subscriber
+ * is never stomped. For active subscribers Stripe owns `tier`; admins override
+ * the LIMIT via User.tokenLimit, which always beats the tier default.
+ */
+
+export type PaidTier = "pro" | "team";
+
+/** User-tier prices. STRIPE_PRICE_USER_TEAM is distinct from STRIPE_PRICE_TEAM
+ * (the per-seat Space price above). */
+export function userBillingEnabled(): boolean {
+  return Boolean(
+    process.env.STRIPE_SECRET_KEY &&
+      process.env.STRIPE_WEBHOOK_SECRET &&
+      process.env.STRIPE_PRICE_PRO &&
+      process.env.STRIPE_PRICE_USER_TEAM,
+  );
+}
+
+export function priceIdForTier(tier: PaidTier): string {
+  return (tier === "team" ? process.env.STRIPE_PRICE_USER_TEAM : process.env.STRIPE_PRICE_PRO) ?? "";
+}
+
+export function tierForPriceId(priceId: string | null | undefined): PaidTier | null {
+  if (!priceId) return null;
+  if (priceId === process.env.STRIPE_PRICE_USER_TEAM) return "team";
+  if (priceId === process.env.STRIPE_PRICE_PRO) return "pro";
+  return null;
+}
+
 /**
  * The subscription fields the webhook needs — structural (not Stripe's type)
  * so handlers work straight off event payloads. Newer Stripe API versions
@@ -94,9 +130,15 @@ export function priceIdForSpace(space: { kind: string }): string {
 export interface SubscriptionLike {
   id: string;
   status: string;
-  metadata?: { spaceId?: string } | null;
+  metadata?: { spaceId?: string; userId?: string } | null;
   current_period_end?: number | null;
-  items?: { data?: Array<{ quantity?: number | null; current_period_end?: number | null }> | null } | null;
+  items?: {
+    data?: Array<{
+      quantity?: number | null;
+      current_period_end?: number | null;
+      price?: { id?: string | null } | null;
+    }> | null;
+  } | null;
 }
 
 /**
@@ -137,13 +179,52 @@ export async function applySubscriptionToSpace(sub: SubscriptionLike): Promise<b
 }
 
 /**
- * Re-fetch a subscription from Stripe (the source of truth) and apply it.
- * Used for events that reference a subscription by id but don't carry the
- * full object — e.g. invoice.payment_failed. Returns false if the id is
- * missing or no matching Space exists.
+ * Idempotently write a user-tier subscription's state onto its User. Lookup
+ * by stripeSubscriptionId with a metadata.userId fallback (covers the first
+ * event racing checkout.session.completed). Mirrors applySubscriptionToSpace.
+ */
+export async function applySubscriptionToUser(sub: SubscriptionLike): Promise<boolean> {
+  let user = await db().user.findUnique({ where: { stripeSubscriptionId: sub.id }, select: { id: true } });
+  if (!user && sub.metadata?.userId) {
+    user = await db().user.findUnique({ where: { id: sub.metadata.userId }, select: { id: true } });
+  }
+  if (!user) return false;
+
+  const item = sub.items?.data?.[0];
+  const periodEndSec = item?.current_period_end ?? sub.current_period_end ?? null;
+  const active = sub.status === "active" || sub.status === "trialing" || sub.status === "past_due";
+  const tier = tierForPriceId(item?.price?.id) ?? "pro";
+
+  await db().user.update({
+    where: { id: user.id },
+    data: active
+      ? {
+          tier,
+          stripeSubscriptionId: sub.id,
+          currentPeriodEnd: periodEndSec ? new Date(periodEndSec * 1000) : null,
+        }
+      : {
+          // Canceled/unpaid: back to the free quota; keep the customer for a
+          // future re-subscribe, release the subscription id.
+          tier: "free",
+          stripeSubscriptionId: null,
+          currentPeriodEnd: null,
+        },
+  });
+  return true;
+}
+
+/**
+ * Re-fetch a subscription from Stripe (the source of truth) and apply it to
+ * whichever entity it belongs to (Space seats or a user tier). Used for
+ * events that reference a subscription by id but don't carry the full
+ * object — e.g. invoice.payment_failed. Returns false when the id is missing
+ * or nothing matches.
  */
 export async function syncSubscriptionById(subscriptionId: string | null | undefined): Promise<boolean> {
   if (!subscriptionId) return false;
   const sub = (await getStripe().subscriptions.retrieve(subscriptionId)) as unknown as SubscriptionLike;
-  return applySubscriptionToSpace(sub);
+  if (sub.metadata?.userId) return applySubscriptionToUser(sub);
+  if (await applySubscriptionToSpace(sub)) return true;
+  return applySubscriptionToUser(sub);
 }

@@ -11,6 +11,7 @@ import { getGitAuth, withGitAuth } from "@/lib/git";
 import { buildUndoProposal } from "@/lib/undo";
 import { resolveAiPrefs } from "@/lib/ai-agent";
 import { guardWorkspace } from "@/lib/route-helpers";
+import { recordAiUsage } from "@/lib/ai-usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -39,16 +40,16 @@ export async function POST(_req: Request, { params }: Params) {
   const auth = await getGitAuth(ws.userId, ws.provider);
   const proposal = await withGitAuth(auth, () => buildUndoProposal(ws, intent, ai));
 
-  if (proposal.tokensUsed > 0) {
-    try {
-      await db().user.update({
-        where: { id: user.id },
-        data: { tokensUsed: { increment: proposal.tokensUsed } },
-      });
-    } catch (e) {
-      console.error("[undo-preview] metering failed", e);
-    }
-  }
+  // Small implicit spend: record it, but don't gate the preview on the
+  // budget — undo must stay available to clean up after a blocked user.
+  await recordAiUsage({
+    userId: user.id,
+    tokens: proposal.tokensUsed,
+    kind: "undo_preview",
+    provider: ai.provider,
+    model: ai.model,
+    workspaceId: ws.id,
+  });
 
   return ok({
     intent: { id: intent.id, title: intent.title, kind: intent.kind },

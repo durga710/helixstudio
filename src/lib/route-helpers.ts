@@ -7,10 +7,11 @@ import "server-only";
  */
 
 import type { Workspace } from "@/generated/prisma/client";
-import { requireUser, AuthError, type SessionUser } from "@/lib/auth";
-import { apiErrors } from "@/lib/api-response";
+import { requireUser, AuthError, auth, type SessionUser } from "@/lib/auth";
+import { apiErrors, err } from "@/lib/api-response";
 import { rateLimit } from "@/lib/rate-limit";
-import { schemaReady } from "@/lib/db";
+import { schemaReady, db, dbEnabled } from "@/lib/db";
+import { isAdminEmail } from "@/lib/admin";
 import { getWorkspaceForUser, getWorkspaceForViewer } from "@/lib/workspace";
 
 export async function guard(
@@ -27,9 +28,32 @@ export async function guard(
     if (e instanceof AuthError) return { response: apiErrors.unauthorized() };
     throw e;
   }
+  // Admin suspension bites within one request — sessions are JWTs, so a
+  // session-level flag would lag until the next token refresh.
+  if (dbEnabled()) {
+    const u = await db().user.findUnique({ where: { id: user.id }, select: { suspendedAt: true } });
+    if (u?.suspendedAt) {
+      return { response: err("SUSPENDED", "This account is suspended. Contact the administrator.", 403) };
+    }
+  }
   const rl = await rateLimit(`${bucket}:${user.id}`, opts);
   if (!rl.success) return { response: apiErrors.rateLimit(rl.reset) };
   return { user };
+}
+
+/**
+ * Admin-only routes (the /api/admin/* surface). Non-admins get a 404 — the
+ * same "this page doesn't exist" posture as the /admin pages themselves.
+ * No rate bucket: admins are allowlisted humans (ADMIN_EMAILS).
+ */
+export async function guardAdmin(): Promise<{ admin: SessionUser } | { response: Response }> {
+  await schemaReady();
+  const session = await auth();
+  const u = session?.user;
+  if (!u?.id || !isAdminEmail(u.email)) {
+    return { response: apiErrors.notFound() };
+  }
+  return { admin: { id: u.id, name: u.name ?? null, email: u.email ?? null, image: u.image ?? null } };
 }
 
 /**
