@@ -25,6 +25,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { warmupSteps } from "@/lib/warmup-steps";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
@@ -144,6 +145,9 @@ export function ChatPanel({
   const guestBlocked = isGuest && guestRemaining === 0;
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Flips true on the turn's first real activity event, so the warm-up prelude
+  // knows to stop and hand off to the agent's actual work.
+  const realActivityStarted = useRef(false);
 
   // Plan/Build is easy to lose track of, so a user toggle pops a brief toast
   // (auto-dismisses) on top of the always-on plan-mode banner.
@@ -293,6 +297,18 @@ export function ChatPanel({
     setStreaming("");
     setWorklog([]);
 
+    // Intent-aware warm-up: fill the latency before the first real activity
+    // with honest, process-true steps (a question never shows "scaffolding").
+    // Stops the instant the agent's real work starts streaming in.
+    realActivityStarted.current = false;
+    void (async () => {
+      for (const step of warmupSteps(content)) {
+        if (realActivityStarted.current) break;
+        setWorklog((w) => (realActivityStarted.current ? w : [...w, step]));
+        await new Promise((r) => setTimeout(r, 360 + Math.floor(Math.random() * 560)));
+      }
+    })();
+
     // Replicates the old success path: append the assistant turn, update the
     // guest counter, and surface any file changes to the workspace panel.
     const handleFinal = (data: {
@@ -336,9 +352,12 @@ export function ChatPanel({
           }
           if (evt.type === "activity") {
             const label = (evt.label as string) ?? null;
+            // Real work has begun — let the warm-up prelude bow out.
+            realActivityStarted.current = true;
             setActivity(label);
             if (label) setWorklog((w) => [...w, label]);
           } else if (evt.type === "delta") {
+            realActivityStarted.current = true; // the reply is streaming — stop warm-up
             setStreaming((s) => s + ((evt.text as string) ?? ""));
           } else if (evt.type === "final") {
             setStreaming("");
