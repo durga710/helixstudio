@@ -33,81 +33,37 @@ function nameFromPrompt(prompt: string): string {
   return name || "New app";
 }
 
-interface Classification {
-  templateId: string;
-  label: string;
-  confident: boolean;
-  alternatives: { id: string; label: string }[];
-}
-
 export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) {
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  // Confirm step: once a prompt is classified we show the suggested template
-  // (+ alternatives + "start from blank") before creating the workspace.
-  const [pending, setPending] = useState<string | null>(null);
-  const [classification, setClassification] = useState<Classification | null>(null);
 
-  async function ensureSession() {
-    if (!signedIn && !isGuest) {
-      const res = await signIn("guest", { redirect: false });
-      if (res?.error) throw new Error("Couldn't start a guest session — try again or sign in.");
-    }
-  }
-
-  // Step 1: classify the prompt → show the confirm card. Never blocks the user:
-  // if classify fails we fall straight through to a blank project.
+  // One step, no friction: a guest session if needed → create the workspace
+  // (the server silently picks + scaffolds the right starter from the prompt)
+  // → hand the prompt to the builder, which fires the first turn on load. The
+  // template engine is invisible — it just feels like the AI gets to work.
   async function start(text: string) {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
     setBusy(true);
     setError(null);
     try {
-      await ensureSession();
-      const res = await fetch("/api/templates/classify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: trimmed }),
-      });
-      const json = await res.json().catch(() => null);
-      if (res.ok && json?.ok) {
-        setPending(trimmed);
-        setClassification(json.data as Classification);
-        setBusy(false);
-        return;
+      if (!signedIn && !isGuest) {
+        const res = await signIn("guest", { redirect: false });
+        if (res?.error) throw new Error("Couldn't start a guest session — try again or sign in.");
       }
-      // classify unavailable — create blank directly.
-      await create(trimmed, null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong — try again.");
-      setBusy(false);
-    }
-  }
-
-  // Step 2: create the workspace (optionally template-seeded) and hand the
-  // prompt to the builder, which fires the first turn on load.
-  async function create(text: string, templateId: string | null) {
-    setBusy(true);
-    setError(null);
-    try {
-      await ensureSession();
       const res = await fetch("/api/workspaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: "SCRATCH",
-          name: nameFromPrompt(text),
-          ...(templateId ? { templateId } : {}),
-        }),
+        body: JSON.stringify({ mode: "SCRATCH", name: nameFromPrompt(trimmed), prompt: trimmed }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
         throw new Error(json?.error?.message ?? "Couldn't create your project — try again.");
       }
-      sessionStorage.setItem(`helix.build.${json.data.id}`, text);
+      sessionStorage.setItem(`helix.build.${json.data.id}`, trimmed);
       router.push(`/build/${json.data.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong — try again.");
@@ -167,54 +123,7 @@ export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) 
           then keep refining it in plain English.
         </p>
 
-        {/* Confirm step: which starter to scaffold */}
-        {classification && pending ? (
-          <div className="mt-9 w-full max-w-[680px] rounded-2xl border border-[#28364f] bg-[color-mix(in_srgb,#0d1626_88%,transparent)] p-5 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur">
-            <div className="text-[13px] text-[#9cadc4]">
-              I&apos;ll scaffold this as a{" "}
-              <span className="font-semibold text-[#f8fbff]">{classification.label}</span> starter, then customize it
-              to your idea.
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => create(pending, classification.templateId)}
-                disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-[10px] border-none bg-accent px-4 py-2 text-[13px] font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
-              >
-                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                Use {classification.label}
-              </button>
-              {classification.alternatives.slice(0, 4).map((alt) => (
-                <button
-                  key={alt.id}
-                  onClick={() => create(pending, alt.id)}
-                  disabled={busy}
-                  className="rounded-full border border-[#28364f] px-3.5 py-1.5 text-[12.5px] text-[#9cadc4] transition-colors hover:border-accent hover:text-[#f8fbff] disabled:opacity-50"
-                >
-                  {alt.label}
-                </button>
-              ))}
-              <button
-                onClick={() => create(pending, null)}
-                disabled={busy}
-                className="rounded-full px-3 py-1.5 text-[12.5px] text-[#5f6f86] transition-colors hover:text-[#9cadc4] disabled:opacity-50"
-              >
-                Start from blank
-              </button>
-            </div>
-            <button
-              onClick={() => {
-                setClassification(null);
-                setPending(null);
-              }}
-              disabled={busy}
-              className="mt-3 text-[11.5px] text-[#5f6f86] transition-colors hover:text-[#9cadc4] disabled:opacity-50"
-            >
-              ← edit prompt
-            </button>
-          </div>
-        ) : (
-        /* Prompt box */
+        {/* Prompt box */}
         <div
           className={cn(
             "mt-9 w-full max-w-[680px] rounded-2xl border bg-[color-mix(in_srgb,#0d1626_88%,transparent)] shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur transition-colors",
@@ -251,7 +160,6 @@ export function BuildLanding({ signedIn, isGuest, dbReady }: BuildLandingProps) 
             </button>
           </div>
         </div>
-        )}
 
         {error && (
           <div role="alert" className="mt-4 rounded-[10px] border border-[color-mix(in_srgb,#f87171_40%,transparent)] bg-[color-mix(in_srgb,#f87171_10%,transparent)] px-4 py-2.5 text-[12.5px] text-[#fca5a5]">

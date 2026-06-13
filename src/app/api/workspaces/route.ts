@@ -14,7 +14,7 @@ import { getProvider, getGitAuth, withGitAuth, isValidRepoId, PROVIDER_META } fr
 import { isValidBranchName } from "@/lib/repo-files";
 import { guard } from "@/lib/route-helpers";
 import { getTemplate } from "@/lib/templates/store";
-import { buildTemplateNote } from "@/lib/templates/router";
+import { buildTemplateNote, classifyPrompt } from "@/lib/templates/router";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,8 +25,11 @@ const CreateSchema = z.discriminatedUnion("mode", [
   z.object({
     mode: z.literal("SCRATCH"),
     name: z.string().min(1).max(80).optional(),
-    // Optional starter template to scaffold (0-token file injection).
+    // Optional explicit starter template (0-token file injection).
     templateId: z.string().min(1).max(64).optional(),
+    // The user's idea. When present (and no explicit templateId), the server
+    // silently picks the best starter and injects it — the picker is invisible.
+    prompt: z.string().max(2000).optional(),
   }),
   z.object({
     mode: z.literal("IMPORT"),
@@ -75,7 +78,18 @@ export async function POST(req: Request) {
     // Optional template injection: seed the workspace's files + notes from a
     // pre-made starter (0 AI tokens). Invalid/absent templateId → empty
     // workspace (today's behavior, byte-for-byte).
-    const tpl = parsed.data.templateId ? await getTemplate(parsed.data.templateId) : undefined;
+    // Resolve the starter: an explicit templateId wins; otherwise classify the
+    // prompt silently (the engine is hidden from the user — it just feels like
+    // the AI chose the stack).
+    let templateId = parsed.data.templateId;
+    if (!templateId && parsed.data.prompt?.trim()) {
+      try {
+        templateId = (await classifyPrompt(parsed.data.prompt.trim(), g.user.id)).templateId;
+      } catch {
+        // classifier unavailable → blank workspace (today's behavior).
+      }
+    }
+    const tpl = templateId ? await getTemplate(templateId) : undefined;
     const ws = await db().workspace.create({
       data: {
         userId: g.user.id,

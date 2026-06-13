@@ -49,7 +49,7 @@ Request: `;
 
 /* When the workspace was scaffolded from a starter template, the stack and
  * config already exist — steer the agent to customize on top, not re-scaffold. */
-const TEMPLATE_BRIEF = `This workspace is already scaffolded from a starter template (see PROJECT NOTES for the stack and key files). Build the request below ON TOP of it: read the existing files first, then customize and extend them. Do NOT recreate package.json/config or re-scaffold. Implement real, working functionality with a polished UI. Don't ask questions; make tasteful decisions and build it now.
+const TEMPLATE_BRIEF = `This workspace is already scaffolded with the right stack for this idea (see PROJECT NOTES for the stack and key files). Build the request below ON TOP of it: read the existing files first, then customize and extend them. Do NOT recreate package.json/config or re-scaffold. Open your reply by briefly stating the stack you're building with (e.g. "Building this as a Next.js app…"). Implement real, working functionality with a polished UI. Don't ask questions; make tasteful decisions and build it now.
 
 Request: `;
 
