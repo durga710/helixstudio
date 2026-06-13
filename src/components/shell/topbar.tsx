@@ -13,9 +13,6 @@ import { cn } from "@/lib/utils";
 // EXTRA_TITLES covers pages reachable outside the rail. Anything still unmapped
 // is humanized from its path, so a new page can never wrongly show "Home".
 const EXTRA_TITLES: Record<string, string> = {
-  "/analysis": "Repository Analysis",
-  "/agents": "Agents",
-  "/skills": "Skills",
   "/deployments": "Deployments",
   "/team": "Team",
   "/settings": "Settings",
