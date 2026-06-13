@@ -17,6 +17,8 @@ import { BrandMark, HelixGlyph } from "@/components/brand";
 import { Markdown } from "@/components/ui/markdown";
 import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
 import { scaffoldSteps } from "@/lib/scaffold-steps";
+import { buildTasks } from "@/lib/build-tasks";
+import { BuildBoard } from "@/components/build/build-board";
 import { cn } from "@/lib/utils";
 
 /* The Lovable-style builder: the agent writes the app while the right pane
@@ -64,6 +66,15 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   const [setupSteps, setSetupSteps] = useState<string[]>([]);
   const realActivityStarted = useRef(false);
   const [building, setBuilding] = useState(false);
+
+  // Live build board — scoped to the INITIAL build turn (a follow-up edit must
+  // not reset a completed board). Cards come from the scaffold's MVC structure;
+  // these signals (real writes + activity) drive the flow. Token-free.
+  const [boardTasks, setBoardTasks] = useState<string[]>([]);
+  const [boardBuilding, setBoardBuilding] = useState(false);
+  const [boardWrites, setBoardWrites] = useState(0);
+  const [boardSteps, setBoardSteps] = useState(0);
+  const [boardErrored, setBoardErrored] = useState(false);
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [limitHit, setLimitHit] = useState(false);
@@ -128,6 +139,16 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       setError(null);
       setBuilding(true);
 
+      // The build board tracks the INITIAL build only (brief !== "none").
+      const isInitialBuild = brief !== "none";
+      if (isInitialBuild) {
+        setBoardTasks(buildTasks(filePaths));
+        setBoardBuilding(true);
+        setBoardWrites(0);
+        setBoardSteps(0);
+        setBoardErrored(false);
+      }
+
       const prefix = brief === "static" ? BUILD_BRIEF : brief === "template" ? TEMPLATE_BRIEF : "";
       let turnLog: string[] = [];
       try {
@@ -158,8 +179,13 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             realActivityStarted.current = true;
             turnLog = [...turnLog, evt.label];
             setActivities(turnLog);
-            // The app takes shape live: refresh the preview as files land.
-            if (/^(wrote|deleted)/.test(evt.label)) void refreshPreview();
+            if (isInitialBuild) setBoardSteps((s) => s + 1);
+            // The app takes shape live: refresh the preview as files land, and
+            // feed the board a real write signal so cards advance for real.
+            if (/^(wrote|deleted)/.test(evt.label)) {
+              if (isInitialBuild) setBoardWrites((w) => w + 1);
+              void refreshPreview();
+            }
           } else if (evt.type === "final") {
             setMessages((prev) => [
               ...prev,
@@ -171,6 +197,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             if (evt.code === "GUEST_LIMIT") setLimitHit(true);
             setError(evt.message ?? "The agent hit an error — try again.");
             setActivities([]);
+            if (isInitialBuild) setBoardErrored(true);
           }
         };
         for (;;) {
@@ -187,11 +214,13 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       } catch (e) {
         setError(e instanceof Error ? e.message : "The agent hit an error — try again.");
         setActivities([]);
+        if (isInitialBuild) setBoardErrored(true);
       } finally {
         setBuilding(false);
+        if (isInitialBuild) setBoardBuilding(false);
       }
     },
-    [workspace.id, refreshPreview],
+    [workspace.id, refreshPreview, filePaths],
   );
 
   /* ------------------------- creation sequence ---------------------- */
@@ -209,6 +238,9 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
     } catch {
       // No file list → skip the sequence; the agent's real log carries it.
     }
+    // Now that we have the real scaffold, refine the board's cards from the
+    // actual MVC structure (the kickoff seeded from an empty list).
+    if (paths.length) setBoardTasks(buildTasks(paths));
     const { steps } = scaffoldSteps(paths);
     for (const step of steps) {
       if (realActivityStarted.current) break;
@@ -584,6 +616,15 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
           </div>
         </section>
       </div>
+
+      {/* Live build tracker — floating, terminal-styled, read-only. */}
+      <BuildBoard
+        tasks={boardTasks}
+        building={boardBuilding}
+        writes={boardWrites}
+        steps={boardSteps}
+        errored={boardErrored}
+      />
     </div>
   );
 }
