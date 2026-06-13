@@ -73,7 +73,18 @@ export function PlanSection() {
     setBusy(null);
   }
 
-  if (unavailable) return null;
+  if (unavailable) {
+    return (
+      <>
+        <h3 className="mb-[11px] mt-6 text-sm font-semibold">Plan &amp; usage</h3>
+        <Card className="px-[18px] py-[15px]">
+          <p className="text-xs text-txt3">
+            Plan &amp; billing is unavailable in this environment (no database / billing not configured).
+          </p>
+        </Card>
+      </>
+    );
+  }
 
   const pct =
     plan && plan.limit !== null && plan.limit > 0 ? Math.min(100, Math.round((plan.used / plan.limit) * 100)) : null;

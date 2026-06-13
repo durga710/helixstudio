@@ -40,8 +40,6 @@ export function SpaceBillingCard({
   const [seats, setSeats] = useState(String(Math.max(billing.memberCount, 10)));
   const [busy, setBusy] = useState(false);
 
-  if (!billing.enabled) return null;
-
   async function checkout() {
     const n = parseInt(seats, 10);
     if (busy || !Number.isFinite(n) || n < 1) return;
@@ -117,7 +115,9 @@ export function SpaceBillingCard({
           </div>
         </div>
         <div className="flex gap-2">
-          {billing.active ? (
+          {!billing.enabled ? (
+            <span className="text-[11px] text-txt3">Billing not configured</span>
+          ) : billing.active ? (
             <Button variant="ghost" onClick={() => void portal()} disabled={busy}>
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Manage billing"}
             </Button>

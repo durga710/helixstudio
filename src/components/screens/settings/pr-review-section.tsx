@@ -37,8 +37,6 @@ export function PrReviewSection() {
       .catch(() => setUnavailable(true));
   }, []);
 
-  if (unavailable) return null; // GitHub not connected — nothing to watch
-
   async function toggle(repo: string, on: boolean) {
     setBusy(repo);
     const res = await fetch("/api/git/watch", {
@@ -72,7 +70,11 @@ export function PrReviewSection() {
           Turn this on for a GitHub repo and Helix reviews every new pull request — posting inline
           comments and a ship/hold verdict, using your editor AI model. (GitHub only for now.)
         </p>
-        {repos === null ? (
+        {unavailable ? (
+          <p className="py-3 text-xs text-txt3">
+            Connect your GitHub account (Settings → Git hosts) to choose repos for auto-review.
+          </p>
+        ) : repos === null ? (
           <div className="flex items-center gap-2 py-4 text-xs text-txt3">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> loading your repos…
           </div>
