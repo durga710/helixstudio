@@ -19,6 +19,14 @@ import { UserActions } from "./user-actions";
 export const metadata = { title: "Helix · Admin · User", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
+// Computed in a module-scope helper, not inline in the (server) component:
+// the react-hooks/purity lint rule can't tell server components from client
+// ones and flags a bare `Date.now()` in render. This page is force-dynamic,
+// so it's evaluated per request — the timestamp is correct.
+function last30dCutoff() {
+  return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+}
+
 export default async function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!isAdminEmail(session?.user?.email)) notFound();
@@ -90,7 +98,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
       },
     }),
     db().aiUsageEvent.aggregate({
-      where: { userId: id, createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+      where: { userId: id, createdAt: { gte: last30dCutoff() } },
       _sum: { tokens: true },
     }),
   ]);

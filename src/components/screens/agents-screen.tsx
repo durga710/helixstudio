@@ -88,7 +88,7 @@ export function AgentsScreen({
         reject(new Error(`Step ${step} failed`));
       };
     });
-  }, []);
+  }, [workspaceId]);
 
   const run = useCallback(async () => {
     if (running) return;
