@@ -13,24 +13,15 @@ import "server-only";
 import { db, dbEnabled, schemaReady } from "@/lib/db";
 import type { DeployAuth, DeployProvider, DeployProviderName } from "./types";
 import { vercelProvider } from "./vercel";
-
-const notImplemented = (name: DeployProviderName, label: string): DeployProvider => ({
-  name,
-  label,
-  implemented: false,
-  async linkRepo() {
-    return { error: `${label} deploys are coming soon.` };
-  },
-  async status() {
-    return { error: `${label} deploys are coming soon.` };
-  },
-});
+import { netlifyProvider } from "./netlify";
+import { cloudflareProvider } from "./cloudflare";
+import { renderProvider } from "./render";
 
 const REGISTRY: Record<DeployProviderName, DeployProvider> = {
   vercel: vercelProvider,
-  netlify: notImplemented("netlify", "Netlify"),
-  cloudflare: notImplemented("cloudflare", "Cloudflare Pages"),
-  render: notImplemented("render", "Render"),
+  netlify: netlifyProvider,
+  cloudflare: cloudflareProvider,
+  render: renderProvider,
 };
 
 export const DEPLOY_PROVIDERS: { name: DeployProviderName; label: string; implemented: boolean }[] = (

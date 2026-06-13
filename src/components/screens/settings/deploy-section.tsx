@@ -21,11 +21,32 @@ interface ProviderMeta {
   implemented: boolean;
 }
 
-const HINTS: Record<string, { hint: string; tokenUrl: string; hasTeam?: boolean }> = {
+/** Optional second field some platforms need, stored in the connection config. */
+interface ExtraField {
+  key: string; // config key (teamId | accountId | ownerId)
+  label: string;
+  required?: boolean;
+}
+
+const HINTS: Record<string, { hint: string; tokenUrl: string; extra?: ExtraField }> = {
   vercel: {
     hint: "Create a token at vercel.com/account/tokens. For a Team account, also paste the Team ID (Settings → General).",
     tokenUrl: "https://vercel.com/account/tokens",
-    hasTeam: true,
+    extra: { key: "teamId", label: "Team ID (optional)" },
+  },
+  netlify: {
+    hint: "Create a personal access token at app.netlify.com/user/applications. Netlify's GitHub app needs access to the repo.",
+    tokenUrl: "https://app.netlify.com/user/applications",
+  },
+  cloudflare: {
+    hint: "Create an API token with the Pages:Edit permission at dash.cloudflare.com/profile/api-tokens, and paste your Account ID.",
+    tokenUrl: "https://dash.cloudflare.com/profile/api-tokens",
+    extra: { key: "accountId", label: "Account ID", required: true },
+  },
+  render: {
+    hint: "Create an API key at dashboard.render.com (Account Settings → API Keys), and paste your Owner ID (the usr-/tea- id).",
+    tokenUrl: "https://dashboard.render.com",
+    extra: { key: "ownerId", label: "Owner ID", required: true },
   },
 };
 
@@ -84,9 +105,12 @@ function DeployRow({
 }) {
   const { toast } = useToast();
   const meta = HINTS[provider.name];
+  const extra = meta?.extra;
   const [token, setToken] = useState("");
-  const [teamId, setTeamId] = useState("");
+  const [extraVal, setExtraVal] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const extraMissing = Boolean(extra?.required) && !extraVal.trim();
 
   async function save(clear: boolean) {
     setSaving(true);
@@ -97,7 +121,7 @@ function DeployRow({
         body: JSON.stringify({
           provider: provider.name,
           token: clear ? "" : token.trim(),
-          ...(meta?.hasTeam && teamId.trim() ? { config: { teamId: teamId.trim() } } : {}),
+          ...(!clear && extra && extraVal.trim() ? { config: { [extra.key]: extraVal.trim() } } : {}),
         }),
       });
       const json = await res.json().catch(() => null);
@@ -106,7 +130,7 @@ function DeployRow({
       } else {
         onConnectedChange(!clear);
         setToken("");
-        if (clear) setTeamId("");
+        if (clear) setExtraVal("");
         toast(clear ? `${provider.label} disconnected.` : `${provider.label} connected.`);
       }
     } catch {
@@ -141,18 +165,18 @@ function DeployRow({
               autoComplete="off"
               className="min-w-[220px] flex-1 font-mono text-xs"
             />
-            {meta?.hasTeam && (
+            {extra && (
               <Input
-                value={teamId}
-                onChange={(e) => setTeamId(e.target.value)}
-                placeholder="Team ID (optional)"
+                value={extraVal}
+                onChange={(e) => setExtraVal(e.target.value)}
+                placeholder={extra.label}
                 className="max-w-[200px] font-mono text-xs"
               />
             )}
           </div>
           {meta?.hint && <p className="mt-2 text-[11px] text-txt3">{meta.hint}</p>}
           <div className="mt-3 flex gap-2">
-            <Button onClick={() => void save(false)} disabled={saving || !token.trim()}>
+            <Button onClick={() => void save(false)} disabled={saving || !token.trim() || extraMissing}>
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
               {connected ? "Update" : "Connect"}
             </Button>
