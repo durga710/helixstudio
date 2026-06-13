@@ -11,6 +11,7 @@
  * detect the stream by the x-ndjson content type.
  */
 
+import { after } from "next/server";
 import { z } from "zod";
 import { apiErrors } from "@/lib/api-response";
 import { runAgentTurn } from "@/lib/agent-turn";
@@ -51,6 +52,11 @@ export async function POST(req: Request, { params }: Params) {
   const message = parsed.data.message;
 
   const encoder = new TextEncoder();
+  // The turn runs in this promise. We stream its events to the connected client,
+  // but we ALSO hand the promise to after() so Vercel keeps the function alive
+  // until the turn finishes even if the client navigates away mid-build — the
+  // result still persists (runAgentTurn), so it's there when the user returns.
+  let turnPromise: Promise<void> | undefined;
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       let closed = false;
@@ -63,7 +69,7 @@ export async function POST(req: Request, { params }: Params) {
         }
       };
 
-      void (async () => {
+      turnPromise = (async () => {
         try {
           const result = await runAgentTurn({
             ws,
@@ -99,6 +105,11 @@ export async function POST(req: Request, { params }: Params) {
       })();
     },
   });
+
+  // Keep the serverless function alive until the turn completes, regardless of
+  // whether the client is still listening — this is what makes the build survive
+  // navigating away.
+  if (turnPromise) after(turnPromise);
 
   return new Response(stream, {
     headers: {

@@ -58,6 +58,14 @@ Request: `;
 
 const FOLLOW_UPS = ["Add a dark mode toggle", "Make it feel more premium", "Improve the mobile layout"];
 
+/** The first turn's stored message carries a build brief prefix; show only the
+ * user's actual prompt when rehydrating the conversation. */
+function stripBrief(content: string): string {
+  const marker = "\n\nRequest: ";
+  const i = content.lastIndexOf(marker);
+  return i >= 0 ? content.slice(i + marker.length) : content;
+}
+
 export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStudioProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activities, setActivities] = useState<string[]>([]);
@@ -98,6 +106,9 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   const nextId = useRef(1);
   const kicked = useRef(false);
   const composeSeq = useRef(0);
+  // True while THIS session is running a turn — so the resume poller backs off
+  // and doesn't fight the live stream.
+  const localTurn = useRef(false);
 
   /* ----------------------------- preview ---------------------------- */
 
@@ -140,6 +151,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
     async (text: string, brief: "static" | "template" | "none" = "none") => {
       const trimmed = text.trim();
       if (!trimmed) return;
+      localTurn.current = true;
       setMessages((prev) => [...prev, { id: nextId.current++, role: "user", content: trimmed }]);
       setActivities([]);
       setSetupSteps([]); // scaffold checklist is first-turn only
@@ -246,10 +258,61 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       } finally {
         setBuilding(false);
         if (isInitialBuild) setBoardBuilding(false);
+        localTurn.current = false;
       }
     },
     [workspace.id, refreshPreview, filePaths],
   );
+
+  /* ----------------------- persistence / resume -------------------- */
+
+  // Reload the persisted conversation from the server (so the build page is
+  // never wiped on return — the messages live in the DB).
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}`, { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) return;
+      const hist = (json.data.messages as Array<{ role: "user" | "assistant"; content: string }>).map((m) => ({
+        id: nextId.current++,
+        role: m.role,
+        content: m.role === "user" ? stripBrief(m.content) : m.content,
+      }));
+      if (hist.length) setMessages(hist);
+    } catch {
+      // keep whatever's on screen
+    }
+  }, [workspace.id]);
+
+  // If a build is still running server-side (started here, then navigated away
+  // and back), pick the live activity back up from the progress channel and
+  // reload the conversation when it lands.
+  const resumeProgress = useCallback(async () => {
+    let resumed = false;
+    for (let i = 0; i < 300; i++) {
+      if (localTurn.current) return; // a fresh local turn now owns the UI
+      let label: string | null = null;
+      try {
+        const res = await fetch(`/api/workspaces/${workspace.id}/progress`, { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        label = json?.data?.label ?? null;
+      } catch {
+        /* transient — try again */
+      }
+      if (label) {
+        resumed = true;
+        setBuilding(true);
+        setActivities([label]);
+        await new Promise((r) => setTimeout(r, 1200));
+      } else {
+        if (resumed) {
+          setBuilding(false);
+          await loadHistory(); // the turn finished — show its reply
+        }
+        return;
+      }
+    }
+  }, [workspace.id, loadHistory]);
 
   /* ------------------------- creation sequence ---------------------- */
 
@@ -293,11 +356,14 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
         if (scaffolded) void runCreationSequence();
         void send(stash, scaffolded ? "template" : "static");
       } else {
+        // Revisit: restore the conversation + resume any in-flight build.
         void refreshPreview();
+        void loadHistory();
+        void resumeProgress();
       }
     }, 0);
     return () => clearTimeout(t);
-  }, [workspace.id, send, refreshPreview, scaffolded, runCreationSequence]);
+  }, [workspace.id, send, refreshPreview, scaffolded, runCreationSequence, loadHistory, resumeProgress]);
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });

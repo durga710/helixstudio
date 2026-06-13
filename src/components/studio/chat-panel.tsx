@@ -148,6 +148,8 @@ export function ChatPanel({
   // Flips true on the turn's first real activity event, so the warm-up prelude
   // knows to stop and hand off to the agent's actual work.
   const realActivityStarted = useRef(false);
+  // True while THIS tab is running a turn, so the resume poller stands down.
+  const localSend = useRef(false);
 
   // Plan/Build is easy to lose track of, so a user toggle pops a brief toast
   // (auto-dismisses) on top of the always-on plan-mode banner.
@@ -291,6 +293,7 @@ export function ChatPanel({
   async function send(text: string, sendMode: "plan" | "build" = mode, sendVerify: boolean = verifyOn) {
     const content = text.trim();
     if (!content || busy || messages === null) return;
+    localSend.current = true;
     setMessages((m) => [...(m ?? []), { role: "user", content }]);
     setInput("");
     setBusy(true);
@@ -401,7 +404,60 @@ export function ChatPanel({
     }
     setStreaming("");
     setBusy(false);
+    localSend.current = false;
   }
+
+  // Resume an in-flight turn on mount: if the workspace has a live progress
+  // label (a turn started here, then the tab was closed/navigated away), show
+  // it running again and reload the conversation once it finishes — so work is
+  // never lost just because you stepped away.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let resumed = false;
+      for (let i = 0; i < 300 && !cancelled; i++) {
+        if (localSend.current) return; // a fresh local turn owns the UI
+        let label: string | null = null;
+        try {
+          const res = await fetch(`/api/workspaces/${workspace.id}/progress`, { cache: "no-store" });
+          const json = await res.json().catch(() => null);
+          label = json?.data?.label ?? null;
+        } catch {
+          /* transient */
+        }
+        if (cancelled) return;
+        if (label) {
+          resumed = true;
+          setBusy(true);
+          setWorklog((w) => (w.length ? w : [label!]));
+          setActivity(label);
+          await new Promise((r) => setTimeout(r, 1200));
+        } else {
+          if (resumed && !localSend.current) {
+            setBusy(false);
+            // Reload persisted history to pick up the finished reply.
+            try {
+              const res = await fetch(`/api/workspaces/${workspace.id}`, { cache: "no-store" });
+              const json = await res.json().catch(() => null);
+              if (!cancelled && res.ok && json?.ok) {
+                const fresh = (
+                  json.data.messages as { role: "user" | "assistant"; content: string; actions: Action[] | null }[]
+                ).map((m) => ({ role: m.role, content: m.content, actions: m.actions ?? undefined }));
+                setMessages(fresh);
+                writeCache(`ws:${workspace.id}:messages`, fresh);
+              }
+            } catch {
+              /* keep what's shown */
+            }
+          }
+          return;
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace.id]);
 
   // Manual "Verify build": runs the current build in the sandbox (check only —
   // no auto-fix) and appends the result as a verify-badge message.
