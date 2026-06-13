@@ -369,6 +369,18 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, activities]);
 
+  // Guests don't get background builds (premium only), so warn before a
+  // tab-close/refresh while a build is running — their work would stop.
+  useEffect(() => {
+    if (!isGuest || !building) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isGuest, building]);
+
   // Code tab: load the selected file's content.
   useEffect(() => {
     if (tab !== "code") return;
@@ -688,6 +700,15 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
 
           {/* Composer */}
           <div className="shrink-0 border-t border-border p-3">
+            {isGuest && building && (
+              <div className="mb-2 rounded-[9px] border border-[color-mix(in_srgb,var(--amber)_40%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-3 py-2 text-[11.5px] text-warn">
+                Heads up — guest builds stop if you leave this page.{" "}
+                <Link href="/login" className="font-medium text-accent hover:underline">
+                  Sign in &amp; upgrade
+                </Link>{" "}
+                to keep builds running in the background.
+              </div>
+            )}
             {messages.length > 0 && !building && (
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {FOLLOW_UPS.map((f) => (

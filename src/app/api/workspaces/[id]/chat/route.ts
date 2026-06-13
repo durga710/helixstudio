@@ -15,6 +15,8 @@ import { after } from "next/server";
 import { z } from "zod";
 import { apiErrors } from "@/lib/api-response";
 import { runAgentTurn } from "@/lib/agent-turn";
+import { db } from "@/lib/db";
+import { isAdminEmail } from "@/lib/admin";
 import { guardWorkspace } from "@/lib/route-helpers";
 import { reportError } from "@/lib/observability";
 
@@ -106,10 +108,16 @@ export async function POST(req: Request, { params }: Params) {
     },
   });
 
-  // Keep the serverless function alive until the turn completes, regardless of
-  // whether the client is still listening — this is what makes the build survive
-  // navigating away.
-  if (turnPromise) after(turnPromise);
+  // Keep the serverless function alive until the turn completes even if the
+  // client navigates away — but ONLY for premium (pro/team) and admins. Guests
+  // and free users get the live stream while connected; if they leave, the turn
+  // is allowed to stop, so we never spend compute keeping a free session's build
+  // running in the background. (The static preview stays free for everyone — it
+  // re-renders from the saved files client-side.)
+  const dbu = await db().user.findUnique({ where: { id: user.id }, select: { tier: true, isGuest: true } });
+  const premiumBuild =
+    isAdminEmail(user.email) || (!dbu?.isGuest && (dbu?.tier === "pro" || dbu?.tier === "team"));
+  if (turnPromise && premiumBuild) after(turnPromise);
 
   return new Response(stream, {
     headers: {
