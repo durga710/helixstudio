@@ -541,7 +541,7 @@ export function toolLabel(name: string, result: unknown): string {
     case "read_file":
       return r.path ? `read ${String(r.path)}` : "tried to read a file";
     case "write_files":
-      return r.written ? `wrote ${String(r.count)} file(s)` : "tried to write files";
+      return r.written ? `created ${String(r.count)} file${Number(r.count) === 1 ? "" : "s"}` : "couldn't save the file changes";
     case "edit_file":
       return r.edited ? `edited ${String(r.path)}` : "tried to edit a file";
     case "delete_file": {

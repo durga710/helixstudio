@@ -39,6 +39,7 @@ const EVENT_META: Record<string, { icon: LucideIcon; text: (e: FeedEvent) => str
   submitted: { icon: Send, text: (e) => `${e.actorName} submitted "${e.target}"` },
   reviewed: { icon: CheckCircle2, text: (e) => `${e.actorName} reviewed a submission for "${e.target}"` },
   revision_requested: { icon: Undo2, text: (e) => `${e.actorName} requested a revision on "${e.target}"` },
+  lesson_completed: { icon: CheckCircle2, text: (e) => `${e.actorName} finished the lesson "${e.target}"` },
   pushed: { icon: Upload, text: (e) => `${e.actorName} pushed ${e.target} to git` },
   forked: { icon: GitFork, text: (e) => `${e.actorName} copied ${e.target}` },
   task_added: { icon: SquarePlus, text: (e) => `${e.actorName} added task "${e.target}"` },

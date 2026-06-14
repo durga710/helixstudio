@@ -447,6 +447,12 @@ export function ChatPanel({
   const intakeActive =
     messages !== null && messages.length === 0 && !busy && workspace.mode === "SCRATCH" && intakePhase !== "done";
 
+  // Keep the curation Q&A visible in the thread after the build starts — it
+  // reads like a real conversation instead of vanishing. Only when questions
+  // were actually asked + answered (the idea itself stays in the message list).
+  const showIntakeTranscript =
+    Boolean(intakeIdea) && intakeQuestions.length > 0 && intakeQuestions.some((q) => intakeAnswers[q.key]);
+
   // Hand off to the real build: the idea is the visible first message; the
   // engine's curated brief rides along as a MODEL-ONLY hint (never shown).
   function launchIntake(idea: string, brief: string) {
@@ -779,7 +785,42 @@ export function ChatPanel({
           )
         ) : (
           <>
+            {showIntakeTranscript && (
+              <div className="space-y-4">
+                <div className="flex justify-end gap-2.5">
+                  <div className="inline-block max-w-[88%] rounded-2xl border border-accent/35 bg-hl px-4 py-2.5 text-sm text-txt">
+                    {intakeIdea}
+                  </div>
+                </div>
+                {intakeQuestions.map((q) => {
+                  const ans = intakeAnswers[q.key];
+                  if (!ans) return null;
+                  return (
+                    <div key={q.key} className="space-y-2">
+                      <div className="flex justify-start gap-2.5">
+                        <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border bg-panel2">
+                          <Sparkles className="h-3.5 w-3.5 text-accent" />
+                        </span>
+                        <div className="max-w-[88%] rounded-2xl border border-border bg-panel2 px-4 py-2.5 text-sm leading-relaxed text-txt">
+                          {q.text}
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2.5">
+                        <div className="inline-block max-w-[88%] rounded-2xl border border-accent/35 bg-hl px-4 py-2.5 text-sm text-txt">
+                          {ans}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {messages.map((m, i) => {
+              // The idea already shows in the curation transcript above — don't
+              // repeat it as the first user bubble.
+              if (showIntakeTranscript && i === 0 && m.role === "user" && stripBrief(m.content).trim() === intakeIdea.trim()) {
+                return null;
+              }
               const labels = uniqueLabels(
                 m.actions?.filter((a) => a.tool !== "plan" && !VERIFY_TOOLS.includes(a.tool)),
               );

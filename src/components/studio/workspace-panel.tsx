@@ -196,6 +196,8 @@ export function WorkspacePanel({
   } | null>(null);
   const recentRangesRef = useRef<{ start: number; end: number; intentId: string }[]>([]);
   const popoverHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Intents the user has dismissed — never auto-reopen their provenance card.
+  const dismissedIntents = useRef<Set<string>>(new Set());
 
   // Framework app runner (Next.js/Vite/Flask… on this machine in dev, in a
   // cloud VM with a public preview URL on the hosted site)
@@ -419,6 +421,7 @@ export function WorkspacePanel({
     if (!editor) return;
     const range = recentRangesRef.current.find((r) => line >= r.start && line <= r.end);
     if (!range) return;
+    if (dismissedIntents.current.has(range.intentId)) return; // user closed it — leave it closed
     const pos = editor.getScrolledVisiblePosition({ lineNumber: line, column: 1 });
     if (!pos) return;
     const height = editor.getLayoutInfo().height;
@@ -836,7 +839,7 @@ export function WorkspacePanel({
           )}
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           {note && <span className="max-w-[12rem] truncate text-xs text-txt2">{note}</span>}
 
           {/* Code / Preview tabs */}
@@ -886,6 +889,7 @@ export function WorkspacePanel({
               type="button"
               onClick={() => setTab("intents")}
               title="Change history — every idea, inspectable and undoable"
+              aria-label="Change history"
               className={cn(
                 "inline-flex items-center gap-1.5 border-l border-border px-3 py-1.5 text-xs transition-colors",
                 tab === "intents"
@@ -893,7 +897,7 @@ export function WorkspacePanel({
                   : "text-txt2 hover:bg-panel2 hover:text-txt",
               )}
             >
-              <History className="h-3.5 w-3.5" /> Intents
+              <History className="h-3.5 w-3.5" />
             </button>
           </div>
 
@@ -1092,7 +1096,10 @@ export function WorkspacePanel({
                     pinned={popover.pinned}
                     isOwner={isOwner}
                     onPin={() => setPopover((p) => (p ? { ...p, pinned: true } : p))}
-                    onClose={() => setPopover(null)}
+                    onClose={() => {
+                      dismissedIntents.current.add(popover.intentId);
+                      setPopover(null);
+                    }}
                     onUndo={(i) => {
                       setPopover(null);
                       setUndoIntent(i);

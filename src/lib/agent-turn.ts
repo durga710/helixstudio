@@ -416,7 +416,9 @@ export async function runAgentTurn(opts: {
         }
         if (!text) {
           const labels = Array.from(new Set(actions.map((a) => a.label)));
-          text = labels.length ? `Done — ${labels.join(", ")}.` : "Done.";
+          text = labels.length
+            ? `All set! I ${labels.join(", ")}. Open the preview to see it.`
+            : "All set!";
         }
       } catch (e) {
         console.error("[helix-chat]", e);

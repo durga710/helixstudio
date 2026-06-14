@@ -121,8 +121,12 @@ export const BUILD_RULES =
   "PROVE your work runs (install, test, build) — if a command fails, fix the code and run it again.\n" +
   "- Match the project's existing stack and conventions. If PROJECT INSTRUCTIONS are present below, they are the " +
   "project owner's rules — follow them.\n" +
-  "- For new projects pick a sensible stack: a single index.html with embedded CSS/JS for simple pages; Vite or " +
-  "Next.js structure for real apps.\n" +
+  "- For a NEW project, DEFAULT to a single static `index.html` (plus style.css / script.js; CDN libraries via " +
+  "<script> tags are fine) so it previews INSTANTLY with no build step — this fits most sites, pages, dashboards, " +
+  "and simple apps. Only reach for a build-step framework (Vite/Next.js) when the user EXPLICITLY needs a backend, " +
+  "server rendering, or a real toolchain. CRITICAL: never leave the project half-scaffolded — it must ALWAYS be " +
+  "runnable, meaning either a complete index.html that opens on its own, OR a COMPLETE framework project (a working " +
+  "package.json + entry point so it installs and runs). The live preview must work without the user doing anything.\n" +
   "- If PROJECT NOTES say a template is already scaffolded, BUILD ON IT — the stack and config already exist. " +
   "read_file the key files first, then CUSTOMIZE them to the request. Do NOT recreate package.json/config or " +
   "re-scaffold the project from scratch.\n" +

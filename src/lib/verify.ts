@@ -66,7 +66,7 @@ export function selectVerifyCommand(
 ): { command: string } | { skip: string } {
   const detection = detectFramework(treePaths, pkgJson);
   if (detection.kind === "static" || detection.kind === "unknown") {
-    return { skip: "static site — open the preview to check it" };
+    return { skip: "no build step here — open the preview to see it live" };
   }
   if (detection.kind === "python") {
     // Django: the management CLI's own system check (fast, no test files needed).
@@ -192,5 +192,5 @@ export function verifyMarker(result: VerifyResult): { tool: string; label: strin
   if (result.status === "failed") {
     return { tool: "verify_failed", label: "couldn't verify", log: result.log };
   }
-  return { tool: "verify_skipped", label: `verify skipped — ${result.reason ?? "nothing to verify"}` };
+  return { tool: "verify_skipped", label: result.reason ?? "ready to preview" };
 }
