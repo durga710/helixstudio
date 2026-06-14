@@ -8,6 +8,7 @@ import {
   Check,
   Code2,
   Copy,
+  Download,
   Eye,
   ExternalLink,
   FileCode2,
@@ -139,6 +140,7 @@ export function WorkspacePanel({
   const isNew = useSearchParams().get("new") === "1";
   const { toast } = useToast();
   const [forking, setForking] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [files, setFiles] = useState<TreeFile[]>([]);
   const [treeError, setTreeError] = useState<string | null>(null);
   const [loadingTree, setLoadingTree] = useState(true);
@@ -636,6 +638,33 @@ export function WorkspacePanel({
     }
   }
 
+  // Premium: download the project as a zip with a one-command local setup.
+  async function exportProject() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}/export`);
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${(workspace.name || "project").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        toast("Downloaded — unzip, then `npm install && npm run dev`");
+      } else {
+        const json = await res.json().catch(() => null);
+        toast(json?.error?.message ?? "Couldn't export the project.");
+      }
+    } catch {
+      toast("Couldn't export the project.");
+    }
+    setExporting(false);
+  }
+
   /* ------------------------------- diff ----------------------------- */
 
   const loadDiff = useCallback(async () => {
@@ -957,6 +986,16 @@ export function WorkspacePanel({
               <Button variant="ghost" onClick={() => setDeployOpen(true)} className="px-3.5 py-1.5" title="Deploy to a hosting platform">
                 <Rocket className="h-3.5 w-3.5" />
                 Deploy
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => void exportProject()}
+                disabled={exporting}
+                className="px-3.5 py-1.5"
+                title="Download your project to run locally (premium)"
+              >
+                {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                Export
               </Button>
             </>
           ) : (
