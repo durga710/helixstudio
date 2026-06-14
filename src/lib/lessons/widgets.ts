@@ -31,6 +31,11 @@ export const WIDGET_CATALOG: WidgetInfo[] = [
     label: "Regression playground (line of best fit)",
     desc: "The student drags dots and fits a straight line that predicts a number, watching the error shrink. Use for: regression, predicting a number (not a category), line of best fit, error/loss.",
   },
+  {
+    id: "tree",
+    label: "Decision-tree splitter",
+    desc: "The student picks a measurement and a threshold to split a dataset and sees the yes/no rule + accuracy. Use for: decision trees, splitting data with questions, why trees are explainable.",
+  },
 ];
 
 export const WIDGET_IDS: string[] = WIDGET_CATALOG.map((w) => w.id);

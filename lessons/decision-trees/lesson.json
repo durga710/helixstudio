@@ -1,0 +1,111 @@
+{
+  "id": "decision-trees",
+  "title": "Decision trees",
+  "blurb": "An AI you can actually read. Learn how a tree of yes/no questions makes smart choices.",
+  "level": "intermediate",
+  "estMinutes": 13,
+  "icon": "GitBranch",
+  "concept": "trees",
+  "order": 5,
+  "steps": [
+    {
+      "kind": "explain",
+      "title": "The AI you can read",
+      "body": "Some AIs are a mystery box — they give an answer but can't explain *why*.\n\nA **decision tree** is the opposite. It makes choices with a chain of simple **yes/no questions**, exactly like a game of 20 Questions. You can read every step. Let's build one."
+    },
+    {
+      "kind": "explain",
+      "title": "It's just questions",
+      "body": "Picture sorting fruit. You might ask: *\"Is it sweet?\"* If yes → probably an apple. If no → probably a lemon.\n\nThat single question is a **split**: it cuts your pile into two groups. String a few splits together and you've got a tree that can sort almost anything."
+    },
+    {
+      "kind": "explain",
+      "title": "Make your own split",
+      "body": "Below are apples and lemons, plotted by **sweetness** and **size**.\n\nPick a measurement to split on, then drag the cut line. Watch the rule and the **accuracy** change. Try to find the split that sorts them best!"
+    },
+    {
+      "kind": "widget",
+      "widget": "tree",
+      "title": "Find the best split",
+      "body": "Choose 'sweetness' or 'size', then slide the cut. Aim for the highest accuracy.",
+      "config": { "dataset": "fruit2d" }
+    },
+    {
+      "kind": "explain",
+      "title": "Notice anything?",
+      "body": "Splitting on **sweetness** probably got you way higher accuracy than **size**. That's because sweetness *separates* apples from lemons much better — it's a more useful feature (remember features from lesson 2?).\n\nA decision tree always hunts for the question that splits the data **cleanest**."
+    },
+    {
+      "kind": "quiz",
+      "title": "Best question",
+      "question": "A decision tree is choosing its first question. Which one does it pick?",
+      "choices": [
+        "A random question",
+        "The question that splits the groups most cleanly",
+        "The longest question",
+        "The last question in the list"
+      ],
+      "answer": 1,
+      "explain": "It picks the cleanest split — the question that best separates the groups. Cleaner splits = more accurate."
+    },
+    {
+      "kind": "explain",
+      "title": "One split isn't enough",
+      "body": "Your single cut probably missed a few fruits. Real trees fix that by asking **another** question on each side.\n\n*\"Is it sweet?\"* → if no, *\"is it tiny?\"* → … Each new question is a branch, and the tree gets deeper and smarter. That branching shape is exactly why it's called a *tree*."
+    },
+    {
+      "kind": "quiz",
+      "title": "Growing the tree",
+      "question": "How does a decision tree become more accurate?",
+      "choices": [
+        "By adding more yes/no questions (branches)",
+        "By using a bigger monitor",
+        "By deleting data",
+        "By guessing faster"
+      ],
+      "answer": 0,
+      "explain": "More good questions = more branches = a tree that separates the groups more finely."
+    },
+    {
+      "kind": "explain",
+      "title": "The superpower: you can explain it",
+      "body": "Here's what makes trees special. If a tree says *\"this is a lemon,\"* it can show you exactly why: *\"because it wasn't sweet, and it was small.\"*\n\nThat's called being **explainable** (a \"white box\"). Doctors, banks, and judges love trees for this — when an AI affects someone's life, being able to explain the *why* really matters."
+    },
+    {
+      "kind": "quiz",
+      "title": "White box vs black box",
+      "question": "Why might a hospital prefer a decision tree over a mystery-box AI?",
+      "choices": [
+        "It's prettier",
+        "You can see and explain exactly why it made each decision",
+        "It needs no data",
+        "It's always 100% correct"
+      ],
+      "answer": 1,
+      "explain": "Explainability! A tree can show its reasoning step by step — crucial when a decision affects a real person."
+    },
+    {
+      "kind": "explain",
+      "title": "The catch: don't overthink it",
+      "body": "Remember **overfitting** from the regression lesson? Trees can do it too.\n\nIf a tree keeps adding questions until every single example is perfectly sorted, it just **memorized** the data and will flub new fruit. Good trees stay short enough to learn the real pattern, not the noise."
+    },
+    {
+      "kind": "quiz",
+      "title": "Recap",
+      "question": "What's the main reason decision trees are so popular?",
+      "choices": [
+        "They're impossible to understand",
+        "They make explainable decisions from simple yes/no questions",
+        "They never need data",
+        "They only work on fruit"
+      ],
+      "answer": 1,
+      "explain": "Simple, explainable yes/no logic — that's the decision tree's whole appeal."
+    },
+    {
+      "kind": "explain",
+      "title": "What you learned 🎉",
+      "body": "- A **decision tree** sorts things with a chain of **yes/no questions** (splits)\n- It picks the question that splits the data **cleanest** (best feature)\n- More branches = smarter, but too many = **overfitting**\n- Its superpower is being **explainable** — it can always show its reasoning\n\n**Next up:** the AI behind the headlines — **neural networks**. You'll teach a tiny digital 'brain' to learn."
+    }
+  ]
+}

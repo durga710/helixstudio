@@ -53,8 +53,31 @@ const FLOWERS: Dataset = {
   ],
 };
 
+function pt2(label: string, sweetness: number, size: number): DataPoint {
+  return { label, features: { sweetness, size } };
+}
+
+/** Two fruits, two features — perfect for a single decision-tree split (with a
+ * little overlap so one split isn't 100% accurate). */
+const FRUIT2D: Dataset = {
+  id: "fruit2d",
+  name: "Fruit",
+  featureNames: ["sweetness", "size"],
+  classes: ["Apple", "Lemon"],
+  summary: "20 fruits · 2 kinds · 2 measurements (sweetness & size)",
+  points: [
+    pt2("Apple", 8, 7), pt2("Apple", 7, 6), pt2("Apple", 9, 8), pt2("Apple", 6.5, 5.5),
+    pt2("Apple", 7.5, 7), pt2("Apple", 8.5, 6.5), pt2("Apple", 6, 6), pt2("Apple", 9, 5.5),
+    pt2("Apple", 5.5, 6.5), pt2("Apple", 7, 8),
+    pt2("Lemon", 2, 4), pt2("Lemon", 3, 5), pt2("Lemon", 1.5, 3.5), pt2("Lemon", 2.5, 4.5),
+    pt2("Lemon", 3.5, 5.5), pt2("Lemon", 2, 5), pt2("Lemon", 1, 4), pt2("Lemon", 4, 4.5),
+    pt2("Lemon", 4.5, 6), pt2("Lemon", 3, 3.5),
+  ],
+};
+
 export const DATASETS: Record<string, Dataset> = {
   flowers: FLOWERS,
+  fruit2d: FRUIT2D,
 };
 
 export function getDataset(id: string | undefined): Dataset {
