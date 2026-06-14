@@ -14,6 +14,8 @@ import { ok, apiErrors } from "@/lib/api-response";
 import { db } from "@/lib/db";
 import { guardWorkspace } from "@/lib/route-helpers";
 import { getDeployAuth, getDeployProvider } from "@/lib/deploy";
+import { gitHostFor } from "@/lib/deploy/types";
+import { PROVIDER_META } from "@/lib/git";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,9 +37,24 @@ export async function POST(req: Request, { params }: Params) {
   if (!provider) return apiErrors.badRequest("Unknown platform.");
   if (!provider.implemented) return apiErrors.badRequest(`${provider.label} deploys are coming soon.`);
 
-  // Git-linked deploys need a pushed GitHub repo.
-  if (!ws.repo || ws.provider !== "github") {
-    return apiErrors.badRequest("Push this workspace to a GitHub repo first, then deploy.");
+  // Git-linked deploys need a pushed repo on a host the platform can build from.
+  const hostLabel = PROVIDER_META[ws.provider as keyof typeof PROVIDER_META]?.label ?? ws.provider;
+  if (!ws.repo) {
+    return apiErrors.badRequest("Push this workspace to a git repo first, then deploy.");
+  }
+  const gitHost = gitHostFor(ws.provider);
+  if (!gitHost) {
+    return apiErrors.badRequest(
+      `${provider.label} can't deploy from ${hostLabel}. Push to GitHub, GitLab, or Bitbucket to deploy.`,
+    );
+  }
+  if (!provider.supportedGitHosts.includes(gitHost)) {
+    const supported = provider.supportedGitHosts
+      .map((h) => h.charAt(0).toUpperCase() + h.slice(1))
+      .join(", ");
+    return apiErrors.badRequest(
+      `${provider.label} can't deploy from ${hostLabel} — it supports ${supported}. Push there, or pick a different platform.`,
+    );
   }
 
   const auth = await getDeployAuth(user.id, provider.name);
@@ -45,7 +62,7 @@ export async function POST(req: Request, { params }: Params) {
     return apiErrors.badRequest(`Connect ${provider.label} in Settings → Deployments first.`);
   }
 
-  const result = await provider.linkRepo(auth, { repo: ws.repo, name: "" });
+  const result = await provider.linkRepo(auth, { repo: ws.repo, name: "", gitProvider: gitHost });
   if ("error" in result) {
     return apiErrors.badRequest(
       result.needsGithubAuth

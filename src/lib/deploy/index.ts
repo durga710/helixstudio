@@ -11,7 +11,7 @@ import "server-only";
  */
 
 import { db, dbEnabled, schemaReady } from "@/lib/db";
-import type { DeployAuth, DeployProvider, DeployProviderName } from "./types";
+import type { DeployAuth, DeployProvider, DeployProviderName, GitHostType } from "./types";
 import { vercelProvider } from "./vercel";
 import { netlifyProvider } from "./netlify";
 import { cloudflareProvider } from "./cloudflare";
@@ -24,9 +24,17 @@ const REGISTRY: Record<DeployProviderName, DeployProvider> = {
   render: renderProvider,
 };
 
-export const DEPLOY_PROVIDERS: { name: DeployProviderName; label: string; implemented: boolean }[] = (
-  Object.values(REGISTRY)
-).map((p) => ({ name: p.name, label: p.label, implemented: p.implemented }));
+export const DEPLOY_PROVIDERS: {
+  name: DeployProviderName;
+  label: string;
+  implemented: boolean;
+  supportedGitHosts: GitHostType[];
+}[] = Object.values(REGISTRY).map((p) => ({
+  name: p.name,
+  label: p.label,
+  implemented: p.implemented,
+  supportedGitHosts: p.supportedGitHosts,
+}));
 
 export function isDeployProviderName(name: string): name is DeployProviderName {
   return name in REGISTRY;

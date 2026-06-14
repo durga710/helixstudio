@@ -54,16 +54,17 @@ export const vercelProvider: DeployProvider = {
   name: "vercel",
   label: "Vercel",
   implemented: true,
+  supportedGitHosts: ["github", "gitlab", "bitbucket"],
 
-  async linkRepo(auth, { repo, name }): Promise<DeployResult<LinkedProject>> {
+  async linkRepo(auth, { repo, name, gitProvider }): Promise<DeployResult<LinkedProject>> {
     const projectName = name || toProjectName(repo);
-    // Create a project linked to the GitHub repo — this turns on Vercel's
-    // native auto-deploy-on-push for that repo.
+    // Create a project linked to the repo — this turns on Vercel's native
+    // auto-deploy-on-push. `type` selects the git host (github/gitlab/bitbucket).
     const create = await vercelFetch(auth, `/v10/projects${teamQuery(auth)}`, {
       method: "POST",
       body: JSON.stringify({
         name: projectName,
-        gitRepository: { type: "github", repo },
+        gitRepository: { type: gitProvider, repo },
         framework: null, // Vercel auto-detects (Next.js, Vite, etc.)
       }),
     });

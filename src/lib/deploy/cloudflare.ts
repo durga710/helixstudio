@@ -53,8 +53,9 @@ export const cloudflareProvider: DeployProvider = {
   name: "cloudflare",
   label: "Cloudflare Pages",
   implemented: true,
+  supportedGitHosts: ["github", "gitlab"],
 
-  async linkRepo(auth, { repo, name }): Promise<DeployResult<LinkedProject>> {
+  async linkRepo(auth, { repo, name, gitProvider }): Promise<DeployResult<LinkedProject>> {
     const acct = accountId(auth);
     if (!acct) return { error: "Add your Cloudflare Account ID in Settings → Deployments." };
     const projectName = name || toProjectName(repo);
@@ -65,7 +66,7 @@ export const cloudflareProvider: DeployProvider = {
         name: projectName,
         production_branch: "main",
         source: {
-          type: "github",
+          type: gitProvider,
           config: { owner, repo_name: repoName, production_branch: "main", deployments_enabled: true },
         },
       }),

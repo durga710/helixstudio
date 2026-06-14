@@ -45,14 +45,15 @@ export const netlifyProvider: DeployProvider = {
   name: "netlify",
   label: "Netlify",
   implemented: true,
+  supportedGitHosts: ["github", "gitlab", "bitbucket"],
 
-  async linkRepo(auth, { repo, name }): Promise<DeployResult<LinkedProject>> {
+  async linkRepo(auth, { repo, name, gitProvider }): Promise<DeployResult<LinkedProject>> {
     const siteName = name || toSiteName(repo);
     const res = await netlifyFetch(auth, `/sites`, {
       method: "POST",
       body: JSON.stringify({
         name: siteName,
-        repo: { provider: "github", repo, branch: "main", cmd: "", dir: "" },
+        repo: { provider: gitProvider, repo, branch: "main", cmd: "", dir: "" },
       }),
     });
     if (!res.ok) {

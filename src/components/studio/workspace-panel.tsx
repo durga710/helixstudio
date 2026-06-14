@@ -1564,7 +1564,7 @@ export function WorkspacePanel({
       {deployOpen && (
         <DeployDialog
           workspaceId={workspace.id}
-          hasRepo={Boolean(workspace.repo) && workspace.provider === "github"}
+          hasRepo={Boolean(workspace.repo)}
           onClose={() => setDeployOpen(false)}
         />
       )}

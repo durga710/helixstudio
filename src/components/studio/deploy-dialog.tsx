@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Rocket, RotateCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
@@ -22,6 +23,14 @@ interface DeployInfo {
   dashboardUrl?: string;
   deploymentUrl?: string;
   state?: string;
+}
+
+interface DeployPlatform {
+  name: string;
+  label: string;
+  implemented: boolean;
+  supportedGitHosts: string[];
+  connected: boolean;
 }
 
 const STATE_PILL: Record<string, { label: string; tone: "green" | "amber" | "accent" | "red" | "neutral" }> = {
@@ -47,6 +56,34 @@ export function DeployDialog({
   const [info, setInfo] = useState<DeployInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [platforms, setPlatforms] = useState<DeployPlatform[]>([]);
+  const [provider, setProvider] = useState("vercel");
+
+  // The platforms the user has connected a token for (deploy targets to offer).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/deploy/connections", { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        if (cancelled || !res.ok || !json?.ok) return;
+        const providers = (json.data.providers ?? []) as Omit<DeployPlatform, "connected">[];
+        const conn = (json.data.connections ?? {}) as Record<string, boolean>;
+        const list = providers
+          .filter((p) => p.implemented)
+          .map((p) => ({ ...p, connected: Boolean(conn[p.name]) }));
+        setPlatforms(list);
+        // Default to a connected platform (Vercel first) so Deploy works in one click.
+        const firstConnected = list.find((p) => p.connected);
+        if (firstConnected) setProvider(firstConnected.name);
+      } catch {
+        // offline / no platforms — the dialog still shows the connect hint.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -64,6 +101,9 @@ export function DeployDialog({
     void load();
   }, [load]);
 
+  const chosen = platforms.find((p) => p.name === provider);
+  const chosenLabel = chosen?.label ?? "Vercel";
+
   async function deploy() {
     if (busy) return;
     setBusy(true);
@@ -71,11 +111,11 @@ export function DeployDialog({
       const res = await fetch(`/api/workspaces/${workspaceId}/deploy`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: "vercel" }),
+        body: JSON.stringify({ provider }),
       });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.ok) {
-        toast("Linked to Vercel — your app is deploying");
+        toast(`Linked to ${chosenLabel} — your app is deploying`);
         await load();
       } else {
         toast(json?.error?.message ?? "Couldn't deploy.");
@@ -101,7 +141,7 @@ export function DeployDialog({
           ) : !hasRepo ? (
             <div className="flex items-start gap-2 rounded-card border border-[color-mix(in_srgb,var(--amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--amber)_8%,transparent)] p-3 text-[12.5px] text-warn">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              Push this workspace to a GitHub repo first (the Push button), then deploy — the platform builds from
+              Push this workspace to a git repo first (the Push button), then deploy — the platform builds from
               your repo.
             </div>
           ) : info?.linked ? (
@@ -141,20 +181,49 @@ export function DeployDialog({
                 )}
               </div>
             </div>
-          ) : (
+          ) : platforms.some((p) => p.connected) ? (
             <div className="space-y-3">
               <p className="text-[13px] text-txt2">
-                Link this workspace&apos;s repo to <b>Vercel</b> — it builds and goes live now, and redeploys
+                Link this workspace&apos;s repo to a platform — it builds and goes live now, and redeploys
                 automatically on every future push.
               </p>
+              {platforms.filter((p) => p.connected).length > 1 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {platforms
+                    .filter((p) => p.connected)
+                    .map((p) => (
+                      <button
+                        key={p.name}
+                        type="button"
+                        onClick={() => setProvider(p.name)}
+                        className={cn(
+                          "rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
+                          provider === p.name
+                            ? "border-accent bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-txt"
+                            : "border-border2 text-txt2 hover:border-accent hover:text-txt",
+                        )}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                </div>
+              )}
               <Button onClick={() => void deploy()} disabled={busy} className="w-full justify-center">
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
-                Deploy to Vercel
+                Deploy to {chosenLabel}
               </Button>
-              <p className="text-[11px] text-txt3">
-                Need to connect Vercel first? Settings → Deployments. New platforms (Netlify, Cloudflare Pages,
-                Render) are coming.
-              </p>
+              {chosen && (
+                <p className="text-[11px] text-txt3">
+                  {chosenLabel} deploys from {chosen.supportedGitHosts.map((h) => h.charAt(0).toUpperCase() + h.slice(1)).join(", ")}.
+                  Connect more platforms in Settings → Deployments.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-start gap-2 rounded-card border border-border2 p-3 text-[12.5px] text-txt2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-txt3" />
+              Connect a platform (Vercel, Netlify, Cloudflare Pages, or Render) in Settings → Deployments, then
+              deploy here.
             </div>
           )}
         </div>

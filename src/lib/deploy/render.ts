@@ -27,6 +27,13 @@ function ownerId(auth: DeployAuth): string {
   return typeof auth.config?.ownerId === "string" ? auth.config.ownerId : "";
 }
 
+/** The repo's web URL on its host — Render reads the host from this URL. */
+const GIT_HOST_BASE: Record<string, string> = {
+  github: "https://github.com",
+  gitlab: "https://gitlab.com",
+  bitbucket: "https://bitbucket.org",
+};
+
 async function renderFetch(
   auth: DeployAuth,
   path: string,
@@ -51,8 +58,9 @@ export const renderProvider: DeployProvider = {
   name: "render",
   label: "Render",
   implemented: true,
+  supportedGitHosts: ["github", "gitlab", "bitbucket"],
 
-  async linkRepo(auth, { repo, name }): Promise<DeployResult<LinkedProject>> {
+  async linkRepo(auth, { repo, name, gitProvider }): Promise<DeployResult<LinkedProject>> {
     const owner = ownerId(auth);
     if (!owner) return { error: "Add your Render Owner ID in Settings → Deployments." };
     const serviceName = name || toServiceName(repo);
@@ -62,7 +70,7 @@ export const renderProvider: DeployProvider = {
         type: "web_service",
         name: serviceName,
         ownerId: owner,
-        repo: `https://github.com/${repo}`,
+        repo: `${GIT_HOST_BASE[gitProvider] ?? GIT_HOST_BASE.github}/${repo}`,
         branch: "main",
         autoDeploy: "yes",
         serviceDetails: {
