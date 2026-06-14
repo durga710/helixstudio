@@ -1,0 +1,9 @@
+{
+  "id": "static-premium",
+  "label": "Premium app (instant, themeable)",
+  "framework": "static",
+  "description": "A premium, self-contained app skeleton — Tailwind (CDN), login/signup, dashboard shell, settings, nav, and 6 swappable color palettes. No build step; previews instantly. The AI fills the blank content area with the user's idea.",
+  "keywords": [],
+  "notesBlurb": "PREMIUM app skeleton (static-premium): a complete, styled, instantly-previewing app. The login/signup (mock localStorage auth), dashboard layout, sidebar nav, settings page, theming (6 palettes via [data-theme]), and the premium component kit ALREADY WORK. Your job: customize the BLANK content slot in index.html (the region marked 'AI: BUILD THE APP'S MAIN FEATURE HERE') for the user's idea, relabel the placeholder stat cards, set the app name (data-app-name), and add any extra pages by copying the existing page/nav pattern. Reuse the existing components + color tokens (bg-surface, border-line, bg-brand text-brand-fg, .nav-item, inputs). Do NOT rebuild auth/layout/nav, restyle from scratch, swap Tailwind out, touch the palette system, or remove the theme picker. Keep it runnable at every step.",
+  "cli": "overlay-only"
+}

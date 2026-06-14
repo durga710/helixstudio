@@ -1,0 +1,38 @@
+/* ── Theme palettes ───────────────────────────────────────────────────────────
+   Each palette is just a set of CSS variables. The whole app reads these (via the
+   Tailwind config in index.html), so switching [data-theme] on <html> re-themes
+   everything in one move. Add a palette by copying a block and changing the values.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root,
+[data-theme="midnight"] {
+  --bg: #0b1020; --surface: #121a30; --surface-2: #1a2540; --border: #26314d;
+  --text: #eaf0fb; --text-muted: #93a0bd; --primary: #5b8cff; --primary-fg: #ffffff; --accent: #9b6bff;
+}
+[data-theme="ocean"] {
+  --bg: #07171c; --surface: #0d2730; --surface-2: #123642; --border: #1c4350;
+  --text: #e6fbff; --text-muted: #8bb6c0; --primary: #21c8c0; --primary-fg: #05201f; --accent: #34a0ff;
+}
+[data-theme="forest"] {
+  --bg: #0c150f; --surface: #122017; --surface-2: #1a2c20; --border: #244031;
+  --text: #e9f6ec; --text-muted: #93b59f; --primary: #34c759; --primary-fg: #05210f; --accent: #b6e34a;
+}
+[data-theme="sunset"] {
+  --bg: #1a1012; --surface: #25171a; --surface-2: #321e22; --border: #46282d;
+  --text: #fdefe9; --text-muted: #c79e94; --primary: #ff7a59; --primary-fg: #2a0f0a; --accent: #ffb000;
+}
+[data-theme="grape"] {
+  --bg: #130d1f; --surface: #1d142e; --surface-2: #281b3e; --border: #3a2957;
+  --text: #f1e9fb; --text-muted: #ab97c9; --primary: #a855f7; --primary-fg: #ffffff; --accent: #ec4899;
+}
+[data-theme="paper"] {
+  --bg: #f6f7fb; --surface: #ffffff; --surface-2: #f0f2f8; --border: #e2e6ef;
+  --text: #1a2236; --text-muted: #5d6b86; --primary: #4f46e5; --primary-fg: #ffffff; --accent: #0ea5e9;
+}
+
+/* Active sidebar item — uses the palette tokens so it themes too. */
+.nav-item { color: var(--text-muted); transition: background-color 0.15s, color 0.15s; }
+.nav-item:hover { color: var(--text); background: var(--surface-2); }
+.nav-item.active { color: var(--primary-fg); background: var(--primary); }
+
+html { color-scheme: dark; }
+[data-theme="paper"] { color-scheme: light; }

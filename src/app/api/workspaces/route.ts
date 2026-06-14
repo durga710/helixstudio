@@ -130,6 +130,14 @@ export async function POST(req: Request) {
         // classifier unavailable → blank workspace (today's behavior).
       }
     }
+    // Premium upgrade: paid users get the premium, themeable app skeleton for
+    // static app builds; guests get the clean basic static template (an upsell).
+    if (templateId === "static-web") {
+      const u = await db().user.findUnique({ where: { id: g.user.id }, select: { tier: true, isGuest: true } });
+      const premium = isAdminEmail(g.user.email) || (!u?.isGuest && (u?.tier === "pro" || u?.tier === "team"));
+      if (premium) templateId = "static-premium";
+    }
+
     const tpl = templateId ? await getTemplate(templateId) : undefined;
     const ws = await db().workspace.create({
       data: {
