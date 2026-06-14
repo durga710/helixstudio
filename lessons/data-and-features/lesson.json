@@ -1,80 +1,34 @@
 {
   "id": "data-and-features",
   "title": "Data is everything",
-  "blurb": "AI learns from data — explore a real dataset and discover how patterns (and bias) are born.",
+  "blurb": "AI learns from data — pick the right measurements and make the first cut that separates the kinds.",
   "level": "beginner",
-  "estMinutes": 14,
+  "estMinutes": 10,
   "icon": "Boxes",
   "concept": "data",
   "order": 2,
   "steps": [
     {
       "kind": "explain",
-      "title": "Where does AI get its smarts?",
-      "body": "Last time you learned AI learns from **examples**. A big pile of examples has a name: **data**.\n\nData is the food an AI eats. Feed it good data and it gets smart. Feed it bad data and it gets… not so smart. Let's see what data actually looks like."
-    },
-    {
-      "kind": "explain",
       "title": "What data looks like",
-      "body": "Data is usually just a **table** — like a spreadsheet.\n\nEach **row** is one example (one flower, one photo, one song). Each **column** is one thing we measured about it. That's it. No magic — just a tidy list of examples."
-    },
-    {
-      "kind": "explain",
-      "title": "Features and labels",
-      "body": "Two words pros use constantly:\n\n- **Features** = the things we *measure* (a flower's petal length, its height…).\n- **Label** = the *answer* we want (what kind of flower it is).\n\nThe AI's job: look at the **features** and guess the **label**."
-    },
-    {
-      "kind": "quiz",
-      "title": "Feature or label?",
-      "question": "We want an AI to guess a flower's *kind* from its *petal length*. Which one is the label?",
-      "choices": ["Petal length", "The kind of flower", "Both", "Neither"],
-      "answer": 1,
-      "explain": "The **kind of flower** is the label — it's the answer we want. Petal length is a feature we measure to guess it."
-    },
-    {
-      "kind": "explain",
-      "title": "Let's explore real data",
-      "body": "Below is a tiny dataset of **30 flowers** — daisies, tulips, and roses — each with a few measurements.\n\nPut different measurements on the **X** and **Y** axes and watch what happens. Can you find axes where the three kinds split into clear groups?"
+      "body": "An AI learns from a big pile of **examples** — that's **data**, usually just a **table**. Each **row** is one example (one penguin, one photo). Each **column** is one thing we measured.\n\nTwo words pros use constantly:\n- **Features** = the things we *measure* (a penguin's bill length, flipper length…).\n- **Label** = the *answer* we want (which kind of penguin it is).\n\nThe AI's job: look at the **features** and guess the **label**."
     },
     {
       "kind": "widget",
       "widget": "dataExplorer",
-      "title": "Explore the flowers",
-      "body": "Change the X and Y axes. Each dot is one flower, colored by its kind.",
-      "config": { "dataset": "flowers" }
+      "title": "Make the first cut",
+      "body": "Here are two kinds of penguin with three measurements each. Put measurements on the **X** and **Y** axes, then **drag the divider** to split the two kinds apart. Find the measurements + cut that separate them best — aim for 90%.",
+      "config": { "dataset": "penguins" }
     },
     {
       "kind": "explain",
-      "title": "That's a pattern!",
-      "body": "See how the colors form **clusters**? Daisies bunch in one corner, roses in another. The AI doesn't need anyone to *tell* it the rule — it can *see* that big petals usually mean \"rose.\"\n\n**Finding clusters like these is exactly what a classifier does.**"
-    },
-    {
-      "kind": "quiz",
-      "title": "Reading the chart",
-      "question": "When the kinds form separate clusters on the chart, what does that mean for the AI?",
-      "choices": [
-        "The data is broken",
-        "The features are useful — they help tell the kinds apart",
-        "The AI is guessing randomly",
-        "There's nothing to learn"
-      ],
-      "answer": 1,
-      "explain": "Clear clusters = useful features. If everything overlapped in one blob, the AI would have a much harder time."
+      "title": "Good features do the work",
+      "body": "Notice how **some measurements separated the penguins cleanly** and others left the colors all mixed up? Picking **good features** is half the battle in real AI.\n\nIt's like guessing someone's favorite sport: their *height* helps a little, but \"do they own a soccer ball?\" helps a lot more. With the right features, a single cut already does most of the job — that's the seed of every classifier."
     },
     {
       "kind": "explain",
-      "title": "Better features, smarter AI",
-      "body": "Some measurements separate the flowers well; others barely help. Picking **good features** is half the battle in real AI.\n\nIt's like guessing someone's favorite sport: their *height* might help a little, but \"do they own a soccer ball?\" helps a lot more. Good features carry the answer."
-    },
-    {
-      "kind": "explain",
-      "title": "Garbage in, garbage out",
-      "body": "Here's the rule that explains most AI failures: **an AI can only be as good as its data.**\n\nMessy, wrong, or missing data → a confused AI. Clean, clear data → a sharp one. The data matters more than the computer."
-    },
-    {
-      "kind": "explain",
-      "title": "The sneaky problem: balance",
-      "body": "Now imagine our flower data had **28 roses** and only **2 daisies**.\n\nThe AI would barely know what a daisy looks like — so it'd guess \"rose\" almost every time. Not because roses are special, but because that's mostly what it *saw*. This lopsidedness has a name: **bias**."
+      "title": "Garbage in, garbage out — and bias",
+      "body": "Here's the rule behind most AI failures: **an AI can only be as good as its data.** Messy or lopsided data → a confused AI.\n\nImagine training on **100 of one kind and 4 of the other**. The AI barely sees the rare kind, so it just guesses the common one — not because it's smart, but because that's mostly what it *saw*. That lopsidedness has a name: **bias**, and it comes from the data we collect, not the computer."
     },
     {
       "kind": "quiz",
@@ -87,35 +41,12 @@
         "It prefers bananas"
       ],
       "answer": 1,
-      "explain": "Exactly — a lopsided dataset makes a lopsided AI. Balanced examples are the fix."
-    },
-    {
-      "kind": "explain",
-      "title": "Where bias really comes from",
-      "body": "Bias isn't the computer being mean. It comes from the **data we collect**.\n\nIf the examples we gather miss certain groups, the AI misses them too. That's why real AI teams work so hard to gather **fair, balanced** data — it's one of the most important jobs in the whole field."
-    },
-    {
-      "kind": "explain",
-      "title": "Why this matters in real life",
-      "body": "This isn't just about flowers. The same idea decides whether AI is **fair**:\n\n- A face system that only learned from a few kinds of faces works worse for everyone else.\n- A voice assistant trained on one accent struggles with others.\n\nGood, balanced data is how we build AI that works for **everybody**."
-    },
-    {
-      "kind": "quiz",
-      "title": "Recap",
-      "question": "What's the best way to keep an AI from becoming biased?",
-      "choices": [
-        "Use a faster computer",
-        "Collect balanced, fair examples of every group",
-        "Give it fewer examples",
-        "Hope for the best"
-      ],
-      "answer": 1,
-      "explain": "Balanced, fair data is the answer. The AI learns whatever the data teaches it — so we make sure the data is fair."
+      "explain": "Exactly — a lopsided dataset makes a lopsided AI. Balanced, fair examples are the fix, and that's one of the most important jobs in real AI."
     },
     {
       "kind": "explain",
       "title": "What you learned 🎉",
-      "body": "- **Data** = a table of examples (rows) with **features** (columns) and a **label** (the answer)\n- Good **features** make the kinds form clear **clusters**\n- **Garbage in, garbage out** — data quality beats computer speed\n- **Bias** is born from lopsided data; **balanced, fair data** is the cure\n\n**Next up:** instead of sorting things into kinds, you'll teach an AI to **predict a number** — that's called *regression*."
+      "body": "- **Data** = a table of examples with **features** (what we measure) and a **label** (the answer)\n- **Good features** make the kinds separate — you found them and cut them apart yourself\n- **Garbage in, garbage out** — data quality beats computer speed\n- **Bias** is born from lopsided data; **balanced, fair data** is the cure\n\n**Next up:** instead of sorting into kinds, you'll teach an AI to **predict a number** — that's *regression*."
     }
   ]
 }

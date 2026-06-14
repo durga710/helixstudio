@@ -128,11 +128,38 @@ const CREATURES: Dataset = {
   ],
 };
 
+function ppt(label: string, bill: number, flipper: number, weight: number): DataPoint {
+  return { label, features: { bill, flipper, weight } };
+}
+
+/** Two kinds of penguin, three measurements. bill & flipper separate them
+ * cleanly; a couple of overlaps keep one cut from being a perfect 100%. Built
+ * for the Data Explorer "make the first cut" build (pick features + a divider). */
+const PENGUINS: Dataset = {
+  id: "penguins",
+  name: "Penguins",
+  featureNames: ["bill", "flipper", "weight"],
+  units: { bill: "mm", flipper: "mm", weight: "kg" },
+  classes: ["Adelie", "Gentoo"],
+  summary: "24 penguins · 2 kinds · 3 measurements",
+  points: [
+    ppt("Adelie", 37, 188, 3.5), ppt("Adelie", 39, 190, 3.8), ppt("Adelie", 36, 186, 3.4),
+    ppt("Adelie", 40, 193, 4.0), ppt("Adelie", 38, 189, 3.7), ppt("Adelie", 41, 195, 3.9),
+    ppt("Adelie", 36, 187, 3.5), ppt("Adelie", 39, 191, 3.8), ppt("Adelie", 43, 192, 3.6),
+    ppt("Adelie", 37, 188, 3.9), ppt("Adelie", 38, 190, 3.5), ppt("Adelie", 40, 194, 4.1),
+    ppt("Gentoo", 47, 213, 5.0), ppt("Gentoo", 49, 218, 5.4), ppt("Gentoo", 46, 211, 4.9),
+    ppt("Gentoo", 50, 221, 5.6), ppt("Gentoo", 48, 215, 5.2), ppt("Gentoo", 45, 210, 4.8),
+    ppt("Gentoo", 49, 219, 5.5), ppt("Gentoo", 47, 214, 5.1), ppt("Gentoo", 42, 212, 5.0),
+    ppt("Gentoo", 48, 216, 5.3), ppt("Gentoo", 50, 220, 5.5), ppt("Gentoo", 46, 213, 4.9),
+  ],
+};
+
 export const DATASETS: Record<string, Dataset> = {
   flowers: FLOWERS,
   fruit2d: FRUIT2D,
   blobs: BLOBS,
   creatures: CREATURES,
+  penguins: PENGUINS,
 };
 
 export function getDataset(id: string | undefined): Dataset {
