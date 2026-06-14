@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Sparkles, Brain, Boxes, GitBranch, LineChart, ArrowRight, Clock, Check } from "lucide-react";
+import { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick, ArrowRight, Clock, Check, GraduationCap } from "lucide-react";
 import type { LessonManifest } from "@/lib/lessons/types";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
@@ -10,7 +10,7 @@ import { Pill } from "@/components/ui/pill";
 /* The AI Lab gallery: pick a lesson, learn AI by training a real model. Each
  * card is a self-contained guided flow — no code, no setup. */
 
-const ICONS: Record<string, typeof Sparkles> = { Sparkles, Brain, Boxes, GitBranch, LineChart };
+const ICONS: Record<string, typeof Sparkles> = { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick };
 
 export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
   const [status, setStatus] = useState<Record<string, string>>({});
@@ -72,6 +72,11 @@ export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
                       )}
                     </div>
                     <div className="text-[15px] font-semibold text-txt">{l.title}</div>
+                    {l.authored && (
+                      <span className="mt-1 inline-flex items-center gap-1 text-[10.5px] font-medium text-accent">
+                        <GraduationCap className="h-3 w-3" /> from your teacher
+                      </span>
+                    )}
                     <p className="mt-1.5 text-[12.5px] leading-relaxed text-txt2">{l.blurb}</p>
                     <div className="mt-3 flex items-center gap-3 text-[11px] text-txt3">
                       <span className="inline-flex items-center gap-1">
