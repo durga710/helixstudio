@@ -17,6 +17,7 @@ import { templateForCategory, templateForEngine } from "@/lib/templates/engines"
 export const PREMIUM_VARIANT: Record<string, string> = {
   "static-web": "static-premium",
   "nextjs-app": "nextjs-premium",
+  "express-api": "express-premium",
   "game-2d": "game-2d-premium",
   "game-3d": "game-3d-premium",
   "game-3d-pc": "game-3d-premium",

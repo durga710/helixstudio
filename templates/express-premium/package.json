@@ -1,0 +1,19 @@
+{
+  "name": "express-premium",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "cors": "2.8.5",
+    "dotenv": "17.4.2",
+    "ejs": "3.1.10",
+    "express": "4.21.2",
+    "helmet": "8.1.0",
+    "morgan": "1.10.0"
+  }
+}

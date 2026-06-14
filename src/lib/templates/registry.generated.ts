@@ -171,6 +171,83 @@ export const TEMPLATES: Record<string, Template> = {
       }
     ]
   },
+  "express-premium": {
+    "manifest": {
+      "id": "express-premium",
+      "label": "Premium Express app (server-rendered, HTMX)",
+      "framework": "express",
+      "description": "A premium, server-rendered Express app: MVC (routes/controllers/models), EJS views with a layout + partials, HTMX for live interactions without a SPA, Alpine.js sprinkles, Tailwind (CDN), helmet/cors security, a landing page, mock login, a dashboard with a working HTMX list, settings, and 6 swappable color palettes.",
+      "keywords": [],
+      "notesBlurb": "PREMIUM Express skeleton (express-premium): a complete, styled, server-rendered app. MVC + EJS views ALREADY WORK — src/app.js (helmet/cors/EJS/static/routes/errors), src/server.js, src/config.js, src/routes/ (pages.routes + items.routes), src/controllers/, src/models/items.model.js, views/ (partials/head + topbar + sidebar, landing, login, dashboard, settings, partials/items-list), public/theme.css (6 palettes [data-theme], HELIX-LOCKED) + public/app.js (theme picker). HTMX powers the dashboard list (hx-get/hx-post /items → re-renders views/partials/items-list.ejs). Your job: set the product name in src/config.js (appName), replace the dashboard's main feature with the user's real feature (a model + controller + an EJS partial rendered via HTMX), relabel the stat cards, add pages by copying a pages route + an EJS view + a sidebar link. Reuse the Tailwind tokens (bg-surface/border-line/bg-brand text-brand-fg/text-muted) + the items HTMX pattern. Do NOT recreate the boilerplate, rebuild the layout/nav/theme, swap Tailwind out, or touch public/theme.css (the palette system). Keep `npm start` running at every step.",
+      "cli": "overlay-only"
+    },
+    "files": [
+      {
+        "path": ".env.example",
+        "content": "# Copy to .env and adjust. Never commit real secrets.\nPORT=3000\nNODE_ENV=development\nCORS_ORIGIN=*\n"
+      },
+      {
+        "path": ".gitignore",
+        "content": "node_modules\n.env\nnpm-debug.log*\n.DS_Store\n"
+      },
+      {
+        "path": "AGENTS.md",
+        "content": "# Premium Express skeleton — how to build on it\n\nA **complete, working, server-rendered** Express app. Don't rebuild it — fill it in.\n\n## Already done (do not recreate)\n- **Server/MVC**: `src/server.js` (boot), `src/app.js` (helmet/cors/EJS/static/routes/\n  errors), `src/config.js` (env + `appName`), `src/routes/` (`pages.routes` +\n  `items.routes`), `src/controllers/`, `src/models/items.model.js`, `src/middleware/error.js`.\n- **Views (EJS)**: `views/partials/head` + `foot` + `sidebar` + `topbar`, plus\n  `landing`, `login` (mock), `dashboard`, `settings`, and `partials/items-list`.\n- **HTMX feature**: the dashboard list — `hx-post /items` → `items.controller` renders\n  `views/partials/items-list.ejs` → HTMX swaps it in. **This is the pattern to copy.**\n- **Theming**: 6 palettes in `public/theme.css` (`[data-theme]`), live picker in the\n  topbar (`public/app.js`), no-flash script in `head.ejs`. Tailwind (CDN) maps the\n  palette CSS vars to utilities. Alpine.js powers the topbar dropdown.\n\n## Your job (the \"blanks\")\n1. Set the product name in `src/config.js` (`appName`).\n2. Replace the dashboard's main feature: add a `model` + `controller` + an EJS\n   partial, wired with HTMX exactly like `items`.\n3. Relabel the placeholder stat cards for real metrics (or remove them).\n4. Add a page by copying a line in `src/routes/pages.routes.js` + a controller in\n   `pages.controller.js` + a `views/<name>.ejs` + a link in `partials/sidebar.ejs`.\n5. Rewrite the landing hero + feature cards for the product.\n\n## Rules\n- **Reuse the tokens**: `bg-bg`, `bg-surface`, `bg-surface2`, `border-line`,\n  `text-ink`, `text-muted`, `bg-brand text-brand-fg`, `bg-accent`. Never hard-code hex.\n- For interactivity prefer **HTMX** (server-rendered partials) + light **Alpine**;\n  don't add a SPA framework.\n- **Don't touch** `public/theme.css` (HELIX-LOCKED palette system) or the layout/nav.\n- Keep `npm start` running at every step — every page must render.\n"
+      },
+      {
+        "path": "package.json",
+        "content": "{\n  \"name\": \"express-premium\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"main\": \"src/server.js\",\n  \"scripts\": {\n    \"start\": \"node src/server.js\",\n    \"dev\": \"node --watch src/server.js\"\n  },\n  \"dependencies\": {\n    \"cors\": \"2.8.5\",\n    \"dotenv\": \"17.4.2\",\n    \"ejs\": \"3.1.10\",\n    \"express\": \"4.21.2\",\n    \"helmet\": \"8.1.0\",\n    \"morgan\": \"1.10.0\"\n  }\n}\n"
+      },
+      {
+        "path": "public/app.js",
+        "content": "// Theme picker — populates the <select> and applies + persists the palette.\n(function () {\n  var THEMES = [\"midnight\", \"ocean\", \"forest\", \"sunset\", \"grape\", \"paper\"];\n  var sel = document.getElementById(\"theme-select\");\n  if (sel) {\n    THEMES.forEach(function (t) {\n      var o = document.createElement(\"option\");\n      o.value = t;\n      o.textContent = t;\n      sel.appendChild(o);\n    });\n    sel.value = document.documentElement.dataset.theme || \"midnight\";\n  }\n  window.setTheme = function (t) {\n    document.documentElement.dataset.theme = t;\n    try {\n      localStorage.setItem(\"theme\", t);\n    } catch (e) {\n      /* ignore */\n    }\n  };\n})();\n"
+      },
+      {
+        "path": "public/theme.css",
+        "content": "/* HELIX-LOCKED · ── Theme palettes ───────────────────────────────────────────\n   Each palette is a set of CSS variables. The Tailwind config (in views/partials/\n   head.ejs) maps them to utilities (bg-surface, text-ink, bg-brand…), so flipping\n   [data-theme] on <html> re-themes the whole app. Add a palette by copying a block.\n   ───────────────────────────────────────────────────────────────────────────── */\n:root,\n[data-theme=\"midnight\"] {\n  --bg: #0b1020; --surface: #121a30; --surface-2: #1a2540; --line: #26314d;\n  --ink: #eaf0fb; --muted: #93a0bd; --brand: #5b8cff; --brand-fg: #ffffff; --accent: #9b6bff;\n}\n[data-theme=\"ocean\"] {\n  --bg: #07171c; --surface: #0d2730; --surface-2: #123642; --line: #1c4350;\n  --ink: #e6fbff; --muted: #8bb6c0; --brand: #21c8c0; --brand-fg: #05201f; --accent: #34a0ff;\n}\n[data-theme=\"forest\"] {\n  --bg: #0c150f; --surface: #122017; --surface-2: #1a2c20; --line: #244031;\n  --ink: #e9f6ec; --muted: #93b59f; --brand: #34c759; --brand-fg: #05210f; --accent: #b6e34a;\n}\n[data-theme=\"sunset\"] {\n  --bg: #1a1012; --surface: #25171a; --surface-2: #321e22; --line: #46282d;\n  --ink: #fdefe9; --muted: #c79e94; --brand: #ff7a59; --brand-fg: #2a0f0a; --accent: #ffb000;\n}\n[data-theme=\"grape\"] {\n  --bg: #130d1f; --surface: #1d142e; --surface-2: #281b3e; --line: #3a2957;\n  --ink: #f1e9fb; --muted: #ab97c9; --brand: #a855f7; --brand-fg: #ffffff; --accent: #ec4899;\n}\n[data-theme=\"paper\"] {\n  --bg: #f6f7fb; --surface: #ffffff; --surface-2: #f0f2f8; --line: #e2e6ef;\n  --ink: #1a2236; --muted: #5d6b86; --brand: #4f46e5; --brand-fg: #ffffff; --accent: #0ea5e9;\n}\n\n/* Active sidebar item — themed via tokens. */\n.nav-item { color: var(--muted); transition: background-color 0.15s, color 0.15s; }\n.nav-item:hover { color: var(--ink); background: var(--surface-2); }\n.nav-item.active { color: var(--brand-fg); background: var(--brand); }\n\n[x-cloak] { display: none !important; }\nhtml { color-scheme: dark; }\n[data-theme=\"paper\"] { color-scheme: light; }\n"
+      },
+      {
+        "path": "src/app.js",
+        "content": "// The Express app: security + parsing middleware, EJS views, routes, errors.\n// Kept separate from server.js so it's easy to import in tests.\nimport path from \"node:path\";\nimport { fileURLToPath } from \"node:url\";\nimport express from \"express\";\nimport helmet from \"helmet\";\nimport cors from \"cors\";\nimport morgan from \"morgan\";\n\nimport { config } from \"./config.js\";\nimport routes from \"./routes/index.js\";\nimport { notFound, errorHandler } from \"./middleware/error.js\";\n\nconst __dirname = path.dirname(fileURLToPath(import.meta.url));\n\nexport function createApp() {\n  const app = express();\n\n  // EJS server-rendered views (layout + partials live in ../views).\n  app.set(\"view engine\", \"ejs\");\n  app.set(\"views\", path.join(__dirname, \"../views\"));\n\n  // helmet's strict CSP would block the Tailwind/HTMX/Alpine CDN scripts this\n  // starter loads, so CSP is off here. Tighten it for production once you've\n  // self-hosted your assets (keep the other helmet protections).\n  app.use(helmet({ contentSecurityPolicy: false }));\n  app.use(cors({ origin: config.corsOrigin }));\n  app.use(express.json({ limit: \"1mb\" }));\n  app.use(express.urlencoded({ extended: true })); // HTMX posts form-encoded\n  if (config.env !== \"test\") app.use(morgan(\"dev\"));\n\n  app.use(express.static(path.join(__dirname, \"../public\")));\n\n  app.get(\"/health\", (_req, res) => res.json({ status: \"ok\" }));\n  app.use(\"/\", routes);\n\n  app.use(notFound);\n  app.use(errorHandler);\n  return app;\n}\n"
+      },
+      {
+        "path": "src/config.js",
+        "content": "// Centralized, env-driven config. Never hard-code secrets.\nimport \"dotenv/config\";\n\nexport const config = {\n  port: Number(process.env.PORT) || 3000,\n  env: process.env.NODE_ENV || \"development\",\n  corsOrigin: process.env.CORS_ORIGIN || \"*\",\n  // AI: set the product name — it's used in the nav, login, and landing.\n  appName: \"Helix App\",\n};\n"
+      },
+      {
+        "path": "src/controllers/items.controller.js",
+        "content": "// Items controller — renders the list PARTIAL for HTMX to swap in.\nimport * as Items from \"../models/items.model.js\";\n\nexport function listItems(_req, res) {\n  res.render(\"partials/items-list\", { items: Items.all() });\n}\n\nexport function createItem(req, res) {\n  const name = (req.body?.name ?? \"\").trim();\n  if (name) Items.create(name);\n  // Re-render the whole list so HTMX swaps in the updated partial.\n  res.render(\"partials/items-list\", { items: Items.all() });\n}\n"
+      },
+      {
+        "path": "src/controllers/pages.controller.js",
+        "content": "// Page controllers — render the EJS views. `appName` flows into every view.\nimport { config } from \"../config.js\";\nimport * as Items from \"../models/items.model.js\";\n\nconst base = { appName: config.appName };\n\nexport function landing(_req, res) {\n  res.render(\"landing\", { ...base, page: \"landing\" });\n}\n\nexport function login(_req, res) {\n  res.render(\"login\", { ...base, page: \"login\" });\n}\n\nexport function dashboard(_req, res) {\n  res.render(\"dashboard\", { ...base, page: \"dashboard\", items: Items.all() });\n}\n\nexport function settings(_req, res) {\n  res.render(\"settings\", { ...base, page: \"settings\" });\n}\n"
+      },
+      {
+        "path": "src/middleware/error.js",
+        "content": "// 404 + centralized error handler. Throw or next(err) anywhere; this formats it.\nexport function notFound(_req, res) {\n  res.status(404).send(\"Not found\");\n}\n\n// eslint-disable-next-line no-unused-vars\nexport function errorHandler(err, _req, res, _next) {\n  const status = err.status || 500;\n  if (status >= 500) console.error(err);\n  res.status(status).send(err.message || \"Internal server error\");\n}\n"
+      },
+      {
+        "path": "src/models/items.model.js",
+        "content": "// Data layer. In-memory store standing in for a database — swap for your ORM\n// (Prisma, Sequelize, Mongoose). Controllers only talk to this module.\nconst items = [\n  { id: 1, name: \"First item\" },\n  { id: 2, name: \"Second item\" },\n];\n\nexport function all() {\n  return items;\n}\n\nexport function create(name) {\n  const item = { id: items.length ? items[items.length - 1].id + 1 : 1, name };\n  items.push(item);\n  return item;\n}\n"
+      },
+      {
+        "path": "src/routes/index.js",
+        "content": "// Mounts page routes (server-rendered) + the HTMX items routes.\nimport { Router } from \"express\";\nimport pagesRoutes from \"./pages.routes.js\";\nimport itemsRoutes from \"./items.routes.js\";\n\nconst router = Router();\nrouter.use(\"/\", pagesRoutes);\nrouter.use(\"/items\", itemsRoutes);\n\nexport default router;\n"
+      },
+      {
+        "path": "src/routes/items.routes.js",
+        "content": "// HTMX items resource. The handlers render an HTML PARTIAL (not JSON), which\n// HTMX swaps into the page — this is the pattern to copy for the user's feature.\nimport { Router } from \"express\";\nimport { listItems, createItem } from \"../controllers/items.controller.js\";\n\nconst router = Router();\nrouter.get(\"/\", listItems); // hx-get → render the list partial\nrouter.post(\"/\", createItem); // hx-post → add, then render the list partial\n\nexport default router;\n"
+      },
+      {
+        "path": "src/routes/pages.routes.js",
+        "content": "// Server-rendered pages. Add a page by copying a line here + a view in views/\n// and a sidebar link in views/partials/sidebar.ejs.\nimport { Router } from \"express\";\nimport { landing, login, dashboard, settings } from \"../controllers/pages.controller.js\";\n\nconst router = Router();\nrouter.get(\"/\", landing);\nrouter.get(\"/login\", login);\nrouter.get(\"/dashboard\", dashboard);\nrouter.get(\"/settings\", settings);\n\nexport default router;\n"
+      },
+      {
+        "path": "src/server.js",
+        "content": "// Entry point — boot the HTTP server.\nimport { createApp } from \"./app.js\";\nimport { config } from \"./config.js\";\n\ncreateApp().listen(config.port, () => {\n  console.log(`App listening on http://localhost:${config.port} (${config.env})`);\n});\n"
+      }
+    ]
+  },
   "flask-api": {
     "manifest": {
       "id": "flask-api",

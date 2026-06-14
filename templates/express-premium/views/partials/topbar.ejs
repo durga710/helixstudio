@@ -1,0 +1,16 @@
+<header class="flex h-16 items-center justify-between border-b border-line bg-surface px-4 md:px-6">
+  <div class="text-sm text-muted">Welcome back</div>
+  <div class="flex items-center gap-3">
+    <select id="theme-select" onchange="setTheme(this.value)" aria-label="Theme"
+      class="h-9 rounded-lg border border-line bg-surface px-2 text-sm capitalize text-ink outline-none focus:border-brand"></select>
+    <!-- Alpine dropdown (client interactivity demo). -->
+    <div x-data="{ open: false }" class="relative">
+      <button @click="open = !open" class="grid h-9 w-9 place-items-center rounded-full bg-surface2 text-sm font-semibold text-ink">U</button>
+      <div x-show="open" @click.outside="open = false" x-cloak
+        class="absolute right-0 z-10 mt-2 w-40 rounded-xl border border-line bg-surface p-1 shadow-lg">
+        <a href="/settings" class="block rounded-lg px-3 py-2 text-sm text-ink hover:bg-surface2">Settings</a>
+        <a href="/login" class="block rounded-lg px-3 py-2 text-sm text-ink hover:bg-surface2">Sign out</a>
+      </div>
+    </div>
+  </div>
+</header>

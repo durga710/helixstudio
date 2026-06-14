@@ -1,0 +1,9 @@
+{
+  "id": "express-premium",
+  "label": "Premium Express app (server-rendered, HTMX)",
+  "framework": "express",
+  "description": "A premium, server-rendered Express app: MVC (routes/controllers/models), EJS views with a layout + partials, HTMX for live interactions without a SPA, Alpine.js sprinkles, Tailwind (CDN), helmet/cors security, a landing page, mock login, a dashboard with a working HTMX list, settings, and 6 swappable color palettes.",
+  "keywords": [],
+  "notesBlurb": "PREMIUM Express skeleton (express-premium): a complete, styled, server-rendered app. MVC + EJS views ALREADY WORK — src/app.js (helmet/cors/EJS/static/routes/errors), src/server.js, src/config.js, src/routes/ (pages.routes + items.routes), src/controllers/, src/models/items.model.js, views/ (partials/head + topbar + sidebar, landing, login, dashboard, settings, partials/items-list), public/theme.css (6 palettes [data-theme], HELIX-LOCKED) + public/app.js (theme picker). HTMX powers the dashboard list (hx-get/hx-post /items → re-renders views/partials/items-list.ejs). Your job: set the product name in src/config.js (appName), replace the dashboard's main feature with the user's real feature (a model + controller + an EJS partial rendered via HTMX), relabel the stat cards, add pages by copying a pages route + an EJS view + a sidebar link. Reuse the Tailwind tokens (bg-surface/border-line/bg-brand text-brand-fg/text-muted) + the items HTMX pattern. Do NOT recreate the boilerplate, rebuild the layout/nav/theme, swap Tailwind out, or touch public/theme.css (the palette system). Keep `npm start` running at every step.",
+  "cli": "overlay-only"
+}
