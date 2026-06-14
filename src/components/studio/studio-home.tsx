@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
+  ArrowLeft,
   Sparkles,
   FolderGit2,
   FilePlus2,
@@ -51,55 +52,54 @@ interface SharedCard extends WorkspaceCard {
   ownerName: string;
 }
 
-type EditorMode = "app" | "game" | "ai";
+type Kind = "app" | "game" | "ai";
 
-/** Persist the chosen mode in a cookie (read server-side next visit — no flash). */
-function persistMode(m: EditorMode) {
-  try {
-    document.cookie = `helix.editor.mode=${m}; path=/; max-age=31536000; samesite=lax`;
-  } catch {
-    /* ignore (cookies disabled) */
-  }
-}
-
-const MODES: { id: EditorMode; label: string; icon: LucideIcon; blurb: string }[] = [
-  { id: "app", label: "App", icon: AppWindow, blurb: "Sites, tools & dashboards" },
-  { id: "game", label: "Game", icon: Gamepad2, blurb: "Build, play & share" },
-  { id: "ai", label: "AI", icon: Brain, blurb: "Learn & train AI models" },
+const CHOICES: { kind: Kind; title: string; icon: LucideIcon; desc: string; examples: string[] }[] = [
+  {
+    kind: "app",
+    title: "Build an App",
+    icon: AppWindow,
+    desc: "Sites, tools & dashboards — describe it and Helix writes the code.",
+    examples: ["a portfolio", "a to-do app", "a dashboard"],
+  },
+  {
+    kind: "game",
+    title: "Make a Game",
+    icon: Gamepad2,
+    desc: "2D & 3D games you build, play and share — pick a kind to start.",
+    examples: ["a platformer", "a snake game", "an endless runner"],
+  },
+  {
+    kind: "ai",
+    title: "Learn AI",
+    icon: Brain,
+    desc: "Train real models on an interactive workbench, guided by an AI tutor.",
+    examples: ["train a decision tree", "build a neural net", "see how AI works"],
+  },
 ];
 
-const CATEGORY_ICONS: Record<string, LucideIcon> = {
-  Footprints,
-  Rabbit,
-  Joystick,
-  Map: MapIcon,
-  Globe,
-  Blocks,
-  Sparkles,
-};
+const CATEGORY_ICONS: Record<string, LucideIcon> = { Footprints, Rabbit, Joystick, Map: MapIcon, Globe, Blocks, Sparkles };
 
 /**
- * Editor home — mode-first. The user picks App / Game / AI before entering the
- * editor; each mode shows its own start options + its own projects. App/Game are
- * workspace-backed; AI opens the workspace-less lab/studios space.
+ * Editor home — a two-step "What do you want to make?" chooser. Step 1 is the
+ * three big choices (App/Game/AI) with your existing projects below; picking one
+ * opens that type's focused create step. A project's type is fixed, so there's no
+ * switcher — to make a different thing you come back and choose again.
  */
 export function StudioHome({
   workspaces,
   sharedWorkspaces,
   isGuest,
   isAdmin,
-  initialMode = "app",
 }: {
   workspaces: WorkspaceCard[];
   sharedWorkspaces?: SharedCard[];
   isGuest?: boolean;
   isAdmin?: boolean;
-  /** Last-used mode, read from a cookie on the server so the first paint already
-   * shows the right tab (no hydration mismatch / flash). */
-  initialMode?: EditorMode;
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<EditorMode>(initialMode);
+  const [view, setView] = useState<"choose" | "create">("choose");
+  const [kind, setKind] = useState<Kind>("app");
   const [picking, setPicking] = useState(false);
   const [pickingHost, setPickingHost] = useState(false);
   const [scratchName, setScratchName] = useState("");
@@ -107,13 +107,19 @@ export function StudioHome({
   const [deleting, setDeleting] = useState<string | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  function pickMode(m: EditorMode) {
-    setMode(m);
-    persistMode(m);
-  }
-
   const { creating, error, setError, uploadNote, createScratch, createGame, importFolder, importRepo: importRepoBase } =
     useWorkspaceCreation();
+
+  function choose(k: Kind) {
+    setKind(k);
+    setView("create");
+    setError(null);
+  }
+  function backToChooser() {
+    setView("choose");
+    setNamePrompt(false);
+    setError(null);
+  }
 
   async function importRepo(provider: GitProviderName, repo: string) {
     if (!(await importRepoBase(provider, repo))) {
@@ -136,10 +142,6 @@ export function StudioHome({
     setDeleting(null);
   }
 
-  const apps = workspaces.filter((w) => w.kind !== "game");
-  const games = workspaces.filter((w) => w.kind === "game");
-  const sharedApps = (sharedWorkspaces ?? []).filter((w) => w.kind !== "game");
-  const sharedGames = (sharedWorkspaces ?? []).filter((w) => w.kind === "game");
   const gameCats = GAME_CATEGORIES.filter((c) => !c.adminOnly || isAdmin);
 
   function ProjectCard(w: WorkspaceCard) {
@@ -155,6 +157,9 @@ export function StudioHome({
               <Sparkles className="h-4 w-4 shrink-0 text-ok" />
             )}
             <span className="truncate text-sm font-medium text-txt">{w.name}</span>
+            <span className="ml-auto shrink-0 rounded-full border border-border2 bg-panel2 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-txt3">
+              {w.kind === "game" ? "Game" : "App"}
+            </span>
           </div>
           {w.repo && (
             <p className="mb-2 flex items-center gap-1 truncate font-mono text-[11px] text-txt3">
@@ -181,7 +186,7 @@ export function StudioHome({
           type="button"
           aria-label="Delete workspace"
           onClick={() => void deleteWorkspace(w.id)}
-          className="absolute right-3 top-3 text-txt3 opacity-0 transition-all hover:text-bad group-hover:opacity-100"
+          className="absolute right-3 top-9 text-txt3 opacity-0 transition-all hover:text-bad group-hover:opacity-100"
         >
           {deleting === w.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>
@@ -189,50 +194,19 @@ export function StudioHome({
     );
   }
 
-  return (
-    <div className="space-y-10">
-      <section>
-        <h1 className="mb-1.5 text-2xl font-semibold tracking-tight text-txt">What do you want to work on?</h1>
-        <p className="mb-5 text-sm text-txt3">Pick a mode — the editor sets itself up for it.</p>
+  /* ------------------------------- create step ------------------------------- */
+  if (view === "create") {
+    return (
+      <div className="space-y-6">
+        <button onClick={backToChooser} className="inline-flex items-center gap-1.5 text-[13px] text-txt3 transition-colors hover:text-txt">
+          <ArrowLeft className="h-4 w-4" /> What do you want to make?
+        </button>
 
-        {/* Mode switcher — the prompt before entering the editor. */}
-        <div className="mb-7 grid gap-2.5 sm:grid-cols-3" role="group" aria-label="Editor mode">
-          {MODES.map((m) => {
-            const Icon = m.icon;
-            const active = mode === m.id;
-            return (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => pickMode(m.id)}
-                aria-pressed={active}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl border p-4 text-left transition-colors",
-                  active
-                    ? "border-accent bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
-                    : "border-border bg-panel hover:border-accent",
-                )}
-              >
-                <span
-                  className={cn(
-                    "grid h-10 w-10 shrink-0 place-items-center rounded-xl border",
-                    active ? "border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl" : "border-border2 bg-panel2",
-                  )}
-                >
-                  <Icon className={cn("h-5 w-5", active ? "text-accent" : "text-txt2")} strokeWidth={1.8} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-[15px] font-semibold text-txt">{m.label}</span>
-                  <span className="block text-[11.5px] text-txt3">{m.blurb}</span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        {kind === "app" && (
+          <section>
+            <h1 className="mb-1.5 text-2xl font-semibold tracking-tight text-txt">Build an App</h1>
+            <p className="mb-6 text-sm text-txt3">Start from a description, an existing repo, or a folder on your computer.</p>
 
-        {/* APP mode — scratch / import / folder doors */}
-        {mode === "app" && (
-          <>
             <Link
               href="/build"
               className="mb-4 flex items-center gap-3.5 rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[linear-gradient(110deg,color-mix(in_srgb,var(--accent)_14%,transparent),color-mix(in_srgb,#c084fc_10%,transparent))] px-5 py-4 transition-colors hover:border-accent"
@@ -261,9 +235,7 @@ export function StudioHome({
                   <FilePlus2 className="h-5 w-5 text-ok" />
                 </span>
                 <h2 className="mb-1 text-base font-medium text-txt">Create from scratch</h2>
-                <p className="text-xs leading-relaxed text-txt3">
-                  Start empty. Describe what you want; files appear in the workspace as Helix writes them.
-                </p>
+                <p className="text-xs leading-relaxed text-txt3">Start empty. Describe what you want; files appear as Helix writes them.</p>
                 {namePrompt && (
                   <form
                     className="mt-4 flex gap-2"
@@ -299,9 +271,7 @@ export function StudioHome({
                   <FolderGit2 className="h-5 w-5 text-accent" />
                 </span>
                 <h2 className="mb-1 text-base font-medium text-txt">Import from GitHub</h2>
-                <p className="text-xs leading-relaxed text-txt3">
-                  Pick one of your repos — private included. Browse and edit it with Helix, then push the changes back.
-                </p>
+                <p className="text-xs leading-relaxed text-txt3">Pick a repo — private included. Edit it with Helix, then push the changes back.</p>
               </button>
 
               <button
@@ -316,9 +286,7 @@ export function StudioHome({
                   <GitBranch className="h-5 w-5 text-txt2" />
                 </span>
                 <h2 className="mb-1 text-base font-medium text-txt">Import from another Git host</h2>
-                <p className="text-xs leading-relaxed text-txt3">
-                  GitLab, Bitbucket, Azure DevOps, Gitea/Codeberg — connect with a token and import.
-                </p>
+                <p className="text-xs leading-relaxed text-txt3">GitLab, Bitbucket, Azure DevOps, Gitea/Codeberg — connect with a token.</p>
               </button>
 
               <button
@@ -334,9 +302,7 @@ export function StudioHome({
                   {uploadNote && creating ? <Loader2 className="h-5 w-5 animate-spin text-warn" /> : <UploadCloud className="h-5 w-5 text-warn" />}
                 </span>
                 <h2 className="mb-1 text-base font-medium text-txt">Import from folder</h2>
-                <p className="text-xs leading-relaxed text-txt3">
-                  {uploadNote ?? "Upload a project from your computer. Run it live here, then push it to a new GitHub repo."}
-                </p>
+                <p className="text-xs leading-relaxed text-txt3">{uploadNote ?? "Upload a project from your computer. Run it live, then push it to GitHub."}</p>
               </button>
               <input
                 ref={folderInputRef}
@@ -352,86 +318,127 @@ export function StudioHome({
                 }}
               />
             </div>
-          </>
+          </section>
         )}
 
-        {/* GAME mode — pick a kind of game, we seed the starter */}
-        {mode === "game" && (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {gameCats.map((c) => {
-              const Icon = CATEGORY_ICONS[c.icon] ?? Sparkles;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  disabled={creating}
-                  onClick={() => void createGame(c.id)}
-                  className="glass-panel-strong flex items-start gap-3 p-5 text-left transition-colors hover:border-accent disabled:opacity-60"
-                >
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-hl">
-                    <Icon className="h-5 w-5 text-accent" strokeWidth={1.8} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[15px] font-medium text-txt">{c.label}</span>
-                    <span className="block text-xs leading-relaxed text-txt3">{c.example}</span>
-                  </span>
-                  {creating ? (
-                    <Loader2 className="ml-auto h-4 w-4 shrink-0 animate-spin text-txt3" />
-                  ) : (
-                    <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-txt3" strokeWidth={1.8} />
-                  )}
-                </button>
-              );
-            })}
-          </div>
+        {kind === "game" && (
+          <section>
+            <h1 className="mb-1.5 text-2xl font-semibold tracking-tight text-txt">Make a Game</h1>
+            <p className="mb-6 text-sm text-txt3">Pick a kind of game — Helix sets up the starter and you describe the rest in chat.</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {gameCats.map((c) => {
+                const Icon = CATEGORY_ICONS[c.icon] ?? Sparkles;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    disabled={creating}
+                    onClick={() => void createGame(c.id)}
+                    className="glass-panel-strong flex items-start gap-3 p-5 text-left transition-colors hover:border-accent disabled:opacity-60"
+                  >
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-hl">
+                      <Icon className="h-5 w-5 text-accent" strokeWidth={1.8} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[15px] font-medium text-txt">{c.label}</span>
+                      <span className="block text-xs leading-relaxed text-txt3">{c.example}</span>
+                    </span>
+                    {creating ? (
+                      <Loader2 className="ml-auto h-4 w-4 shrink-0 animate-spin text-txt3" />
+                    ) : (
+                      <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-txt3" strokeWidth={1.8} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         )}
 
-        {/* AI mode — the workspace-less lab/studios space (embedded in the editor). */}
-        {mode === "ai" && (
-          <Link
-            href="/editor/ai"
-            className="flex items-center gap-3.5 rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[linear-gradient(110deg,color-mix(in_srgb,var(--accent)_14%,transparent),transparent)] px-5 py-5 transition-colors hover:border-accent"
-          >
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl">
-              <Brain className="h-5 w-5 text-accent" strokeWidth={1.8} />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-base font-medium text-txt">Enter the AI workspace</span>
-              <span className="block text-xs leading-relaxed text-txt3">
-                Learn ML by building it — open a Studio (decision trees, neural nets & more) with an AI guide that
-                teaches you as you go.
+        {kind === "ai" && (
+          <section>
+            <h1 className="mb-1.5 text-2xl font-semibold tracking-tight text-txt">Learn AI</h1>
+            <p className="mb-6 text-sm text-txt3">Build real ML models on an interactive workbench — no code, with an AI guide.</p>
+            <Link
+              href="/editor/ai"
+              className="flex items-center gap-3.5 rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[linear-gradient(110deg,color-mix(in_srgb,var(--accent)_14%,transparent),transparent)] px-5 py-5 transition-colors hover:border-accent"
+            >
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl">
+                <Brain className="h-5 w-5 text-accent" strokeWidth={1.8} />
               </span>
-            </span>
-            <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-txt3" strokeWidth={1.8} />
-          </Link>
+              <span className="min-w-0">
+                <span className="block text-base font-medium text-txt">Enter the AI workspace</span>
+                <span className="block text-xs leading-relaxed text-txt3">
+                  Open a Studio — decision trees, neural nets & more — with an AI guide that teaches you as you build.
+                </span>
+              </span>
+              <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-txt3" strokeWidth={1.8} />
+            </Link>
+          </section>
         )}
 
-        {error && <p className="mt-3 text-xs text-warn">{error}</p>}
+        {error && <p className="text-xs text-warn">{error}</p>}
+
+        {picking && <RepoPicker busy={creating} isGuest={isGuest} onSelect={(repo) => void importRepo("github", repo)} onClose={() => setPicking(false)} />}
+        {pickingHost && <GitHostPicker busy={creating} onSelect={(provider, repo) => void importRepo(provider, repo)} onClose={() => setPickingHost(false)} />}
+      </div>
+    );
+  }
+
+  /* -------------------------------- chooser -------------------------------- */
+  return (
+    <div className="space-y-12">
+      <section className="pt-4 text-center">
+        <h1 className="text-[28px] font-bold tracking-tight text-txt sm:text-[32px]">What do you want to make?</h1>
+        <p className="mx-auto mt-2 max-w-[460px] text-sm text-txt2">Pick one to begin. Each project is its own thing — start a new one anytime to make something different.</p>
+
+        <div className="mx-auto mt-8 grid max-w-[920px] gap-4 sm:grid-cols-3">
+          {CHOICES.map((c) => {
+            const Icon = c.icon;
+            return (
+              <button
+                key={c.kind}
+                type="button"
+                onClick={() => choose(c.kind)}
+                className="group flex flex-col items-center gap-3 rounded-2xl border border-border bg-panel p-6 text-center shadow-card transition-all duration-150 hover:-translate-y-0.5 hover:border-accent"
+              >
+                <span className="grid h-14 w-14 place-items-center rounded-2xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-hl transition-colors group-hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)]">
+                  <Icon className="h-7 w-7 text-accent" strokeWidth={1.7} />
+                </span>
+                <span className="text-[17px] font-semibold text-txt">{c.title}</span>
+                <span className="text-[12.5px] leading-relaxed text-txt2">{c.desc}</span>
+                <span className="mt-1 flex flex-wrap justify-center gap-1.5">
+                  {c.examples.map((ex) => (
+                    <span key={ex} className="rounded-full border border-border2 bg-panel2 px-2 py-0.5 text-[10.5px] text-txt3">
+                      {ex}
+                    </span>
+                  ))}
+                </span>
+                <span className="mt-1 inline-flex items-center gap-1 text-[12px] font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">
+                  Start <ArrowRight className="h-3.5 w-3.5" />
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {error && <p className="mt-4 text-xs text-warn">{error}</p>}
       </section>
 
-      {/* Projects for the current mode */}
-      {mode === "app" && apps.length > 0 && (
+      {workspaces.length > 0 && (
         <section>
-          <h2 className="label-tactical mb-3">Your apps</h2>
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{apps.map(ProjectCard)}</ul>
-        </section>
-      )}
-      {mode === "game" && games.length > 0 && (
-        <section>
-          <h2 className="label-tactical mb-3">Your games</h2>
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{games.map(ProjectCard)}</ul>
+          <h2 className="label-tactical mb-3">Your projects</h2>
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{workspaces.map(ProjectCard)}</ul>
         </section>
       )}
 
-      {/* Shared with you (matches the active mode) */}
-      {((mode === "app" && sharedApps.length > 0) || (mode === "game" && sharedGames.length > 0)) && (
+      {sharedWorkspaces && sharedWorkspaces.length > 0 && (
         <section>
           <div className="mb-3 flex items-center gap-2">
             <h2 className="label-tactical">Shared with you</h2>
             <Users className="h-3.5 w-3.5 text-txt3" />
           </div>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {(mode === "game" ? sharedGames : sharedApps).map((w) => (
+            {sharedWorkspaces.map((w) => (
               <li key={w.id}>
                 <button
                   type="button"
@@ -465,12 +472,8 @@ export function StudioHome({
         </section>
       )}
 
-      {picking && (
-        <RepoPicker busy={creating} isGuest={isGuest} onSelect={(repo) => void importRepo("github", repo)} onClose={() => setPicking(false)} />
-      )}
-      {pickingHost && (
-        <GitHostPicker busy={creating} onSelect={(provider, repo) => void importRepo(provider, repo)} onClose={() => setPickingHost(false)} />
-      )}
+      {picking && <RepoPicker busy={creating} isGuest={isGuest} onSelect={(repo) => void importRepo("github", repo)} onClose={() => setPicking(false)} />}
+      {pickingHost && <GitHostPicker busy={creating} onSelect={(provider, repo) => void importRepo(provider, repo)} onClose={() => setPickingHost(false)} />}
     </div>
   );
 }
