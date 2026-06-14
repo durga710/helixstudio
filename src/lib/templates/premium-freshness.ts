@@ -35,6 +35,7 @@ export interface FreshnessSummary {
   bumped: string[]; // templates whose libraries were updated (green)
   verified: string[]; // templates re-verified with no bump available
   held: string[]; // templates with a major held for review
+  skipped: string[]; // couldn't build-gate (e.g. no python toolchain) — not a failure
   failed: { id: string; reason: string }[];
   remaining: string[];
 }
@@ -97,7 +98,7 @@ export async function runPremiumFreshness(opts: {
   includeMajorsFor?: string;
 }): Promise<FreshnessSummary> {
   const { onLog, deadline, includeMajorsFor } = opts;
-  const summary: FreshnessSummary = { bumped: [], verified: [], held: [], failed: [], remaining: [] };
+  const summary: FreshnessSummary = { bumped: [], verified: [], held: [], skipped: [], failed: [], remaining: [] };
 
   const templates = await getAllTemplates();
   const rows = await db()
@@ -200,6 +201,29 @@ export async function runPremiumFreshness(opts: {
         if (!cfg.build) {
           await recordError(id, "no build command configured");
           continue;
+        }
+
+        // Python templates can only be build-gated where the sandbox has a python
+        // toolchain; the node runtime may not. Skip gracefully (don't false-fail) —
+        // record it as checked-but-not-gated rather than a build failure.
+        if (cfg.kind === "python") {
+          const hasPy = await step(box, dir, "command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1", onLog, 20_000);
+          if (hasPy !== 0) {
+            onLog("  · skipped: no python toolchain in this sandbox runtime (not build-gated)");
+            summary.skipped.push(id);
+            await db()
+              .template.update({
+                where: { templateId: id },
+                data: {
+                  refreshState: "ok",
+                  freshnessError: null,
+                  libraryCheckedAt: new Date(),
+                  libraryState: { checkedAt: new Date().toISOString(), skipped: "no python toolchain in sandbox" } as unknown as object,
+                },
+              })
+              .catch(() => {});
+            continue;
+          }
         }
         const code = await step(box, dir, cfg.build, onLog, stepTimeout);
         if (code !== 0) {
