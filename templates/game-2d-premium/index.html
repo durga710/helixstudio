@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>My Game</title>
+    <link rel="stylesheet" href="style.css" />
+    <!-- Phaser 3 from a CDN — leave this; game.js uses the global `Phaser`. -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <header class="bar">
+        <span class="brand">🎮 <span data-game-name>My Game</span></span>
+        <label class="theme">Theme
+          <select id="theme-select"></select>
+        </label>
+      </header>
+      <div id="game"></div>
+    </div>
+    <script src="game.js"></script>
+  </body>
+</html>

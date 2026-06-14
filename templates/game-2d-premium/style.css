@@ -1,0 +1,20 @@
+/* Page chrome palettes — same token names as every Helix premium skeleton, so
+   the theme is consistent across apps and games. The GAME canvas colors come
+   from the matching PALETTES object in game.js (keep the two in sync). */
+:root, [data-theme="midnight"] { --bg:#0b1020; --surface:#121a30; --border:#26314d; --text:#eaf0fb; --text-muted:#93a0bd; --primary:#5b8cff; }
+[data-theme="ocean"]   { --bg:#07171c; --surface:#0d2730; --border:#1c4350; --text:#e6fbff; --text-muted:#8bb6c0; --primary:#21c8c0; }
+[data-theme="forest"]  { --bg:#0c150f; --surface:#122017; --border:#244031; --text:#e9f6ec; --text-muted:#93b59f; --primary:#34c759; }
+[data-theme="sunset"]  { --bg:#1a1012; --surface:#25171a; --border:#46282d; --text:#fdefe9; --text-muted:#c79e94; --primary:#ff7a59; }
+[data-theme="grape"]   { --bg:#130d1f; --surface:#1d142e; --border:#3a2957; --text:#f1e9fb; --text-muted:#ab97c9; --primary:#a855f7; }
+[data-theme="paper"]   { --bg:#eef1f7; --surface:#ffffff; --border:#e2e6ef; --text:#1a2236; --text-muted:#5d6b86; --primary:#4f46e5; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+#app { display: flex; min-height: 100vh; flex-direction: column; align-items: center; }
+.bar { display: flex; width: 100%; max-width: 800px; align-items: center; gap: 12px; padding: 12px 14px; }
+.brand { font-weight: 700; }
+.theme { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.theme select { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 4px 8px; outline: none; }
+#game { width: 100%; max-width: 800px; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.35); }
+#game canvas { display: block; width: 100% !important; height: auto !important; }

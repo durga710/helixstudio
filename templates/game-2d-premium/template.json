@@ -1,0 +1,10 @@
+{
+  "id": "game-2d-premium",
+  "label": "Premium 2D Game (Phaser)",
+  "framework": "game",
+  "engine": "phaser",
+  "description": "A premium, fully-structured 2D game skeleton — Phaser 3 (CDN), a Menu → Play → Game Over flow with score, lives, a patrolling enemy, collectibles, a win condition, juice (tweens/shake), and 6 themeable palettes. No build step; previews instantly. The AI builds the gameplay inside PlayScene.",
+  "keywords": [],
+  "notesBlurb": "PREMIUM 2D game skeleton (game-2d-premium, Phaser 3 via CDN). The scene flow (MenuScene → PlayScene → OverScene), HUD (score/lives), win/lose, juice, and the 6-palette theme system in game.js ALREADY WORK. To build the user's game, edit ONLY the gameplay inside PlayScene.create()/update() in game.js — design the level (platforms), entities, mechanics, and scoring. Use the PALETTES colors (p.player/p.coin/p.enemy/p.ground) — never hard-code hex. Keep it a PLAIN script using the global `Phaser` (NO ES module imports). Do NOT rebuild the scene flow, HUD, theme picker, or index.html, and do NOT add a build step. Sprites are generated shapes (no image files). You usually only need to read + edit game.js.",
+  "cli": "overlay-only"
+}

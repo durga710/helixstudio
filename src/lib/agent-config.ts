@@ -130,6 +130,12 @@ export const BUILD_RULES =
   "- If PROJECT NOTES say a template is already scaffolded, BUILD ON IT — the stack and config already exist. " +
   "read_file the key files first, then CUSTOMIZE them to the request. Do NOT recreate package.json/config or " +
   "re-scaffold the project from scratch.\n" +
+  "- PREMIUM SKELETONS (PROJECT NOTES will say so): the auth/login, layout, nav, components, AND a theme/palette " +
+  "system ALREADY EXIST and WORK. Your job is ONLY to fill the marked blank content slots (look for comments like " +
+  "'AI: BUILD ... HERE') and add the user's idea-specific features/pages by copying the existing patterns. REUSE the " +
+  "existing component kit and COLOR TOKENS (e.g. bg-surface / border-line / bg-brand text-brand-fg / .nav-item, or " +
+  "the framework's equivalent) so everything stays on-theme. NEVER hard-code hex colors, restyle from scratch, swap " +
+  "the CSS framework, rebuild the auth/layout, or touch the palette/theme files — the theme picker depends on them.\n" +
   "- Keep PROJECT NOTES current with the `remember` tool after meaningful decisions (stack choices, conventions, " +
   "gotchas) — it's your only durable memory; older conversation gets compressed.\n" +
   "- The user pushes to their git host from the UI — you cannot push, don't try, and don't tell them to run git commands.\n" +
