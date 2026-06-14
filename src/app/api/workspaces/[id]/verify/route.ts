@@ -9,7 +9,7 @@ import { ok } from "@/lib/api-response";
 import { getGitAuth, withGitAuth } from "@/lib/git";
 import { listWorkspaceFiles, readWorkspaceFile } from "@/lib/workspace";
 import { usingSandboxBackend, runnerEnabled } from "@/lib/app-runner";
-import { verifyBuild } from "@/lib/verify";
+import { verifyBuild, canVerifyInProcess } from "@/lib/verify";
 import { guardWorkspace } from "@/lib/route-helpers";
 
 export const runtime = "nodejs";
@@ -23,16 +23,17 @@ export async function POST(_req: Request, { params }: Params) {
   if ("response" in g) return g.response;
   const { ws } = g;
 
-  if (!usingSandboxBackend() && !runnerEnabled()) {
-    return ok({ verify: { status: "skipped", reason: "the runner isn't available here" } });
-  }
-
   const auth = await getGitAuth(ws.userId, ws.provider);
   const tree = await withGitAuth(auth, () => listWorkspaceFiles(ws)).catch(() => []);
   const treePaths = tree.map((f) => f.path);
   const pkgJson = treePaths.includes("package.json")
     ? await withGitAuth(auth, () => readWorkspaceFile(ws, "package.json")).catch(() => null)
     : null;
+
+  // Static/game projects check in-process (no sandbox); framework apps need it.
+  if (!canVerifyInProcess(treePaths, pkgJson) && !usingSandboxBackend() && !runnerEnabled()) {
+    return ok({ verify: { status: "skipped", reason: "the runner isn't available here" } });
+  }
 
   const result = await verifyBuild({
     ws,

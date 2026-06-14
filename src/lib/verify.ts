@@ -121,6 +121,16 @@ export function selectVerifyCommand(
   return { skip: "no build or test script — nothing to verify" };
 }
 
+/** True when the project can be build-checked IN-PROCESS (static/game with local
+ * scripts) — so verify can run with no sandbox at all. Godot/framework apps need
+ * the sandbox and return false. */
+export function canVerifyInProcess(treePaths: string[], pkgJson: string | null): boolean {
+  const d = detectFramework(treePaths, pkgJson);
+  if (d.kind !== "static" && d.kind !== "unknown") return false;
+  if (treePaths.includes("project.godot")) return false;
+  return treePaths.some((p) => /\.js$/i.test(p) && !p.startsWith("node_modules/"));
+}
+
 /** Combined, tail-capped log from an exec result. */
 function tailLog(stdout: string, stderr: string, cap: number): string {
   const combined = [stdout.trim(), stderr.trim()].filter(Boolean).join("\n");

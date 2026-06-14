@@ -37,7 +37,7 @@ import { personalizeTemplateFiles } from "@/lib/templates/personalize";
 import { resolveTemplateId } from "@/lib/templates/select";
 import { setProgress, clearProgress } from "@/lib/progress";
 import { usingSandboxBackend, runnerEnabled } from "@/lib/app-runner";
-import { verifyBuild, verifyMarker } from "@/lib/verify";
+import { verifyBuild, verifyMarker, canVerifyInProcess } from "@/lib/verify";
 import { runAnthropicAgent, runLocalAgent, runToolCalls, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
 import { withRetry } from "@/lib/ai/retry";
 import { createAgentIntent } from "@/lib/intent-ledger";
@@ -529,7 +529,9 @@ export async function runAgentTurn(opts: {
       mode === "build" &&
       changes.written.length > 0 &&
       !dbUser?.isGuest &&
-      (usingSandboxBackend() || runnerEnabled())
+      // Static/game projects verify in-process (no sandbox needed); framework apps
+      // still require the sandbox/runner for their real build.
+      (canVerifyInProcess(treePaths, pkgJson) || usingSandboxBackend() || runnerEnabled())
     ) {
       const result = await verifyBuild({
         ws,
