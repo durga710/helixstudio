@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Sparkles, Loader2, Plus, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { Sparkles, Loader2, Plus, Pencil, Trash2, Eye, EyeOff, Library, ArrowRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
@@ -126,6 +126,12 @@ export function LessonBuilderPanel({ spaceId }: { spaceId: string }) {
       <div className="mb-1 flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-accent" />
         <h3 className="text-[15px] font-semibold text-txt">AI Lesson Builder</h3>
+        <Link
+          href="/lab/library"
+          className="ml-auto inline-flex items-center gap-1 text-[11.5px] text-txt3 transition-colors hover:text-accent"
+        >
+          <Library className="h-3.5 w-3.5" /> Lesson library <ArrowRight className="h-3 w-3" />
+        </Link>
       </div>
       <p className="mb-3 text-[12.5px] leading-relaxed text-txt3">
         Describe a lesson and AI drafts it for you — then edit it and publish to your class.

@@ -20,7 +20,7 @@ export default async function LessonEditPage({ params }: Params) {
 
   const lesson = await db().lesson.findUnique({
     where: { id: lessonId },
-    select: { id: true, authorId: true, spaceId: true, status: true, manifest: true, steps: true },
+    select: { id: true, authorId: true, spaceId: true, status: true, visibility: true, manifest: true, steps: true },
   });
   if (!lesson || lesson.authorId !== session.user.id || lesson.spaceId !== id) notFound();
 
@@ -29,6 +29,7 @@ export default async function LessonEditPage({ params }: Params) {
       lessonId={lesson.id}
       spaceId={id}
       initialStatus={lesson.status}
+      initialPublic={lesson.visibility === "public"}
       initialManifest={{ ...(lesson.manifest as unknown as LessonManifest), id: lesson.id }}
       initialSteps={lesson.steps as unknown as LessonStep[]}
     />

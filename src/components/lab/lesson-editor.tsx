@@ -14,6 +14,7 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  Globe,
 } from "lucide-react";
 import type { Lesson, LessonManifest, LessonStep } from "@/lib/lessons/types";
 import { WIDGET_CATALOG } from "@/lib/lessons/widgets";
@@ -31,12 +32,14 @@ export function LessonEditor({
   lessonId,
   spaceId,
   initialStatus,
+  initialPublic,
   initialManifest,
   initialSteps,
 }: {
   lessonId: string;
   spaceId: string;
   initialStatus: string;
+  initialPublic: boolean;
   initialManifest: LessonManifest;
   initialSteps: LessonStep[];
 }) {
@@ -44,8 +47,28 @@ export function LessonEditor({
   const [manifest, setManifest] = useState<LessonManifest>(initialManifest);
   const [steps, setSteps] = useState<LessonStep[]>(initialSteps);
   const [status, setStatus] = useState(initialStatus);
+  const [isPublic, setIsPublic] = useState(initialPublic);
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState(false);
+
+  async function toggleShare() {
+    const next = !isPublic;
+    if (next && !(await save())) return;
+    try {
+      const res = await fetch(`/api/lab/lessons/${lessonId}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ public: next }),
+      });
+      if (res.ok) {
+        setIsPublic(next);
+        if (next) setStatus("published");
+        toast(next ? "Shared to the lesson library 🌍" : "Removed from the library");
+      } else toast("Couldn't update sharing");
+    } catch {
+      toast("Couldn't update sharing");
+    }
+  }
 
   function setM<K extends keyof LessonManifest>(k: K, v: LessonManifest[K]) {
     setManifest((m) => ({ ...m, [k]: v }));
@@ -151,6 +174,18 @@ export function LessonEditor({
               )}
             >
               {status === "published" ? "Unpublish" : "Publish to class"}
+            </button>
+            <button
+              onClick={() => void toggleShare()}
+              title="Share publicly so other teachers can use it"
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-[10px] border px-3 py-1.5 text-[12.5px] transition-colors",
+                isPublic
+                  ? "border-ok text-ok hover:bg-panel2"
+                  : "border-border2 bg-panel2 text-txt2 hover:border-accent hover:text-txt",
+              )}
+            >
+              <Globe className="h-3.5 w-3.5" /> {isPublic ? "In library" : "Share to library"}
             </button>
           </span>
         </div>
