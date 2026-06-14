@@ -119,64 +119,91 @@ export const LESSONS: Record<string, Lesson> = {
     "manifest": {
       "id": "how-a-brain-learns",
       "title": "How a neuron learns",
-      "blurb": "Draw a line to tell cats from dogs — then watch a real neuron tune its own line until it beats you.",
+      "blurb": "Sort pets, draw a line, then watch a real neuron tune itself — round by round — until it beats you.",
       "level": "beginner",
-      "estMinutes": 14,
+      "estMinutes": 28,
       "icon": "Brain",
       "concept": "neural networks",
       "order": 6,
       "objectives": [
         "What a neuron really is — a line that splits things into two groups",
-        "Why a line you draw by hand can't quite catch everything",
-        "How a neuron fixes its own line by learning from its mistakes",
-        "How to train one yourself, from scratch, on brand-new data"
+        "What its two knobs (weights & bias) actually do",
+        "How it fixes its own line by learning from mistakes, one round at a time",
+        "How to tell if it really LEARNED — or just memorized",
+        "Why one neuron isn't enough, and where networks come from"
       ],
       "glossary": [
         {
           "term": "Neuron",
-          "def": "The tiniest part of an AI brain. With two clues it makes one call: this group or that one — by drawing a line."
+          "def": "The tiniest part of an AI brain. From two clues it makes one call — by drawing a line."
         },
         {
           "term": "Decision boundary",
-          "def": "The line a neuron draws. Everything on one side is one group; everything on the other side is the other."
+          "def": "The line a neuron draws. One side is one group, the other side is the other."
         },
         {
           "term": "Weights",
-          "def": "The numbers that tilt and slide the line. Changing the weights moves the boundary."
+          "def": "The dials that tilt the line — how much each clue matters."
+        },
+        {
+          "term": "Bias",
+          "def": "The dial that slides the line up or down without tilting it — the tipping point."
+        },
+        {
+          "term": "Error",
+          "def": "How many it got wrong. Learning means making the error smaller."
+        },
+        {
+          "term": "Round",
+          "def": "One pass where the neuron checks its mistakes and nudges its dials a little."
         },
         {
           "term": "Training",
-          "def": "Doing the same thing over and over: check which dots are on the wrong side, nudge the line a little, repeat."
+          "def": "Repeating rounds — check mistakes, nudge, repeat — until it's good."
         },
         {
-          "term": "Accuracy",
-          "def": "How many it got on the right side, out of all of them. 100% means every dot is sorted correctly."
+          "term": "Generalize",
+          "def": "Doing well on NEW examples it never studied. That's real learning, not memorizing."
+        },
+        {
+          "term": "Network",
+          "def": "Many neurons wired together, so their straight lines combine into curves."
         }
       ]
     },
     "steps": [
       {
         "kind": "explain",
-        "title": "A robot that sorts pets",
-        "body": "Imagine a robot with one job: look at a pet and say **cat or dog**. It can't see fur or hear barks — all it gets is two clues: **how big the ears are** and **how long the tail is**.\n\nIf we put every pet on a chart — ear size going across, tail length going up — cats land in one corner and dogs in another. So here's the robot's whole trick: **draw a line** with cats on one side and dogs on the other. That line is the entire brain. Let's build it."
+        "title": "Part 1 · A robot that sorts pets",
+        "body": "Meet a robot with one job: look at a pet and say **cat or dog**. It can't see fur or hear barks — it only gets two clues: **ear size** and **tail length**.\n\nThat's it. From two numbers, it has to decide. Sounds hard? You're about to do it yourself first."
+      },
+      {
+        "kind": "widget",
+        "widget": "sortGame",
+        "title": "You be the AI",
+        "body": "Here are some pets, each with its two clues shown as bars. Sort every one into **Cat** or **Dog**. Trust the clues!",
+        "youWillDo": "sort the pets yourself, using the clues",
+        "config": {
+          "dataset": "boundary"
+        }
       },
       {
         "kind": "predict",
-        "title": "First, a guess",
-        "prompt": "Do you think **one straight line** could separate almost all the cats from the dogs on that chart?",
+        "title": "A quick guess",
+        "prompt": "If we put every pet on a chart — ear size across, tail length up — do you think **one straight line** could keep most cats on one side and dogs on the other?",
         "choices": [
-          "Yes — one straight line could split most of them",
-          "No — you'd need a curvy, wiggly line",
-          "I'm honestly not sure yet"
+          "Yes, one straight line could split most of them",
+          "No, you'd need a curvy line",
+          "Not sure yet"
         ],
-        "afterPick": "Hold that thought. You're about to draw the line yourself and see what really happens. →",
-        "youWillDo": "make a quick prediction"
+        "afterPick": "Hold that thought — you'll draw the line yourself next. →",
+        "youWillDo": "make a prediction"
       },
       {
         "kind": "widget",
         "widget": "neuronBoundary",
-        "title": "Draw the line yourself",
-        "body": "Here's the chart. **Drag the two purple dots** up and down to swing the line until cats and dogs are on different sides. Watch the **wrong** counter — get it as low as you can, then press **Lock in my line**.",
+        "title": "Draw the line",
+        "body": "Drag the two purple dots to swing the line until cats and dogs are on different sides. Get **wrong** as low as you can, then **Lock in**.",
         "youWillDo": "drag the line to split cats from dogs",
         "config": {
           "phase": "explore",
@@ -186,70 +213,273 @@ export const LESSONS: Record<string, Lesson> = {
       {
         "kind": "explain",
         "title": "So close — but not perfect",
-        "body": "Notice what happened: you got *most* of them, but a few stubborn dots stayed on the wrong side no matter how you tilted the line. That's not your fault — the groups overlap a little, and a line placed **by hand** can only do so much.\n\nSo here's the real question: how could the robot do **better** than your best guess? The secret is that it doesn't guess just once. It **adjusts** — again and again. Let's watch."
+        "body": "You probably got *most* of them, but a few stubborn dots stayed on the wrong side. The groups overlap a little, and a line placed **by hand** can only do so much.\n\nSo how could the robot do better than your best try? That's the whole rest of this lesson. First, let's look *inside* the line."
+      },
+      {
+        "kind": "explain",
+        "title": "Part 2 · What's inside the line",
+        "body": "That line isn't magic — it's run by just **two kinds of dial**:\n\n- **Weights** — how much each clue *matters*. They **tilt** the line.\n- **Bias** — the **tipping point**. It **slides** the line up or down.\n\nLet's grab the dials and feel what each one does."
+      },
+      {
+        "kind": "predict",
+        "title": "Which dial?",
+        "prompt": "You want to make the line **tilt** to a new angle. Which dial should you turn?",
+        "choices": [
+          "A weight",
+          "The bias",
+          "Neither — you can't tilt it"
+        ],
+        "afterPick": "Let's test it on a real neuron. →",
+        "youWillDo": "predict which dial tilts the line"
+      },
+      {
+        "kind": "widget",
+        "widget": "neuronSchematic",
+        "title": "Turn the dials",
+        "body": "This is the inside of a neuron. The two clues go in, get multiplied by the **weights**, plus a **bias**, and the total decides the answer. Drag the dials and watch the answer flip — and the math change live.",
+        "youWillDo": "drag the weight & bias dials and watch the output flip",
+        "config": {
+          "dataset": "boundary"
+        }
+      },
+      {
+        "kind": "quiz",
+        "title": "Check yourself",
+        "question": "Which dial slides the line up or down **without** tilting it?",
+        "choices": [
+          "A weight",
+          "The bias",
+          "The ear-size clue",
+          "None of them"
+        ],
+        "answer": 1,
+        "explain": "Right — the **bias** is the tipping point. It moves the line without changing its angle. Weights change the angle."
+      },
+      {
+        "kind": "explain",
+        "title": "Part 3 · Counting mistakes",
+        "body": "To get *better*, the neuron first needs to know how *wrong* it is. So it counts: how many pets are on the wrong side of the line right now? That count is called the **error**.\n\nLearning has one goal: make the error smaller."
+      },
+      {
+        "kind": "predict",
+        "title": "Guess the shape",
+        "prompt": "Each round, the neuron nudges its line a little toward the dots it got wrong. If it keeps doing that, what happens to the number of mistakes?",
+        "choices": [
+          "It drops, round after round",
+          "It stays the same",
+          "It goes up"
+        ],
+        "afterPick": "Let's watch it as a chart. →",
+        "youWillDo": "predict what the mistakes will do"
+      },
+      {
+        "kind": "widget",
+        "widget": "errorChart",
+        "title": "Watch the mistakes fall",
+        "body": "Press **Train a round** (or **Auto**). Each bar is how many mistakes the neuron still makes after that round. Watch the bars shrink.",
+        "youWillDo": "train rounds and watch the mistake bars drop",
+        "config": {
+          "dataset": "boundary"
+        }
+      },
+      {
+        "kind": "reflect",
+        "title": "Say it your way",
+        "prompt": "In your own words, what does **error** mean for the neuron — and what does it want to do with it?",
+        "placeholder": "Error is… and the neuron tries to…",
+        "recall": {
+          "question": "What is the neuron's goal each round?",
+          "choices": [
+            "Make the error (mistakes) bigger",
+            "Make the error smaller",
+            "Keep the error exactly the same",
+            "Ignore the error"
+          ],
+          "answer": 1,
+          "explain": "Yes — every round it nudges toward making fewer mistakes. Smaller error = better."
+        },
+        "youWillDo": "explain what 'error' means"
+      },
+      {
+        "kind": "explain",
+        "title": "Part 4 · One nudge at a time",
+        "body": "Here's the trick that makes it all work. The neuron doesn't guess once — it **repeats a round**: look at the mistakes, nudge the dials a tiny bit, check again. Over and over.\n\nLet's do it one round at a time so you can see each nudge."
       },
       {
         "kind": "widget",
         "widget": "neuronBoundary",
-        "title": "Watch the neuron learn",
-        "body": "This line starts out **bad on purpose**. Press **Watch it learn**. Every time a dot is on the wrong side (it flashes with a red ring), the neuron **nudges the line a tiny bit** to fix it — then checks again, and again. Watch the wrong rings disappear.",
-        "youWillDo": "watch a neuron tune its own line",
+        "title": "Run it one round at a time",
+        "body": "Press **Run one round**. Each press, the neuron looks at its mistakes and nudges the line a little. Watch the **wrong** count drop, press by press.",
+        "youWillDo": "press Run one round and watch each nudge",
+        "config": {
+          "phase": "step",
+          "dataset": "boundary"
+        }
+      },
+      {
+        "kind": "explain",
+        "title": "It has real names now",
+        "body": "What you just did has names — and now they'll stick:\n\n- The line is the **decision boundary**.\n- The dials that move it are the **weights** (and bias).\n- **Learning** = nudging those dials a little after each mistake, round after round.\n\nThat's the whole secret. Now watch it run full speed."
+      },
+      {
+        "kind": "widget",
+        "widget": "neuronBoundary",
+        "title": "Same thing, sped up",
+        "body": "Press **Watch it learn**. It starts from a bad line on purpose, then runs the same rounds automatically — wrong dots flash, the line tunes itself.",
+        "youWillDo": "watch the neuron tune its own line fast",
         "config": {
           "phase": "reveal",
           "dataset": "boundary"
         }
       },
       {
-        "kind": "explain",
-        "title": "Now it has names",
-        "body": "What you just watched has real names — and now they'll make sense:\n\n- The line is the **decision boundary**.\n- The numbers that tilt and slide it are the neuron's **weights**.\n- **Learning** is just this: after each mistake, nudge the weights a little so the line fits better — over and over.\n\nThat's it. That self-fixing loop *is* a neuron learning. Every AI you've heard of does this — only with a lot more dots and a lot more lines."
-      },
-      {
         "kind": "quiz",
-        "title": "Check yourself",
+        "title": "Quick check",
         "question": "When the neuron \"learns,\" what is actually changing each round?",
         "choices": [
-          "It deletes the dots it keeps getting wrong",
-          "Its weights — the numbers that tilt the line",
-          "The colors of the dots",
-          "Nothing really changes"
+          "The dots move",
+          "Its weights & bias (the dials)",
+          "The colors",
+          "Nothing"
         ],
         "answer": 1,
-        "explain": "Right! Learning = nudging the **weights** after each mistake. The dots never change — the line does."
+        "explain": "The dots never change — the **dials** do. Moving the weights and bias is exactly what learning is."
+      },
+      {
+        "kind": "explain",
+        "title": "Part 5 · Did it really learn — or memorize?",
+        "body": "Here's a sneaky question. The neuron got great at the pets it practiced on. But did it learn the *idea* of cat-vs-dog… or did it just memorize those exact pets?\n\nThere's one way to find out: show it **brand-new pets it has never seen**."
+      },
+      {
+        "kind": "predict",
+        "title": "Your call",
+        "prompt": "The neuron aced the pets it studied. How will it do on totally new pets it never trained on?",
+        "choices": [
+          "Just as well — it learned the idea",
+          "Much worse — it only memorized",
+          "No way to ever tell"
+        ],
+        "afterPick": "Let's actually test it. The new pets are the hollow dots. →",
+        "youWillDo": "predict how it does on new pets"
       },
       {
         "kind": "widget",
         "widget": "neuronBoundary",
-        "title": "Your turn — train one",
-        "body": "New pets, and this time **no hints**. Set a rough line with the purple dots, then press **Train my neuron** and watch it finish the job on its own.",
-        "youWillDo": "train your own neuron on fresh data",
+        "title": "The real test",
+        "body": "The **hollow** dots are new pets — the neuron never sees them while training. Press **Train on the studied pets**, then check its score on the new ones.",
+        "youWillDo": "train, then check the NEW (hollow) pets",
+        "config": {
+          "phase": "generalize",
+          "dataset": "boundary"
+        }
+      },
+      {
+        "kind": "explain",
+        "title": "That's called generalizing",
+        "body": "It did well on pets it had **never seen**. That means it didn't memorize — it learned the real pattern. Doing well on new examples is called **generalizing**, and it's the whole point of learning.\n\n(If it had aced the studied pets but flopped on new ones, that's **memorizing** — and it's a trap real AI engineers watch out for.)"
+      },
+      {
+        "kind": "reflect",
+        "title": "Make it yours",
+        "prompt": "Why do we test the neuron on **new** pets instead of the ones it already practiced on?",
+        "placeholder": "Because if we only tested the practice ones…",
+        "recall": {
+          "question": "A neuron scores 100% on its practice pets but only 55% on new ones. What happened?",
+          "choices": [
+            "It generalized well",
+            "It memorized instead of learning",
+            "It had no weights",
+            "New pets are impossible"
+          ],
+          "answer": 1,
+          "explain": "Exactly — acing practice but failing new ones means it memorized, not learned. Real learning shows up on new examples."
+        },
+        "youWillDo": "explain why we test on new examples"
+      },
+      {
+        "kind": "explain",
+        "title": "Part 6 · Train one yourself",
+        "body": "You've seen every piece: clues in, a line, dials, rounds, and the real test. Time to put it together and train a neuron **from scratch**, with no hints."
+      },
+      {
+        "kind": "widget",
+        "widget": "neuronBoundary",
+        "title": "Your neuron",
+        "body": "New pets, no hints. Set a rough line with the dots, then press **Train my neuron** and watch it finish the job on its own.",
+        "youWillDo": "set a line, then train your own neuron",
         "config": {
           "phase": "youdo",
           "dataset": "boundaryEasy"
         }
       },
       {
-        "kind": "reflect",
-        "title": "Make it yours",
-        "prompt": "In your own words: **how does a neuron learn** to tell two groups apart?",
-        "placeholder": "Like: it starts with a not-great line, then…",
-        "recall": {
-          "question": "A neuron starts with a line that isn't great. How does it get better?",
-          "choices": [
-            "It memorizes every single dot",
-            "It nudges its weights a little after each mistake, over and over",
-            "It throws away the dots it gets wrong",
-            "It waits for a human to fix the line"
-          ],
-          "answer": 1,
-          "explain": "Exactly — guess, see what's wrong, nudge the weights, repeat. That loop is the heartbeat of every AI."
-        },
-        "youWillDo": "explain it back in your own words"
+        "kind": "quiz",
+        "title": "The whole loop",
+        "question": "Put it together — how does a neuron learn?",
+        "choices": [
+          "It memorizes every example perfectly",
+          "Guess → count mistakes → nudge the dials → repeat",
+          "It asks a human for the answer each time",
+          "It picks the dials randomly and hopes"
+        ],
+        "answer": 1,
+        "explain": "That loop — guess, check, nudge, repeat — is the heartbeat of every AI, from this tiny neuron to the biggest models."
       },
       {
         "kind": "explain",
-        "title": "Same idea, gigantic scale 🎉",
-        "body": "You just built and trained a real neuron — drew its boundary, watched it fix its own weights, then trained a fresh one solo. That exact loop, with **billions** of weights and millions of dots, is what powers the chatbots and image apps you've heard about.\n\nOne last thing: a single neuron can only draw **one straight line**. Some groups can't be split that way — they need a *curve*. The fix is to wire **many** neurons together into a **network**, and their simple lines combine into curves.\n\n**Next up:** see this same idea make *words* — train a tiny language model in **How AI writes**."
+        "title": "Part 7 · Some shapes one line can't cut",
+        "body": "One neuron draws **one straight line**. That's perfect for two tidy groups — but the world isn't always tidy.\n\nWhat if one group is *wrapped around* the other, like a ring around its center? Let's see if a straight line can handle that."
+      },
+      {
+        "kind": "predict",
+        "title": "Can it be done?",
+        "prompt": "Can a single **straight line** separate a ring of dots from the cluster in its center?",
+        "choices": [
+          "Yes, at the right angle",
+          "No — a straight line can't wrap around",
+          "Only if you tilt it a lot"
+        ],
+        "afterPick": "Let the neuron try as hard as it can. →",
+        "youWillDo": "predict if one line can split a ring"
+      },
+      {
+        "kind": "widget",
+        "widget": "neuronBoundary",
+        "title": "Let it try the ring",
+        "body": "Now the dots make a **ring** around a core. Press **Let it try** and watch — no matter how the neuron tilts its line, it gets stuck.",
+        "youWillDo": "let the neuron try (and watch it get stuck)",
+        "config": {
+          "phase": "fail",
+          "dataset": "ring"
+        }
+      },
+      {
+        "kind": "explain",
+        "title": "So we use more neurons",
+        "body": "One straight line can't wrap a ring — it plateaus, stuck. That's not a failure; it's the reason **networks** exist.\n\nWire **many** neurons together and their straight lines **combine into curves**. Stack enough and they can separate almost any shape. That's the *deep* in \"deep learning.\""
+      },
+      {
+        "kind": "reflect",
+        "title": "One last time, in your words",
+        "prompt": "Pretend a friend asks: *\"How does a neuron learn?\"* Explain it the way you'd tell them.",
+        "placeholder": "A neuron is basically a line, and it learns by…",
+        "recall": {
+          "question": "Which sentence best sums up how a neuron learns?",
+          "choices": [
+            "It draws a line, then nudges its dials after each mistake until it makes few mistakes",
+            "It memorizes the answer to every example",
+            "It waits for a human to set the perfect line",
+            "It guesses once and never changes"
+          ],
+          "answer": 0,
+          "explain": "That's it — a line, plus the nudge-after-mistakes loop. You now understand the core of every neural network."
+        },
+        "youWillDo": "explain a neuron in your own words"
+      },
+      {
+        "kind": "explain",
+        "title": "What you built today 🎉",
+        "body": "You sorted pets, drew a boundary, turned a neuron's dials, watched its mistakes fall, trained one from scratch, proved it really learned, and found the exact spot where one neuron needs help.\n\nThat's the real foundation of AI — the same idea runs the chatbots and image apps you've heard of, just with billions of dials.\n\n**Next up:** see this idea make *words* — train a tiny language model in **How AI writes**."
       }
     ]
   },

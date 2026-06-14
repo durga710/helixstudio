@@ -44,7 +44,22 @@ export const WIDGET_CATALOG: WidgetInfo[] = [
   {
     id: "neuronBoundary",
     label: "Decision-boundary lab (guided, phased)",
-    desc: "A guided 3-phase neuron lesson driven by config.phase: 'explore' (the student drags a line by hand to split two groups and sees stragglers it can't catch), 'reveal' (a neuron tunes its OWN line, with wrong dots flashing, until almost none remain), 'youdo' (fresh easy data, no hints — set a rough line and press Train). Use ONE per phase in sequence. Use for: how a neuron learns, decision boundary, weights, training as self-correction from mistakes.",
+    desc: "A guided neuron lab driven by config.phase: 'explore' (drag a line by hand to split two groups), 'step' (train ONE round per button press, watch the line nudge), 'reveal' (the neuron auto-tunes its line until almost none wrong), 'generalize' (trains on studied points, scores on held-out NEW hollow points — shows learning vs memorizing), 'youdo' (fresh easy data, no hints), 'fail' (config.dataset 'ring' — one line can't split a ring, it plateaus, motivating networks). Pick ONE phase per step; sequence several across a lesson. config.dataset presets: boundary, boundaryEasy, ring. Use for: how a neuron learns, decision boundary, weights, training, generalization, the limit of one neuron.",
+  },
+  {
+    id: "sortGame",
+    label: "Sort-it game (tap to classify)",
+    desc: "The student sorts a handful of items into two bins themselves using two on-screen clue bars, then sees their score. A click/tap warm-up before any model appears. Use for: what classification is, making sorting personal, 'you be the AI'.",
+  },
+  {
+    id: "neuronSchematic",
+    label: "Inside a neuron (weight & bias dials)",
+    desc: "The 'inside of a neuron' diagram: two input clues feed a node; the student drags weight + bias dials and watches the weighted sum and the lit-up output flip in real time, with the live arithmetic shown. Use for: what weights and bias are, how a neuron decides, the math behind the line — a dials/diagram alternative to the scatter.",
+  },
+  {
+    id: "errorChart",
+    label: "Mistakes-per-round chart",
+    desc: "The student presses 'train a round' (or Auto) and watches a bar chart of how many mistakes the model still makes drop toward zero each round. Use for: what error/loss is, 'learning = fewer mistakes each round', training progress — a chart modality.",
   },
   {
     id: "langModel",

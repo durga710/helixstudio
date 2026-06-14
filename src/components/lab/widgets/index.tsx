@@ -78,6 +78,36 @@ const NeuronBoundary = dynamic(() => import("./neuron-boundary").then((m) => m.N
     );
   },
 });
+const SortGame = dynamic(() => import("./sort-game").then((m) => m.SortGame), {
+  ssr: false,
+  loading: function SortGameLoading() {
+    return (
+      <div className="grid place-items-center rounded-card border border-border bg-panel2 p-10 text-[12px] text-txt3">
+        loading…
+      </div>
+    );
+  },
+});
+const NeuronSchematic = dynamic(() => import("./neuron-schematic").then((m) => m.NeuronSchematic), {
+  ssr: false,
+  loading: function NeuronSchematicLoading() {
+    return (
+      <div className="grid place-items-center rounded-card border border-border bg-panel2 p-10 text-[12px] text-txt3">
+        loading…
+      </div>
+    );
+  },
+});
+const ErrorChart = dynamic(() => import("./error-chart").then((m) => m.ErrorChart), {
+  ssr: false,
+  loading: function ErrorChartLoading() {
+    return (
+      <div className="grid place-items-center rounded-card border border-border bg-panel2 p-10 text-[12px] text-txt3">
+        loading…
+      </div>
+    );
+  },
+});
 const LangModel = dynamic(() => import("./lang-model").then((m) => m.LangModel), {
   ssr: false,
   loading: function LangModelLoading() {
@@ -99,6 +129,9 @@ export const WIDGETS: Record<string, ComponentType<WidgetProps>> = {
   tree: TreeExplorer,
   neuron: NeuronViz,
   neuronBoundary: NeuronBoundary,
+  sortGame: SortGame,
+  neuronSchematic: NeuronSchematic,
+  errorChart: ErrorChart,
   langModel: LangModel,
 };
 

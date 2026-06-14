@@ -205,6 +205,31 @@ const BOUNDARY_EASY: Dataset = {
   ],
 };
 
+function pr(label: string, x: number, y: number): DataPoint {
+  return { label, features: { x, y } };
+}
+
+/** A ring around a core: the inner cluster is one class, the surrounding ring is
+ * the other. NO straight line can separate concentric groups — so a single
+ * neuron plateaus well below 100%. Used by the boundary widget's "fail" phase to
+ * motivate stacking many neurons into a network. */
+const RING: Dataset = {
+  id: "ring",
+  name: "Ring & core",
+  featureNames: ["x", "y"],
+  classes: ["Core", "Ring"],
+  summary: "a center blob wrapped by a ring — one line can't split them",
+  points: [
+    // Core — tight cluster in the middle
+    pr("Core", 5, 5), pr("Core", 4.4, 5), pr("Core", 5.6, 5), pr("Core", 5, 4.4), pr("Core", 5, 5.6),
+    pr("Core", 4.5, 4.5), pr("Core", 5.5, 5.5), pr("Core", 4.5, 5.5), pr("Core", 5.5, 4.5), pr("Core", 5, 5.3),
+    // Ring — a circle of points around the core (radius ~3.6)
+    pr("Ring", 5, 1.4), pr("Ring", 5, 8.6), pr("Ring", 1.4, 5), pr("Ring", 8.6, 5),
+    pr("Ring", 2.5, 2.5), pr("Ring", 7.5, 7.5), pr("Ring", 2.5, 7.5), pr("Ring", 7.5, 2.5),
+    pr("Ring", 3.6, 1.6), pr("Ring", 6.4, 1.6), pr("Ring", 1.6, 6.4), pr("Ring", 8.4, 6.4),
+  ],
+};
+
 export const DATASETS: Record<string, Dataset> = {
   flowers: FLOWERS,
   fruit2d: FRUIT2D,
@@ -213,6 +238,7 @@ export const DATASETS: Record<string, Dataset> = {
   penguins: PENGUINS,
   boundary: BOUNDARY,
   boundaryEasy: BOUNDARY_EASY,
+  ring: RING,
 };
 
 export function getDataset(id: string | undefined): Dataset {
