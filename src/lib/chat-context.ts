@@ -28,6 +28,7 @@ export interface HistoryRow {
   role: string;
   content: string;
   actions: unknown; // [{tool, label}] JSON from WorkspaceMessage
+  createdAt?: Date; // present when a rolling AI summary covers part of the history
 }
 
 export function estimateTokens(chars: number): number {
@@ -105,7 +106,7 @@ export function treeOutline(paths: string[], maxChars = TREE_OUTLINE_MAX): strin
 
 /* --------------------------- history context --------------------------- */
 
-function actionSuffix(actions: unknown): string {
+export function actionSuffix(actions: unknown): string {
   if (!Array.isArray(actions) || actions.length === 0) return "";
   const labels = actions
     .map((a) => (a && typeof a === "object" && "label" in a ? String((a as { label: unknown }).label) : null))
@@ -114,7 +115,7 @@ function actionSuffix(actions: unknown): string {
   return labels.length ? ` [${labels.join("; ")}]` : "";
 }
 
-function oneLine(text: string, max: number): string {
+export function oneLine(text: string, max: number): string {
   const flat = text.replace(/\s+/g, " ").trim();
   return flat.length > max ? flat.slice(0, max) + "…" : flat;
 }
@@ -124,14 +125,23 @@ function oneLine(text: string, max: number): string {
  * and a verbatim window of the most recent ones. Digest lines lean on the
  * stored tool-action labels, so "wrote 3 file(s): a, b, c" survives even
  * though the prose is truncated. Oldest digest lines drop first over budget.
+ *
+ * When `summarizedThrough` is set, older rows at/before that timestamp are
+ * already captured by the persisted AI summary (see conversation-memory.ts),
+ * so they're excluded from the deterministic digest — the digest then covers
+ * only the not-yet-folded gap between the summary and the verbatim window.
  */
 export function historyContext(
   rows: HistoryRow[],
   recentCount = RECENT_VERBATIM,
   digestMax = DIGEST_MAX,
+  summarizedThrough?: Date | null,
 ): { digest: string; recent: ChatMsg[] } {
   const recentRows = rows.slice(-recentCount);
-  const olderRows = rows.slice(0, Math.max(0, rows.length - recentCount));
+  let olderRows = rows.slice(0, Math.max(0, rows.length - recentCount));
+  if (summarizedThrough) {
+    olderRows = olderRows.filter((m) => !m.createdAt || m.createdAt > summarizedThrough);
+  }
 
   const lines = olderRows.map((m) =>
     m.role === "user"

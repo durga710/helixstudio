@@ -55,6 +55,7 @@ import {
   estimateTokens,
   INSTRUCTIONS_MAX,
 } from "@/lib/chat-context";
+import { composeDigest } from "@/lib/conversation-memory";
 
 // 40 rows feed the context engine: the newest 8 go verbatim, the rest
 // become a one-line-per-turn digest (see src/lib/chat-context.ts).
@@ -191,10 +192,19 @@ export async function runAgentTurn(opts: {
   const history = await db().workspaceMessage.findMany({
     where: { workspaceId: ws.id },
     orderBy: { createdAt: "desc" },
-    select: { role: true, content: true, actions: true },
+    select: { role: true, content: true, actions: true, createdAt: true },
     take: HISTORY_LIMIT,
   });
-  const { digest, recent } = historyContext(history.reverse());
+  // Older turns already folded into ws.convoSummary are dropped from the
+  // deterministic digest; what remains is the not-yet-folded gap. The two stack
+  // into one "working memory" block (see conversation-memory.ts).
+  const { digest, recent } = historyContext(
+    history.reverse(),
+    undefined,
+    undefined,
+    ws.convoSummaryAt,
+  );
+  const memory = composeDigest(ws.convoSummary, digest);
 
   // Prompts live in agent-config.ts so the /admin overview shows the exact
   // text the model receives.
@@ -209,7 +219,7 @@ export async function runAgentTurn(opts: {
     tree: treeOutline(treePaths),
     notes: ws.notes ?? "",
     instructionsDoc,
-    digest,
+    digest: memory,
     recent,
     userMessage,
     treePaths,
@@ -225,7 +235,7 @@ export async function runAgentTurn(opts: {
       ? `\n\n--- PROJECT INSTRUCTIONS (from the repo's AGENTS.md/CLAUDE.md — follow them) ---\n${fitted.instructionsDoc}`
       : "") +
     (fitted.notes ? `\n\n--- PROJECT NOTES (yours — update via remember) ---\n${fitted.notes}` : "") +
-    (fitted.digest ? `\n\n--- EARLIER CONVERSATION (digest) ---\n${fitted.digest}` : "");
+    (fitted.digest ? `\n\n--- EARLIER CONVERSATION (working memory) ---\n${fitted.digest}` : "");
 
   // The model sees the (optional) brief prefix; persistence/UI only ever see the
   // clean userMessage, so internal instructions never surface in the chat.

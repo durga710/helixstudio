@@ -384,4 +384,8 @@ CREATE INDEX IF NOT EXISTS "Lesson_spaceId_status_idx" ON "Lesson"("spaceId", "s
 
 -- 2026-06 · Lesson assignments (assign a lesson as graded homework)
 ALTER TABLE "Assignment" ADD COLUMN IF NOT EXISTS "lessonId" TEXT;
+
+-- 2026-06 · Rolling conversation memory (smart AI compaction for long chats)
+ALTER TABLE "Workspace" ADD COLUMN IF NOT EXISTS "convoSummary" TEXT;
+ALTER TABLE "Workspace" ADD COLUMN IF NOT EXISTS "convoSummaryAt" TIMESTAMP(3);
 `;

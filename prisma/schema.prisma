@@ -336,6 +336,13 @@ model Workspace {
   // the start of every chat turn. Invisible to the user; never pushed.
   notes String?
 
+  // Rolling AI "working memory" for long chats — an area-bucketed summary of
+  // older turns (with DONE/IN-PROGRESS markers) that replaces the deterministic
+  // digest once a conversation grows. convoSummaryAt is the createdAt of the
+  // newest message already folded in (the boundary). See conversation-memory.ts.
+  convoSummary   String?
+  convoSummaryAt DateTime?
+
   // Cached cloud environment (Vercel Sandbox snapshot with deps installed) so
   // preview + run_command start warm. setupScript null = auto-derived from the
   // stack; envSnapshotKey is a hash of the setup inputs (invalidates on change).

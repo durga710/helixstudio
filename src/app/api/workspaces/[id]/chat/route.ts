@@ -15,6 +15,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { apiErrors } from "@/lib/api-response";
 import { runAgentTurn } from "@/lib/agent-turn";
+import { maybeCompactConversation } from "@/lib/conversation-memory";
 import { db } from "@/lib/db";
 import { isAdminEmail } from "@/lib/admin";
 import { guardWorkspace } from "@/lib/route-helpers";
@@ -122,7 +123,14 @@ export async function POST(req: Request, { params }: Params) {
   const dbu = await db().user.findUnique({ where: { id: user.id }, select: { tier: true, isGuest: true } });
   const premiumBuild =
     isAdminEmail(user.email) || (!dbu?.isGuest && (dbu?.tier === "pro" || dbu?.tier === "team"));
-  if (turnPromise && premiumBuild) after(turnPromise);
+  if (turnPromise && premiumBuild) {
+    // Once the turn has persisted its messages, fold aged-out turns into the
+    // workspace's rolling AI summary (smart compaction). It's a cheap no-op
+    // until a full batch accrues and is budget-metered, so it just rides the
+    // tail of the keep-alive we're already paying for. Free/guest sessions
+    // aren't kept alive, so they keep the deterministic digest (unchanged).
+    after(turnPromise.then(() => maybeCompactConversation({ workspaceId: ws.id, userId: user.id })));
+  }
 
   return new Response(stream, {
     headers: {

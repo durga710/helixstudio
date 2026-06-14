@@ -254,6 +254,8 @@ CREATE TABLE "Workspace" (
     "repo" TEXT,
     "baseBranch" TEXT,
     "notes" TEXT,
+    "convoSummary" TEXT,
+    "convoSummaryAt" TIMESTAMP(3),
     "setupScript" TEXT,
     "envSnapshotId" TEXT,
     "envSnapshotKey" TEXT,
