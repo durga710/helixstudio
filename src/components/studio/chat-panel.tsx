@@ -31,6 +31,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Markdown } from "@/components/ui/markdown";
 import type { WorkspaceMeta } from "@/components/studio/studio";
 import { ModelPicker } from "@/components/studio/model-picker";
+import { takeAutoBuild } from "@/components/studio/use-workspace-creation";
 
 interface Action {
   tool: string;
@@ -212,6 +213,20 @@ export function ChatPanel({
       setWorklog([]);
     }
   }, [busy]);
+
+  // Auto-build on arrival: prompt-first creation hands the idea over via
+  // sessionStorage; fire it once as the first build turn so a brand-new workspace
+  // builds itself (the user sees "building → their app", never the bare skeleton).
+  // Guarded to a workspace with no existing conversation, and consume-once.
+  const autoBuildFired = useRef(false);
+  useEffect(() => {
+    if (autoBuildFired.current || messages === null || messages.length > 0 || busy) return;
+    const idea = takeAutoBuild(workspace.id);
+    if (!idea) return;
+    autoBuildFired.current = true;
+    void send(idea, "build");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once is guarded by the ref; send is hoisted/stable
+  }, [messages, busy, workspace.id]);
 
   /* ----------------------------- background tasks ------------------------- */
 

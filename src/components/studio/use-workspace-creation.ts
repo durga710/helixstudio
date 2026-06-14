@@ -24,6 +24,40 @@ const MAX_IMPORT_FILES = 300;
 const BATCH_FILES = 50;
 const BATCH_CHARS = 400_000;
 
+/* --------------------------- auto-build handoff ------------------------- */
+// A freshly-created prompt-first workspace hands its idea to the editor via
+// sessionStorage so the chat panel can auto-fire it as the first build turn.
+// sessionStorage (not a query param) keeps long ideas out of the URL and is
+// cleared the instant it's consumed, so it fires exactly once.
+
+const AUTOBUILD_PREFIX = "helix:autobuild:";
+
+export function autoBuildKey(workspaceId: string): string {
+  return `${AUTOBUILD_PREFIX}${workspaceId}`;
+}
+
+function stashAutoBuild(workspaceId: string, prompt?: string): void {
+  const idea = prompt?.trim();
+  if (!idea) return;
+  try {
+    sessionStorage.setItem(autoBuildKey(workspaceId), idea);
+  } catch {
+    // private mode / storage disabled — the editor just opens normally.
+  }
+}
+
+/** Read + clear the stashed idea for a workspace (consume-once). */
+export function takeAutoBuild(workspaceId: string): string | null {
+  try {
+    const key = autoBuildKey(workspaceId);
+    const idea = sessionStorage.getItem(key);
+    if (idea) sessionStorage.removeItem(key);
+    return idea;
+  } catch {
+    return null;
+  }
+}
+
 export function useWorkspaceCreation(onNavigate?: () => void) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
@@ -56,6 +90,9 @@ export function useWorkspaceCreation(onNavigate?: () => void) {
       if (!res.ok || !json?.ok) {
         setError(json?.error?.message ?? "Couldn't create the workspace.");
       } else {
+        // Hand the idea to the editor so it auto-builds on arrival (the user sees
+        // "building → their app", never the bare skeleton sitting idle).
+        stashAutoBuild(json.data.id, prompt);
         go(json.data.id);
         return;
       }
@@ -80,6 +117,7 @@ export function useWorkspaceCreation(onNavigate?: () => void) {
       if (!res.ok || !json?.ok) {
         setError(json?.error?.message ?? "Couldn't create the game.");
       } else {
+        stashAutoBuild(json.data.id, prompt);
         go(json.data.id);
         return;
       }
