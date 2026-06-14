@@ -43,6 +43,8 @@ export async function POST(_req: Request, { params }: Params) {
     emit: () => {},
     maxAttempts: 0, // check only — never fixes
     runFix: async () => null,
+    readFile: (p) => withGitAuth(auth, () => readWorkspaceFile(ws, p)).catch(() => null),
+    deep: true, // on-demand "Verify build" → also run it in a headless browser
   });
 
   return ok({ verify: { status: result.status, command: result.command, log: result.log, reason: result.reason } });

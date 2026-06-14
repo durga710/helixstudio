@@ -539,6 +539,9 @@ export async function runAgentTurn(opts: {
         actions,
         emit,
         maxAttempts: opts.verifyMaxAttempts ?? VERIFY_MAX_FIX_ATTEMPTS,
+        // In-process static/game check reads scripts to parse them (no sandbox).
+        readFile: (p) => withGitAuth(gitAuth, () => readWorkspaceFile(ws, p)).catch(() => null),
+        deep: false, // auto loop stays cheap — the headless run is on-demand only
         // Injected fix runner — a build-mode turn with verify OFF (the guard
         // that prevents infinite verify recursion). Not persisted; its changes
         // and tokens fold into this turn.

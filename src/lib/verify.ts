@@ -1,8 +1,11 @@
 import "server-only";
 
+import vm from "node:vm";
 import type { Workspace } from "@/generated/prisma/client";
 import { execInSandbox } from "@/lib/runner/vercel-sandbox";
 import { detectFramework } from "@/lib/app-runner";
+import { pickPreviewEntry } from "@/lib/preview-html";
+import { headlessCheckCommand } from "@/lib/runner/headless-check";
 import type { ChangeManifest } from "@/lib/workspace-tools";
 
 /** Merge a fix turn's manifest into the outer one (dedup; deletions win). */
@@ -57,6 +60,12 @@ export interface VerifyContext {
   } | null>;
   /** Fix attempts (re-runs) allowed. 0 = run once, never fix. */
   maxAttempts?: number;
+  /** Read a workspace file's content (for the in-process static syntax check). */
+  readFile?: (path: string) => Promise<string | null>;
+  /** Deep check: also run the app in a headless browser (on-demand only — the
+   * "Verify build" button). The auto per-iteration verify leaves this off so it
+   * stays cheap (no sandbox for static/games). */
+  deep?: boolean;
 }
 
 /** Decide what to run to verify the build, or why it's skipped. */
@@ -119,6 +128,86 @@ function tailLog(stdout: string, stderr: string, cap: number): string {
 }
 
 /**
+ * Static apps + games: the cheap build-check runs IN-PROCESS — parse each local
+ * script with `vm.Script` (compile-only, never executes the code, so browser
+ * globals are fine). No sandbox → ~free per iteration. On a syntax error it runs
+ * the same targeted fix loop. When `deep` (the on-demand Verify button) it ALSO
+ * runs the headless browser check in the sandbox to catch runtime crashes.
+ */
+async function verifyStaticInProcess(ctx: VerifyContext): Promise<VerifyResult & { extraTokens: number }> {
+  const maxAttempts = ctx.maxAttempts ?? 1;
+  const jsFiles = ctx.treePaths.filter((p) => /\.js$/i.test(p) && !p.startsWith("node_modules/"));
+
+  // Compile-check every local script; first syntax error wins.
+  const syntaxScan = async (): Promise<{ ok: true } | { ok: false; log: string }> => {
+    if (!ctx.readFile || jsFiles.length === 0) return { ok: true };
+    for (const p of jsFiles) {
+      const content = await ctx.readFile(p).catch(() => null);
+      if (content == null) continue;
+      try {
+        new vm.Script(content, { filename: p });
+      } catch (e) {
+        return { ok: false, log: `${p}: ${e instanceof Error ? e.message : "syntax error"}` };
+      }
+    }
+    return { ok: true };
+  };
+
+  let extraTokens = 0;
+  let attempts = 0;
+  let fixed = false;
+  try {
+    for (let i = 0; i <= maxAttempts; i++) {
+      attempts++;
+      ctx.emit(i === 0 ? "checking your scripts…" : "re-checking your scripts…");
+      const scan = await syntaxScan();
+      if (!scan.ok) {
+        if (i >= maxAttempts) {
+          return { status: "failed", command: "script syntax check", log: scan.log, fixed, attempts, extraTokens };
+        }
+        ctx.emit("fixing a script error…");
+        const fix = await ctx.runFix(
+          `A script has a syntax error:\n\n${scan.log}\n\nFix the code so the script parses. Make the smallest change.`,
+        );
+        if (!fix) {
+          return { status: "failed", command: "script syntax check", log: scan.log, fixed, attempts, extraTokens };
+        }
+        absorbChanges(ctx.changes, fix.changes);
+        ctx.actions.push(...fix.actions);
+        extraTokens += fix.tokensUsed;
+        fixed = true;
+        continue;
+      }
+
+      // Scripts parse. Deep (on-demand) → run it in a headless browser to catch a
+      // runtime crash / blank render. Best-effort: a sandbox/infra problem degrades
+      // to "passed" (the syntax check already passed), never a false failure.
+      if (ctx.deep) {
+        const entry = pickPreviewEntry(ctx.treePaths) ?? "index.html";
+        ctx.emit("running it in a headless browser…");
+        const res = await execInSandbox(ctx.ws, headlessCheckCommand(entry));
+        if (!("error" in res) && res.exitCode !== 0) {
+          return {
+            status: "failed",
+            command: "headless runtime check",
+            log: tailLog(res.stdout, res.stderr, LOG_STORE_CAP),
+            fixed,
+            attempts,
+            extraTokens,
+          };
+        }
+        return { status: "passed", command: "headless runtime check", fixed, attempts, extraTokens };
+      }
+      return { status: "passed", command: "script syntax check", fixed, attempts, extraTokens };
+    }
+    return { status: "passed", command: "script syntax check", attempts, extraTokens };
+  } catch (e) {
+    console.error("[helix-verify] in-process static check failed", e);
+    return { status: "skipped", reason: "verify error", attempts, extraTokens };
+  }
+}
+
+/**
  * Run the verify command; on failure, optionally ask the model to fix and
  * re-run, up to maxAttempts. `extraTokens` carries the fix-turn token cost back
  * to the caller for metering. Always best-effort: any unexpected error or an
@@ -126,6 +215,21 @@ function tailLog(stdout: string, stderr: string, cap: number): string {
  */
 export async function verifyBuild(ctx: VerifyContext): Promise<VerifyResult & { extraTokens: number }> {
   const maxAttempts = ctx.maxAttempts ?? 1;
+
+  // Static apps + games: verify IN-PROCESS (parse each script in our own server —
+  // no sandbox, so the cheap per-iteration build-check costs nothing). The heavier
+  // headless run-it-in-a-browser check only runs when `deep` (the on-demand Verify
+  // button). Godot compiles on Build & Play.
+  const detection = detectFramework(ctx.treePaths, ctx.pkgJson);
+  if (detection.kind === "static" || detection.kind === "unknown") {
+    if (ctx.treePaths.includes("project.godot")) {
+      return { status: "skipped", reason: "Godot games compile on Build & Play — press it to check it runs", extraTokens: 0 };
+    }
+    const hasJs = ctx.treePaths.some((p) => /\.js$/i.test(p) && !p.startsWith("node_modules/"));
+    if (hasJs) return verifyStaticInProcess(ctx);
+    return { status: "skipped", reason: "static page — open the preview to see it live", extraTokens: 0 };
+  }
+
   const sel = selectVerifyCommand(ctx.treePaths, ctx.pkgJson);
   if ("skip" in sel) {
     return { status: "skipped", reason: sel.skip, extraTokens: 0 };

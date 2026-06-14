@@ -622,9 +622,11 @@ export function ChatPanel({
               : `verify skipped — ${v.reason ?? "nothing to verify"}`;
         const cmdLabel = !v.command
           ? "the build"
-          : v.command.startsWith("for f in")
-            ? "a syntax check on the scripts"
-            : `\`${v.command}\``;
+          : v.command === "script syntax check" || v.command.startsWith("for f in")
+            ? "a syntax check on your scripts"
+            : v.command === "headless runtime check"
+              ? "a test run in a browser"
+              : `\`${v.command}\``;
         const content =
           v.status === "passed"
             ? `Verified — ${cmdLabel} ran clean.`
