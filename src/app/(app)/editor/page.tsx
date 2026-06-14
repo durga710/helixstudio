@@ -28,7 +28,10 @@ export default async function EditorPage() {
   // account, then delete the orphaned guest user. Idempotent (the guest row
   // is gone after the first pass) and guarded — only ever drains accounts
   // marked isGuest, so the cookie can't be abused to steal a real account.
-  const upgradeFrom = (await cookies()).get("helix.upgrade-from")?.value;
+  const cookieStore = await cookies();
+  const savedMode = cookieStore.get("helix.editor.mode")?.value;
+  const initialMode = savedMode === "game" || savedMode === "ai" ? savedMode : "app";
+  const upgradeFrom = cookieStore.get("helix.upgrade-from")?.value;
   if (upgradeFrom && upgradeFrom !== session.user.id && !session.user.isGuest) {
     const guest = await db().user.findUnique({
       where: { id: upgradeFrom },
@@ -86,8 +89,9 @@ export default async function EditorPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <StudioHome
+        initialMode={initialMode}
         isGuest={Boolean(session.user.isGuest)}
-        isAdmin={isAdminEmail(session.user.email)}
+        isAdmin={isAdminEmail(session.user.email ?? "")}
         workspaces={workspaces.map((w) => ({
           id: w.id,
           name: w.name,

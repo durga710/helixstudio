@@ -1456,11 +1456,16 @@ export function WorkspacePanel({
                     <div>
                       <MonitorPlay className="mx-auto mb-3 h-8 w-8 text-txt3" />
                       <p className="text-sm text-txt2">
-                        {previewEntry ? (previewInfo ?? "composing preview…") : "No HTML page to preview yet."}
+                        {previewEntry
+                          ? (previewInfo ?? "composing preview…")
+                          : isGame
+                            ? "No game to play yet."
+                            : "No HTML page to preview yet."}
                       </p>
                       <p className="mt-1 max-w-sm text-xs text-txt3">
-                        The preview runs the workspace&apos;s index.html (or the HTML file you have open)
-                        with its CSS/JS inlined. Ask Helix to build a page and it appears here.
+                        {isGame
+                          ? "Describe your game in the chat — it appears here to play the moment Helix builds it."
+                          : "The preview runs the workspace's index.html (or the HTML file you have open) with its CSS/JS inlined. Ask Helix to build a page and it appears here."}
                       </p>
                     </div>
                   </div>

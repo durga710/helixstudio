@@ -53,6 +53,15 @@ interface SharedCard extends WorkspaceCard {
 
 type EditorMode = "app" | "game" | "ai";
 
+/** Persist the chosen mode in a cookie (read server-side next visit — no flash). */
+function persistMode(m: EditorMode) {
+  try {
+    document.cookie = `helix.editor.mode=${m}; path=/; max-age=31536000; samesite=lax`;
+  } catch {
+    /* ignore (cookies disabled) */
+  }
+}
+
 const MODES: { id: EditorMode; label: string; icon: LucideIcon; blurb: string }[] = [
   { id: "app", label: "App", icon: AppWindow, blurb: "Sites, tools & dashboards" },
   { id: "game", label: "Game", icon: Gamepad2, blurb: "Build, play & share" },
@@ -79,20 +88,18 @@ export function StudioHome({
   sharedWorkspaces,
   isGuest,
   isAdmin,
+  initialMode = "app",
 }: {
   workspaces: WorkspaceCard[];
   sharedWorkspaces?: SharedCard[];
   isGuest?: boolean;
   isAdmin?: boolean;
+  /** Last-used mode, read from a cookie on the server so the first paint already
+   * shows the right tab (no hydration mismatch / flash). */
+  initialMode?: EditorMode;
 }) {
   const router = useRouter();
-  // Restore the last-used mode (lazy initializer — guarded for SSR) so returning
-  // to the editor feels continuous.
-  const [mode, setMode] = useState<EditorMode>(() => {
-    if (typeof window === "undefined") return "app";
-    const saved = window.localStorage.getItem("helix.editor.mode");
-    return saved === "game" || saved === "ai" || saved === "app" ? saved : "app";
-  });
+  const [mode, setMode] = useState<EditorMode>(initialMode);
   const [picking, setPicking] = useState(false);
   const [pickingHost, setPickingHost] = useState(false);
   const [scratchName, setScratchName] = useState("");
@@ -102,11 +109,7 @@ export function StudioHome({
 
   function pickMode(m: EditorMode) {
     setMode(m);
-    try {
-      localStorage.setItem("helix.editor.mode", m);
-    } catch {
-      /* private mode — fine */
-    }
+    persistMode(m);
   }
 
   const { creating, error, setError, uploadNote, createScratch, createGame, importFolder, importRepo: importRepoBase } =
