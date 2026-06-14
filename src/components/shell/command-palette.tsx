@@ -4,12 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Code2,
+  GraduationCap,
   Home,
   Moon,
   Palette,
   Plus,
+  Rocket,
   Search,
   Settings,
+  Users,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { useShell } from "./shell-context";
@@ -41,7 +44,7 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
   // Warm every navigation target the moment the palette opens, so picking
   // one lands on an already-prefetched route.
   useEffect(() => {
-    for (const href of ["/", "/editor", "/settings"]) router.prefetch(href);
+    for (const href of ["/", "/editor", "/space", "/classroom", "/lab", "/settings"]) router.prefetch(href);
   }, [router]);
 
   const items = useMemo<PaletteItem[]>(() => {
@@ -49,6 +52,10 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
     return [
       { id: "home", group: "Navigate", label: "Go to Home", icon: Home, shortcut: "G H", run: go("/") },
       { id: "editor", group: "Navigate", label: "Open Editor", icon: Code2, shortcut: "G E", run: go("/editor") },
+      { id: "space", group: "Navigate", label: "Go to Space", icon: Users, run: go("/space") },
+      { id: "classroom", group: "Navigate", label: "Go to Classroom", icon: GraduationCap, run: go("/classroom") },
+      { id: "lab", group: "Navigate", label: "Learn AI — lessons & studios", icon: GraduationCap, run: go("/lab") },
+      { id: "deployments", group: "Navigate", label: "Go to Deployments", icon: Rocket, run: go("/deployments") },
       { id: "theme", group: "Customize", label: "Toggle dark / light theme", icon: Moon, shortcut: "⌘ ⇧ L", run: toggleTheme },
       { id: "accent", group: "Customize", label: "Change accent color", icon: Palette, run: () => setAccentPopOpen(true) },
       { id: "settings", group: "Customize", label: "Open Settings", icon: Settings, run: go("/settings") },

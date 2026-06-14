@@ -6,9 +6,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   Code2,
+  GraduationCap,
   Home,
   LogOut,
-  Rocket,
   Settings,
   Users,
 } from "lucide-react";
@@ -20,7 +20,7 @@ export const NAV_ITEMS = [
   { href: "/", title: "Home", icon: Home },
   { href: "/editor", title: "Editor", icon: Code2 },
   { href: "/space", title: "Space", icon: Users },
-  { href: "/deployments", title: "Deployments", icon: Rocket },
+  { href: "/classroom", title: "Classroom", icon: GraduationCap },
 ] as const;
 
 export function Rail({ userInitials, userImage }: { userInitials: string; userImage?: string | null }) {

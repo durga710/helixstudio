@@ -5,10 +5,10 @@ import { dbEnabled } from "@/lib/db";
 import { Card } from "@/components/ui/card";
 import { SpaceScreen } from "@/components/screens/space-screen";
 
-export const metadata = { title: "Space" };
+export const metadata = { title: "Classroom" };
 export const dynamic = "force-dynamic";
 
-export default async function SpacePage() {
+export default async function ClassroomPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/welcome");
 
@@ -16,24 +16,21 @@ export default async function SpacePage() {
     return (
       <div className="pad-screen">
         <div className="mx-auto max-w-[760px]">
-          <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">
-            Collaborate
-          </div>
-          <h1 className="text-[22px] font-bold tracking-tight">Space</h1>
+          <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Teach</div>
+          <h1 className="text-[22px] font-bold tracking-tight">Classroom</h1>
           <Card className="mt-6 p-8 text-center text-sm text-txt3">
-            Spaces let you share workspaces with friends and teammates. Connect a database
-            (<code className="font-mono">DATABASE_URL</code>) to create or join one.
+            Classrooms let you hand out assignments and AI lessons to your students. Connect a database
+            (<code className="font-mono">DATABASE_URL</code>) to create one.
           </Card>
         </div>
       </div>
     );
   }
 
-  // A pending invite cookie means the user signed in to accept an invite.
-  // Hand it to the join route handler, which joins AND clears the cookie
-  // (pages can't modify cookies during render).
+  // A pending invite cookie means the user signed in to accept an invite —
+  // hand it to the join route (it joins + clears the cookie).
   const joinCode = (await cookies()).get("helix.join-space")?.value;
   if (joinCode) redirect(`/space/join/${encodeURIComponent(joinCode)}`);
 
-  return <SpaceScreen youName={session.user.name ?? null} filter="team" />;
+  return <SpaceScreen youName={session.user.name ?? null} filter="classroom" />;
 }
