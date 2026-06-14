@@ -1,8 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { LogOut, Settings as SettingsIcon } from "lucide-react";
 import { signOut, type User } from "@/lib/auth";
-import { Button } from "@/components/ui";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import ThemePicker from "@/components/theme-picker";
 
 export default function Topbar({ user }: { user: User }) {
@@ -20,12 +30,25 @@ export default function Topbar({ user }: { user: User }) {
       </div>
       <div className="flex items-center gap-3">
         <ThemePicker />
-        <div className="grid h-9 w-9 place-items-center rounded-full bg-surface2 text-sm font-semibold text-ink">
-          {user.name.charAt(0).toUpperCase()}
-        </div>
-        <Button variant="outline" onClick={handleSignOut} className="h-9 px-3">
-          Sign out
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand">
+            <Avatar>
+              <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
+            </Avatar>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>{user.email}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/settings">
+                <SettingsIcon /> Settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={handleSignOut}>
+              <LogOut /> Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

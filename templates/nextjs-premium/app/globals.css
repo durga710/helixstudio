@@ -10,31 +10,37 @@
 [data-theme="midnight"] {
   --bg: #0b1020; --surface: #121a30; --surface-2: #1a2540; --line: #26314d;
   --ink: #eaf0fb; --muted: #93a0bd; --brand: #5b8cff; --brand-fg: #ffffff; --accent: #9b6bff;
+  --danger: #f87171; --danger-fg: #1a0606;
 }
 [data-theme="ocean"] {
   --bg: #07171c; --surface: #0d2730; --surface-2: #123642; --line: #1c4350;
   --ink: #e6fbff; --muted: #8bb6c0; --brand: #21c8c0; --brand-fg: #05201f; --accent: #34a0ff;
+  --danger: #f87171; --danger-fg: #1a0606;
 }
 [data-theme="forest"] {
   --bg: #0c150f; --surface: #122017; --surface-2: #1a2c20; --line: #244031;
   --ink: #e9f6ec; --muted: #93b59f; --brand: #34c759; --brand-fg: #05210f; --accent: #b6e34a;
+  --danger: #f87171; --danger-fg: #1a0606;
 }
 [data-theme="sunset"] {
   --bg: #1a1012; --surface: #25171a; --surface-2: #321e22; --line: #46282d;
   --ink: #fdefe9; --muted: #c79e94; --brand: #ff7a59; --brand-fg: #2a0f0a; --accent: #ffb000;
+  --danger: #ff6b6b; --danger-fg: #1a0606;
 }
 [data-theme="grape"] {
   --bg: #130d1f; --surface: #1d142e; --surface-2: #281b3e; --line: #3a2957;
   --ink: #f1e9fb; --muted: #ab97c9; --brand: #a855f7; --brand-fg: #ffffff; --accent: #ec4899;
+  --danger: #f87171; --danger-fg: #1a0606;
 }
 [data-theme="paper"] {
   --bg: #f6f7fb; --surface: #ffffff; --surface-2: #f0f2f8; --line: #e2e6ef;
   --ink: #1a2236; --muted: #5d6b86; --brand: #4f46e5; --brand-fg: #ffffff; --accent: #0ea5e9;
+  --danger: #dc2626; --danger-fg: #ffffff;
 }
 
 /* HELIX-LOCKED · map palette tokens → Tailwind color utilities. `inline` keeps the
    reference at use-site so [data-theme] overrides cascade. e.g. bg-surface, text-ink,
-   border-line, bg-brand text-brand-fg, text-muted, bg-accent. */
+   border-line, bg-brand text-brand-fg, text-muted, bg-accent, bg-danger text-danger-fg. */
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
@@ -45,6 +51,8 @@
   --color-brand: var(--brand);
   --color-brand-fg: var(--brand-fg);
   --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --color-danger-fg: var(--danger-fg);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

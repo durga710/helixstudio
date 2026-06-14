@@ -2,7 +2,7 @@
 // feature cards for the user's product; keep the layout + tokens.
 import Link from "next/link";
 import { APP_NAME, APP_TAGLINE } from "@/lib/config";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 
 const FEATURES = [
   { title: "Fast by default", body: "Built on the Next.js App Router with sensible, production-ready defaults." },
@@ -20,11 +20,9 @@ export default function Home() {
           </span>
           <span className="font-semibold">{APP_NAME}</span>
         </div>
-        <Link href="/login">
-          <Button variant="outline" className="h-9 px-4">
-            Sign in
-          </Button>
-        </Link>
+        <Button asChild variant="outline" className="h-9 px-4">
+          <Link href="/login">Sign in</Link>
+        </Button>
       </header>
 
       <main className="mx-auto max-w-5xl px-6">
@@ -40,14 +38,12 @@ export default function Home() {
             the idea, not the boilerplate.
           </p>
           <div className="mt-8 flex items-center justify-center gap-3">
-            <Link href="/login">
-              <Button className="h-11 px-6">Get started</Button>
-            </Link>
-            <Link href="/dashboard">
-              <Button variant="outline" className="h-11 px-6">
-                View the app
-              </Button>
-            </Link>
+            <Button asChild size="lg">
+              <Link href="/login">Get started</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link href="/dashboard">View the app</Link>
+            </Button>
           </div>
         </section>
 

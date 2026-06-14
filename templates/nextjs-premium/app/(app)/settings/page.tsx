@@ -1,27 +1,38 @@
 "use client";
 
-// Settings — profile + theme. A second working page so the nav pattern is obvious.
-import { useEffect, useState } from "react";
-import { getUser, signIn, type User } from "@/lib/auth";
-import { Card, Field, Input, Button } from "@/components/ui";
+// Settings — a real react-hook-form + zod form (the pattern to copy for any form).
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { toast } from "sonner";
+import { getUser, signIn } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+
+const schema = z.object({
+  name: z.string().min(1, "Name is required.").max(60),
+  email: z.string().email("Enter a valid email."),
+});
+type Values = z.infer<typeof schema>;
 
 export default function SettingsPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [saved, setSaved] = useState(false);
+  const form = useForm<Values>({
+    resolver: zodResolver(schema),
+    defaultValues: { name: "", email: "" },
+  });
 
   useEffect(() => {
-    setUser(getUser());
-  }, []);
+    const u = getUser();
+    if (u) form.reset({ name: u.name, email: u.email });
+  }, [form]);
 
-  function save(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!user) return;
-    signIn(user);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  function onSubmit(values: Values) {
+    signIn(values);
+    toast.success("Settings saved.");
   }
-
-  if (!user) return null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -31,26 +42,54 @@ export default function SettingsPage() {
       </div>
 
       <Card>
-        <form onSubmit={save} className="space-y-4">
-          <Field label="Display name">
-            <Input value={user.name} onChange={(e) => setUser({ ...user, name: e.target.value })} />
-          </Field>
-          <Field label="Email">
-            <Input type="email" value={user.email} onChange={(e) => setUser({ ...user, email: e.target.value })} />
-          </Field>
-          <div className="flex items-center gap-3 pt-1">
-            <Button type="submit">Save changes</Button>
-            {saved ? <span className="text-sm text-muted">Saved.</span> : null}
-          </div>
-        </form>
+        <CardHeader>
+          <CardTitle>Profile</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Display name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ada Lovelace" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="you@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit">Save changes</Button>
+            </form>
+          </Form>
+        </CardContent>
       </Card>
 
       <Card>
-        <h2 className="text-base font-semibold text-ink">Appearance</h2>
-        <p className="mt-1 text-sm text-muted">
-          Switch the color palette from the theme picker in the top bar — it applies instantly across
-          the whole app and is remembered next visit.
-        </p>
+        <CardHeader>
+          <CardTitle className="text-base">Appearance</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted">
+            Switch the color palette from the theme picker in the top bar — it applies instantly across the whole app
+            and is remembered next visit.
+          </p>
+        </CardContent>
       </Card>
     </div>
   );
