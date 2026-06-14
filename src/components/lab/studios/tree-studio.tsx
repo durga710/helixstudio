@@ -199,6 +199,10 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
     };
   }, [selNode, feature, threshold]);
 
+  // Is the selected leaf already all one kind (no use splitting it)?
+  const selMajority = selNode && !selNode.feature ? majority(selNode.rows, CLASSES) : null;
+  const selPure = selMajority ? selMajority.count === selMajority.total : false;
+
   function pickFeature(f: string) {
     setFeature(f);
     setThreshold((fullRange[f][0] + fullRange[f][1]) / 2);
@@ -312,8 +316,13 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
             }
             const m = majority(p.node.rows, CLASSES);
             const conf = m.total ? Math.round((m.count / m.total) * 100) : 0;
+            const canSplit = m.count < m.total && p.depth < MAX_DEPTH;
             return (
               <g key={p.path} onClick={() => setSel(p.path)} className="cursor-pointer">
+                {/* glow on leaves that are still mixed — "click me to split" */}
+                {canSplit && !selected && (
+                  <rect x={cx - 51} y={cy - 19} width={102} height={40} rx={11} fill="none" stroke="var(--accent)" strokeWidth={2} strokeDasharray="4 3" className="animate-pulse" />
+                )}
                 <rect x={cx - 46} y={cy - 14} width={92} height={30} rx={8} fill="#0d1626" stroke={selected ? "var(--accent)" : colorOf(m.label)} strokeWidth={selected ? 2.5 : 1.5} />
                 <circle cx={cx - 32} cy={cy + 1} r={4} fill={colorOf(m.label)} />
                 <text x={cx - 22} y={cy - 1} textAnchor="start" fill="#f0f4fa" fontSize={11} fontWeight={600}>
@@ -331,9 +340,16 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
       {/* control panel */}
       <div className="mt-3 rounded-md border border-border2 bg-panel p-3">
         {sel === null || !selNode ? (
-          <p className="text-center text-[12px] text-txt3">Click a leaf box above to split it.</p>
+          <p className="text-center text-[12px] text-txt3">
+            Click a <span className="font-semibold text-accent">glowing leaf</span> above — those are the groups still mixed up. Splitting one asks it a new question.
+          </p>
         ) : selIsLeaf ? (
           <div>
+            {selPure && (
+              <p className="mb-2 rounded-md border border-border2 bg-panel2 px-2.5 py-1.5 text-[11.5px] text-txt2">
+                This group is already all one kind 🎉 — you don&apos;t need to split it. Pick a <span className="text-accent">glowing</span> (still-mixed) leaf instead.
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-txt2">
                 Split these {selNode.rows.length} pets by:
@@ -350,12 +366,15 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
                   {featureLabel(f)}
                 </button>
               ))}
-              <button
-                onClick={suggest}
-                className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border2 bg-panel2 px-2.5 py-1 text-[12px] text-txt2 transition-colors hover:border-accent hover:text-txt"
-              >
-                <Wand2 className="h-3.5 w-3.5" /> Suggest
-              </button>
+              <span className="ml-auto inline-flex items-center gap-1">
+                <button
+                  onClick={suggest}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-panel2 px-2.5 py-1 text-[12px] text-txt2 transition-colors hover:border-accent hover:text-txt"
+                >
+                  <Wand2 className="h-3.5 w-3.5" /> Best cut
+                </button>
+                <InfoTip text="Not sure where to cut? This finds the cut that splits these pets the cleanest." />
+              </span>
             </div>
 
             <label className="mt-2.5 flex items-center gap-2 text-[11.5px] text-txt3">
