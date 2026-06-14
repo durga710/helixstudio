@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Hammer, Play } from "lucide-react";
 
 /* Godot Build & Play, self-contained for the editor's game mode. Godot projects
@@ -14,6 +14,9 @@ export function GodotPlayPanel({ workspaceId }: { workspaceId: string }) {
   const [building, setBuilding] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // The game iframe needs focus for keyboard input — hint the user to click.
+  const playIframeRef = useRef<HTMLIFrameElement>(null);
+  const [playClicked, setPlayClicked] = useState(false);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -38,6 +41,7 @@ export function GodotPlayPanel({ workspaceId }: { workspaceId: string }) {
     setBuilding(true);
     setStatus("exporting");
     setError(null);
+    setPlayClicked(false); // re-arm the "click to play" hint for the new build
     setLog(["Starting the build…"]);
     try {
       const res = await fetch(`/api/workspaces/${workspaceId}/godot/build`, { method: "POST" });
@@ -98,13 +102,32 @@ export function GodotPlayPanel({ workspaceId }: { workspaceId: string }) {
             Rebuild &amp; Play
           </button>
         </div>
-        <iframe
-          key={buildId}
-          title="Play"
-          src={`/play/${workspaceId}?b=${buildId}`}
-          sandbox="allow-scripts allow-same-origin allow-pointer-lock"
-          className="min-h-0 w-full flex-1 border-0 bg-black"
-        />
+        <div className="relative min-h-0 flex-1">
+          <iframe
+            ref={playIframeRef}
+            key={buildId}
+            title="Play"
+            src={`/play/${workspaceId}?b=${buildId}`}
+            sandbox="allow-scripts allow-same-origin allow-pointer-lock"
+            className="h-full w-full border-0 bg-black"
+            onLoad={() => playIframeRef.current?.focus()}
+          />
+          {!playClicked && (
+            <button
+              type="button"
+              onClick={() => {
+                playIframeRef.current?.focus();
+                setPlayClicked(true);
+              }}
+              className="absolute inset-0 grid place-items-center bg-black/35 text-white backdrop-blur-[1px] transition-opacity"
+              aria-label="Click to play"
+            >
+              <span className="inline-flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-sm font-medium shadow-lg">
+                <Play className="h-4 w-4" /> Click to play (then use your keyboard)
+              </span>
+            </button>
+          )}
+        </div>
       </div>
     );
   }

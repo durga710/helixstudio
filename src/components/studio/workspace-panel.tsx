@@ -177,6 +177,10 @@ export function WorkspacePanel({
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewInfo, setPreviewInfo] = useState<string | null>(null);
   const [previewNonce, setPreviewNonce] = useState(0);
+  // Games need the iframe focused for keyboard input; a one-time "click to play"
+  // hint makes the first focus obvious (the in-iframe helper re-focuses on click).
+  const previewIframeRef = useRef<HTMLIFrameElement>(null);
+  const [playOverlay, setPlayOverlay] = useState(true);
   const composeSeq = useRef(0);
   const monacoTheme = useMonacoTheme();
 
@@ -1536,21 +1540,45 @@ export function WorkspacePanel({
                   type="button"
                   aria-label="Reload preview"
                   title="Reload preview"
-                  onClick={() => setPreviewNonce((n) => n + 1)}
+                  onClick={() => {
+                    setPreviewNonce((n) => n + 1);
+                    setPlayOverlay(true);
+                  }}
                   className="ml-auto text-txt3 transition-colors hover:text-ok"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <div className="min-h-0 flex-1 bg-white">
+              <div className="relative min-h-0 flex-1 bg-white">
                 {previewHtml ? (
-                  <iframe
-                    key={previewNonce}
-                    title="Live preview"
-                    sandbox="allow-scripts"
-                    srcDoc={previewHtml}
-                    className="h-full w-full"
-                  />
+                  <>
+                    <iframe
+                      ref={previewIframeRef}
+                      key={previewNonce}
+                      title="Live preview"
+                      sandbox="allow-scripts allow-pointer-lock"
+                      srcDoc={previewHtml}
+                      className="h-full w-full"
+                      onLoad={() => {
+                        if (isGame) previewIframeRef.current?.focus();
+                      }}
+                    />
+                    {isGame && playOverlay && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          previewIframeRef.current?.focus();
+                          setPlayOverlay(false);
+                        }}
+                        className="absolute inset-0 grid place-items-center bg-black/35 text-white backdrop-blur-[1px] transition-opacity"
+                        aria-label="Click to play"
+                      >
+                        <span className="inline-flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-sm font-medium shadow-lg">
+                          <Play className="h-4 w-4" /> Click to play (then use your keyboard)
+                        </span>
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <div className="grid h-full place-items-center bg-codebg px-6 text-center">
                     <div>

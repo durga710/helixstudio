@@ -100,15 +100,18 @@ export async function GET(_req: Request, { params }: Params) {
   // Absolute asset URLs (so they resolve regardless of trailing slash), loaded
   // through the Godot 4 web loader.
   const base = `/play/${id}`;
-  const body = `<canvas id="c"></canvas>
+  const body = `<canvas id="c" tabindex="0"></canvas>
 <script src="${base}/godot.js"></script>
 <script>
+  function focusCanvas(){ try{ var c=document.getElementById('c'); if(c){ c.focus(); } if(window.focus)window.focus(); }catch(e){} }
   try {
     const engine = new Engine({ canvas: document.getElementById('c'), executable: '${base}/godot', mainPack: '${base}/game.pck' });
-    engine.startGame().catch(function (e) { document.body.innerHTML = '<div id=msg>Could not start the game.<br>' + e + '</div>'; });
+    engine.startGame().then(focusCanvas).catch(function (e) { document.body.innerHTML = '<div id=msg>Could not start the game.<br>' + e + '</div>'; });
   } catch (e) {
     document.body.innerHTML = '<div id=msg>Could not load the game engine.<br>' + e + '</div>';
   }
+  window.addEventListener('load', focusCanvas);
+  document.addEventListener('pointerdown', focusCanvas);
 </script>`;
   return htmlShell(id, body);
 }

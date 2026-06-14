@@ -69,5 +69,15 @@ export async function composePreviewHtml(
     }
   }
 
+  // Keyboard input only reaches a game if the iframe's document is focused.
+  // Inject a tiny helper that focuses the canvas/window on load and on any click
+  // inside the preview, so arrow keys etc. work without the user hunting for focus.
+  const focusHelper =
+    "<script>(function(){function f(){try{var c=document.querySelector('canvas');" +
+    "if(c){if(!c.hasAttribute('tabindex'))c.setAttribute('tabindex','0');c.focus();}" +
+    "if(window.focus)window.focus();}catch(e){}}" +
+    "window.addEventListener('load',f);document.addEventListener('pointerdown',f);})();</script>";
+  html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, focusHelper + "</body>") : html + focusHelper;
+
   return { html, inlined };
 }
