@@ -391,4 +391,9 @@ ALTER TABLE "Workspace" ADD COLUMN IF NOT EXISTS "convoSummaryAt" TIMESTAMP(3);
 
 -- 2026-06 · Editor mode (app | game) — drives per-mode editor panels
 ALTER TABLE "Workspace" ADD COLUMN IF NOT EXISTS "kind" TEXT NOT NULL DEFAULT 'app';
+
+-- 2026-06 · Premium template library freshness (weekly version bumps + build-check)
+ALTER TABLE "Template" ADD COLUMN IF NOT EXISTS "libraryState" JSONB;
+ALTER TABLE "Template" ADD COLUMN IF NOT EXISTS "libraryCheckedAt" TIMESTAMP(3);
+ALTER TABLE "Template" ADD COLUMN IF NOT EXISTS "freshnessError" TEXT;
 `;

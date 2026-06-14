@@ -842,6 +842,10 @@ model Template {
   refreshState String? // ok | building | error
   refreshError String?
   refreshedAt  DateTime?
+  // Premium-library freshness (weekly version bumps + build-check; admin/job-only)
+  libraryState     Json? // { <pkg>: { pinned, latest, availableMajor, bumpedAt }, suggestions: [...] }
+  libraryCheckedAt DateTime?
+  freshnessError   String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 }

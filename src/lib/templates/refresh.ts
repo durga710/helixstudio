@@ -38,7 +38,7 @@ const OVERLAY: Record<string, { keep: string[]; remove: string[] }> = {
   },
 };
 
-const HOME = "/vercel/sandbox";
+export const HOME = "/vercel/sandbox";
 const TEXT_EXT = new Set([
   ".html", ".css", ".scss", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".json", ".jsonc",
   ".md", ".txt", ".py", ".vue", ".svelte", ".svg", ".yml", ".yaml", ".env", ".sh",
@@ -47,16 +47,16 @@ const ALLOW_DOTFILES = new Set([".gitignore", ".env.example", ".npmrc", ".nvmrc"
 const MAX_FILE_CHARS = 48_000;
 const MAX_FILES = 400;
 
-function isText(name: string): boolean {
+export function isText(name: string): boolean {
   if (ALLOW_DOTFILES.has(name)) return true;
   const dot = name.lastIndexOf(".");
   return dot >= 0 && TEXT_EXT.has(name.slice(dot).toLowerCase());
 }
 
-type Sbx = Awaited<ReturnType<typeof Sandbox.create>>;
+export type Sbx = Awaited<ReturnType<typeof Sandbox.create>>;
 
 /** Run a shell command in `dir`, stream a tail of its output, return exit code. */
-async function step(sbx: Sbx, dir: string, cmd: string, onLog: RefreshLog, timeoutMs: number): Promise<number> {
+export async function step(sbx: Sbx, dir: string, cmd: string, onLog: RefreshLog, timeoutMs: number): Promise<number> {
   const res = await sbx.runCommand({ cmd: "sh", args: ["-c", `cd ${dir} && ${cmd}`], timeoutMs });
   const [out, err] = await Promise.all([res.stdout(), res.stderr()]);
   const tail = (out + (err ? "\n" + err : "")).trim().split("\n").slice(-12);
@@ -65,7 +65,7 @@ async function step(sbx: Sbx, dir: string, cmd: string, onLog: RefreshLog, timeo
 }
 
 /** Read the generated project back out as text files (skip binary/junk). */
-async function readProject(sbx: Sbx, dir: string): Promise<TemplateFile[]> {
+export async function readProject(sbx: Sbx, dir: string): Promise<TemplateFile[]> {
   const listed = await sbx.runCommand({
     cmd: "sh",
     args: [

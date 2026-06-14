@@ -751,6 +751,9 @@ CREATE TABLE "Template" (
     "refreshState" TEXT,
     "refreshError" TEXT,
     "refreshedAt" TIMESTAMP(3),
+    "libraryState" JSONB,
+    "libraryCheckedAt" TIMESTAMP(3),
+    "freshnessError" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
