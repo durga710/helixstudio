@@ -36,6 +36,11 @@ export const WIDGET_CATALOG: WidgetInfo[] = [
     label: "Decision-tree splitter",
     desc: "The student picks a measurement and a threshold to split a dataset and sees the yes/no rule + accuracy. Use for: decision trees, splitting data with questions, why trees are explainable.",
   },
+  {
+    id: "neuron",
+    label: "Neuron (perceptron) playground",
+    desc: "The student tilts a line with weight sliders to separate two groups, or presses 'Let it learn' to watch the neuron tune its own weights. Use for: neurons, weights, decision boundary, how a network learns.",
+  },
 ];
 
 export const WIDGET_IDS: string[] = WIDGET_CATALOG.map((w) => w.id);

@@ -248,6 +248,118 @@ export const LESSONS: Record<string, Lesson> = {
       }
     ]
   },
+  "how-a-brain-learns": {
+    "manifest": {
+      "id": "how-a-brain-learns",
+      "title": "How a brain learns",
+      "blurb": "Meet the neuron — the tiny piece behind ChatGPT and friends. Then watch one teach itself.",
+      "level": "intermediate",
+      "estMinutes": 14,
+      "icon": "Brain",
+      "concept": "neural networks",
+      "order": 6
+    },
+    "steps": [
+      {
+        "kind": "explain",
+        "title": "The AI behind the headlines",
+        "body": "Chatbots that write essays, apps that make art — almost all of them run on **neural networks**.\n\nThey sound scary and brainy. They're not. A neural network is built from a tiny, simple part called a **neuron**, and by the end you'll have trained one yourself."
+      },
+      {
+        "kind": "explain",
+        "title": "What's a neuron?",
+        "body": "Your brain has billions of brain cells (neurons) that pass along little signals. Scientists borrowed the idea and made a **digital neuron**.\n\nA digital neuron is just a tiny decision-maker: it takes a few numbers in, weighs them up, and makes one simple call — **yes or no**, this group or that one."
+      },
+      {
+        "kind": "explain",
+        "title": "Weights: how much it listens",
+        "body": "Each input to a neuron has a **weight** — a knob for *how much that input matters*.\n\nBig weight = \"I really care about this input.\" Small or negative weight = \"meh, ignore it\" or \"count it against.\" Tuning those weights is the *entire* secret to making a neuron smart."
+      },
+      {
+        "kind": "explain",
+        "title": "It draws a line",
+        "body": "When a neuron has two inputs, its decision is literally a **line** on a graph: everything on one side is \"Group A,\" everything on the other is \"Group B.\"\n\nThe weights **tilt and slide** that line. Let's grab the knobs."
+      },
+      {
+        "kind": "widget",
+        "widget": "neuron",
+        "title": "Tilt the line",
+        "body": "Move the Weight and Bias sliders to get the line between the two groups. Get to 100% — then try the 'Let it learn' button!",
+        "config": {
+          "dataset": "blobs"
+        }
+      },
+      {
+        "kind": "explain",
+        "title": "You just set the weights by hand",
+        "body": "Fiddling those sliders to separate the groups? That was you doing the neuron's job for it.\n\nWith only three knobs it's doable. But real networks have **millions** of weights — nobody could set those by hand. So here's the breakthrough…"
+      },
+      {
+        "kind": "explain",
+        "title": "It can tune *itself*",
+        "body": "Press **Let it learn** and watch. The neuron checks each dot, sees which ones it got wrong, and nudges its own weights a little to fix them — over and over, until the line snaps into place.\n\nThat self-tuning loop is the heartbeat of *all* modern AI."
+      },
+      {
+        "kind": "quiz",
+        "title": "What is 'learning'?",
+        "question": "When a neural network \"learns,\" what is actually changing inside it?",
+        "choices": [
+          "Its color",
+          "Its weights (the knobs)",
+          "Its screen size",
+          "Its name"
+        ],
+        "answer": 1,
+        "explain": "Learning = adjusting the weights. Every AI you've heard of is just doing this, on a massive scale."
+      },
+      {
+        "kind": "explain",
+        "title": "One neuron, one line",
+        "body": "A single neuron can only draw **one straight line**. That's great for two tidy groups — but real problems are messier than a straight line can handle.\n\nSo what do we do? The same thing nature did: use **lots** of neurons together."
+      },
+      {
+        "kind": "explain",
+        "title": "Many neurons = a network",
+        "body": "Connect many neurons in **layers** and something amazing happens: their simple lines combine into **curves and complex shapes**. Now the network can recognize faces, understand sentences, or generate images.\n\nThe word *deep* in \"deep learning\" just means *many layers* of these neurons."
+      },
+      {
+        "kind": "quiz",
+        "title": "Why so many?",
+        "question": "Why stack lots of neurons into a network instead of using just one?",
+        "choices": [
+          "To use more electricity",
+          "So they can learn complex patterns a single straight line can't",
+          "To make it slower",
+          "There's no reason"
+        ],
+        "answer": 1,
+        "explain": "One neuron = one line. Many neurons together can bend and combine into the complex patterns real problems need."
+      },
+      {
+        "kind": "explain",
+        "title": "Same idea, gigantic scale",
+        "body": "The AI that chats with you? A neural network with **billions** of weights, trained on a huge chunk of the internet.\n\nBut peek inside and it's the exact thing you just did: neurons, weights, and a learning loop that nudges the weights to be a little less wrong. You now understand the core of the most powerful AI on Earth."
+      },
+      {
+        "kind": "quiz",
+        "title": "Big recap",
+        "question": "What do a tiny neuron and a giant chatbot have in common?",
+        "choices": [
+          "Nothing at all",
+          "Both learn by adjusting weights to lower their mistakes",
+          "Both are alive",
+          "Both need a keyboard"
+        ],
+        "answer": 1,
+        "explain": "Same core idea at wildly different sizes: adjust the weights, lower the error, repeat."
+      },
+      {
+        "kind": "explain",
+        "title": "You did it — the whole journey 🎉",
+        "body": "Look how far you came:\n\n- 🧠 **What AI is** — learning from examples\n- 📦 **Data** — features, labels, and bias\n- 🐱 **Classification** — you trained a real model\n- 📈 **Regression** — predicting numbers and the line of best fit\n- 🌳 **Decision trees** — explainable yes/no logic\n- ⚡ **Neural networks** — neurons, weights, and self-learning\n\nThat's a real foundation in how AI works — the same ideas pros use every day. Go build something amazing."
+      }
+    ]
+  },
   "predicting-numbers": {
     "manifest": {
       "id": "predicting-numbers",
@@ -394,6 +506,11 @@ export const LESSONS: Record<string, Lesson> = {
         "kind": "explain",
         "title": "What does it mean to *train* an AI?",
         "body": "An AI doesn't come knowing things. You **teach** it — by showing it examples, over and over, until it spots the pattern itself.\n\nThat's it. That's the whole secret. You're about to teach a real AI to tell two things apart, just by showing it pictures. Let's go."
+      },
+      {
+        "kind": "explain",
+        "title": "Remember: examples are data",
+        "body": "In the last lesson you learned AI runs on **data**. Well — the example photos you're about to take *are* the data, and each photo's features (its colors and shapes) are what the AI learns from.\n\nSo keep the golden rule in mind: give it **plenty of clear, balanced** examples of each thing, and it'll be smart. Skimp, and it'll be biased."
       },
       {
         "kind": "widget",

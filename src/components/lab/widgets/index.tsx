@@ -58,6 +58,16 @@ const TreeExplorer = dynamic(() => import("./tree-explorer").then((m) => m.TreeE
     );
   },
 });
+const NeuronViz = dynamic(() => import("./neuron").then((m) => m.NeuronViz), {
+  ssr: false,
+  loading: function NeuronLoading() {
+    return (
+      <div className="grid place-items-center rounded-card border border-border bg-panel2 p-10 text-[12px] text-txt3">
+        loading…
+      </div>
+    );
+  },
+});
 
 /** Reusable interactive ML widgets. Lessons (content) compose these by id — the
  * widget vocabulary is the only thing that gates new lessons. Keep in sync with
@@ -67,6 +77,7 @@ export const WIDGETS: Record<string, ComponentType<WidgetProps>> = {
   dataExplorer: DataExplorer,
   regression: RegressionPlayground,
   tree: TreeExplorer,
+  neuron: NeuronViz,
 };
 
 /** Renders the widget for a `widget` step, or a friendly placeholder if the

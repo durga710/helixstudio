@@ -75,9 +75,29 @@ const FRUIT2D: Dataset = {
   ],
 };
 
+function pxy(label: string, x: number, y: number): DataPoint {
+  return { label, features: { x, y } };
+}
+
+/** Two clean clusters a single straight line can separate — for the neuron. */
+const BLOBS: Dataset = {
+  id: "blobs",
+  name: "Two groups",
+  featureNames: ["x", "y"],
+  classes: ["Group A", "Group B"],
+  summary: "20 dots · 2 groups a straight line can separate",
+  points: [
+    pxy("Group A", 1, 2), pxy("Group A", 2, 1), pxy("Group A", 2, 3), pxy("Group A", 3, 2), pxy("Group A", 1, 4),
+    pxy("Group A", 3, 1), pxy("Group A", 2, 2), pxy("Group A", 4, 2), pxy("Group A", 1, 1), pxy("Group A", 3, 3),
+    pxy("Group B", 7, 8), pxy("Group B", 8, 7), pxy("Group B", 6, 9), pxy("Group B", 9, 6), pxy("Group B", 7, 7),
+    pxy("Group B", 8, 8), pxy("Group B", 6, 7), pxy("Group B", 9, 8), pxy("Group B", 7, 9), pxy("Group B", 8, 6),
+  ],
+};
+
 export const DATASETS: Record<string, Dataset> = {
   flowers: FLOWERS,
   fruit2d: FRUIT2D,
+  blobs: BLOBS,
 };
 
 export function getDataset(id: string | undefined): Dataset {

@@ -14,6 +14,11 @@
       "body": "An AI doesn't come knowing things. You **teach** it — by showing it examples, over and over, until it spots the pattern itself.\n\nThat's it. That's the whole secret. You're about to teach a real AI to tell two things apart, just by showing it pictures. Let's go."
     },
     {
+      "kind": "explain",
+      "title": "Remember: examples are data",
+      "body": "In the last lesson you learned AI runs on **data**. Well — the example photos you're about to take *are* the data, and each photo's features (its colors and shapes) are what the AI learns from.\n\nSo keep the golden rule in mind: give it **plenty of clear, balanced** examples of each thing, and it'll be smart. Skimp, and it'll be biased."
+    },
+    {
       "kind": "widget",
       "widget": "classifier",
       "title": "Show it some examples",
