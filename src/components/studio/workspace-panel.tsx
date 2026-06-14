@@ -40,6 +40,8 @@ import { useToast } from "@/components/ui/toast";
 import { Markdown } from "@/components/ui/markdown";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 import type { Changes, WorkspaceMeta } from "@/components/studio/studio";
+import { isGodotProject } from "@/lib/templates/engines";
+import { GodotPlayPanel } from "@/components/studio/godot-play-panel";
 import { PushDialog } from "@/components/studio/push-dialog";
 import { DeployDialog } from "@/components/studio/deploy-dialog";
 import { EnvDialog } from "@/components/studio/env-dialog";
@@ -233,6 +235,8 @@ export function WorkspacePanel({
 
   // A workspace with a package.json (or python entry) is a framework app —
   // the static compose can't represent it; the runner can.
+  // A Godot game compiles on demand and plays in an iframe (no live srcDoc).
+  const isGodotGame = useMemo(() => isGame && isGodotProject(files.map((f) => f.path)), [isGame, files]);
   const isFrameworkApp = useMemo(
     () =>
       files.some((f) => f.path === "package.json") ||
@@ -1311,9 +1315,12 @@ export function WorkspacePanel({
           onUndo={(i) => setUndoIntent(i)}
         />
       ) : (
-        /* Preview tab — framework apps run for real; static sites compose */
+        /* Preview tab — Godot games compile & play; framework apps run for real;
+           static sites (incl. Phaser/Babylon games) compose */
         <div className="flex min-h-0 flex-1 flex-col">
-          {isFrameworkApp ? (
+          {isGodotGame ? (
+            <GodotPlayPanel workspaceId={workspace.id} />
+          ) : isFrameworkApp ? (
             <>
               <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
                 <MonitorPlay className="h-3.5 w-3.5 text-ok" />
