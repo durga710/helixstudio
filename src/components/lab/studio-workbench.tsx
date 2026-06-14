@@ -2,16 +2,37 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, RotateCcw, Target, Trophy } from "lucide-react";
-import type { StudioMeta } from "@/lib/lessons/studios";
+import {
+  ArrowLeft,
+  RotateCcw,
+  Target,
+  Trophy,
+  BookOpen,
+  Info,
+  GraduationCap,
+  Swords,
+  Wrench,
+  Check,
+  Play,
+  HelpCircle,
+} from "lucide-react";
+import type { StudioMeta, StudioMode } from "@/lib/lessons/studios";
 import { studioProgressId } from "@/lib/lessons/studios";
 import { StudioHost } from "@/components/lab/studios";
 import { TutorPanel } from "@/components/lab/tutor-panel";
+import { cn } from "@/lib/utils";
 
-/* The studio workbench: a consistent frame around a hands-on build loop. The
- * studio component does the building and reports progress toward the goal; the
- * shell shows the goal meter, a "you built it" ribbon, a Start-over, and the
- * AI mentor. Completion persists through the lesson progress API (studio:<id>). */
+/* The studio workbench: a guided maker-space around a hands-on build. The shell
+ * provides a first-visit intro, a mode switcher (Learn/Challenge/Sandbox), an
+ * always-on "what's happening" panel (driven by the studio's narration), a
+ * glossary, the goal meter + Built badge, and the AI tutor. The studio component
+ * does the building and reports progress + a plain-language narration. */
+
+const MODES: { id: StudioMode; label: string; icon: typeof GraduationCap; blurb: string }[] = [
+  { id: "learn", label: "Learn", icon: GraduationCap, blurb: "A step-by-step guided build that explains each move." },
+  { id: "challenge", label: "Challenge", icon: Swords, blurb: "Scored missions — beat a goal with limits." },
+  { id: "sandbox", label: "Sandbox", icon: Wrench, blurb: "Free build, with the explanation panel on." },
+];
 
 export function StudioWorkbench({
   meta,
@@ -25,11 +46,20 @@ export function StudioWorkbench({
   onState?: (s: Record<string, unknown>) => void;
 }) {
   const progressId = studioProgressId(meta.id);
+  const [mode, setMode] = useState<StudioMode>("learn");
+  const [challengeId, setChallengeId] = useState<string | undefined>(meta.challenges?.[0]?.id);
   const [pct, setPct] = useState(0);
   const [built, setBuilt] = useState(false);
   const [labState, setLabState] = useState<Record<string, unknown>>({});
   const [resetKey, setResetKey] = useState(0);
+  const [wordsOpen, setWordsOpen] = useState(false);
+  const [showIntro, setShowIntro] = useState(false);
   const saved = useRef(false);
+
+  const introKey = `helix.studio.${meta.id}.seenIntro`;
+  const glossary = meta.glossary ?? [];
+  const narration = typeof labState.narration === "string" ? (labState.narration as string) : null;
+  const activeChallenge = meta.challenges?.find((c) => c.id === challengeId);
 
   const reportState = useCallback(
     (s: Record<string, unknown>) => {
@@ -38,6 +68,16 @@ export function StudioWorkbench({
     },
     [onState, meta.concept, meta.goal],
   );
+
+  // First visit → show the intro overlay (once; re-openable via "How it works").
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time mount read of localStorage
+      if (!localStorage.getItem(introKey)) setShowIntro(true);
+    } catch {
+      /* no storage — skip */
+    }
+  }, [introKey]);
 
   // Reflect a prior "built" so returning students see the badge.
   useEffect(() => {
@@ -48,6 +88,21 @@ export function StudioWorkbench({
       })
       .catch(() => {});
   }, [progressId]);
+
+  // Fresh start whenever the mode or mission changes (reset from the handlers,
+  // not an effect, to avoid cascading renders).
+  const resetView = useCallback(() => {
+    setPct(0);
+    setLabState({});
+  }, []);
+  function changeMode(m: StudioMode) {
+    setMode(m);
+    resetView();
+  }
+  function pickChallenge(id: string) {
+    setChallengeId(id);
+    resetView();
+  }
 
   const onComplete = useCallback(() => {
     setBuilt(true);
@@ -66,18 +121,26 @@ export function StudioWorkbench({
   }, []);
 
   function startOver() {
-    setPct(0);
     setBuilt(false);
-    setLabState({});
     saved.current = false;
+    resetView();
     setResetKey((k) => k + 1);
+  }
+
+  function closeIntro() {
+    setShowIntro(false);
+    try {
+      localStorage.setItem(introKey, "1");
+    } catch {
+      /* ignore */
+    }
   }
 
   return (
     <div className={embedded ? "" : "pad-screen"}>
       <div className={embedded ? "" : "mx-auto max-w-[860px]"}>
         {/* Header */}
-        <div className="mb-3 flex items-center gap-3">
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
           {!embedded && (
             <Link href="/lab/studio" className="text-txt3 transition-colors hover:text-txt" title="Back to Studios">
               <ArrowLeft className="h-4 w-4" />
@@ -89,16 +152,77 @@ export function StudioWorkbench({
               <Trophy className="h-3 w-3" /> Built
             </span>
           )}
-          <button
-            onClick={startOver}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border2 bg-panel2 px-2.5 py-1.5 text-[12px] text-txt2 transition-colors hover:border-accent hover:text-txt"
-          >
-            <RotateCcw className="h-3.5 w-3.5" /> Start over
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => setShowIntro(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-panel2 px-2.5 py-1.5 text-[12px] text-txt2 transition-colors hover:border-accent hover:text-txt"
+            >
+              <HelpCircle className="h-3.5 w-3.5" /> How it works
+            </button>
+            {glossary.length > 0 && (
+              <button
+                onClick={() => setWordsOpen((o) => !o)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[12px] transition-colors",
+                  wordsOpen ? "border-accent bg-panel2 text-txt" : "border-border2 bg-panel2 text-txt2 hover:border-accent hover:text-txt",
+                )}
+              >
+                <BookOpen className="h-3.5 w-3.5" /> Words
+              </button>
+            )}
+            <button
+              onClick={startOver}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-panel2 px-2.5 py-1.5 text-[12px] text-txt2 transition-colors hover:border-accent hover:text-txt"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Start over
+            </button>
+          </div>
         </div>
 
+        {/* Mode switcher */}
+        <div className="mb-3 inline-flex items-center gap-1 rounded-lg border border-border2 bg-panel2 p-0.5">
+          {MODES.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => changeMode(m.id)}
+              title={m.blurb}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors",
+                mode === m.id ? "bg-accent text-accent-ink" : "text-txt2 hover:text-txt",
+              )}
+            >
+              <m.icon className="h-3.5 w-3.5" /> {m.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Challenge picker */}
+        {mode === "challenge" && meta.challenges && meta.challenges.length > 0 && (
+          <div className="mb-3 rounded-card border border-border bg-panel2 p-3">
+            <div className="mb-2 flex flex-wrap items-center gap-1.5">
+              {meta.challenges.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => pickChallenge(c.id)}
+                  className={cn(
+                    "rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors",
+                    challengeId === c.id ? "border-accent bg-panel text-txt" : "border-border2 text-txt2 hover:border-accent hover:text-txt",
+                  )}
+                >
+                  {c.title}
+                </button>
+              ))}
+            </div>
+            {activeChallenge && (
+              <p className="flex items-start gap-1.5 text-[12.5px] leading-relaxed text-txt2">
+                <Swords className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" /> {activeChallenge.desc}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Goal meter */}
-        <div className="mb-5 flex items-center gap-2.5">
+        <div className="mb-4 flex items-center gap-2.5">
           <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px] text-txt3">
             <Target className="h-3.5 w-3.5 text-accent" /> {meta.goal}
           </span>
@@ -116,18 +240,48 @@ export function StudioWorkbench({
             <Trophy className="h-4 w-4 shrink-0 text-ok" />
             <span>
               You built it! You reached the goal by constructing this yourself — the exact idea real
-              {" "}{meta.concept} use. Keep tinkering, or try another studio.
+              {" "}{meta.concept} use. Try another mode, or another studio.
             </span>
           </div>
         )}
 
+        {/* Glossary panel */}
+        {wordsOpen && glossary.length > 0 && (
+          <div className="mb-4 rounded-card border border-border bg-panel2 p-4">
+            <div className="mb-2.5 flex items-center gap-2 text-[12px] font-semibold text-txt">
+              <BookOpen className="h-4 w-4 text-accent" /> Words to know
+            </div>
+            <dl className="grid gap-2.5 sm:grid-cols-2">
+              {glossary.map((g) => (
+                <div key={g.term} className="rounded-[10px] border border-border2 bg-panel px-3 py-2">
+                  <dt className="text-[12.5px] font-semibold text-txt">{g.term}</dt>
+                  <dd className="mt-0.5 text-[12px] leading-relaxed text-txt3">{g.def}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
         <StudioHost
-          key={resetKey}
+          key={`${resetKey}:${mode}:${challengeId ?? ""}`}
           studio={meta.id}
+          mode={mode}
+          challengeId={challengeId}
           onProgress={onProgress}
           onComplete={onComplete}
           onState={reportState}
         />
+
+        {/* What's happening — always-on plain-language narration */}
+        {narration && (
+          <div className="mt-3 flex items-start gap-2.5 rounded-card border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--accent)_7%,transparent)] px-3.5 py-3">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+            <div>
+              <div className="mb-0.5 text-[10.5px] font-bold uppercase tracking-[0.12em] text-accent">What&apos;s happening</div>
+              <p className="text-[13px] leading-relaxed text-txt2">{narration}</p>
+            </div>
+          </div>
+        )}
 
         <p className="mt-3 text-center text-[11.5px] text-txt3">{meta.blurb}</p>
       </div>
@@ -137,6 +291,63 @@ export function StudioWorkbench({
       {!embedded && (
         <TutorPanel lessonId={progressId} stepIndex={0} state={{ ...labState, concept: meta.concept, goal: meta.goal }} />
       )}
+
+      {showIntro && <IntroOverlay meta={meta} onStart={closeIntro} />}
+    </div>
+  );
+}
+
+/* First-visit framing — what this studio is, what you'll get, and how the modes
+ * work — so nobody is dropped in cold. Mirrors the lesson intro card. */
+function IntroOverlay({ meta, onStart }: { meta: StudioMeta; onStart: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/80 p-4 backdrop-blur-sm">
+      <div className="mx-auto my-auto w-full max-w-[560px] rounded-card border border-border bg-panel p-7 shadow-card">
+        <div className="inline-flex items-center gap-2 rounded-full border border-border2 bg-panel2 px-2.5 py-1 text-[11px] capitalize text-txt3">
+          <Wrench className="h-3 w-3 text-accent" /> Studio · {meta.level}
+        </div>
+        <h1 className="mt-3 text-[22px] font-bold tracking-tight">{meta.title}</h1>
+        <p className="mt-1.5 text-[14px] leading-relaxed text-txt2">{meta.tagline ?? meta.blurb}</p>
+
+        {meta.objectives && meta.objectives.length > 0 && (
+          <div className="mt-4 rounded-[12px] border border-border2 bg-panel2 p-4">
+            <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-txt">
+              <Target className="h-4 w-4 text-accent" /> You&apos;ll get:
+            </div>
+            <ul className="space-y-2">
+              {meta.objectives.map((o, i) => (
+                <li key={i} className="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-txt2">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-ok" /> <span>{o}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="mt-4">
+          <div className="mb-2 text-[12px] font-semibold text-txt">Three ways to use it:</div>
+          <ul className="space-y-1.5">
+            {MODES.map((m) => (
+              <li key={m.id} className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-txt2">
+                <m.icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                <span><b className="text-txt">{m.label}</b> — {m.blurb}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="mt-4 text-[12px] leading-relaxed text-txt3">
+          As you build, the <span className="text-txt2">What&apos;s happening</span> panel explains what you&apos;re
+          doing in plain words, and you can tap <span className="text-txt2">Words</span> for any term.
+        </p>
+
+        <button
+          onClick={onStart}
+          className="mt-5 inline-flex items-center gap-2 rounded-[10px] border-none bg-accent px-5 py-2.5 text-[14px] font-semibold text-accent-ink transition hover:brightness-110"
+        >
+          <Play className="h-4 w-4" /> Start building
+        </button>
+      </div>
     </div>
   );
 }
