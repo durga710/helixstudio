@@ -71,10 +71,10 @@ const CHOICES: { kind: Kind; title: string; icon: LucideIcon; desc: string; exam
   },
   {
     kind: "ai",
-    title: "Learn AI",
+    title: "Build an AI Model",
     icon: Brain,
-    desc: "Train real models on an interactive workbench, guided by an AI tutor.",
-    examples: ["train a decision tree", "build a neural net", "see how AI works"],
+    desc: "Build and train real ML models on an interactive studio — pick a model to start.",
+    examples: ["a decision tree", "a neural net", "a clustering model"],
   },
 ];
 
@@ -357,8 +357,8 @@ export function StudioHome({
 
         {kind === "ai" && (
           <section>
-            <h1 className="mb-1.5 text-2xl font-semibold tracking-tight text-txt">Learn AI</h1>
-            <p className="mb-6 text-sm text-txt3">Build real ML models on an interactive workbench — no code, with an AI guide.</p>
+            <h1 className="mb-1.5 text-2xl font-semibold tracking-tight text-txt">Build an AI Model</h1>
+            <p className="mb-6 text-sm text-txt3">Pick a model to build and train on an interactive studio — no code, with an AI guide alongside you.</p>
             <Link
               href="/editor/ai"
               className="flex items-center gap-3.5 rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[linear-gradient(110deg,color-mix(in_srgb,var(--accent)_14%,transparent),transparent)] px-5 py-5 transition-colors hover:border-accent"
@@ -367,9 +367,9 @@ export function StudioHome({
                 <Brain className="h-5 w-5 text-accent" strokeWidth={1.8} />
               </span>
               <span className="min-w-0">
-                <span className="block text-base font-medium text-txt">Enter the AI workspace</span>
+                <span className="block text-base font-medium text-txt">Open the model studio</span>
                 <span className="block text-xs leading-relaxed text-txt3">
-                  Open a Studio — decision trees, neural nets & more — with an AI guide that teaches you as you build.
+                  Build a decision tree, neural net, regression or clustering model — grow it, train it, and an AI guide helps as you go.
                 </span>
               </span>
               <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-txt3" strokeWidth={1.8} />

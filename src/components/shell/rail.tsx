@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 export const NAV_ITEMS = [
   { href: "/", title: "Home", icon: Home },
   { href: "/editor", title: "Editor", icon: Code2 },
-  { href: "/lab", title: "AI Lab", icon: Brain },
+  { href: "/editor/ai", title: "AI Studio", icon: Brain },
   { href: "/space", title: "Space", icon: Users },
   { href: "/deployments", title: "Deployments", icon: Rocket },
 ] as const;

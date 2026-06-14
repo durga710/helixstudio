@@ -41,7 +41,7 @@ type BuildKind = "app" | "game" | "lab";
 const KINDS: { id: BuildKind; label: string; icon: typeof AppWindow; blurb: string }[] = [
   { id: "app", label: "App", icon: AppWindow, blurb: "Sites, tools & dashboards" },
   { id: "game", label: "Game", icon: Gamepad2, blurb: "Build, play & share" },
-  { id: "lab", label: "AI Lab", icon: Brain, blurb: "Learn AI & train models" },
+  { id: "lab", label: "AI Model", icon: Brain, blurb: "Build & train ML models" },
 ];
 
 /** Lucide icon for each game category (keyed by the icon string in engines.ts). */
@@ -286,27 +286,20 @@ export function BuildLanding({ signedIn, isGuest, dbReady, isAdmin }: BuildLandi
           </div>
         )}
 
-        {/* AI Lab — no prompt; step into the guided learning surface */}
+        {/* Build an AI Model — step into the model-building studio */}
         {kind === "lab" && (
           <div className="mt-6 w-full max-w-[540px] text-center">
             <p className="text-[14px] leading-relaxed text-[#9cadc4]">
-              Train your own AI models and learn how they think — hands-on, step by step, no code.
+              Build and train your own ML models — a decision tree, a neural net & more — on an interactive studio, no code.
             </p>
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
               <button
-                onClick={() => void enterLab()}
+                onClick={() => void enterLab("/editor/ai")}
                 disabled={busy || !dbReady}
                 className="inline-flex cursor-pointer items-center gap-2 rounded-[12px] border-none bg-accent px-5 py-2.5 text-[14px] font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
-                Enter the AI Lab
-              </button>
-              <button
-                onClick={() => void enterLab("/lab/studio")}
-                disabled={busy || !dbReady}
-                className="inline-flex cursor-pointer items-center gap-2 rounded-[12px] border border-[#28364f] bg-[color-mix(in_srgb,#0d1626_60%,transparent)] px-5 py-2.5 text-[14px] font-semibold text-[#9cadc4] transition hover:border-accent hover:text-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Hammer className="h-4 w-4" /> Build it in a Studio
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Hammer className="h-4 w-4" />}
+                Build an AI model
               </button>
             </div>
           </div>

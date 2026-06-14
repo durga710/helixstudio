@@ -1,33 +1,24 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowLeft, ArrowRight, GitBranch, LineChart, Network, Boxes, Hammer, Target, BookOpen } from "lucide-react";
+import { ArrowLeft, GitBranch, LineChart, Network, Boxes, Hammer, Target } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { StudioMeta } from "@/lib/lessons/studios";
 import { getStudioMeta } from "@/lib/lessons/studios";
 import { StudioWorkbench } from "@/components/lab/studio-workbench";
 
-/* The right pane of the AI workspace: a gallery of studios (+ a row of lessons),
- * or — when one is open (via a click or the guide) — the live workbench embedded. */
-
-export interface LessonCard {
-  id: string;
-  title: string;
-  blurb: string;
-  concept: string;
-}
+/* The right pane of the AI-model studio: a gallery of model types to build, or —
+ * when one is open (via a click or the guide) — the live workbench embedded.
+ * (Read-then-quiz lessons live in the classroom, not the consumer build flow.) */
 
 const ICONS: Record<string, LucideIcon> = { GitBranch, LineChart, Network, Boxes, Hammer };
 
 export function AiCanvas({
   studios,
-  lessons,
   openStudioId,
   onOpenStudio,
   onState,
 }: {
   studios: StudioMeta[];
-  lessons: LessonCard[];
   openStudioId: string | null;
   onOpenStudio: (id: string | null) => void;
   onState: (s: Record<string, unknown>) => void;
@@ -41,7 +32,7 @@ export function AiCanvas({
           onClick={() => onOpenStudio(null)}
           className="mb-3 inline-flex w-fit items-center gap-1.5 text-[12px] text-txt3 transition-colors hover:text-txt"
         >
-          <ArrowLeft className="h-3.5 w-3.5" /> all topics
+          <ArrowLeft className="h-3.5 w-3.5" /> all models
         </button>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <StudioWorkbench meta={openMeta} embedded onState={onState} />
@@ -52,8 +43,11 @@ export function AiCanvas({
 
   return (
     <div className="h-full min-h-0 overflow-y-auto">
-      <div className="mb-1 text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Build it yourself</div>
-      <h2 className="mb-3 text-[18px] font-bold tracking-tight text-txt">Studios</h2>
+      <div className="mb-1 text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Build &amp; train</div>
+      <h2 className="mb-1 text-[18px] font-bold tracking-tight text-txt">Pick a model to build</h2>
+      <p className="mb-4 text-[12.5px] leading-relaxed text-txt2">
+        Construct it yourself and train it on real data — the AI guide on the left helps as you go.
+      </p>
       <ul className="grid gap-3 sm:grid-cols-2">
         {[...studios].sort((a, b) => a.order - b.order).map((s) => {
           const Icon = ICONS[s.icon] ?? Hammer;
@@ -78,29 +72,6 @@ export function AiCanvas({
           );
         })}
       </ul>
-
-      {lessons.length > 0 && (
-        <>
-          <h2 className="mb-3 mt-7 text-[18px] font-bold tracking-tight text-txt">Or read a lesson</h2>
-          <ul className="grid gap-2 sm:grid-cols-2">
-            {lessons.map((l) => (
-              <li key={l.id}>
-                <Link
-                  href={`/lab/${l.id}`}
-                  className="flex items-center gap-2.5 rounded-card border border-border bg-panel px-3.5 py-2.5 transition-colors hover:border-accent"
-                >
-                  <BookOpen className="h-4 w-4 shrink-0 text-txt3" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-medium text-txt">{l.title}</span>
-                    <span className="block truncate text-[11px] text-txt3">{l.blurb}</span>
-                  </span>
-                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-txt3" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
     </div>
   );
 }
