@@ -37,6 +37,28 @@ export const STUDIO_CATALOG: StudioMeta[] = [
     estMinutes: 12,
     order: 1,
   },
+  {
+    id: "regression",
+    title: "Regression Studio",
+    blurb: "Build a predictor: dial a straight line into a bendy curve until it hugs the data — without overfitting.",
+    concept: "regression models",
+    goal: "Get the error on new points under 0.5",
+    icon: "LineChart",
+    level: "beginner",
+    estMinutes: 8,
+    order: 2,
+  },
+  {
+    id: "cluster",
+    title: "Clustering Studio",
+    blurb: "No labels — just dots. Set K, drop centers, and run K-Means until the hidden groups appear.",
+    concept: "clustering algorithms",
+    goal: "Uncover the 3 hidden groups",
+    icon: "Boxes",
+    level: "intermediate",
+    estMinutes: 8,
+    order: 3,
+  },
 ];
 
 export const STUDIO_IDS: string[] = STUDIO_CATALOG.map((s) => s.id);

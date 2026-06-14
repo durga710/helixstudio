@@ -14,20 +14,23 @@ export interface StudioProps {
   onState?: (s: Record<string, unknown>) => void;
 }
 
-const TreeStudio = dynamic(() => import("./tree-studio").then((m) => m.TreeStudio), {
-  ssr: false,
-  loading: function TreeStudioLoading() {
-    return (
-      <div className="grid place-items-center rounded-card border border-border bg-panel2 p-12 text-[12px] text-txt3">
-        loading the studio…
-      </div>
-    );
-  },
-});
+function studioLoading() {
+  return (
+    <div className="grid place-items-center rounded-card border border-border bg-panel2 p-12 text-[12px] text-txt3">
+      loading the studio…
+    </div>
+  );
+}
+
+const TreeStudio = dynamic(() => import("./tree-studio").then((m) => m.TreeStudio), { ssr: false, loading: studioLoading });
+const RegressionStudio = dynamic(() => import("./regression-studio").then((m) => m.RegressionStudio), { ssr: false, loading: studioLoading });
+const ClusterStudio = dynamic(() => import("./cluster-studio").then((m) => m.ClusterStudio), { ssr: false, loading: studioLoading });
 
 /** id → workbench component. Keep in sync with STUDIO_CATALOG (studios.ts). */
 export const STUDIOS: Record<string, ComponentType<StudioProps>> = {
   tree: TreeStudio,
+  regression: RegressionStudio,
+  cluster: ClusterStudio,
 };
 
 /** Renders a studio by id, or a friendly placeholder if it's not wired yet. */
