@@ -890,6 +890,22 @@ export function ChatPanel({
                 })}
               </div>
             )}
+            {/* The opening greeting stays as the FIRST message in the thread, so a
+                new chat reads as "the AI greeted you, then you replied" — not your
+                prompt sitting awkwardly at the top. Only for fresh scratch projects,
+                and not when the curation transcript already opened the conversation. */}
+            {workspace.mode === "SCRATCH" && !showIntakeTranscript && (
+              <div className="flex justify-start gap-2.5">
+                <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border bg-panel2">
+                  <Sparkles className="h-3.5 w-3.5 text-accent" />
+                </span>
+                <div className="w-full max-w-[88%]">
+                  <div className="whitespace-pre-wrap rounded-2xl border border-border bg-panel2 px-4 py-2.5 text-sm leading-relaxed text-txt">
+                    {modeGreeting(workspace).title} {modeGreeting(workspace).body}
+                  </div>
+                </div>
+              </div>
+            )}
             {messages.map((m, i) => {
               // The idea already shows in the curation transcript above — don't
               // repeat it as the first user bubble.
