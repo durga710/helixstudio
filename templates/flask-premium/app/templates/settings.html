@@ -1,0 +1,26 @@
+{% extends "shell.html" %}
+{% block content %}
+<div class="mx-auto max-w-2xl space-y-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-ink">Settings</h1>
+    <p class="text-sm text-muted">Manage your profile and preferences.</p>
+  </div>
+  <div class="rounded-2xl border border-line bg-surface p-5">
+    <form class="space-y-4">
+      <label class="block space-y-1.5">
+        <span class="text-sm font-medium text-muted">Display name</span>
+        <input placeholder="Ada Lovelace" class="h-10 w-full rounded-xl border border-line bg-bg px-3 text-sm text-ink outline-none focus:border-brand" />
+      </label>
+      <label class="block space-y-1.5">
+        <span class="text-sm font-medium text-muted">Email</span>
+        <input type="email" placeholder="you@example.com" class="h-10 w-full rounded-xl border border-line bg-bg px-3 text-sm text-ink outline-none focus:border-brand" />
+      </label>
+      <button type="button" class="rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-brand-fg hover:brightness-110">Save changes</button>
+    </form>
+  </div>
+  <div class="rounded-2xl border border-line bg-surface p-5">
+    <h2 class="text-base font-semibold text-ink">Appearance</h2>
+    <p class="mt-1 text-sm text-muted">Switch the color palette from the theme picker in the top bar — it applies instantly and is remembered next visit.</p>
+  </div>
+</div>
+{% endblock %}

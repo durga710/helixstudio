@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ app_name }}</title>
+    <script>try{document.documentElement.dataset.theme=localStorage.getItem('theme')||'midnight'}catch(e){}</script>
+    <!-- Tailwind (CDN) — colors read CSS vars so the palette re-themes everything. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              bg: "var(--bg)", surface: "var(--surface)", surface2: "var(--surface-2)",
+              line: "var(--line)", ink: "var(--ink)", muted: "var(--muted)",
+              brand: "var(--brand)", "brand-fg": "var(--brand-fg)", accent: "var(--accent)",
+            },
+            fontFamily: { sans: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica", "Arial", "sans-serif"] },
+          },
+        },
+      };
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}" />
+    <!-- HTMX (server-driven interactions) + Alpine (client sprinkles). -->
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  </head>
+  <body class="min-h-screen bg-bg font-sans text-ink antialiased">
+    {% block body %}{% endblock %}
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+<aside class="hidden w-60 shrink-0 flex-col border-r border-line bg-surface p-4 md:flex">
+  <a href="/dashboard" class="mb-6 flex items-center gap-2 px-2">
+    <span class="grid h-8 w-8 place-items-center rounded-lg bg-brand font-bold text-brand-fg">{{ app_name[0]|upper }}</span>
+    <span class="text-sm font-semibold text-ink">{{ app_name }}</span>
+  </a>
+  <nav class="flex flex-col gap-1">
+    <a href="/dashboard" class="nav-item flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ 'active' if page == 'dashboard' else '' }}">Dashboard</a>
+    <a href="/settings" class="nav-item flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {{ 'active' if page == 'settings' else '' }}">Settings</a>
+  </nav>
+</aside>

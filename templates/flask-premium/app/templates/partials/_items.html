@@ -1,0 +1,11 @@
+<ul class="divide-y divide-line rounded-xl border border-line">
+  {% if not items %}
+    <li class="px-4 py-6 text-center text-sm text-muted">Nothing here yet.</li>
+  {% endif %}
+  {% for it in items %}
+    <li class="flex items-center justify-between px-4 py-3 text-sm text-ink">
+      <span>{{ it.name }}</span>
+      <span class="text-xs text-muted">#{{ it.id }}</span>
+    </li>
+  {% endfor %}
+</ul>

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="grid min-h-screen place-items-center px-4">
+  <div class="w-full max-w-sm">
+    <div class="mb-6 flex items-center justify-center gap-2">
+      <span class="grid h-9 w-9 place-items-center rounded-lg bg-brand font-bold text-brand-fg">{{ app_name[0]|upper }}</span>
+      <span class="text-lg font-semibold text-ink">{{ app_name }}</span>
+    </div>
+    <div class="rounded-2xl border border-line bg-surface p-6 shadow-xl">
+      <h1 class="text-xl font-semibold text-ink">Sign in</h1>
+      <p class="mt-1 text-sm text-muted">Welcome back.</p>
+      {# Mock auth: submitting goes to the dashboard. Wire a real session + a POST
+         route (Flask-Login) when you're ready. #}
+      <form method="get" action="/dashboard" class="mt-5 space-y-3">
+        <input name="email" type="email" placeholder="you@example.com" autocomplete="email"
+          class="h-10 w-full rounded-xl border border-line bg-bg px-3 text-sm text-ink outline-none focus:border-brand" />
+        <input name="password" type="password" placeholder="••••••••" autocomplete="current-password"
+          class="h-10 w-full rounded-xl border border-line bg-bg px-3 text-sm text-ink outline-none focus:border-brand" />
+        <button class="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-brand-fg hover:brightness-110">Sign in</button>
+      </form>
+    </div>
+    <p class="mt-4 text-center text-sm text-muted"><a href="/" class="hover:text-ink">&larr; Back home</a></p>
+  </div>
+</div>
+{% endblock %}

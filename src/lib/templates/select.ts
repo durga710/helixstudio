@@ -18,6 +18,8 @@ export const PREMIUM_VARIANT: Record<string, string> = {
   "static-web": "static-premium",
   "nextjs-app": "nextjs-premium",
   "express-api": "express-premium",
+  "flask-api": "flask-premium",
+  "django-app": "django-premium",
   "game-2d": "game-2d-premium",
   "game-3d": "game-3d-premium",
   "game-3d-pc": "game-3d-premium",

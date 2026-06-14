@@ -1,0 +1,9 @@
+{
+  "id": "flask-premium",
+  "label": "Premium Flask app (server-rendered, HTMX)",
+  "framework": "flask",
+  "description": "A premium, server-rendered Flask app: application-factory MVC, Jinja templates with a base layout + partials, HTMX for live interactions without a SPA, Alpine.js sprinkles, Tailwind (CDN), a landing page, mock login, a dashboard with a working HTMX list, settings, and 6 swappable color palettes.",
+  "keywords": [],
+  "notesBlurb": "PREMIUM Flask skeleton (flask-premium): a complete, styled, server-rendered app. ALREADY WORK: app-factory (app/__init__.py: registers pages + items blueprints, injects app_name), config.py (env config + APP_NAME), wsgi.py, models (app/models/item.py in-memory store), pages (app/pages/routes.py → landing/login/dashboard/settings), HTMX items (app/items/routes.py → renders the partial), Jinja templates in app/templates/ (base.html with Tailwind+HTMX+Alpine, shell.html sidebar+topbar, landing/login/dashboard/settings, partials/_items + _sidebar + _topbar), and theming (app/static/theme.css 6 palettes [data-theme] HELIX-LOCKED + app/static/app.js theme picker). HTMX drives the dashboard list (hx-post /items/ → renders partials/_items.html). Your job: set the product name in config.py (APP_NAME), replace the dashboard's main feature with the user's real feature (a model + a route + a Jinja partial rendered via HTMX), relabel the stat cards, add pages by copying a pages route + a template + a sidebar link. Reuse the Tailwind tokens (bg-surface/border-line/bg-brand text-brand-fg/text-muted) + the items HTMX pattern. Do NOT recreate the boilerplate, rebuild the layout/nav/theme, swap Tailwind out, or touch app/static/theme.css (the palette system). Keep the app running at every step.",
+  "cli": "overlay-only"
+}

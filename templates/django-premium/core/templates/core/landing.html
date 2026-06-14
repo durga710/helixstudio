@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+{% block body %}
+<header class="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
+  <div class="flex items-center gap-2">
+    <span class="grid h-8 w-8 place-items-center rounded-lg bg-brand font-bold text-brand-fg">{{ app_name|first|upper }}</span>
+    <span class="font-semibold text-ink">{{ app_name }}</span>
+  </div>
+  <a href="{% url 'login' %}" class="rounded-xl border border-line bg-surface px-4 py-2 text-sm text-ink hover:bg-surface2">Sign in</a>
+</header>
+<main class="mx-auto max-w-5xl px-6">
+  <section class="py-20 text-center sm:py-28">
+    <span class="inline-block rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-muted">Now available</span>
+    <h1 class="mx-auto mt-5 max-w-2xl text-4xl font-semibold tracking-tight text-ink sm:text-5xl">The premium starter for your next idea.</h1>
+    <p class="mx-auto mt-4 max-w-xl text-lg text-muted">A server-rendered Django app — sign-in, a dashboard, and live HTMX interactions — so you ship the idea, not the boilerplate.</p>
+    <div class="mt-8 flex items-center justify-center gap-3">
+      <a href="{% url 'login' %}" class="rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-brand-fg hover:brightness-110">Get started</a>
+      <a href="{% url 'dashboard' %}" class="rounded-xl border border-line bg-surface px-6 py-3 text-sm font-medium text-ink hover:bg-surface2">View the app</a>
+    </div>
+  </section>
+  <section class="grid gap-4 pb-24 sm:grid-cols-3">
+    <div class="rounded-2xl border border-line bg-surface p-6"><h3 class="font-semibold text-ink">Batteries included</h3><p class="mt-2 text-sm text-muted">Django with secure, env-driven settings and a clean app layout.</p></div>
+    <div class="rounded-2xl border border-line bg-surface p-6"><h3 class="font-semibold text-ink">Live without a SPA</h3><p class="mt-2 text-sm text-muted">HTMX swaps server HTML in place; Alpine adds light interactivity.</p></div>
+    <div class="rounded-2xl border border-line bg-surface p-6"><h3 class="font-semibold text-ink">Beautifully themed</h3><p class="mt-2 text-sm text-muted">Six swappable palettes, applied instantly across the whole app.</p></div>
+  </section>
+</main>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{# Authenticated app shell: sidebar + topbar around {% block content %}. #}
+{% block body %}
+<div class="flex min-h-screen bg-bg">
+  {% include "partials/_sidebar.html" %}
+  <div class="flex min-w-0 flex-1 flex-col">
+    {% include "partials/_topbar.html" %}
+    <main class="flex-1 p-6 md:p-8">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% endblock %}
