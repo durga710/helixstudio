@@ -616,11 +616,16 @@ export function ChatPanel({
             : v.status === "failed"
               ? "couldn't verify"
               : `verify skipped — ${v.reason ?? "nothing to verify"}`;
+        const cmdLabel = !v.command
+          ? "the build"
+          : v.command.startsWith("for f in")
+            ? "a syntax check on the scripts"
+            : `\`${v.command}\``;
         const content =
           v.status === "passed"
-            ? `Verified — \`${v.command}\` ran clean.`
+            ? `Verified — ${cmdLabel} ran clean.`
             : v.status === "failed"
-              ? `Couldn't verify — \`${v.command}\` failed. See the log, then ask me to fix it.`
+              ? `Couldn't verify — ${cmdLabel} failed. See the log, then ask me to fix it.`
               : `Verify skipped — ${v.reason ?? "nothing to verify"}.`;
         setMessages((m) => [...(m ?? []), { role: "assistant", content, actions: [{ tool, label, log: v.log }] }]);
       } else {

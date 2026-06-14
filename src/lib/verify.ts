@@ -66,7 +66,22 @@ export function selectVerifyCommand(
 ): { command: string } | { skip: string } {
   const detection = detectFramework(treePaths, pkgJson);
   if (detection.kind === "static" || detection.kind === "unknown") {
-    return { skip: "no build step here — open the preview to see it live" };
+    // Godot games compile via Build & Play (a separate engine sandbox) — that
+    // compile IS the verification; the standard runner has no Godot toolchain.
+    if (treePaths.includes("project.godot")) {
+      return { skip: "Godot games compile on Build & Play — press it to check it runs" };
+    }
+    // Static apps + CDN games (HTML + classic scripts): syntax-check every local
+    // JS so a broken script is caught (and auto-fixed) instead of silently
+    // shipping. The preview only runs classic global scripts, so `node --check`
+    // (parse-only, no execution) is the right gate. No JS → nothing can break.
+    const hasJs = treePaths.some((p) => /\.js$/i.test(p) && !p.startsWith("node_modules/"));
+    if (hasJs) {
+      return {
+        command: "for f in $(find . -name '*.js' -not -path './node_modules/*'); do node --check $f || exit 1; done",
+      };
+    }
+    return { skip: "static page — open the preview to see it live" };
   }
   if (detection.kind === "python") {
     // Django: the management CLI's own system check (fast, no test files needed).
