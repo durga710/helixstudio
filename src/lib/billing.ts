@@ -70,6 +70,22 @@ export function canCreateAssignment(
   };
 }
 
+/** Building lessons with AI is premium: a Pro/Team user OR a paid classroom
+ * (either). Admins always pass. */
+export function canUseAiAuthoring(opts: {
+  tier: string;
+  isAdmin: boolean;
+  space: SpacePlanFields;
+}): { allowed: boolean; reason?: string } {
+  if (opts.isAdmin) return { allowed: true };
+  if (opts.tier === "pro" || opts.tier === "team") return { allowed: true };
+  if (isPlanActive(opts.space)) return { allowed: true };
+  return {
+    allowed: false,
+    reason: "Building lessons with AI is a premium feature — upgrade your account (Pro) or your classroom's plan to use it.",
+  };
+}
+
 /* ----------------------------- Stripe wiring ----------------------------- */
 
 let stripeSingleton: Stripe | null = null;

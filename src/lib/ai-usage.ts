@@ -26,7 +26,8 @@ export type AiUsageKind =
   | "template_classify"
   | "intake_curation"
   | "embed"
-  | "tutor";
+  | "tutor"
+  | "lesson_generation";
 
 export interface AiUsageInput {
   userId: string;
