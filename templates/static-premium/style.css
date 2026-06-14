@@ -36,3 +36,4 @@
 
 html { color-scheme: dark; }
 [data-theme="paper"] { color-scheme: light; }
+[x-cloak] { display: none !important; }

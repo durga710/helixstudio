@@ -38,6 +38,9 @@ function enterApp() {
   $("#set-name").value = u.name || "";
   $("#set-email").value = u.email || "";
   route("dashboard");
+  renderIcons();
+  renderChart();
+  if (window.AOS) window.AOS.refreshHard();
 }
 
 /* ── page routing ────────────────────────────────────────────────────────── */
@@ -53,13 +56,47 @@ function initThemes() {
   sel.innerHTML = THEMES.map((t) => `<option value="${t}">${t[0].toUpperCase() + t.slice(1)}</option>`).join("");
   store.theme = store.theme; // apply persisted/default
   sel.value = store.theme;
-  sel.addEventListener("change", () => (store.theme = sel.value));
+  sel.addEventListener("change", () => {
+    store.theme = sel.value;
+    renderChart(); // recolor the chart to the new palette
+  });
+}
+
+/* ── libraries (lucide icons + Chart.js, both themed by the palette) ──────── */
+function renderIcons() {
+  if (window.lucide) window.lucide.createIcons();
+}
+
+let dashChart = null;
+function renderChart() {
+  const canvas = $("#dash-chart");
+  if (!canvas || !window.Chart) return;
+  const css = getComputedStyle(document.documentElement);
+  const tok = (n) => css.getPropertyValue(n).trim();
+  const brand = tok("--brand"), muted = tok("--muted"), line = tok("--line");
+  if (dashChart) dashChart.destroy();
+  dashChart = new window.Chart(canvas, {
+    type: "line",
+    data: {
+      labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      // AI: replace with the app's real series.
+      datasets: [{ label: "Visits", data: [12, 19, 14, 22, 18, 25, 21], borderColor: brand, backgroundColor: brand + "33", tension: 0.35, fill: true, pointRadius: 3 }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: muted } } },
+      scales: { x: { ticks: { color: muted }, grid: { color: line } }, y: { ticks: { color: muted }, grid: { color: line } } },
+    },
+  });
 }
 
 /* ── wire up ─────────────────────────────────────────────────────────────── */
 document.addEventListener("DOMContentLoaded", () => {
   initThemes();
   renderAuthMode();
+  renderIcons();
+  if (window.AOS) window.AOS.init({ duration: 500, once: true });
 
   $("#auth-switch").addEventListener("click", () => { signupMode = !signupMode; renderAuthMode(); });
   $("#guest-link").addEventListener("click", () => login({ name: "Guest", email: "guest@demo.app" }));

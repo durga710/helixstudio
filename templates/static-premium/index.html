@@ -22,6 +22,13 @@
       };
     </script>
     <link rel="stylesheet" href="style.css" />
+    <!-- Premium libs (CDN, global builds — render in the live preview, no build step):
+         Alpine (interactivity), AOS (scroll animations), Chart.js (charts), lucide (icons). -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" />
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   </head>
   <body class="min-h-screen bg-bg font-sans text-ink antialiased">
     <!-- ============================ LOGIN / SIGNUP ============================ -->
@@ -71,11 +78,11 @@
           <span class="font-semibold" data-app-name>Helix App</span>
         </div>
         <nav class="flex-1 space-y-1 px-3 py-2 text-sm" id="side-nav">
-          <button data-nav="dashboard" class="nav-item flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left">📊 <span>Dashboard</span></button>
-          <button data-nav="settings" class="nav-item flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left">⚙️ <span>Settings</span></button>
+          <button data-nav="dashboard" class="nav-item flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left"><i data-lucide="layout-dashboard" class="h-[18px] w-[18px]"></i> <span>Dashboard</span></button>
+          <button data-nav="settings" class="nav-item flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left"><i data-lucide="settings" class="h-[18px] w-[18px]"></i> <span>Settings</span></button>
         </nav>
         <div class="border-t border-line p-3">
-          <button id="logout" class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-muted hover:text-ink">↩︎ <span>Log out</span></button>
+          <button id="logout" class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-muted hover:text-ink"><i data-lucide="log-out" class="h-[18px] w-[18px]"></i> <span>Log out</span></button>
         </div>
       </aside>
 
@@ -85,7 +92,13 @@
           <h1 id="page-title" class="text-base font-semibold">Dashboard</h1>
           <div class="ml-auto flex items-center gap-2">
             <select id="theme-select" title="Theme" class="rounded-lg border border-line bg-surface2 px-2 py-1.5 text-xs outline-none focus:border-brand"></select>
-            <span class="grid h-8 w-8 place-items-center rounded-full bg-accent text-brand-fg text-xs font-semibold" id="avatar">JD</span>
+            <!-- Alpine dropdown (client interactivity, no build step). -->
+            <div x-data="{ open: false }" class="relative">
+              <button id="avatar" @click="open = !open" class="grid h-8 w-8 place-items-center rounded-full bg-accent text-brand-fg text-xs font-semibold">JD</button>
+              <div x-show="open" @click.outside="open = false" x-cloak class="absolute right-0 z-10 mt-2 w-44 rounded-xl border border-line bg-surface p-1 text-sm shadow-lg">
+                <button data-nav="settings" @click="open = false" class="nav-item block w-full rounded-lg px-3 py-2 text-left">Settings</button>
+              </div>
+            </div>
           </div>
         </header>
 
@@ -98,6 +111,12 @@
               <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs text-muted">Active</div><div class="mt-1 text-2xl font-bold">312</div></div>
               <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs text-muted">This week</div><div class="mt-1 text-2xl font-bold">+18%</div></div>
               <div class="rounded-xl border border-line bg-surface p-4"><div class="text-xs text-muted">Pending</div><div class="mt-1 text-2xl font-bold">7</div></div>
+            </div>
+
+            <div class="mt-4 rounded-xl border border-line bg-surface p-5" data-aos="fade-up">
+              <h2 class="text-sm font-semibold">Overview</h2>
+              <p class="mt-0.5 text-xs text-muted">A themed Chart.js chart — it recolors with the palette.</p>
+              <div class="mt-3 h-48"><canvas id="dash-chart"></canvas></div>
             </div>
 
             <!-- ===================================================================
