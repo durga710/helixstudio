@@ -13,13 +13,31 @@ import { TutorPanel } from "@/components/lab/tutor-panel";
  * shell shows the goal meter, a "you built it" ribbon, a Start-over, and the
  * AI mentor. Completion persists through the lesson progress API (studio:<id>). */
 
-export function StudioWorkbench({ meta }: { meta: StudioMeta }) {
+export function StudioWorkbench({
+  meta,
+  embedded = false,
+  onState,
+}: {
+  meta: StudioMeta;
+  /** Hosted inside the AI workspace — drop the page chrome + own tutor; the
+   * guide chat is the mentor and gets live state via onState. */
+  embedded?: boolean;
+  onState?: (s: Record<string, unknown>) => void;
+}) {
   const progressId = studioProgressId(meta.id);
   const [pct, setPct] = useState(0);
   const [built, setBuilt] = useState(false);
   const [labState, setLabState] = useState<Record<string, unknown>>({});
   const [resetKey, setResetKey] = useState(0);
   const saved = useRef(false);
+
+  const reportState = useCallback(
+    (s: Record<string, unknown>) => {
+      setLabState(s);
+      onState?.({ ...s, concept: meta.concept, goal: meta.goal });
+    },
+    [onState, meta.concept, meta.goal],
+  );
 
   // Reflect a prior "built" so returning students see the badge.
   useEffect(() => {
@@ -56,13 +74,15 @@ export function StudioWorkbench({ meta }: { meta: StudioMeta }) {
   }
 
   return (
-    <div className="pad-screen">
-      <div className="mx-auto max-w-[860px]">
+    <div className={embedded ? "" : "pad-screen"}>
+      <div className={embedded ? "" : "mx-auto max-w-[860px]"}>
         {/* Header */}
         <div className="mb-3 flex items-center gap-3">
-          <Link href="/lab/studio" className="text-txt3 transition-colors hover:text-txt" title="Back to Studios">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
+          {!embedded && (
+            <Link href="/lab/studio" className="text-txt3 transition-colors hover:text-txt" title="Back to Studios">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          )}
           <span className="truncate text-[14px] font-bold tracking-tight text-txt">{meta.title}</span>
           {built && (
             <span className="inline-flex items-center gap-1 rounded-full border border-ok bg-[color-mix(in_srgb,var(--ok)_14%,transparent)] px-2 py-0.5 text-[11px] font-semibold text-ok">
@@ -106,18 +126,17 @@ export function StudioWorkbench({ meta }: { meta: StudioMeta }) {
           studio={meta.id}
           onProgress={onProgress}
           onComplete={onComplete}
-          onState={setLabState}
+          onState={reportState}
         />
 
         <p className="mt-3 text-center text-[11.5px] text-txt3">{meta.blurb}</p>
       </div>
 
-      {/* The mentor gets the studio's concept/goal + live build state. */}
-      <TutorPanel
-        lessonId={progressId}
-        stepIndex={0}
-        state={{ ...labState, concept: meta.concept, goal: meta.goal }}
-      />
+      {/* Standalone: the floating tutor is the mentor. Embedded: the AI-workspace
+          guide chat is the mentor instead, fed live state via onState. */}
+      {!embedded && (
+        <TutorPanel lessonId={progressId} stepIndex={0} state={{ ...labState, concept: meta.concept, goal: meta.goal }} />
+      )}
     </div>
   );
 }

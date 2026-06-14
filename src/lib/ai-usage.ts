@@ -28,7 +28,8 @@ export type AiUsageKind =
   | "embed"
   | "tutor"
   | "lesson_generation"
-  | "compaction";
+  | "compaction"
+  | "lab_guide";
 
 export interface AiUsageInput {
   userId: string;

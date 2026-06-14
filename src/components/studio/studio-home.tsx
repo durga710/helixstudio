@@ -383,11 +383,10 @@ export function StudioHome({
           </div>
         )}
 
-        {/* AI mode — the workspace-less lab/studios space (Phase 2 swaps this to
-            the embedded /editor/ai workspace). */}
+        {/* AI mode — the workspace-less lab/studios space (embedded in the editor). */}
         {mode === "ai" && (
           <Link
-            href="/lab"
+            href="/editor/ai"
             className="flex items-center gap-3.5 rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[linear-gradient(110deg,color-mix(in_srgb,var(--accent)_14%,transparent),transparent)] px-5 py-5 transition-colors hover:border-accent"
           >
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl">
