@@ -148,10 +148,31 @@ export const BUILD_RULES =
   "- After building, reply in 2-4 lines: what you built/changed and any next step worth knowing. No tutorials.\n" +
   "- Ask at most ONE clarifying question, and only when the request is truly ambiguous — default to building.\n";
 
+/** Appended to BUILD_RULES for game projects (ws.kind === "game"). A game must be
+ * PLAYABLE, not a demo — even from a one-line prompt. */
+export const GAME_BUILD_RULES =
+  "\n## GAME RULES (this is a GAME project — make it actually fun to play)\n" +
+  "- Build a PLAYABLE, INTERACTIVE game, never a static scene or a lone moving box. Even from a " +
+  "one-line prompt, ship something the user can really play.\n" +
+  "- ALWAYS include all four: (1) player INPUT that visibly controls something; (2) ENEMIES/" +
+  "OBSTACLES/TARGETS that move or spawn over time and that the player interacts with; (3) a WIN or " +
+  "SCORE condition (points, a goal, lose/game-over); (4) on-screen FEEDBACK (score/lives, brief " +
+  "instructions, and a win/lose message).\n" +
+  "- Controls must be responsive and obvious. After building, tell the user to press Play and that " +
+  "arrow keys / WASD move the player — make sure the keys actually move it.\n" +
+  "- Godot: input actions ui_left/ui_right/ui_up/ui_down/ui_accept are auto-wired (no input map). Use " +
+  "Area2D for collisions (area_entered), Timer for spawning waves, ColorRect/Polygon2D/Sprite2D for " +
+  "visuals (NO image files — generate shapes). Edit main.gd + main.tscn; do NOT touch project.godot " +
+  "or export settings. It compiles on Build & Play.\n" +
+  "- Phaser/Babylon (CDN): build the gameplay in the marked PlayScene/play area; reuse the scene flow " +
+  "+ palette tokens; keep it runnable so the live preview always renders.\n" +
+  "- Keep scope tight but COMPLETE: one solid mechanic done well beats a sprawling unfinished one.\n";
+
 /** A registry of the model-facing prompts, for the /admin overview. */
 export const PROMPT_REGISTRY: { id: string; title: string; where: string; text: string }[] = [
   { id: "build", title: "Build-mode system rules", where: "agent-config.ts · BUILD_RULES", text: BUILD_RULES },
   { id: "plan", title: "Plan-mode system rules", where: "agent-config.ts · PLAN_RULES", text: PLAN_RULES },
+  { id: "game", title: "Game build rules (appended for game projects)", where: "agent-config.ts · GAME_BUILD_RULES", text: GAME_BUILD_RULES },
 ];
 
 /* ----------------------------- pricing ----------------------------- */

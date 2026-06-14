@@ -1,0 +1,10 @@
+{
+  "id": "game-godot-premium",
+  "label": "Premium Game Studio (Godot)",
+  "framework": "game",
+  "engine": "godot",
+  "description": "A real, already-playable Godot game (GDScript + scenes): a 'dodge the falling blocks' game with a moving player, spawning enemies, collisions, a live score, and game-over/restart. Edit the code, press Build & Play to compile it to the web, then extend the gameplay.",
+  "keywords": [],
+  "notesBlurb": "PREMIUM Godot starter (game-godot-premium): a COMPLETE, PLAYABLE Godot 4 game — main.gd already implements a 'dodge the falling blocks' game (arrow-key player movement, a falling-enemy spawner with rising difficulty, AABB collision, a live score, and game-over + Enter-to-restart) on the main.tscn scene (Background + Player + Label). project.godot + export_presets.cfg + icon.svg are set up for web export. Your job: EXTEND the gameplay for the user's idea — add enemy types/power-ups/levels/sounds/a real win condition by editing main.gd (and main.tscn for new scene nodes). Reuse the patterns already there: spawn entities with ColorRect.new() + a spawn timer, move them in _process, detect hits with Rect2.intersects, track score in a Label. Built-in input actions ui_left/ui_right/ui_up/ui_down/ui_accept are auto-wired (no input map). Use ColorRect/Polygon2D/Sprite2D (NO image files — generate shapes). GDScript uses TAB indentation. Do NOT edit export_presets.cfg/export settings or rename project.godot — the server compiles it with the existing 'Web' preset. NOT previewed live; the user presses Build & Play to compile + run. Keep it a working, fun, playable game at every step.",
+  "cli": "overlay-only"
+}

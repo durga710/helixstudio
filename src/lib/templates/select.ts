@@ -23,6 +23,7 @@ export const PREMIUM_VARIANT: Record<string, string> = {
   "game-2d": "game-2d-premium",
   "game-3d": "game-3d-premium",
   "game-3d-pc": "game-3d-premium",
+  "game-godot": "game-godot-premium",
 };
 
 export async function isPremiumUser(userId: string, email?: string | null): Promise<boolean> {

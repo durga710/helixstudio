@@ -44,6 +44,7 @@ import { createAgentIntent } from "@/lib/intent-ledger";
 import {
   AGENT_LIMITS,
   BUILD_RULES,
+  GAME_BUILD_RULES,
   PLAN_RULES,
   VERIFY_DEFAULT_ON,
   VERIFY_MAX_FIX_ATTEMPTS,
@@ -243,7 +244,10 @@ export async function runAgentTurn(opts: {
 
   // Prompts live in agent-config.ts so the /admin overview shows the exact
   // text the model receives.
-  const rules = mode === "plan" ? PLAN_RULES : BUILD_RULES;
+  // Game projects get extra build rules (must be playable: controls + enemies +
+  // win/score + feedback). Append to the build rules, never plan.
+  const rules =
+    mode === "plan" ? PLAN_RULES : ws.kind === "game" ? BUILD_RULES + GAME_BUILD_RULES : BUILD_RULES;
 
   const fitted = fitBudget({
     rules,
