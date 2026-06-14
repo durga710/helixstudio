@@ -68,6 +68,16 @@ const NeuronViz = dynamic(() => import("./neuron").then((m) => m.NeuronViz), {
     );
   },
 });
+const LangModel = dynamic(() => import("./lang-model").then((m) => m.LangModel), {
+  ssr: false,
+  loading: function LangModelLoading() {
+    return (
+      <div className="grid place-items-center rounded-card border border-border bg-panel2 p-10 text-[12px] text-txt3">
+        loading the language model…
+      </div>
+    );
+  },
+});
 
 /** Reusable interactive ML widgets. Lessons (content) compose these by id — the
  * widget vocabulary is the only thing that gates new lessons. Keep in sync with
@@ -78,6 +88,7 @@ export const WIDGETS: Record<string, ComponentType<WidgetProps>> = {
   regression: RegressionPlayground,
   tree: TreeExplorer,
   neuron: NeuronViz,
+  langModel: LangModel,
 };
 
 /** Renders the widget for a `widget` step, or a friendly placeholder if the

@@ -1,0 +1,95 @@
+{
+  "id": "how-ai-writes",
+  "title": "How AI writes",
+  "blurb": "Train your own tiny ChatGPT. Feed it text, watch it learn to guess the next word, then make it write.",
+  "level": "advanced",
+  "estMinutes": 13,
+  "icon": "Bot",
+  "concept": "language models",
+  "order": 7,
+  "steps": [
+    {
+      "kind": "explain",
+      "title": "The magic trick behind ChatGPT",
+      "body": "Chatbots can write stories, answer questions, even rhyme. It feels like magic.\n\nBut the secret is almost silly: a chatbot is just **guessing the next word**, over and over. Say a few words, and it asks itself *\"what word usually comes next?\"* — picks one — then does it again. That's it. You're about to build the smallest possible version and see for yourself."
+    },
+    {
+      "kind": "explain",
+      "title": "Words become tokens",
+      "body": "Before an AI can work with language, it chops the text into little pieces called **tokens**. For us, a token is just a **word** (and punctuation like `.` or `?`).\n\n\"the cat sat\" → `the` · `cat` · `sat`. Simple. Now the AI can count which tokens tend to follow which."
+    },
+    {
+      "kind": "explain",
+      "title": "Predict the next word",
+      "body": "Here's the whole idea. The model reads a lot of text and keeps a tally:\n\nAfter **\"the cat\"**, what came next? Maybe `sat` 5 times, `ran` 2 times, `is` 1 time.\n\nSo when you give it \"the cat\", it knows `sat` is the most likely next word. **Training** is just building that tally — no magic, just counting."
+    },
+    {
+      "kind": "explain",
+      "title": "How far back does it look?",
+      "body": "The **context window** is how many previous words the model looks at to make its guess.\n\nLook back **1 word** and it barely makes sense. Look back **3 words** and it sounds much smoother — but on a little bit of text it starts to just **memorize and repeat**. Real LLMs look back over *thousands* of tokens. You'll get to slide this and feel the difference."
+    },
+    {
+      "kind": "widget",
+      "widget": "langModel",
+      "title": "Train it and make it write",
+      "body": "1) Pick some text and press **Train it**. 2) Peek at the **next-word table** — that's literally what it learned. 3) Type a start and press **Generate**.\n\nThen play: change **Look back** (1 → 3 words) and re-train. Watch the writing get smoother but more repetitive.",
+      "config": { "corpus": "rhymes", "contextWindow": 2 }
+    },
+    {
+      "kind": "quiz",
+      "title": "What is it really doing?",
+      "question": "When a language model writes a sentence, what is it actually doing at each step?",
+      "choices": [
+        "Looking up the answer in a dictionary",
+        "Guessing the next word, then repeating",
+        "Copying a random website",
+        "Asking a human what to say"
+      ],
+      "answer": 1,
+      "explain": "Every word is a next-word guess based on the words so far. Do that again and again and you get whole sentences."
+    },
+    {
+      "kind": "explain",
+      "title": "Creativity = temperature",
+      "body": "When several words could come next, how does it choose? That's the **creativity** knob (pros call it *temperature*).\n\n**Careful**: it almost always picks the single most likely word — safe but repetitive. **Wild**: it takes more chances on less-likely words — surprising, sometimes nonsense. Slide it and watch the next-word table change shape."
+    },
+    {
+      "kind": "widget",
+      "widget": "langModel",
+      "title": "Play with creativity",
+      "body": "Train it, then move the **Creativity** slider and Generate a few times. Low = it repeats the safe path. High = it wanders. Notice the next-word percentages flatten out as you turn creativity up.",
+      "config": { "corpus": "fables", "contextWindow": 2, "temperature": 0.9 }
+    },
+    {
+      "kind": "quiz",
+      "title": "Turning up creativity",
+      "question": "If you turn the creativity (temperature) way up, what happens?",
+      "choices": [
+        "It always picks the most likely word",
+        "It takes more chances on less-likely words, so output is more surprising",
+        "It stops working",
+        "It looks back at more words"
+      ],
+      "answer": 1,
+      "explain": "High creativity flattens the odds so unlikely words get picked more often — fun, but it can drift into nonsense."
+    },
+    {
+      "kind": "quiz",
+      "title": "So what is 'training'?",
+      "question": "You trained your model. What did training actually build?",
+      "choices": [
+        "A picture of a robot",
+        "A tally of which words tend to follow which",
+        "A list of websites",
+        "A new programming language"
+      ],
+      "answer": 1,
+      "explain": "Training = counting patterns (which word follows which). Real LLMs store this as billions of weights, but it's the same idea you just did."
+    },
+    {
+      "kind": "explain",
+      "title": "Same idea, gigantic scale",
+      "body": "You just built a real language model: tokens, next-word prediction, a context window, and a creativity knob.\n\nChatGPT is the **exact same recipe** — scaled up almost unimaginably. Instead of a few rhymes it read much of the internet; instead of a tally it uses a giant neural network with billions of weights (the same weights you tuned in *How a brain learns*). But peek inside and it's doing what your tiny model just did: **guess the next word, then repeat**. You now understand how AI writes. 🎉"
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick, ArrowRight, Clock, Check, GraduationCap } from "lucide-react";
+import { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick, Bot, ArrowRight, Clock, Check, GraduationCap } from "lucide-react";
 import type { LessonManifest } from "@/lib/lessons/types";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
@@ -10,7 +10,7 @@ import { Pill } from "@/components/ui/pill";
 /* The AI Lab gallery: pick a lesson, learn AI by training a real model. Each
  * card is a self-contained guided flow — no code, no setup. */
 
-const ICONS: Record<string, typeof Sparkles> = { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick };
+const ICONS: Record<string, typeof Sparkles> = { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick, Bot };
 
 export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
   const [status, setStatus] = useState<Record<string, string>>({});

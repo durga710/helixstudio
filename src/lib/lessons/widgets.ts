@@ -41,6 +41,11 @@ export const WIDGET_CATALOG: WidgetInfo[] = [
     label: "Neuron (perceptron) playground",
     desc: "The student tilts a line with weight sliders to separate two groups, or presses 'Let it learn' to watch the neuron tune its own weights. Use for: neurons, weights, decision boundary, how a network learns.",
   },
+  {
+    id: "langModel",
+    label: "Language model (next-word predictor)",
+    desc: "The student trains a tiny language model on text, then generates new text — adjusting the context window and 'creativity' (temperature) and watching the next-word probabilities. Use for: language models, LLMs, next-token prediction, tokens, temperature, how ChatGPT works.",
+  },
 ];
 
 export const WIDGET_IDS: string[] = WIDGET_CATALOG.map((w) => w.id);
