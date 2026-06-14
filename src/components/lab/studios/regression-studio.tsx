@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LineChart, Sparkles } from "lucide-react";
 import type { StudioProps } from "./index";
+import { getStudioMeta, type StudioChallenge } from "@/lib/lessons/studios";
+import { InfoTip } from "@/components/lab/info-tip";
+import { StudioCoach } from "@/components/lab/studio-coach";
 
 /* Regression Studio — build a predictor. The student dials up model complexity
  * (a straight line → a bendy curve) and fits it to the dots, watching the error
@@ -80,10 +83,27 @@ function rmse(c: number[], points: { x: number; y: number }[]): number {
 
 const DEGREE_LABEL: Record<number, string> = { 1: "straight line", 2: "gentle curve", 3: "bendy curve", 4: "very bendy" };
 
-export function RegressionStudio({ onProgress, onComplete, onState }: StudioProps) {
+const CHALLENGES = getStudioMeta("regression")?.challenges ?? [];
+
+const LEARN_STEPS: { text: string; cta?: string }[] = [
+  { text: "Pick how bendy the line can be — start at 1 (a straight line) — then press Fit." },
+  { text: "Teal dots are practice; the hollow gold dots are NEW points it never trained on. The score that matters is “Error on new points” — lower is better.", cta: "Got it" },
+  { text: "A straight line is too stiff — it underfits the hump. Crank the bendiness up to 3 or 4 and press Fit again." },
+  { text: "See it? Very bendy hugs the practice dots but does WORSE on new ones — that’s overfitting. The sweet spot is in the middle.", cta: "Got it" },
+  { text: "Now dial in a bendiness that gets the error on new points under 0.5 to win.", cta: "Got it" },
+];
+
+function meetsChallenge(c: StudioChallenge, testRMSE: number | null): boolean {
+  if (c.maxError !== undefined) return testRMSE !== null && testRMSE <= c.maxError;
+  return testRMSE !== null && testRMSE <= TARGET_RMSE;
+}
+
+export function RegressionStudio({ mode = "sandbox", challengeId, onProgress, onComplete, onState }: StudioProps) {
+  const challenge = useMemo(() => CHALLENGES.find((c) => c.id === challengeId), [challengeId]);
   const [degree, setDegree] = useState(1);
   const [coeffs, setCoeffs] = useState<number[] | null>(null);
   const [fittedDegree, setFittedDegree] = useState(1);
+  const [learnStep, setLearnStep] = useState(0);
   const done = useRef(false);
 
   const sx = (x: number) => PAD + ((x - X_MIN) / (X_MAX - X_MIN || 1)) * (W - PAD * 2);
@@ -91,29 +111,40 @@ export function RegressionStudio({ onProgress, onComplete, onState }: StudioProp
 
   const trainRMSE = useMemo(() => (coeffs ? rmse(coeffs, TRAIN) : null), [coeffs]);
   const testRMSE = useMemo(() => (coeffs ? rmse(coeffs, TEST) : null), [coeffs]);
+  const goalMet = mode === "challenge" && challenge ? meetsChallenge(challenge, testRMSE) : testRMSE !== null && testRMSE <= TARGET_RMSE;
 
   useEffect(() => {
-    if (testRMSE === null) {
+    let narration: string;
+    if (testRMSE === null || trainRMSE === null) {
+      narration = "Pick how bendy the line can be, then press Fit to draw it through the dots and see how far off it is.";
       onProgress?.(0);
-      onState?.({ fitted: false });
+      onState?.({ fitted: false, narration });
       return;
     }
+    const te = testRMSE.toFixed(2);
+    const tr = trainRMSE.toFixed(2);
+    narration = `Your ${DEGREE_LABEL[fittedDegree]} is off by ${te} on new points (${tr} on its practice points).`;
+    if (testRMSE - trainRMSE > 0.35) narration += " It's much better on practice than on new dots — too bendy, that's overfitting. Try a lower number.";
+    else if (fittedDegree === 1 && testRMSE > TARGET_RMSE) narration += " A straight line is too stiff to follow the hump — bump the bendiness up.";
+    else if (testRMSE <= TARGET_RMSE) narration += " Under 0.5 on new points — that's the goal. Nice.";
+    else narration += " Closer — nudge the bendiness to lower the new-point error.";
+
     onProgress?.(Math.min(100, (TARGET_RMSE / Math.max(0.01, testRMSE)) * 100));
-    onState?.({
-      degree: fittedDegree,
-      trainError: Math.round(trainRMSE! * 100) / 100,
-      testError: Math.round(testRMSE * 100) / 100,
-    });
-    if (testRMSE <= TARGET_RMSE && !done.current) {
+    onState?.({ degree: fittedDegree, trainError: Math.round(trainRMSE * 100) / 100, testError: Math.round(testRMSE * 100) / 100, narration });
+    if (goalMet && !done.current) {
       done.current = true;
       onComplete();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [testRMSE, trainRMSE, fittedDegree]);
+  }, [testRMSE, trainRMSE, fittedDegree, mode, challengeId]);
 
   function fit() {
     setCoeffs(fitPoly(TRAIN, degree));
     setFittedDegree(degree);
+    if (mode === "learn") {
+      if (learnStep === 0) setLearnStep(1);
+      else if (learnStep === 2 && degree >= 3) setLearnStep(3);
+    }
   }
 
   const curve = useMemo(() => {
@@ -126,19 +157,29 @@ export function RegressionStudio({ onProgress, onComplete, onState }: StudioProp
     return pts.join(" ");
   }, [coeffs]);
 
-  const overfit = coeffs && trainRMSE !== null && testRMSE !== null && testRMSE - trainRMSE > 0.35;
-
   return (
     <div className="rounded-card border border-border bg-panel2 p-4">
+      {mode === "learn" && (
+        <StudioCoach
+          index={learnStep}
+          total={LEARN_STEPS.length}
+          done={learnStep >= LEARN_STEPS.length}
+          text={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].text : "You’ve got it — find the bendiness that keeps the new-point error under 0.5, or try Challenge mode."}
+          cta={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].cta : undefined}
+          onNext={learnStep < LEARN_STEPS.length && LEARN_STEPS[learnStep].cta ? () => setLearnStep((s) => s + 1) : undefined}
+        />
+      )}
+
       <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px]">
         <span className="inline-flex items-center gap-1.5 font-semibold text-txt">
           <LineChart className="h-4 w-4 text-accent" /> Your predictor
         </span>
         {testRMSE !== null ? (
           <>
-            <span className="text-txt3">
+            <span className="inline-flex items-center gap-1 text-txt3">
               Error on new points: <b style={{ color: testRMSE <= TARGET_RMSE ? "var(--ok)" : undefined }} className="text-txt">{testRMSE.toFixed(2)}</b>
               <span className="text-txt3"> · goal under {TARGET_RMSE}</span>
+              <InfoTip text="These gold dots were held out — the curve never trained on them. Low error here means it learned the real shape, not the noise." />
             </span>
             <span className="text-txt3">On its own points: <b className="text-txt2">{trainRMSE!.toFixed(2)}</b></span>
           </>
@@ -166,7 +207,10 @@ export function RegressionStudio({ onProgress, onComplete, onState }: StudioProp
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-[12px] font-semibold text-txt2">How bendy?</span>
+        <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-txt2">
+          How bendy?
+          <InfoTip text="Bendiness (degree) is how wiggly the curve can be. 1 = a straight line; 4 = very wiggly." />
+        </span>
         <div className="inline-flex overflow-hidden rounded-md border border-border2">
           {[1, 2, 3, 4].map((d) => (
             <button
@@ -186,13 +230,6 @@ export function RegressionStudio({ onProgress, onComplete, onState }: StudioProp
           <Sparkles className="h-3.5 w-3.5" /> Fit
         </button>
       </div>
-
-      {overfit && (
-        <p className="mt-2 text-[11px] text-txt3">
-          💡 Great on its own dots, worse on new ones — that&apos;s <b className="text-txt2">overfitting</b>. The curve is too
-          bendy and chased the noise. Try a lower number.
-        </p>
-      )}
     </div>
   );
 }

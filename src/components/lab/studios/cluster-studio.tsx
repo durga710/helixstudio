@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Boxes, Play, StepForward, Shuffle } from "lucide-react";
 import { CLASS_COLORS } from "@/components/lab/datasets";
 import type { StudioProps } from "./index";
+import { getStudioMeta, type StudioChallenge } from "@/lib/lessons/studios";
+import { InfoTip } from "@/components/lab/info-tip";
+import { StudioCoach } from "@/components/lab/studio-coach";
 
 /* K-Means Studio — find the hidden groups. The student sets K, drops centroids,
  * and runs the loop (assign → move) step by step, watching dots snap into
@@ -76,40 +79,70 @@ function seed(k: number): P[] {
   });
 }
 
-export function ClusterStudio({ onProgress, onComplete, onState }: StudioProps) {
+const CHALLENGES = getStudioMeta("cluster")?.challenges ?? [];
+
+const LEARN_STEPS: { text: string; cta?: string }[] = [
+  { text: "These dots have no labels — the computer finds the groups itself. The ✕ marks are group centers, dropped randomly. Press “Step” once." },
+  { text: "The dots changed color — each one joined its nearest ✕, and the ✕’s hopped to the middle of their dots. “Spread” is how far dots sit from their center; lower = tighter.", cta: "Got it" },
+  { text: "Keep pressing “Step”, or press “Run” to finish, until the 3 groups lock in (Spread under 130). Then come back.", cta: "Got it" },
+  { text: "You uncovered the hidden groups! Now try “Groups (K)” = 2 or 4 to see why picking the right number matters.", cta: "Got it" },
+];
+
+function meetsChallenge(c: StudioChallenge, k: number, iters: number, score: number): boolean {
+  const base = k === 3 && iters >= 2 && score <= TARGET_INERTIA;
+  if (!base) return false;
+  if (c.maxRounds !== undefined && iters > c.maxRounds) return false;
+  return true;
+}
+
+export function ClusterStudio({ mode = "sandbox", challengeId, onProgress, onComplete, onState }: StudioProps) {
+  const challenge = useMemo(() => CHALLENGES.find((c) => c.id === challengeId), [challengeId]);
   const [k, setK] = useState(3);
   const [centroids, setCentroids] = useState<P[]>(() => seed(3));
   const [iters, setIters] = useState(0);
+  const [learnStep, setLearnStep] = useState(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const done = useRef(false);
 
   const labels = useMemo(() => assign(POINTS, centroids), [centroids]);
   const score = useMemo(() => Math.round(inertia(POINTS, labels, centroids)), [labels, centroids]);
+  const goalMet = mode === "challenge" && challenge ? meetsChallenge(challenge, k, iters, score) : k === 3 && iters >= 2 && score <= TARGET_INERTIA;
 
   const sx = (x: number) => PAD + (x / 100) * (W - PAD * 2);
   const sy = (y: number) => H - PAD - (y / 100) * (H - PAD * 2);
 
   useEffect(() => {
-    // Progress: how far the spread has shrunk toward a tight 3-cluster fit.
+    let narration: string;
+    if (iters === 0) {
+      narration = "These dots have no labels. The ✕ marks are guesses at where the groups are. Press Step or Run to start sorting the dots into groups.";
+    } else {
+      narration = `${k} group${k === 1 ? "" : "s"}, ${iters} round${iters === 1 ? "" : "s"} in. Spread is ${score} (lower = tighter groups).`;
+      if (k !== 3) narration += ` You're looking for ${k}, but there are really 3 hidden here — try K=3.`;
+      else if (score <= TARGET_INERTIA) narration += " The 3 groups locked in — you found them.";
+      else narration += " Keep stepping; the spread is still shrinking.";
+      if (mode === "challenge" && challenge?.maxRounds !== undefined) narration += ` Mission: find them in ${challenge.maxRounds} rounds or fewer — you're at ${iters}.`;
+    }
     const start = 4000;
     onProgress?.(iters === 0 ? 0 : Math.min(100, ((start - score) / (start - TARGET_INERTIA)) * 100));
-    onState?.({ k, iterations: iters, spread: score });
-    if (k === 3 && iters >= 2 && score <= TARGET_INERTIA && !done.current) {
+    onState?.({ k, iterations: iters, spread: score, narration });
+    if (goalMet && !done.current) {
       done.current = true;
       onComplete();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [score, iters, k]);
+  }, [score, iters, k, mode, challengeId]);
 
   useEffect(() => () => void (timer.current && clearInterval(timer.current)), []);
 
   function step() {
     setCentroids((prev) => move(POINTS, assign(POINTS, prev), k, prev));
     setIters((n) => n + 1);
+    if (mode === "learn" && learnStep === 0) setLearnStep(1);
   }
 
   function run() {
     if (timer.current) return;
+    if (mode === "learn" && learnStep === 0) setLearnStep(1);
     let n = 0;
     timer.current = setInterval(() => {
       let stop = false;
@@ -139,13 +172,25 @@ export function ClusterStudio({ onProgress, onComplete, onState }: StudioProps) 
 
   return (
     <div className="rounded-card border border-border bg-panel2 p-4">
+      {mode === "learn" && (
+        <StudioCoach
+          index={learnStep}
+          total={LEARN_STEPS.length}
+          done={learnStep >= LEARN_STEPS.length}
+          text={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].text : "You’ve got K-Means down — uncover the 3 groups, or try Challenge mode up top."}
+          cta={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].cta : undefined}
+          onNext={learnStep < LEARN_STEPS.length && LEARN_STEPS[learnStep].cta ? () => setLearnStep((s) => s + 1) : undefined}
+        />
+      )}
+
       <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px]">
         <span className="inline-flex items-center gap-1.5 font-semibold text-txt">
           <Boxes className="h-4 w-4 text-accent" /> Your clusters
         </span>
-        <span className="text-txt3">
+        <span className="inline-flex items-center gap-1 text-txt3">
           Spread: <b className="text-txt" style={{ color: k === 3 && score <= TARGET_INERTIA ? "var(--ok)" : undefined }}>{score}</b>
           <span className="text-txt3"> · lower is tighter</span>
+          <InfoTip text="Spread is how far the dots sit from their group's center, added up. Tighter groups = a smaller number." />
         </span>
         <span className="text-txt3">Rounds: <b className="text-txt2">{iters}</b></span>
       </div>
@@ -165,7 +210,10 @@ export function ClusterStudio({ onProgress, onComplete, onState }: StudioProps) 
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-[12px] font-semibold text-txt2">Groups (K)</span>
+        <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-txt2">
+          Groups (K)
+          <InfoTip text="K is how many groups you tell it to look for. There are 3 hidden here — try 2 or 4 to see what goes wrong." />
+        </span>
         <div className="inline-flex overflow-hidden rounded-md border border-border2">
           {[2, 3, 4].map((kk) => (
             <button

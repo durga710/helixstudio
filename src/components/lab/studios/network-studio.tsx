@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Network, Sparkles, Minus, Plus, RotateCcw } from "lucide-react";
 import { CLASS_COLORS } from "@/components/lab/datasets";
 import type { StudioProps } from "./index";
+import { getStudioMeta, type StudioChallenge } from "@/lib/lessons/studios";
+import { InfoTip } from "@/components/lab/info-tip";
+import { StudioCoach } from "@/components/lab/studio-coach";
 
 /* Neural Net Studio — build the brain, then train it. The two groups (a ring
  * around a core) can't be split by a straight line, so ONE neuron is stuck. The
@@ -110,15 +113,33 @@ function hexLerp(a: string, b: string, t: number): string {
 
 const toSvg = (v: number) => ((v + 1.15) / 2.3) * W;
 
-export function NetworkStudio({ onProgress, onComplete, onState }: StudioProps) {
+const CHALLENGES = getStudioMeta("network")?.challenges ?? [];
+
+const LEARN_STEPS: { text: string; cta?: string }[] = [
+  { text: "Start with 1 hidden neuron and press “Train”. Watch the boundary — one neuron can only draw a straight LINE." },
+  { text: "A straight line can’t wrap around a ring, so it gets stuck below 90%. The fix: add more neurons. Bump “Hidden neurons” up to 3 or 4." },
+  { text: "Now press “Train” again — with more neurons, their lines combine into a CURVE that bends around the core." },
+  { text: "See the boundary curve around the ring? That’s why we stack neurons into a network. Train until you hit 90%.", cta: "Got it" },
+];
+
+function meetsChallenge(c: StudioChallenge, acc: number, h: number): boolean {
+  if (c.minAccuracy !== undefined && acc < c.minAccuracy) return false;
+  if (c.maxNeurons !== undefined && h > c.maxNeurons) return false;
+  return true;
+}
+
+export function NetworkStudio({ mode = "sandbox", challengeId, onProgress, onComplete, onState }: StudioProps) {
+  const challenge = useMemo(() => CHALLENGES.find((c) => c.id === challengeId), [challengeId]);
   const [h, setH] = useState(1);
   const [net, setNet] = useState<Net>(() => initNet(1));
   const [round, setRound] = useState(0);
   const [training, setTraining] = useState(false);
+  const [learnStep, setLearnStep] = useState(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const done = useRef(false);
 
   const acc = useMemo(() => accuracyOf(net), [net]);
+  const goalMet = mode === "challenge" && challenge ? meetsChallenge(challenge, acc, h) : acc >= TARGET;
 
   const stop = () => {
     if (timer.current) clearInterval(timer.current);
@@ -127,14 +148,25 @@ export function NetworkStudio({ onProgress, onComplete, onState }: StudioProps) 
   };
 
   useEffect(() => {
+    const pct = Math.round(acc * 100);
+    let narration: string;
+    if (round === 0) {
+      narration = "Press Train to teach the network. With 1 neuron it can only draw a straight line — and a line can't separate a ring from its core.";
+    } else {
+      narration = `${h} hidden neuron${h === 1 ? "" : "s"}, ${round} rounds in. Accuracy is ${pct}%.`;
+      if (h === 1 && acc < TARGET) narration += " One neuron draws only a straight line, so it's stuck — add more hidden neurons to bend the boundary.";
+      else if (acc >= TARGET) narration += " The boundary curved around the ring — you built a working network. 🎉";
+      else narration += " Getting there — keep training, or add a neuron to bend the boundary more.";
+      if (mode === "challenge" && challenge?.minAccuracy !== undefined) narration += ` Mission: 90% with as few neurons as you can — you're using ${h}.`;
+    }
     onProgress?.((acc / TARGET) * 100);
-    onState?.({ neurons: h, rounds: round, accuracy: Math.round(acc * 100), training });
-    if (acc >= TARGET && !done.current) {
+    onState?.({ neurons: h, rounds: round, accuracy: pct, training, narration });
+    if (goalMet && !done.current) {
       done.current = true;
       onComplete();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [acc, round, h, training]);
+  }, [acc, round, h, training, mode, challengeId]);
 
   useEffect(() => () => void (timer.current && clearInterval(timer.current)), []);
 
@@ -145,12 +177,17 @@ export function NetworkStudio({ onProgress, onComplete, onState }: StudioProps) 
     setNet(initNet(clamped));
     setRound(0);
     done.current = false;
+    if (mode === "learn" && learnStep === 1 && clamped > 1) setLearnStep(2);
   }
 
   function train() {
     if (timer.current) return;
     done.current = false;
     setTraining(true);
+    if (mode === "learn") {
+      if (learnStep === 0) setLearnStep(1);
+      else if (learnStep === 2 && h > 1) setLearnStep(3);
+    }
     let working = net;
     let r = round;
     timer.current = setInterval(() => {
@@ -187,13 +224,25 @@ export function NetworkStudio({ onProgress, onComplete, onState }: StudioProps) 
 
   return (
     <div className="rounded-card border border-border bg-panel2 p-4">
+      {mode === "learn" && (
+        <StudioCoach
+          index={learnStep}
+          total={LEARN_STEPS.length}
+          done={learnStep >= LEARN_STEPS.length}
+          text={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].text : "You’ve built a real network — train it to 90% around the ring, or try Challenge mode up top."}
+          cta={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].cta : undefined}
+          onNext={learnStep < LEARN_STEPS.length && LEARN_STEPS[learnStep].cta ? () => setLearnStep((s) => s + 1) : undefined}
+        />
+      )}
+
       <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px]">
         <span className="inline-flex items-center gap-1.5 font-semibold text-txt">
           <Network className="h-4 w-4 text-accent" /> Your network
         </span>
-        <span className="text-txt3">
+        <span className="inline-flex items-center gap-1 text-txt3">
           Accuracy: <b className="text-txt" style={{ color: acc >= TARGET ? "var(--ok)" : undefined }}>{Math.round(acc * 100)}%</b>
           <span className="text-txt3"> · goal {Math.round(TARGET * 100)}%</span>
+          <InfoTip text="The share of dots on the right side of the boundary. 90% means the curve wrapped around the ring." />
         </span>
         <span className="text-txt3">{h} hidden neuron{h === 1 ? "" : "s"} · {round} rounds</span>
       </div>
@@ -238,7 +287,10 @@ export function NetworkStudio({ onProgress, onComplete, onState }: StudioProps) 
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-[12px] font-semibold text-txt2">Hidden neurons</span>
+        <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-txt2">
+          Hidden neurons
+          <InfoTip text="The neurons in the middle. One alone can only draw a straight line; more of them = a bendier boundary." />
+        </span>
         <div className="inline-flex items-center overflow-hidden rounded-md border border-border2">
           <button onClick={() => setNeurons(h - 1)} disabled={h <= 1} className="px-2 py-1 text-txt2 transition-colors hover:text-txt disabled:opacity-40">
             <Minus className="h-3.5 w-3.5" />
@@ -262,9 +314,11 @@ export function NetworkStudio({ onProgress, onComplete, onState }: StudioProps) 
           <Sparkles className="h-3.5 w-3.5" /> {training ? "Training…" : "Train"}
         </button>
       </div>
-      <p className="mt-2 text-[11.5px] text-txt3">
-        One neuron can only draw a straight line — but the core is <i>inside</i> the ring. Add neurons and Train until the boundary curves around it.
-      </p>
+      <div className="mt-2 flex items-center justify-center gap-4 text-[11px] text-txt3">
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: IN }} /> core</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: OUT }} /> ring</span>
+        <span className="text-txt3">the colored regions are the network&apos;s decision boundary</span>
+      </div>
     </div>
   );
 }
