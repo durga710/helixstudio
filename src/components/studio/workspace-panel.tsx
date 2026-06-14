@@ -31,6 +31,8 @@ import {
   Square,
   UploadCloud,
   X,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
@@ -165,6 +167,12 @@ export function WorkspacePanel({
   const [pushing, setPushing] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
   const [envOpen, setEnvOpen] = useState(false);
+  // Project name (editable inline) + delete-project flow.
+  const [name, setName] = useState(workspace.name);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(workspace.name);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deletingWs, setDeletingWs] = useState(false);
 
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewInfo, setPreviewInfo] = useState<string | null>(null);
@@ -644,6 +652,54 @@ export function WorkspacePanel({
     }
   }
 
+  // Rename the project inline (the editable title in the top bar).
+  async function saveName() {
+    const next = nameInput.trim();
+    setEditingName(false);
+    if (!next || next === name) {
+      setNameInput(name);
+      return;
+    }
+    setName(next); // optimistic
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: next }),
+      });
+      if (!res.ok) {
+        setName(workspace.name);
+        setNameInput(workspace.name);
+        toast("Couldn't rename the project.");
+      } else {
+        router.refresh(); // keep the breadcrumb/list in sync
+      }
+    } catch {
+      setName(workspace.name);
+      toast("Couldn't rename the project.");
+    }
+  }
+
+  // Delete the whole project (owner only) and leave the editor.
+  async function deleteProject() {
+    if (deletingWs) return;
+    setDeletingWs(true);
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}`, { method: "DELETE" });
+      if (res.ok) {
+        router.push("/editor");
+      } else {
+        toast("Couldn't delete the project.");
+        setDeletingWs(false);
+        setConfirmDelete(false);
+      }
+    } catch {
+      toast("Couldn't delete the project.");
+      setDeletingWs(false);
+      setConfirmDelete(false);
+    }
+  }
+
   // Premium: download the project as a zip with a one-command local setup.
   async function exportProject() {
     if (exporting) return;
@@ -850,11 +906,46 @@ export function WorkspacePanel({
           <Sparkles className="h-4 w-4 shrink-0 text-ok" />
         )}
         <div className="flex min-w-0 items-center gap-2">
+          {/* Project name — click to rename (owner only). This is how you tell
+              which project you're in. */}
+          {editingName ? (
+            <input
+              autoFocus
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onBlur={() => void saveName()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void saveName();
+                else if (e.key === "Escape") {
+                  setEditingName(false);
+                  setNameInput(name);
+                }
+              }}
+              maxLength={60}
+              className="w-44 rounded-md border border-accent bg-bg2 px-2 py-0.5 text-sm font-semibold text-txt outline-none"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (!isOwner) return;
+                setNameInput(name);
+                setEditingName(true);
+              }}
+              title={isOwner ? "Rename project" : name}
+              className="group inline-flex min-w-0 items-center gap-1.5"
+            >
+              <span className="truncate text-sm font-semibold text-txt">{name || "Untitled project"}</span>
+              {isOwner && (
+                <Pencil className="h-3 w-3 shrink-0 text-txt3 opacity-0 transition-opacity group-hover:opacity-100" />
+              )}
+            </button>
+          )}
           {workspace.provider !== "github" && PROVIDER_META[workspace.provider as GitProviderName] && (
             <Pill tone="neutral">{PROVIDER_META[workspace.provider as GitProviderName].label}</Pill>
           )}
-          <span className="truncate font-mono text-[11px] text-txt2">
-            {workspace.repo ?? "scratch workspace"}
+          <span className="hidden truncate font-mono text-[11px] text-txt3 sm:inline">
+            {workspace.repo ?? "scratch"}
           </span>
           {workspace.baseBranch && (
             <span className="inline-flex shrink-0 items-center gap-1 font-mono text-[11px] text-txt3">
@@ -1003,6 +1094,15 @@ export function WorkspacePanel({
                 {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                 Export
               </Button>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                title="Delete this project"
+                aria-label="Delete project"
+                className="rounded-lg border border-border p-1.5 text-txt2 transition-colors hover:border-bad hover:text-bad"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
             </>
           ) : (
             <Button onClick={() => void forkWorkspace()} disabled={forking} className="px-3.5 py-1.5">
@@ -1567,6 +1667,42 @@ export function WorkspacePanel({
           hasRepo={Boolean(workspace.repo)}
           onClose={() => setDeployOpen(false)}
         />
+      )}
+      {confirmDelete && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
+          onClick={() => !deletingWs && setConfirmDelete(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-border2 bg-panel p-5 shadow-pop"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-[15px] font-semibold text-txt">Delete this project?</h2>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-txt2">
+              <span className="font-medium text-txt">{name || "This project"}</span> and all its files will be
+              permanently deleted. This can&apos;t be undone.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                disabled={deletingWs}
+                className="rounded-lg border border-border px-3.5 py-1.5 text-sm text-txt2 transition-colors hover:text-txt disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void deleteProject()}
+                disabled={deletingWs}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-bad px-3.5 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {deletingWs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                Delete project
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
