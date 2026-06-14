@@ -781,6 +781,11 @@ function SpaceDetailPanel({
 
           {!renaming && (
             <div className="ml-auto flex flex-wrap items-center gap-2">
+              {detail.kind === "classroom" && detail.isOwner && (
+                <Button onClick={() => router.push(`/space/${detail.id}/instructor`)}>
+                  <GraduationCap className="h-3.5 w-3.5" /> Instructor Dashboard
+                </Button>
+              )}
               <Button onClick={() => copyInvite(detail.joinCode)}>
                 <Link2 className="h-3.5 w-3.5" /> Invite
               </Button>
