@@ -852,3 +852,23 @@ CREATE INDEX "Lesson_authorId_updatedAt_idx" ON "Lesson"("authorId", "updatedAt"
 
 -- CreateIndex
 CREATE INDEX "Lesson_spaceId_status_idx" ON "Lesson"("spaceId", "status");
+
+-- CreateTable
+CREATE TABLE "LabWidget" (
+    "id" TEXT NOT NULL,
+    "authorId" TEXT NOT NULL,
+    "spaceId" TEXT,
+    "title" TEXT NOT NULL,
+    "template" TEXT NOT NULL,
+    "config" JSONB NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "LabWidget_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "LabWidget_authorId_updatedAt_idx" ON "LabWidget"("authorId", "updatedAt");
+
+-- CreateIndex
+CREATE INDEX "LabWidget_spaceId_idx" ON "LabWidget"("spaceId");

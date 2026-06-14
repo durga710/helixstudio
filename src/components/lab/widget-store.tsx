@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { X, Plus, Search, Boxes, Camera, Wand2, Trash2, GripVertical } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { X, Plus, Search, Boxes, Camera, Wand2, Trash2, GripVertical, Save, Loader2, Library } from "lucide-react";
 import { WIDGET_CATALOG } from "@/lib/lessons/widgets";
 import { DATASETS } from "@/components/lab/datasets";
 import { WidgetHost } from "@/components/lab/widgets";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 /*
@@ -22,12 +23,15 @@ const WIDGET_PHASES: Record<string, string[]> = {
 };
 const PREVIEW_SKIP = new Set(["classifier"]);
 
-type Mode = "browse" | "create";
+type Mode = "browse" | "create" | "mine";
+const MODE_LABEL: Record<Mode, string> = { browse: "Browse", create: "Create your own", mine: "My widgets" };
 
 export function WidgetStore({
+  spaceId,
   onAdd,
   onClose,
 }: {
+  spaceId: string;
   onAdd: (widget: string, config?: Record<string, unknown>) => void;
   onClose: () => void;
 }) {
@@ -41,16 +45,16 @@ export function WidgetStore({
           <Boxes className="h-4 w-4 text-accent" />
           <span className="text-[14px] font-semibold text-txt">Widget store</span>
           <div className="ml-3 flex items-center gap-1 rounded-lg border border-border2 bg-panel2 p-0.5">
-            {(["browse", "create"] as const).map((m) => (
+            {(["browse", "create", "mine"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
                 className={cn(
-                  "rounded-md px-2.5 py-1 text-[12px] font-medium capitalize transition-colors",
+                  "rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors",
                   mode === m ? "bg-accent text-accent-ink" : "text-txt2 hover:text-txt",
                 )}
               >
-                {m === "create" ? "Create your own" : "Browse"}
+                {MODE_LABEL[m]}
               </button>
             ))}
           </div>
@@ -59,7 +63,13 @@ export function WidgetStore({
           </button>
         </div>
 
-        {mode === "browse" ? <BrowsePane onAdd={onAdd} /> : <CreatePane onAdd={onAdd} />}
+        {mode === "browse" ? (
+          <BrowsePane onAdd={onAdd} />
+        ) : mode === "create" ? (
+          <CreatePane spaceId={spaceId} onAdd={onAdd} />
+        ) : (
+          <MinePane spaceId={spaceId} onAdd={onAdd} />
+        )}
       </div>
     </div>
   );
@@ -175,8 +185,11 @@ function BrowsePane({ onAdd }: { onAdd: (widget: string, config?: Record<string,
 interface SortItem { a: number; b: number; bin: number }
 interface Card { front: string; back: string }
 
-function CreatePane({ onAdd }: { onAdd: (widget: string, config?: Record<string, unknown>) => void }) {
+function CreatePane({ spaceId, onAdd }: { spaceId: string; onAdd: (widget: string, config?: Record<string, unknown>) => void }) {
+  const { toast } = useToast();
   const [template, setTemplate] = useState<"customSort" | "customFlashcards">("customSort");
+  const [title, setTitle] = useState("");
+  const [saving, setSaving] = useState(false);
 
   // customSort state
   const [binA, setBinA] = useState("Cats");
@@ -202,6 +215,25 @@ function CreatePane({ onAdd }: { onAdd: (widget: string, config?: Record<string,
   }, [template, binA, binB, clueA, clueB, items, cards]);
 
   const inputCls = "w-full rounded-md border border-border2 bg-panel2 px-2.5 py-1.5 text-[13px] text-txt outline-none placeholder:text-txt3 focus:border-accent";
+
+  async function save() {
+    const t = title.trim();
+    if (!t || saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/lab/widgets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spaceId, template, title: t, config }),
+      });
+      const j = await res.json().catch(() => null);
+      if (res.ok && j?.ok) toast("Saved to My widgets — reuse it in any lesson");
+      else toast(j?.error?.message ?? "Couldn't save the widget");
+    } catch {
+      toast("Couldn't save the widget");
+    }
+    setSaving(false);
+  }
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-2">
@@ -273,9 +305,115 @@ function CreatePane({ onAdd }: { onAdd: (widget: string, config?: Record<string,
             <WidgetHost widget={template} config={config} onComplete={() => {}} onState={() => {}} />
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-2 border-t border-border p-3">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Name it to save (e.g. Sort fruits)"
+            className="min-w-[160px] flex-1 rounded-md border border-border2 bg-panel2 px-2.5 py-1.5 text-[12.5px] text-txt outline-none placeholder:text-txt3 focus:border-accent"
+          />
+          <button
+            onClick={() => void save()}
+            disabled={saving || !title.trim()}
+            className="inline-flex items-center gap-1.5 rounded-[10px] border border-border2 bg-panel2 px-3 py-2 text-[12.5px] text-txt2 transition-colors hover:border-accent hover:text-txt disabled:opacity-40"
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save to library
+          </button>
+          <button onClick={() => onAdd(template, config)} className="inline-flex items-center gap-1.5 rounded-[10px] border-none bg-accent px-4 py-2 text-[13px] font-semibold text-accent-ink transition hover:brightness-110">
+            <Plus className="h-4 w-4" /> Add to lesson
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------- My widgets ----------------------------- */
+interface SavedWidget {
+  id: string;
+  title: string;
+  template: string;
+  config: Record<string, unknown>;
+}
+function MinePane({ spaceId, onAdd }: { spaceId: string; onAdd: (widget: string, config?: Record<string, unknown>) => void }) {
+  const { toast } = useToast();
+  const [widgets, setWidgets] = useState<SavedWidget[] | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/lab/widgets?spaceId=${encodeURIComponent(spaceId)}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (alive) setWidgets((j?.data?.widgets ?? []) as SavedWidget[]);
+      })
+      .catch(() => alive && setWidgets([]));
+    return () => {
+      alive = false;
+    };
+  }, [spaceId]);
+
+  async function remove(id: string) {
+    if (!window.confirm("Delete this saved widget?")) return;
+    try {
+      const res = await fetch(`/api/lab/widgets/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setWidgets((ws) => ws?.filter((w) => w.id !== id) ?? null);
+        if (selected === id) setSelected(null);
+      } else toast("Couldn't delete");
+    } catch {
+      toast("Couldn't delete");
+    }
+  }
+
+  const sel = widgets?.find((w) => w.id === selected) ?? null;
+  const labelFor = (t: string) => WIDGET_CATALOG.find((w) => w.id === t)?.label ?? t;
+
+  return (
+    <div className="grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[280px_1fr]">
+      <div className="min-h-0 overflow-y-auto border-b border-border p-2 sm:border-b-0 sm:border-r">
+        {widgets === null ? (
+          <div className="flex items-center gap-2 px-2 py-3 text-[12px] text-txt3"><Loader2 className="h-3.5 w-3.5 animate-spin" /> loading…</div>
+        ) : widgets.length === 0 ? (
+          <div className="px-2 py-3 text-[12px] leading-relaxed text-txt3">
+            No saved widgets yet. Make one in <b className="text-txt2">Create your own</b> and press <b className="text-txt2">Save to library</b>.
+          </div>
+        ) : (
+          <ul>
+            {widgets.map((w) => (
+              <li key={w.id} className="mb-1 flex items-center gap-1">
+                <button
+                  onClick={() => setSelected(w.id)}
+                  className={cn("min-w-0 flex-1 rounded-md border px-2.5 py-2 text-left transition-colors", w.id === selected ? "border-accent bg-panel2" : "border-transparent hover:border-border2 hover:bg-panel2")}
+                >
+                  <div className="truncate text-[12.5px] font-medium text-txt">{w.title}</div>
+                  <div className="text-[11px] text-txt3">{labelFor(w.template)}</div>
+                </button>
+                <button onClick={() => void remove(w.id)} title="Delete" className="shrink-0 text-txt3 transition-colors hover:text-bad"><Trash2 className="h-3.5 w-3.5" /></button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="flex min-h-0 flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {sel ? (
+            <>
+              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-txt3">
+                <Library className="h-3.5 w-3.5 text-accent" /> {sel.title}
+              </div>
+              <div key={sel.id} className="rounded-card border border-border bg-bg2 p-2">
+                <WidgetHost widget={sel.template} config={sel.config} onComplete={() => {}} onState={() => {}} />
+              </div>
+            </>
+          ) : (
+            <p className="text-[12.5px] text-txt3">Pick a saved widget to preview it.</p>
+          )}
+        </div>
         <div className="flex items-center gap-2 border-t border-border p-3">
-          <span className="text-[11.5px] text-txt3">Your widget drops in as a step you can reuse + edit.</span>
-          <button onClick={() => onAdd(template, config)} className="ml-auto inline-flex items-center gap-1.5 rounded-[10px] border-none bg-accent px-4 py-2 text-[13px] font-semibold text-accent-ink transition hover:brightness-110">
+          <span className="text-[11.5px] text-txt3">Reuse a saved widget in this lesson.</span>
+          <button onClick={() => sel && onAdd(sel.template, sel.config)} disabled={!sel} className="ml-auto inline-flex items-center gap-1.5 rounded-[10px] border-none bg-accent px-4 py-2 text-[13px] font-semibold text-accent-ink transition hover:brightness-110 disabled:opacity-40">
             <Plus className="h-4 w-4" /> Add to lesson
           </button>
         </div>

@@ -399,4 +399,21 @@ ALTER TABLE "Template" ADD COLUMN IF NOT EXISTS "freshnessError" TEXT;
 
 -- 2026-06 · Workspace sub-type (game category) — mode-specific editor without preloading
 ALTER TABLE "Workspace" ADD COLUMN IF NOT EXISTS "gameCategory" TEXT;
+
+-- 2026-06 · AI Lab teacher widget library (saved configurable widget instances)
+CREATE TABLE IF NOT EXISTS "LabWidget" (
+    "id" TEXT NOT NULL,
+    "authorId" TEXT NOT NULL,
+    "spaceId" TEXT,
+    "title" TEXT NOT NULL,
+    "template" TEXT NOT NULL,
+    "config" JSONB NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "LabWidget_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "LabWidget_authorId_updatedAt_idx" ON "LabWidget"("authorId", "updatedAt");
+CREATE INDEX IF NOT EXISTS "LabWidget_spaceId_idx" ON "LabWidget"("spaceId");
 `;

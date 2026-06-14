@@ -353,6 +353,7 @@ export function LessonEditor({
 
       {storeOpen && (
         <WidgetStore
+          spaceId={spaceId}
           onClose={() => setStoreOpen(false)}
           onAdd={(widget, config) => {
             setSteps((prev) => [...prev, { kind: "widget", widget, ...(config ? { config } : {}) }]);

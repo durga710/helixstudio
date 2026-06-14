@@ -480,6 +480,23 @@ model Lesson {
   @@index([spaceId, status])
 }
 
+// AI Lab — a teacher's saved, reusable interactive widget: a configurable
+// template (e.g. "customSort") + a config blob filled with their own data. Saved
+// once, inserted into many lessons. No FKs (light migration; orphans harmless).
+model LabWidget {
+  id        String   @id @default(cuid())
+  authorId  String
+  spaceId   String? // the classroom it belongs to (scoping); null = personal
+  title     String
+  template  String // the widget id this configures (e.g. "customSort")
+  config    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([authorId, updatedAt])
+  @@index([spaceId])
+}
+
 // ---------- Deploy integrations ----------
 // A user's connection to a hosting platform (Vercel, Netlify, Cloudflare
 // Pages, Render…). One token per provider; `config` holds provider-specific
