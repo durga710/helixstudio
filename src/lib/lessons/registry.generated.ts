@@ -3,6 +3,136 @@
 import type { Lesson } from "./types";
 
 export const LESSONS: Record<string, Lesson> = {
+  "data-and-features": {
+    "manifest": {
+      "id": "data-and-features",
+      "title": "Data is everything",
+      "blurb": "AI learns from data — explore a real dataset and discover how patterns (and bias) are born.",
+      "level": "beginner",
+      "estMinutes": 14,
+      "icon": "Boxes",
+      "concept": "data",
+      "order": 2
+    },
+    "steps": [
+      {
+        "kind": "explain",
+        "title": "Where does AI get its smarts?",
+        "body": "Last time you learned AI learns from **examples**. A big pile of examples has a name: **data**.\n\nData is the food an AI eats. Feed it good data and it gets smart. Feed it bad data and it gets… not so smart. Let's see what data actually looks like."
+      },
+      {
+        "kind": "explain",
+        "title": "What data looks like",
+        "body": "Data is usually just a **table** — like a spreadsheet.\n\nEach **row** is one example (one flower, one photo, one song). Each **column** is one thing we measured about it. That's it. No magic — just a tidy list of examples."
+      },
+      {
+        "kind": "explain",
+        "title": "Features and labels",
+        "body": "Two words pros use constantly:\n\n- **Features** = the things we *measure* (a flower's petal length, its height…).\n- **Label** = the *answer* we want (what kind of flower it is).\n\nThe AI's job: look at the **features** and guess the **label**."
+      },
+      {
+        "kind": "quiz",
+        "title": "Feature or label?",
+        "question": "We want an AI to guess a flower's *kind* from its *petal length*. Which one is the label?",
+        "choices": [
+          "Petal length",
+          "The kind of flower",
+          "Both",
+          "Neither"
+        ],
+        "answer": 1,
+        "explain": "The **kind of flower** is the label — it's the answer we want. Petal length is a feature we measure to guess it."
+      },
+      {
+        "kind": "explain",
+        "title": "Let's explore real data",
+        "body": "Below is a tiny dataset of **30 flowers** — daisies, tulips, and roses — each with a few measurements.\n\nPut different measurements on the **X** and **Y** axes and watch what happens. Can you find axes where the three kinds split into clear groups?"
+      },
+      {
+        "kind": "widget",
+        "widget": "dataExplorer",
+        "title": "Explore the flowers",
+        "body": "Change the X and Y axes. Each dot is one flower, colored by its kind.",
+        "config": {
+          "dataset": "flowers"
+        }
+      },
+      {
+        "kind": "explain",
+        "title": "That's a pattern!",
+        "body": "See how the colors form **clusters**? Daisies bunch in one corner, roses in another. The AI doesn't need anyone to *tell* it the rule — it can *see* that big petals usually mean \"rose.\"\n\n**Finding clusters like these is exactly what a classifier does.**"
+      },
+      {
+        "kind": "quiz",
+        "title": "Reading the chart",
+        "question": "When the kinds form separate clusters on the chart, what does that mean for the AI?",
+        "choices": [
+          "The data is broken",
+          "The features are useful — they help tell the kinds apart",
+          "The AI is guessing randomly",
+          "There's nothing to learn"
+        ],
+        "answer": 1,
+        "explain": "Clear clusters = useful features. If everything overlapped in one blob, the AI would have a much harder time."
+      },
+      {
+        "kind": "explain",
+        "title": "Better features, smarter AI",
+        "body": "Some measurements separate the flowers well; others barely help. Picking **good features** is half the battle in real AI.\n\nIt's like guessing someone's favorite sport: their *height* might help a little, but \"do they own a soccer ball?\" helps a lot more. Good features carry the answer."
+      },
+      {
+        "kind": "explain",
+        "title": "Garbage in, garbage out",
+        "body": "Here's the rule that explains most AI failures: **an AI can only be as good as its data.**\n\nMessy, wrong, or missing data → a confused AI. Clean, clear data → a sharp one. The data matters more than the computer."
+      },
+      {
+        "kind": "explain",
+        "title": "The sneaky problem: balance",
+        "body": "Now imagine our flower data had **28 roses** and only **2 daisies**.\n\nThe AI would barely know what a daisy looks like — so it'd guess \"rose\" almost every time. Not because roses are special, but because that's mostly what it *saw*. This lopsidedness has a name: **bias**."
+      },
+      {
+        "kind": "quiz",
+        "title": "Spot the bias",
+        "question": "An AI that sorts fruit was trained on 100 apples and 4 bananas. What will probably happen?",
+        "choices": [
+          "It works perfectly",
+          "It leans toward guessing 'apple' because that's mostly what it saw",
+          "It refuses to run",
+          "It prefers bananas"
+        ],
+        "answer": 1,
+        "explain": "Exactly — a lopsided dataset makes a lopsided AI. Balanced examples are the fix."
+      },
+      {
+        "kind": "explain",
+        "title": "Where bias really comes from",
+        "body": "Bias isn't the computer being mean. It comes from the **data we collect**.\n\nIf the examples we gather miss certain groups, the AI misses them too. That's why real AI teams work so hard to gather **fair, balanced** data — it's one of the most important jobs in the whole field."
+      },
+      {
+        "kind": "explain",
+        "title": "Why this matters in real life",
+        "body": "This isn't just about flowers. The same idea decides whether AI is **fair**:\n\n- A face system that only learned from a few kinds of faces works worse for everyone else.\n- A voice assistant trained on one accent struggles with others.\n\nGood, balanced data is how we build AI that works for **everybody**."
+      },
+      {
+        "kind": "quiz",
+        "title": "Recap",
+        "question": "What's the best way to keep an AI from becoming biased?",
+        "choices": [
+          "Use a faster computer",
+          "Collect balanced, fair examples of every group",
+          "Give it fewer examples",
+          "Hope for the best"
+        ],
+        "answer": 1,
+        "explain": "Balanced, fair data is the answer. The AI learns whatever the data teaches it — so we make sure the data is fair."
+      },
+      {
+        "kind": "explain",
+        "title": "What you learned 🎉",
+        "body": "- **Data** = a table of examples (rows) with **features** (columns) and a **label** (the answer)\n- Good **features** make the kinds form clear **clusters**\n- **Garbage in, garbage out** — data quality beats computer speed\n- **Bias** is born from lopsided data; **balanced, fair data** is the cure\n\n**Next up:** instead of sorting things into kinds, you'll teach an AI to **predict a number** — that's called *regression*."
+      }
+    ]
+  },
   "train-your-first-ai": {
     "manifest": {
       "id": "train-your-first-ai",
@@ -62,6 +192,145 @@ export const LESSONS: Record<string, Lesson> = {
         ],
         "answer": 0,
         "explain": "Right — a model that always picks one answer usually hasn't seen enough of the *other* one. Balance your examples and it evens out."
+      }
+    ]
+  },
+  "what-is-ai": {
+    "manifest": {
+      "id": "what-is-ai",
+      "title": "What even is AI?",
+      "blurb": "Cut through the hype — what AI really is, where you already use it, and why it's not magic.",
+      "level": "beginner",
+      "estMinutes": 12,
+      "icon": "Brain",
+      "concept": "intro",
+      "order": 1
+    },
+    "steps": [
+      {
+        "kind": "explain",
+        "title": "AI is everywhere — but what *is* it?",
+        "body": "You've heard \"AI\" a hundred times. It unlocks your phone with your face, suggests the next video, finishes your sentences.\n\nBut here's a secret: almost nobody can explain what it actually **is**. By the end of this lesson, you will — and you'll even train a tiny one yourself."
+      },
+      {
+        "kind": "explain",
+        "title": "The one-sentence answer",
+        "body": "**AI is a computer program that learns from examples instead of being told exactly what to do.**\n\nNormal programs follow rules a human wrote: \"if the light is red, stop.\" An AI is different — you show it **lots of examples**, and it figures out the pattern on its own."
+      },
+      {
+        "kind": "explain",
+        "title": "An example you already get",
+        "body": "Imagine teaching a little kid the difference between a cat and a dog. You don't hand them a rulebook. You just point at animals: *\"cat… dog… cat… dog…\"*\n\nAfter enough examples, the kid just **knows**. AI learns the exact same way — from examples, not rules."
+      },
+      {
+        "kind": "quiz",
+        "title": "Quick check",
+        "question": "What's the big difference between AI and a normal computer program?",
+        "choices": [
+          "AI is always right",
+          "AI learns patterns from examples instead of following written rules",
+          "AI is alive",
+          "AI never needs a computer"
+        ],
+        "answer": 1,
+        "explain": "That's it — AI learns the pattern from examples. A normal program just follows rules a person wrote out."
+      },
+      {
+        "kind": "explain",
+        "title": "What AI is NOT",
+        "body": "Let's bust three myths right now:\n\n- ❌ **It's not magic.** It's math and examples — a lot of them.\n- ❌ **It's not a person.** It doesn't *understand* or *feel* anything. It finds patterns.\n- ❌ **It's not always right.** It can be confidently wrong (you'll see why soon)."
+      },
+      {
+        "kind": "quiz",
+        "title": "Myth check",
+        "question": "True or false: an AI *understands* the world the way a human does.",
+        "choices": [
+          "True",
+          "False"
+        ],
+        "answer": 1,
+        "explain": "False! AI is a brilliant **pattern-spotter**, but it doesn't understand meaning like you do. That's an important difference to remember."
+      },
+      {
+        "kind": "explain",
+        "title": "How learning actually works",
+        "body": "Every AI does three things:\n\n1. **See examples** (lots of cat and dog photos)\n2. **Find the pattern** (cats have pointy ears, dogs are bigger…)\n3. **Make a guess** on something new (\"that's probably a cat\")\n\nMore examples → better patterns → better guesses. Simple as that."
+      },
+      {
+        "kind": "explain",
+        "title": "Where you already meet AI",
+        "body": "You use AI all day without noticing:\n\n- 📷 Your photos app finding every picture of your dog\n- 🎵 \"Songs you might like\"\n- 🗣️ Voice assistants understanding what you said\n- ✍️ Autocorrect and text suggestions\n\nEach one learned from millions of examples."
+      },
+      {
+        "kind": "quiz",
+        "title": "Spot the AI",
+        "question": "Which of these most likely uses AI?",
+        "choices": [
+          "A calculator adding 2 + 2",
+          "A light switch turning on a bulb",
+          "Your phone recognizing your face to unlock",
+          "A clock showing the time"
+        ],
+        "answer": 2,
+        "explain": "Face unlock learned from many face examples — that's AI. The others just follow fixed rules."
+      },
+      {
+        "kind": "explain",
+        "title": "Why AI gets things wrong",
+        "body": "An AI is only as good as the examples it learned from.\n\nIf it only ever saw small dogs, it might call a *horse* a dog. It didn't \"think\" wrong — it just never saw the right examples. **Garbage in, garbage out.** Keep this idea in your pocket; it explains almost every AI mistake."
+      },
+      {
+        "kind": "quiz",
+        "title": "Why the mistake?",
+        "question": "An AI keeps calling a wolf a \"dog.\" What's the most likely reason?",
+        "choices": [
+          "The AI is broken",
+          "It never learned from enough wolf examples",
+          "Wolves and dogs are the same",
+          "The computer is too slow"
+        ],
+        "answer": 1,
+        "explain": "Right — it learned from dog examples and never really saw wolves, so it guesses the closest thing it knows."
+      },
+      {
+        "kind": "explain",
+        "title": "Your turn — teach a real one",
+        "body": "Enough talk. You're going to **train an actual AI** right now, in your browser, using your camera.\n\nPick two things to tell apart, show it a few examples of each, and watch it learn. This is the exact same idea behind the biggest AI systems in the world — just smaller."
+      },
+      {
+        "kind": "widget",
+        "widget": "classifier",
+        "title": "Train a tiny AI",
+        "body": "Add a few example photos of two different things (like ✌️ vs 👍), then press **Train it!** and test it live.",
+        "config": {
+          "classes": [
+            "Thing A",
+            "Thing B"
+          ]
+        }
+      },
+      {
+        "kind": "explain",
+        "title": "What you just did",
+        "body": "You showed an AI examples, it found the pattern, and it made guesses. **That's the whole game** — whether it's your tiny classifier or a giant model that writes essays.\n\nThe big ones just have *way* more examples and *way* more computing power. The core idea is identical."
+      },
+      {
+        "kind": "quiz",
+        "title": "Lock it in",
+        "question": "What's the single most important ingredient for teaching an AI?",
+        "choices": [
+          "A faster computer",
+          "Good examples to learn from",
+          "A bigger screen",
+          "Luck"
+        ],
+        "answer": 1,
+        "explain": "Examples are everything. Good, plentiful, balanced examples make a smart AI — which is exactly what the next lesson is all about: **data**."
+      },
+      {
+        "kind": "explain",
+        "title": "What you learned 🎉",
+        "body": "- AI **learns from examples**, not written rules\n- It's a pattern-spotter — **not magic, not a person, not always right**\n- It gets things wrong when its examples were missing or unfair\n- You **trained a real one yourself!**\n\n**Next up:** where all those examples come from — *data* — and why good data is the secret to good AI."
       }
     ]
   }

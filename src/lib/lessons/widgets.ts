@@ -21,6 +21,11 @@ export const WIDGET_CATALOG: WidgetInfo[] = [
     label: "Image classifier (train your own)",
     desc: "The student trains a real image classifier with webcam/upload examples, then tests it live. Use for: classification, what 'training' means, teaching a computer to recognize things.",
   },
+  {
+    id: "dataExplorer",
+    label: "Data explorer (scatter plot)",
+    desc: "The student plots a toy dataset, choosing which two measurements go on the X/Y axes, and sees the kinds form clusters. Use for: what data/features/labels are, spotting patterns, why data matters.",
+  },
 ];
 
 export const WIDGET_IDS: string[] = WIDGET_CATALOG.map((w) => w.id);

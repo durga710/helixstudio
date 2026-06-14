@@ -17,20 +17,34 @@ export interface WidgetProps {
   onState?: (s: LabState) => void;
 }
 
-// Lazy so the heavy ML widget only loads on the lab route, when it's reached.
+// Lazy so heavy widgets only load on the lab route, when reached.
 const Classifier = dynamic(() => import("./classifier").then((m) => m.Classifier), {
   ssr: false,
-  loading: () => (
-    <div className="grid place-items-center rounded-card border border-border bg-panel2 p-10 text-[12px] text-txt3">
-      loading the trainer…
-    </div>
-  ),
+  loading: function ClassifierLoading() {
+    return (
+      <div className="grid place-items-center rounded-card border border-border bg-panel2 p-10 text-[12px] text-txt3">
+        loading the trainer…
+      </div>
+    );
+  },
+});
+const DataExplorer = dynamic(() => import("./data-explorer").then((m) => m.DataExplorer), {
+  ssr: false,
+  loading: function DataExplorerLoading() {
+    return (
+      <div className="grid place-items-center rounded-card border border-border bg-panel2 p-10 text-[12px] text-txt3">
+        loading the data…
+      </div>
+    );
+  },
 });
 
 /** Reusable interactive ML widgets. Lessons (content) compose these by id — the
- * widget vocabulary is the only thing that gates new lessons. */
+ * widget vocabulary is the only thing that gates new lessons. Keep in sync with
+ * WIDGET_CATALOG in src/lib/lessons/widgets.ts. */
 export const WIDGETS: Record<string, ComponentType<WidgetProps>> = {
   classifier: Classifier,
+  dataExplorer: DataExplorer,
 };
 
 /** Renders the widget for a `widget` step, or a friendly placeholder if the
