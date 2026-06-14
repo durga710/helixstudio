@@ -26,6 +26,11 @@ export const WIDGET_CATALOG: WidgetInfo[] = [
     label: "Data explorer (scatter plot)",
     desc: "The student plots a toy dataset, choosing which two measurements go on the X/Y axes, and sees the kinds form clusters. Use for: what data/features/labels are, spotting patterns, why data matters.",
   },
+  {
+    id: "regression",
+    label: "Regression playground (line of best fit)",
+    desc: "The student drags dots and fits a straight line that predicts a number, watching the error shrink. Use for: regression, predicting a number (not a category), line of best fit, error/loss.",
+  },
 ];
 
 export const WIDGET_IDS: string[] = WIDGET_CATALOG.map((w) => w.id);

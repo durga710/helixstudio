@@ -38,6 +38,16 @@ const DataExplorer = dynamic(() => import("./data-explorer").then((m) => m.DataE
     );
   },
 });
+const RegressionPlayground = dynamic(() => import("./regression").then((m) => m.RegressionPlayground), {
+  ssr: false,
+  loading: function RegressionLoading() {
+    return (
+      <div className="grid place-items-center rounded-card border border-border bg-panel2 p-10 text-[12px] text-txt3">
+        loading…
+      </div>
+    );
+  },
+});
 
 /** Reusable interactive ML widgets. Lessons (content) compose these by id — the
  * widget vocabulary is the only thing that gates new lessons. Keep in sync with
@@ -45,6 +55,7 @@ const DataExplorer = dynamic(() => import("./data-explorer").then((m) => m.DataE
 export const WIDGETS: Record<string, ComponentType<WidgetProps>> = {
   classifier: Classifier,
   dataExplorer: DataExplorer,
+  regression: RegressionPlayground,
 };
 
 /** Renders the widget for a `widget` step, or a friendly placeholder if the
