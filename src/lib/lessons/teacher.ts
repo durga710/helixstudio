@@ -5,10 +5,14 @@ import "server-only";
  * separate User lookup (the Lesson table is FK-less). */
 
 import { db, dbEnabled } from "@/lib/db";
+import { isAdminEmail } from "@/lib/admin";
 
 export async function isTeacher(userId: string): Promise<boolean> {
   if (!dbEnabled()) return false;
   try {
+    // Admins always count as teachers — full access to teacher features.
+    const user = await db().user.findUnique({ where: { id: userId }, select: { email: true } });
+    if (isAdminEmail(user?.email)) return true;
     const count = await db().space.count({ where: { ownerId: userId, kind: "classroom" } });
     return count > 0;
   } catch {

@@ -13,6 +13,7 @@ import { db } from "@/lib/db";
 import { guard } from "@/lib/route-helpers";
 import { getWorkspaceForUser } from "@/lib/workspace";
 import { canCreateAssignment } from "@/lib/billing";
+import { isAdminEmail } from "@/lib/admin";
 import { recordSpaceEvent, actorNameOf } from "@/lib/space-events";
 
 export const runtime = "nodejs";
@@ -125,7 +126,7 @@ export async function POST(req: Request, { params }: Params) {
   if (!parsed.success) return apiErrors.validation(parsed.error);
 
   const assignmentCount = await db().assignment.count({ where: { spaceId: id } });
-  const gate = canCreateAssignment(space, assignmentCount);
+  const gate = canCreateAssignment(space, assignmentCount, isAdminEmail(g.user.email));
   if (!gate.allowed) return apiErrors.upgradeRequired(gate.reason!);
 
   if (parsed.data.starterWorkspaceId) {

@@ -61,7 +61,9 @@ export function canJoin(
 export function canCreateAssignment(
   space: SpacePlanFields,
   currentAssignmentCount: number,
+  isAdmin = false,
 ): { allowed: boolean; reason?: string } {
+  if (isAdmin) return { allowed: true }; // admins always pass
   if (isPlanActive(space)) return { allowed: true };
   if (currentAssignmentCount < FREE_ASSIGNMENT_CAP) return { allowed: true };
   return {
