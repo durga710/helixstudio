@@ -18,6 +18,15 @@ import { NOTES_MAX } from "@/lib/chat-context";
 import { AGENT_LIMITS } from "@/lib/agent-config";
 import { buildChunks, rerankSearch } from "@/lib/repo/rerank";
 
+/** A skeleton file carrying this marker is locked — the engine refuses to edit
+ * or overwrite it (premium templates put it on theme/palette + boot files, so
+ * the AI builds AROUND them instead of through them). The lock travels with the
+ * file content, so no per-workspace config is needed. */
+const LOCK_MARKER = "HELIX-LOCKED";
+function lockedFileError(path: string): string {
+  return `${path} is a locked skeleton file (part of the premium template's theme/boot system). Don't edit it — add a NEW file or edit the marked content slot instead.`;
+}
+
 /** Live activity label for a tool call — shown in the chat while it runs. */
 function progressLabel(name: string, args: Record<string, unknown>): string {
   switch (name) {
@@ -361,6 +370,12 @@ async function executeToolInner(
       });
       const check = validateFiles(files, MAX_TOOL_FILES);
       if (!check.ok) return { error: check.error };
+      // Locked skeleton files (theme/palette system, boot config) carry a
+      // HELIX-LOCKED marker — refuse to overwrite them; new files are fine.
+      for (const f of files) {
+        const existing = await readWorkspaceFile(ws, f.path);
+        if (existing !== null && existing.includes(LOCK_MARKER)) return { error: lockedFileError(f.path) };
+      }
       const intentId = ctx.getIntentId ? await ctx.getIntentId() : null;
       const result = await writeWorkspaceFiles(ws, files, intentId ? { intentId } : undefined);
       if ("error" in result) return result;
@@ -378,6 +393,7 @@ async function executeToolInner(
 
       const current = await readWorkspaceFile(ws, path);
       if (current === null) return { error: `${path} not found — use write_files to create it` };
+      if (current.includes(LOCK_MARKER)) return { error: lockedFileError(path) };
 
       const occurrences = current.split(oldString).length - 1;
       let updated: string;

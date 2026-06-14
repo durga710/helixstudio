@@ -1,4 +1,4 @@
-/* Page chrome palettes — same token names as every Helix premium skeleton, so
+/* HELIX-LOCKED · Page chrome palettes — same token names as every Helix premium skeleton, so
    the theme is consistent across apps and games. The GAME canvas colors come
    from the matching PALETTES object in game.js (keep the two in sync). */
 :root, [data-theme="midnight"] { --bg:#0b1020; --surface:#121a30; --border:#26314d; --text:#eaf0fb; --text-muted:#93a0bd; --primary:#5b8cff; }

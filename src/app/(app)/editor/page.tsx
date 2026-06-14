@@ -83,12 +83,25 @@ export default async function EditorPage() {
     }),
   ]);
 
+  // Auto-remove abandoned blanks: a from-scratch workspace the user never touched
+  // (default name, no files, no chat) is just clutter — so backing out of a new
+  // project that you never typed into doesn't leave an "Untitled project" behind.
+  const abandoned = workspaces.filter(
+    (w) => w.mode === "SCRATCH" && w.name === "Untitled project" && w._count.files === 0 && w._count.messages === 0,
+  );
+  if (abandoned.length > 0) {
+    await db()
+      .workspace.deleteMany({ where: { id: { in: abandoned.map((w) => w.id) }, userId: session.user.id } })
+      .catch(() => {});
+  }
+  const ownWorkspaces = abandoned.length > 0 ? workspaces.filter((w) => !abandoned.some((a) => a.id === w.id)) : workspaces;
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <StudioHome
         isGuest={Boolean(session.user.isGuest)}
         isAdmin={isAdminEmail(session.user.email ?? "")}
-        workspaces={workspaces.map((w) => ({
+        workspaces={ownWorkspaces.map((w) => ({
           id: w.id,
           name: w.name,
           mode: w.mode,

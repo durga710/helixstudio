@@ -1,4 +1,4 @@
-/* ── Theme palettes ───────────────────────────────────────────────────────────
+/* HELIX-LOCKED · ── Theme palettes ───────────────────────────────────────────────────────────
    Each palette is just a set of CSS variables. The whole app reads these (via the
    Tailwind config in index.html), so switching [data-theme] on <html> re-themes
    everything in one move. Add a palette by copying a block and changing the values.
