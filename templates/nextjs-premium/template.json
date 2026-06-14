@@ -1,0 +1,9 @@
+{
+  "id": "nextjs-premium",
+  "label": "Premium Next.js app (App Router, themeable)",
+  "framework": "next",
+  "description": "A premium, multi-route Next.js (App Router + TypeScript + Tailwind v4) app skeleton — landing page, login/signup, dashboard shell with sidebar + topbar, settings, a hand-built component kit, and 6 swappable color palettes. No extra dependencies. The AI fills the dashboard's main-feature region with the user's idea.",
+  "keywords": [],
+  "notesBlurb": "PREMIUM Next.js skeleton (nextjs-premium): a complete, styled App-Router app. The stack/config (package.json, next.config.ts, tsconfig.json, eslint.config.mjs), the landing page (app/page.tsx), auth flow (app/login + lib/auth.ts mock localStorage session), the app shell (app/(app)/layout.tsx sidebar+topbar with a guard), Dashboard + Settings pages, the component kit (components/ui.tsx: Card/Button/Input/Field/StatCard), and theming (6 palettes in app/globals.css via [data-theme], components/theme-picker.tsx) ALREADY WORK. Your job: set the product name in lib/config.ts, replace the region marked 'AI: BUILD THE APP'S MAIN FEATURE HERE' in app/(app)/dashboard/page.tsx with the user's real feature, relabel the placeholder stat cards, and add pages by copying an app/(app)/<route>/page.tsx + a NAV entry in components/sidebar.tsx. Reuse the component kit + color tokens (bg-bg, bg-surface, border-line, text-ink, text-muted, bg-brand text-brand-fg, bg-accent). Do NOT recreate the config/scaffold, rebuild auth/layout/nav, swap Tailwind out, touch the palette system (HELIX-LOCKED in globals.css + theme-picker.tsx), or add new dependencies unless truly required (keep it building).",
+  "cli": "overlay-only"
+}

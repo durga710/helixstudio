@@ -16,6 +16,7 @@ import { templateForCategory, templateForEngine } from "@/lib/templates/engines"
  * guests/free get the clean basic one (the deliberate upsell). */
 export const PREMIUM_VARIANT: Record<string, string> = {
   "static-web": "static-premium",
+  "nextjs-app": "nextjs-premium",
   "game-2d": "game-2d-premium",
   "game-3d": "game-3d-premium",
   "game-3d-pc": "game-3d-premium",
