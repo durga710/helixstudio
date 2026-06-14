@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ExternalLink,
@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { signIn } from "next-auth/react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { WorkspaceMeta } from "@/components/studio/studio";
 import { GitHubIcon } from "@/components/studio/github-icon";
@@ -56,8 +57,27 @@ export function PushDialog({
 }) {
   const router = useRouter();
   const hasRepo = Boolean(workspace.repo);
-  const meta = PROVIDER_META[workspace.provider as GitProviderName] ?? PROVIDER_META.github;
-  const isGithub = meta === PROVIDER_META.github;
+  // For a new repo (scratch) the user can choose which connected host to create
+  // it on; an existing repo is pinned to its host.
+  const [provider, setProvider] = useState<GitProviderName>(
+    PROVIDER_META[workspace.provider as GitProviderName] ? (workspace.provider as GitProviderName) : "github",
+  );
+  const meta = PROVIDER_META[provider] ?? PROVIDER_META.github;
+  const isGithub = provider === "github";
+  const [connections, setConnections] = useState<Partial<Record<GitProviderName, boolean>>>({});
+  useEffect(() => {
+    if (hasRepo) return;
+    fetch("/api/preferences", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => setConnections(((j?.data ?? j)?.gitConnections as Record<GitProviderName, boolean>) ?? {}))
+      .catch(() => {});
+  }, [hasRepo]);
+  // GitHub is always offered (OAuth connect flow handles it); other hosts appear
+  // once the user has a token saved for them.
+  const hostOptions: GitProviderName[] = [
+    "github",
+    ...(["gitlab", "bitbucket", "azure", "gitea"] as GitProviderName[]).filter((h) => connections[h]),
+  ];
 
   const [repoName, setRepoName] = useState(
     workspace.name
@@ -93,6 +113,7 @@ export function PushDialog({
           }
         : {
             target: "new-repo" as const,
+            provider,
             name: repoName.trim(),
             private: isPrivate,
             ...(message.trim() ? { message: message.trim() } : {}),
@@ -282,6 +303,32 @@ export function PushDialog({
                 </>
               ) : (
                 <>
+                  <div>
+                    <label className="label-tactical mb-1.5 block">Where to create it</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {hostOptions.map((h) => (
+                        <button
+                          key={h}
+                          type="button"
+                          onClick={() => setProvider(h)}
+                          className={cn(
+                            "rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
+                            provider === h
+                              ? "border-accent bg-hl text-txt"
+                              : "border-border2 bg-panel text-txt2 hover:border-accent hover:text-txt",
+                          )}
+                        >
+                          {PROVIDER_META[h].label}
+                        </button>
+                      ))}
+                      <a
+                        href="/settings"
+                        className="rounded-lg border border-dashed border-border2 px-2.5 py-1.5 text-xs text-txt3 transition-colors hover:border-accent hover:text-txt"
+                      >
+                        + connect another
+                      </a>
+                    </div>
+                  </div>
                   <div>
                     <label className="label-tactical mb-1.5 block">
                       New repo name

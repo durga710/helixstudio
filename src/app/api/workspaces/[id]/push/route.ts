@@ -56,6 +56,8 @@ async function shipOverlay(
 const PushSchema = z.discriminatedUnion("target", [
   z.object({
     target: z.literal("new-repo"),
+    // Which connected git host to create the repo on (default: the workspace's).
+    provider: z.enum(["github", "gitlab", "bitbucket", "azure", "gitea"]).optional(),
     name: z
       .string()
       .min(1)
@@ -92,10 +94,14 @@ export async function POST(req: Request, { params }: Params) {
   }
   const parsed = PushSchema.safeParse(body);
   if (!parsed.success) return apiErrors.validation(parsed.error);
+  const data = parsed.data;
 
-  const git = getProvider(ws.provider);
+  // A brand-new repo can target any connected host the user chose; an existing
+  // repo stays on the host it already lives on.
+  const effProvider = data.target === "new-repo" && data.provider ? data.provider : ws.provider;
+  const git = getProvider(effProvider);
   const meta = PROVIDER_META[git.name];
-  const auth = await getGitAuth(user.id, ws.provider);
+  const auth = await getGitAuth(user.id, effProvider);
   if (!auth) return apiErrors.githubUnauthorized();
 
   const overlay = await getOverlay(ws);
@@ -106,8 +112,6 @@ export async function POST(req: Request, { params }: Params) {
     const check = validateFiles(overlay.files, MAX_PUSH_FILES);
     if (!check.ok) return apiErrors.badRequest(check.error);
   }
-
-  const data = parsed.data;
 
   // Secret scan: block a push that looks like it contains hardcoded credentials,
   // unless the user reviewed the findings and explicitly overrode (allowSecrets).
@@ -131,7 +135,7 @@ export async function POST(req: Request, { params }: Params) {
 
     await db().workspace.update({
       where: { id: ws.id },
-      data: { repo: created.repo, baseBranch: created.defaultBranch },
+      data: { repo: created.repo, baseBranch: created.defaultBranch, provider: effProvider },
     });
 
     if (ws.spaceId) {
