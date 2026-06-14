@@ -409,9 +409,9 @@ export const LESSONS: Record<string, Lesson> = {
     "manifest": {
       "id": "predicting-numbers",
       "title": "Predicting numbers",
-      "blurb": "Not every answer is a category — sometimes AI predicts a number. Meet the line of best fit.",
+      "blurb": "Not every answer is a category — sometimes AI predicts a number. Lay the line of best fit yourself.",
       "level": "intermediate",
-      "estMinutes": 13,
+      "estMinutes": 10,
       "icon": "LineChart",
       "concept": "regression",
       "order": 4
@@ -420,59 +420,18 @@ export const LESSONS: Record<string, Lesson> = {
       {
         "kind": "explain",
         "title": "Two kinds of questions",
-        "body": "So far your AIs answered **which kind?** — cat or dog, rose or daisy. That's called **classification**.\n\nBut some questions don't have categories. *\"How tall will this plant grow?\"* *\"What will this house sell for?\"* The answer is a **number**. Predicting a number has its own name: **regression**."
-      },
-      {
-        "kind": "quiz",
-        "title": "Which is which?",
-        "question": "\"How many points will the team score tonight?\" — what kind of problem is this?",
-        "choices": [
-          "Classification (a category)",
-          "Regression (a number)",
-          "Neither",
-          "Both"
-        ],
-        "answer": 1,
-        "explain": "It's regression — the answer is a number (a score), not a category."
-      },
-      {
-        "kind": "explain",
-        "title": "The big idea: draw a line",
-        "body": "Here's the trick. If you have a bunch of examples — say, *hours studied* vs *test score* — you can draw a **straight line** through them.\n\nThen, to predict a new score, you just read the line. The whole challenge is: **which line is the best one?**"
-      },
-      {
-        "kind": "explain",
-        "title": "Your turn — find the best line",
-        "body": "Below are some data points. Press **Fit the line** and the computer draws the single best straight line through them.\n\nThe orange dashes show each **miss** — how far off the line is from each dot. Then try dragging the dots and watch the line chase them."
+        "body": "So far your AIs answered **which kind?** — cat or dog, rose or daisy. That's **classification**.\n\nBut some questions don't have categories. *\"How tall will this plant grow?\"* *\"What will this house sell for?\"* The answer is a **number**. Predicting a number has its own name: **regression** — and the trick is to draw the best straight line through your examples."
       },
       {
         "kind": "widget",
         "widget": "regression",
-        "title": "Fit the line",
-        "body": "Press Fit the line, then drag the red dots around and watch the line and the error change."
+        "title": "Lay the line yourself",
+        "body": "Below are data points. **Drag the two ring handles** to lay a straight line through them. The orange dashes are the **misses**, and the **error** number is how far off you are overall. Tune it until the error drops under the goal. (Stuck? **Snap to best fit** shows the perfect line.)"
       },
       {
         "kind": "explain",
-        "title": "What is that 'error' number?",
-        "body": "Every orange dash is a **mistake** — the gap between a real dot and the line's guess. Add up all those gaps (squared) and you get the **error**, also called the **loss**.\n\n**The best line is the one with the smallest error.** That's literally how the computer chooses it: try lines, keep the one that misses the least."
-      },
-      {
-        "kind": "quiz",
-        "title": "Reading the error",
-        "question": "One line has an error of 2 and another has an error of 40. Which line fits the points better?",
-        "choices": [
-          "The one with error 40",
-          "The one with error 2",
-          "They're the same",
-          "You can't tell"
-        ],
-        "answer": 1,
-        "explain": "Smaller error = closer to the dots = better fit. Error 2 wins."
-      },
-      {
-        "kind": "explain",
-        "title": "This is how AI 'learns' — for real",
-        "body": "Pause on this, because it's huge: **learning = lowering the error.**\n\nWhether it's this little line or a giant AI with billions of settings, training is the same loop: make a guess, measure how wrong it is, adjust to be a little less wrong, repeat. You just watched it happen."
+        "title": "That 'error' is how AI learns",
+        "body": "Every orange dash was a **mistake** — the gap between a real dot and your line. Add them all up and you get the **error** (also called the **loss**). The best line is simply the one with the **smallest error** — that's exactly what you hunted for.\n\nPause on this, because it's huge: **learning = lowering the error.** A giant AI with billions of settings trains the same way you just did — guess, measure how wrong, adjust, repeat."
       },
       {
         "kind": "quiz",
@@ -485,53 +444,17 @@ export const LESSONS: Record<string, Lesson> = {
           "Turning it off and on"
         ],
         "answer": 0,
-        "explain": "Exactly — training means adjusting the model until the error is as small as it can be."
-      },
-      {
-        "kind": "explain",
-        "title": "When a straight line isn't enough",
-        "body": "Real life isn't always a straight line. Sometimes the pattern curves.\n\nYou *could* draw a wild, wiggly line that hits **every** dot perfectly… but that's usually a trap. Here's why."
+        "explain": "Exactly — training means adjusting the model until the error is as small as it can be. You just did it by hand."
       },
       {
         "kind": "explain",
         "title": "The overfitting trap",
-        "body": "A line that bends to touch every single dot has basically **memorized** the examples instead of **learning** the pattern.\n\nGive it a new dot it hasn't seen and it flails. This is called **overfitting** — being so obsessed with the practice questions that you bomb the real test. A simpler line that's 'close enough' usually predicts new data better."
-      },
-      {
-        "kind": "quiz",
-        "title": "Spot the overfit",
-        "question": "An AI scores 100% on its practice data but terribly on new data. What probably happened?",
-        "choices": [
-          "It overfit — it memorized instead of learning the pattern",
-          "It's perfect",
-          "The new data is wrong",
-          "It needs a bigger screen"
-        ],
-        "answer": 0,
-        "explain": "Classic overfitting: it memorized the practice set and never learned the general pattern, so new data trips it up."
+        "body": "You *could* draw a wild, wiggly line that hits **every** dot perfectly… but that's usually a trap. A line that bends to touch every dot has **memorized** the examples instead of learning the pattern — give it a new dot and it flails. That's **overfitting**.\n\nWant to feel it? The **Regression Studio** lets you crank the curve from straight to super-bendy and watch it overfit on purpose."
       },
       {
         "kind": "explain",
-        "title": "Why predicting numbers matters",
-        "body": "Regression is everywhere grown-ups use AI:\n\n- 🏠 estimating house prices\n- 🌡️ forecasting tomorrow's temperature\n- 📈 predicting how many people will show up\n\nAll the same idea you just did: fit a line (or curve) to past examples, then read off a prediction."
-      },
-      {
-        "kind": "quiz",
-        "title": "Recap",
-        "question": "What's the goal when fitting a line to data?",
-        "choices": [
-          "Touch every single dot exactly",
-          "Get the smallest total error without overfitting",
-          "Make the line as steep as possible",
-          "Use the fewest dots"
-        ],
-        "answer": 1,
-        "explain": "Smallest error, but not by memorizing — a simple line that generalizes beats a wiggly one that overfits."
-      },
-      {
-        "kind": "explain",
-        "title": "What you learned 🎉",
-        "body": "- **Classification** predicts a category; **regression** predicts a **number**\n- The **line of best fit** is the one with the smallest **error (loss)**\n- **Training = lowering the error**, step by step — the heart of all AI\n- **Overfitting** = memorizing instead of learning; simpler often generalizes better\n\n**Next up:** a different kind of AI you can actually *read* — the **decision tree**."
+        "title": "What you built 🎉",
+        "body": "- **Classification** predicts a category; **regression** predicts a **number**\n- You laid the **line of best fit** — the one with the smallest **error (loss)**\n- **Training = lowering the error**, step by step — the heart of all AI\n- A simple line that's 'close enough' usually beats a wiggly one that **overfits**\n\n**Next up:** a different kind of AI you can actually *read* — the **decision tree**."
       }
     ]
   },
