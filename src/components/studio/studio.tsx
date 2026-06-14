@@ -4,10 +4,14 @@ import { useState } from "react";
 import { ChatPanel } from "@/components/studio/chat-panel";
 import { WorkspacePanel } from "@/components/studio/workspace-panel";
 
+export type EditorKind = "app" | "game";
+
 export interface WorkspaceMeta {
   id: string;
   name: string;
   mode: "SCRATCH" | "IMPORT";
+  /** What this workspace builds — drives the editor's per-mode panels. */
+  kind: EditorKind;
   repo: string | null;
   provider: string;
   baseBranch: string | null;

@@ -752,12 +752,18 @@ export function ChatPanel({
                 <Sparkles className="h-7 w-7 text-accent" />
               </div>
               <h2 className="brand-gradient-text mb-2 text-2xl font-semibold tracking-tight">
-                {workspace.mode === "IMPORT" ? workspace.repo : "What are we building?"}
+                {workspace.mode === "IMPORT"
+                  ? workspace.repo
+                  : workspace.kind === "game"
+                    ? "What game are we making?"
+                    : "What are we building?"}
               </h2>
               <p className="mb-6 text-sm leading-relaxed text-txt2">
                 {workspace.mode === "IMPORT"
                   ? "Ask Helix to change anything in this repo — it reads the files, edits them in the workspace, and you push when ready."
-                  : "Describe the app you want. Files appear in the workspace as Helix writes them — push to GitHub when you like what you see."}
+                  : workspace.kind === "game"
+                    ? "Describe the game you want. Helix builds it — hit Play to try it, then keep tweaking until it's fun."
+                    : "Describe the app you want. Files appear in the workspace as Helix writes them — push to GitHub when you like what you see."}
               </p>
               {workspace.mode === "SCRATCH" && (
                 <div className="grid gap-2 text-left">
@@ -1126,7 +1132,9 @@ export function ChatPanel({
                     ? "Describe it — Helix plans first, builds after you approve…"
                     : workspace.mode === "IMPORT"
                       ? "Describe a change to this repo…"
-                      : "Describe the app you want built…"
+                      : workspace.kind === "game"
+                        ? "Describe the game you want built…"
+                        : "Describe the app you want built…"
             }
             className="flex-1 rounded-xl border border-border bg-bg2 px-4 py-2.5 text-sm text-txt placeholder:text-txt3 focus:border-accent focus:outline-none disabled:opacity-60"
           />

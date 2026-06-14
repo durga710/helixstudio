@@ -150,7 +150,9 @@ export function WorkspacePanel({
   const [dirty, setDirty] = useState<Record<string, string>>({});
   const [loadingFile, setLoadingFile] = useState(false);
 
-  const [tab, setTab] = useState<"code" | "preview" | "diff" | "intents">("code");
+  // Games open on the Play (preview) tab — the point is to run it, not read code.
+  const isGame = workspace.kind === "game";
+  const [tab, setTab] = useState<"code" | "preview" | "diff" | "intents">(isGame ? "preview" : "code");
   const [fullscreen, setFullscreen] = useState(false);
   const [newFileOpen, setNewFileOpen] = useState(false);
   const [newFilePath, setNewFilePath] = useState("");
@@ -895,7 +897,7 @@ export function WorkspacePanel({
                   : "text-txt2 hover:bg-panel2 hover:text-txt",
               )}
             >
-              <MonitorPlay className="h-3.5 w-3.5" /> Preview
+              <MonitorPlay className="h-3.5 w-3.5" /> {isGame ? "Play" : "Preview"}
             </button>
             <button
               type="button"

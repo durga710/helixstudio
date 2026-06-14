@@ -317,6 +317,10 @@ model Workspace {
   name   String
   mode   WorkspaceMode
 
+  // What the editor builds here: "app" (default) or "game". Drives the editor's
+  // per-mode panels (Game gets a Play panel). AI/Lab mode is workspace-less.
+  kind String @default("app")
+
   // Shared into a Space → Space members can view/open/copy it (read-only).
   // null = private to the owner.
   spaceId String?

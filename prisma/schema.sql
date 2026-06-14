@@ -249,6 +249,7 @@ CREATE TABLE "Workspace" (
     "userId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "mode" "WorkspaceMode" NOT NULL,
+    "kind" TEXT NOT NULL DEFAULT 'app',
     "spaceId" TEXT,
     "provider" TEXT NOT NULL DEFAULT 'github',
     "repo" TEXT,

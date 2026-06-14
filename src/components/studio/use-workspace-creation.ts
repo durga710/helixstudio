@@ -59,6 +59,30 @@ export function useWorkspaceCreation(onNavigate?: () => void) {
     setCreating(false);
   }
 
+  /** Create a game workspace of the given category (seeds its starter 0-token). */
+  async function createGame(gameCategory: string, prompt?: string): Promise<void> {
+    if (creating) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/workspaces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "SCRATCH", buildKind: "game", gameCategory, ...(prompt?.trim() ? { prompt: prompt.trim() } : {}) }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        setError(json?.error?.message ?? "Couldn't create the game.");
+      } else {
+        go(json.data.id);
+        return;
+      }
+    } catch {
+      setError("Network error. Try again.");
+    }
+    setCreating(false);
+  }
+
   /** Returns false on failure so callers can close/reset their pickers. */
   async function importRepo(provider: GitProviderName, repo: string): Promise<boolean> {
     setCreating(true);
@@ -181,5 +205,5 @@ export function useWorkspaceCreation(onNavigate?: () => void) {
     }
   }
 
-  return { creating, error, setError, uploadNote, createScratch, importRepo, importFolder };
+  return { creating, error, setError, uploadNote, createScratch, createGame, importRepo, importFolder };
 }

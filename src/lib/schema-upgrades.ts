@@ -388,4 +388,7 @@ ALTER TABLE "Assignment" ADD COLUMN IF NOT EXISTS "lessonId" TEXT;
 -- 2026-06 · Rolling conversation memory (smart AI compaction for long chats)
 ALTER TABLE "Workspace" ADD COLUMN IF NOT EXISTS "convoSummary" TEXT;
 ALTER TABLE "Workspace" ADD COLUMN IF NOT EXISTS "convoSummaryAt" TIMESTAMP(3);
+
+-- 2026-06 · Editor mode (app | game) — drives per-mode editor panels
+ALTER TABLE "Workspace" ADD COLUMN IF NOT EXISTS "kind" TEXT NOT NULL DEFAULT 'app';
 `;

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db, dbEnabled, schemaReady } from "@/lib/db";
+import { isAdminEmail } from "@/lib/admin";
 import { StudioHome } from "@/components/studio/studio-home";
 
 export const metadata = { title: "Editor" };
@@ -52,6 +53,7 @@ export default async function EditorPage() {
         id: true,
         name: true,
         mode: true,
+        kind: true,
         repo: true,
         provider: true,
         updatedAt: true,
@@ -70,6 +72,7 @@ export default async function EditorPage() {
         id: true,
         name: true,
         mode: true,
+        kind: true,
         repo: true,
         provider: true,
         updatedAt: true,
@@ -84,10 +87,12 @@ export default async function EditorPage() {
     <div className="mx-auto max-w-5xl px-4 py-10">
       <StudioHome
         isGuest={Boolean(session.user.isGuest)}
+        isAdmin={isAdminEmail(session.user.email)}
         workspaces={workspaces.map((w) => ({
           id: w.id,
           name: w.name,
           mode: w.mode,
+          kind: w.kind === "game" ? "game" : "app",
           repo: w.repo,
           provider: w.provider,
           updatedAt: w.updatedAt.toISOString(),
@@ -98,6 +103,7 @@ export default async function EditorPage() {
           id: w.id,
           name: w.name,
           mode: w.mode,
+          kind: w.kind === "game" ? "game" : "app",
           repo: w.repo,
           provider: w.provider,
           updatedAt: w.updatedAt.toISOString(),

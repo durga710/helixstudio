@@ -62,6 +62,7 @@ export async function GET() {
       id: true,
       name: true,
       mode: true,
+      kind: true,
       provider: true,
       repo: true,
       baseBranch: true,
@@ -135,6 +136,7 @@ export async function POST(req: Request) {
         userId: g.user.id,
         name: parsed.data.name?.trim() || "Untitled project",
         mode: "SCRATCH",
+        kind: buildKind === "game" ? "game" : "app",
         ...(tpl && {
           notes: buildTemplateNote(tpl),
           files: { create: tpl.files.map((f) => ({ path: f.path, content: f.content })) },

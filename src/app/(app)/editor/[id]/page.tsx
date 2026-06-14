@@ -15,7 +15,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const ws = await db().workspace.findUnique({
     where: { id },
-    select: { id: true, userId: true, name: true, mode: true, repo: true, provider: true, baseBranch: true, spaceId: true },
+    select: { id: true, userId: true, name: true, mode: true, kind: true, repo: true, provider: true, baseBranch: true, spaceId: true },
   });
   if (!ws) notFound();
 
@@ -47,6 +47,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
           id: ws.id,
           name: ws.name,
           mode: ws.mode,
+          kind: ws.kind === "game" ? "game" : "app",
           repo: ws.repo,
           provider: ws.provider,
           baseBranch: ws.baseBranch,
