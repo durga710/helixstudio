@@ -33,6 +33,7 @@ import {
 import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFiles } from "@/lib/workspace";
 import { getTemplate } from "@/lib/templates/store";
 import { buildTemplateNote } from "@/lib/templates/router";
+import { personalizeTemplateFiles } from "@/lib/templates/personalize";
 import { resolveTemplateId } from "@/lib/templates/select";
 import { setProgress, clearProgress } from "@/lib/progress";
 import { usingSandboxBackend, runnerEnabled } from "@/lib/app-runner";
@@ -193,7 +194,8 @@ export async function runAgentTurn(opts: {
       if (tpl) {
         emit("scaffolding a starter…");
         const note = buildTemplateNote(tpl);
-        await writeWorkspaceFiles(ws, tpl.files.map((f) => ({ path: f.path, content: f.content })));
+        const tplFiles = personalizeTemplateFiles(tpl.files, { appName: ws.name });
+        await writeWorkspaceFiles(ws, tplFiles.map((f) => ({ path: f.path, content: f.content })));
         await db().workspace.update({ where: { id: ws.id }, data: { notes: note } });
         ws.notes = note; // reflect it in this turn's context
         tree = await withGitAuth(gitAuth, () => listWorkspaceFiles(ws)).catch(() => tree);

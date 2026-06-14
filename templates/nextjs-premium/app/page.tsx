@@ -30,7 +30,7 @@ export default function Home() {
       <main className="mx-auto max-w-5xl px-6">
         <section className="py-20 text-center sm:py-28">
           <span className="inline-block rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-muted">
-            Built with Helix Studio
+            Now available
           </span>
           <h1 className="mx-auto mt-5 max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">
             {APP_TAGLINE}
@@ -63,7 +63,7 @@ export default function Home() {
 
       <footer className="border-t border-line">
         <div className="mx-auto max-w-5xl px-6 py-6 text-sm text-muted">
-          © {APP_NAME}. Built with Helix Studio.
+          © {APP_NAME}. All rights reserved.
         </div>
       </footer>
     </div>

@@ -15,6 +15,7 @@ import { isValidBranchName } from "@/lib/repo-files";
 import { guard } from "@/lib/route-helpers";
 import { getTemplate } from "@/lib/templates/store";
 import { buildTemplateNote } from "@/lib/templates/router";
+import { personalizeTemplateFiles } from "@/lib/templates/personalize";
 import { resolveTemplateId } from "@/lib/templates/select";
 
 export const runtime = "nodejs";
@@ -107,15 +108,19 @@ export async function POST(req: Request) {
     });
 
     const tpl = templateId ? await getTemplate(templateId) : undefined;
+    const wsName = parsed.data.name?.trim() || "Untitled project";
+    // 0-token: stamp the project name into the skeleton so the first render already
+    // shows the user's app, not the generic placeholder name.
+    const tplFiles = tpl ? personalizeTemplateFiles(tpl.files, { appName: wsName }) : [];
     const ws = await db().workspace.create({
       data: {
         userId: g.user.id,
-        name: parsed.data.name?.trim() || "Untitled project",
+        name: wsName,
         mode: "SCRATCH",
         kind: buildKind === "game" ? "game" : "app",
         ...(tpl && {
           notes: buildTemplateNote(tpl),
-          files: { create: tpl.files.map((f) => ({ path: f.path, content: f.content })) },
+          files: { create: tplFiles.map((f) => ({ path: f.path, content: f.content })) },
         }),
       },
     });

@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 // AI: set the product name + description for the user's app.
 export const metadata: Metadata = {
   title: "Helix App",
-  description: "A premium starter app built with Helix Studio.",
+  description: "A premium app.",
 };
 
 // HELIX-LOCKED: applies the saved palette before paint (no theme flash / no

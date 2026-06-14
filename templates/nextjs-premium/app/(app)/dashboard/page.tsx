@@ -24,21 +24,13 @@ export default function DashboardPage() {
         <StatCard label="Revenue" value="$8.4k" hint="+18% this month" />
       </div>
 
-      {/* AI: BUILD THE APP'S MAIN FEATURE HERE — replace this card's contents. */}
-      <Card className="min-h-[280px]">
-        <h2 className="text-lg font-semibold text-ink">Your feature goes here</h2>
-        <p className="mt-1 text-sm text-muted">
-          Replace this region with the core of the app. Reuse the kit in{" "}
-          <code className="rounded bg-surface2 px-1 py-0.5 text-ink">components/ui.tsx</code> (Card,
-          Button, Input, Field, StatCard) and the color tokens so it stays on-theme.
-        </p>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          {["First", "Second", "Third", "Fourth"].map((row) => (
-            <div key={row} className="flex items-center justify-between rounded-xl border border-line bg-bg px-4 py-3">
-              <span className="text-sm text-ink">{row} example row</span>
-              <span className="text-xs text-muted">placeholder</span>
-            </div>
-          ))}
+      {/* AI: BUILD THE APP'S MAIN FEATURE HERE — replace this card's contents
+          with the user's real feature (list, board, table, form, chart…). Reuse
+          the component kit in components/ui.tsx and the color tokens. */}
+      <Card className="grid min-h-[280px] place-items-center text-center">
+        <div>
+          <h2 className="text-lg font-semibold text-ink">Get started</h2>
+          <p className="mt-1 text-sm text-muted">Your content will appear here.</p>
         </div>
       </Card>
     </div>

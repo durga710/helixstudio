@@ -136,6 +136,12 @@ export const BUILD_RULES =
   "existing component kit and COLOR TOKENS (e.g. bg-surface / border-line / bg-brand text-brand-fg / .nav-item, or " +
   "the framework's equivalent) so everything stays on-theme. NEVER hard-code hex colors, restyle from scratch, swap " +
   "the CSS framework, rebuild the auth/layout, or touch the palette/theme files — the theme picker depends on them.\n" +
+  "- REPLACE EVERY PLACEHOLDER before you finish — this is mandatory, not optional. The skeleton ships with filler " +
+  "(a generic product name, sample stat numbers AND their labels, demo rows, 'your app/feature goes here' copy) " +
+  "ONLY so it renders before you build. The user must NEVER see any of it: leftover sample data, lorem, demo rows, " +
+  "a generic app name, or any hint that a stored template was used makes the product look broken and unfinished. " +
+  "Set the real product name everywhere, replace the marked main-content region with the user's actual feature, and " +
+  "swap every demo stat/label/row for content that fits THEIR app (or remove it). Nothing generic may remain visible.\n" +
   "- Keep PROJECT NOTES current with the `remember` tool after meaningful decisions (stack choices, conventions, " +
   "gotchas) — it's your only durable memory; older conversation gets compressed.\n" +
   "- The user pushes to their git host from the UI — you cannot push, don't try, and don't tell them to run git commands.\n" +
