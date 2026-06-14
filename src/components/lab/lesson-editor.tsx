@@ -19,12 +19,14 @@ import {
   Send,
   Undo2,
   Wand2,
+  Boxes,
 } from "lucide-react";
 import { Markdown } from "@/components/ui/markdown";
 import type { GlossaryTerm, Lesson, LessonManifest, LessonStep } from "@/lib/lessons/types";
 import { WIDGET_CATALOG } from "@/lib/lessons/widgets";
 import { DATASETS } from "@/components/lab/datasets";
 import { LessonRunner } from "@/components/lab/lesson-runner";
+import { WidgetStore } from "@/components/lab/widget-store";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +63,7 @@ export function LessonEditor({
   const [isPublic, setIsPublic] = useState(initialPublic);
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState(false);
+  const [storeOpen, setStoreOpen] = useState(false);
   // One-step undo for AI edits — stash the doc before applying.
   const lastDoc = useRef<{ manifest: LessonManifest; steps: LessonStep[] } | null>(null);
   const [canUndo, setCanUndo] = useState(false);
@@ -312,7 +315,7 @@ export function LessonEditor({
         {/* Add */}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-[12px] text-txt3">Add a step:</span>
-          {(["explain", "predict", "widget", "quiz", "reflect"] as const).map((k) => (
+          {(["explain", "predict", "quiz", "reflect"] as const).map((k) => (
             <button
               key={k}
               onClick={() => addStep(k)}
@@ -321,6 +324,12 @@ export function LessonEditor({
               <Plus className="h-3 w-3" /> {k}
             </button>
           ))}
+          <button
+            onClick={() => setStoreOpen(true)}
+            className="inline-flex items-center gap-1 rounded-md border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-2.5 py-1.5 text-[12px] font-medium text-txt2 transition-colors hover:border-accent hover:text-txt"
+          >
+            <Boxes className="h-3 w-3 text-accent" /> Widget store
+          </button>
         </div>
       </div>
 
@@ -340,6 +349,17 @@ export function LessonEditor({
             <LessonRunner lesson={{ manifest: { ...manifest, id: lessonId }, steps } as Lesson} />
           </div>
         </div>
+      )}
+
+      {storeOpen && (
+        <WidgetStore
+          onClose={() => setStoreOpen(false)}
+          onAdd={(widget, config) => {
+            setSteps((prev) => [...prev, { kind: "widget", widget, ...(config ? { config } : {}) }]);
+            setStoreOpen(false);
+            toast("Widget added — scroll down to your new step");
+          }}
+        />
       )}
 
       <AssistPanel
