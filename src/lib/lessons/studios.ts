@@ -59,6 +59,17 @@ export const STUDIO_CATALOG: StudioMeta[] = [
     estMinutes: 8,
     order: 3,
   },
+  {
+    id: "network",
+    title: "Neural Net Studio",
+    blurb: "One neuron can't crack it. Add hidden neurons, hit Train, and watch a real network bend the boundary.",
+    concept: "neural networks",
+    goal: "Separate the ring from the core (90%)",
+    icon: "Network",
+    level: "advanced",
+    estMinutes: 10,
+    order: 4,
+  },
 ];
 
 export const STUDIO_IDS: string[] = STUDIO_CATALOG.map((s) => s.id);
