@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Scissors, Plus, Wand2, TreePine } from "lucide-react";
+import { Scissors, Plus, Wand2, TreePine, PawPrint } from "lucide-react";
 import type { StudioProps } from "./index";
 import { InfoTip } from "@/components/lab/info-tip";
 import { StudioCoach } from "@/components/lab/studio-coach";
@@ -43,6 +43,20 @@ function predict(root: TreeNode, p: DataPoint): string {
   let n = root;
   while (n.feature) n = p.features[n.feature] > n.threshold! ? n.right! : n.left!;
   return majority(n.rows, CLASSES).label;
+}
+
+/** The sequence of node paths a pet visits, root → leaf (for the "run a pet" animation). */
+function routeOf(root: TreeNode, p: DataPoint): string[] {
+  const out = [""];
+  let n = root;
+  let key = "";
+  while (n.feature) {
+    const goRight = p.features[n.feature] > n.threshold!;
+    key += goRight ? "R" : "L";
+    n = goRight ? n.right! : n.left!;
+    out.push(key);
+  }
+  return out;
 }
 
 function accuracy(root: TreeNode, data: DataPoint[]): number {
@@ -151,6 +165,12 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
   }, []);
   const [threshold, setThreshold] = useState((fullRange[DS.featureNames[0]][0] + fullRange[DS.featureNames[0]][1]) / 2);
 
+  // "Send a pet down the tree" animation state.
+  const [runPet, setRunPet] = useState<DataPoint | null>(null);
+  const [runRoute, setRunRoute] = useState<string[]>([]);
+  const [runIdx, setRunIdx] = useState(0);
+  const runTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const { placed, leafCount, maxDepth } = useMemo(() => layout(tree), [tree]);
   const byPath = useMemo(() => new Map(placed.map((p) => [p.path, p])), [placed]);
 
@@ -215,6 +235,7 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
 
   function addSplit() {
     if (sel === null || !selNode || selNode.feature || !preview || preview.empty || selDepth >= MAX_DEPTH) return;
+    stopRun();
     const f = feature;
     const t = threshold;
     const next = updateAt(tree, sel, (leaf) => {
@@ -240,12 +261,45 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
 
   function prune() {
     if (sel === null || !selNode || !selNode.feature) return;
+    stopRun();
     setTree(updateAt(tree, sel, (n) => ({ rows: n.rows })));
   }
+
+  function stopRun() {
+    if (runTimer.current) clearInterval(runTimer.current);
+    runTimer.current = null;
+    setRunPet(null);
+  }
+  function runPetThrough() {
+    if (runTimer.current) clearInterval(runTimer.current);
+    const pet = TEST[Math.floor(Math.random() * TEST.length)];
+    const route = routeOf(tree, pet);
+    setRunPet(pet);
+    setRunRoute(route);
+    setRunIdx(0);
+    if (route.length <= 1) return;
+    let i = 0;
+    runTimer.current = setInterval(() => {
+      i++;
+      setRunIdx(i);
+      if (i >= route.length - 1) {
+        if (runTimer.current) clearInterval(runTimer.current);
+        runTimer.current = null;
+      }
+    }, 620);
+  }
+  useEffect(() => () => void (runTimer.current && clearInterval(runTimer.current)), []);
 
   const svgW = leafCount * SLOT;
   const svgH = (maxDepth + 1) * LEVEL;
   const colorOf = (label: string) => CLASS_COLORS[CLASSES.indexOf(label) % CLASS_COLORS.length];
+
+  // "Run a pet" derived state.
+  const visited = new Set(runRoute.slice(1, runIdx + 1));
+  const runDone = runPet !== null && runIdx >= runRoute.length - 1;
+  const runLeaf = runDone ? byPath.get(runRoute[runRoute.length - 1])?.node : undefined;
+  const runPred = runLeaf ? majority(runLeaf.rows, CLASSES).label : null;
+  const runCorrect = runPred !== null && runPet ? runPred === runPet.label : false;
 
   return (
     <div className="rounded-card border border-border bg-panel2 p-4">
@@ -275,6 +329,12 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
         </span>
         <span className="text-txt3">On its own examples (train): <b className="text-txt2">{Math.round(trainAcc * 100)}%</b></span>
         <span className="text-txt3">{leafCountTotal} leaf{leafCountTotal === 1 ? "" : "ves"}</span>
+        <button
+          onClick={runPetThrough}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-2.5 py-1 text-[12px] font-medium text-txt2 transition-colors hover:border-accent hover:text-txt"
+        >
+          <PawPrint className="h-3.5 w-3.5 text-accent" /> Send a pet down
+        </button>
       </div>
 
       {/* tree diagram */}
@@ -289,10 +349,11 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
               if (!c) return null;
               const cx = c.x * SLOT + SLOT / 2;
               const cy = c.depth * LEVEL + 26;
+              const onRoute = visited.has(p.path + dir);
               return (
                 <g key={p.path + dir}>
-                  <line x1={px} y1={py + 14} x2={cx} y2={cy - 14} stroke="#2a3a55" strokeWidth={1.4} />
-                  <text x={(px + cx) / 2} y={(py + cy) / 2} textAnchor="middle" fill="#7d8ba3" fontSize={9}>
+                  <line x1={px} y1={py + 14} x2={cx} y2={cy - 14} stroke={onRoute ? "var(--accent)" : "#2a3a55"} strokeWidth={onRoute ? 3 : 1.4} />
+                  <text x={(px + cx) / 2} y={(py + cy) / 2} textAnchor="middle" fill={onRoute ? "var(--accent)" : "#7d8ba3"} fontSize={9} fontWeight={onRoute ? 700 : 400}>
                     {dir === "R" ? "yes" : "no"}
                   </text>
                 </g>
@@ -334,8 +395,41 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
               </g>
             );
           })}
+
+          {/* the pet hopping down the tree */}
+          {runPet &&
+            (() => {
+              const pos = byPath.get(runRoute[Math.min(runIdx, runRoute.length - 1)]);
+              if (!pos) return null;
+              const tx = pos.x * SLOT + SLOT / 2;
+              const ty = pos.depth * LEVEL + 26;
+              return (
+                <g style={{ transform: `translate(${tx}px, ${ty}px)`, transition: "transform 0.55s ease" }}>
+                  <circle r={13} fill="var(--accent)" fillOpacity={0.22} stroke="var(--accent)" strokeWidth={2} />
+                  <text textAnchor="middle" dy={4.5} fontSize={14}>🐾</text>
+                </g>
+              );
+            })()}
         </svg>
       </div>
+
+      {/* run-a-pet verdict */}
+      {runDone && runPet && runPred && (
+        <div
+          className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-3 py-2 text-[12px]"
+          style={{ borderColor: runCorrect ? "var(--ok)" : "var(--bad)", background: `color-mix(in srgb, ${runCorrect ? "var(--ok)" : "var(--bad)"} 8%, transparent)` }}
+        >
+          <PawPrint className="h-3.5 w-3.5 shrink-0 text-accent" />
+          <span className="text-txt2">
+            This pet ({DS.featureNames.map((f) => `${featureLabel(f)} ${runPet.features[f]}`).join(", ")}) followed the questions and landed on{" "}
+            <b style={{ color: colorOf(runPred) }}>{runPred}</b> —{" "}
+            {runCorrect ? <span className="font-semibold text-ok">correct! ✓</span> : <span className="font-semibold text-bad">it&apos;s really a {runPet.label} ✗</span>}
+          </span>
+          <button onClick={runPetThrough} className="ml-auto rounded-md border border-border2 bg-panel2 px-2 py-0.5 text-[11px] text-txt2 transition-colors hover:border-accent hover:text-txt">
+            Try another
+          </button>
+        </div>
+      )}
 
       {/* control panel */}
       <div className="mt-3 rounded-md border border-border2 bg-panel p-3">
@@ -377,21 +471,21 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
               </span>
             </div>
 
-            <label className="mt-2.5 flex items-center gap-2 text-[11.5px] text-txt3">
-              <span className="inline-flex w-24 shrink-0 items-center gap-1">
+            <div className="mt-2.5">
+              <div className="mb-1 inline-flex items-center gap-1 text-[11.5px] text-txt3">
                 cut at {threshold}{DS.units?.[feature] ? ` ${DS.units[feature]}` : ""}
-                <InfoTip text="The cut is the number where the question splits the pets — above goes “yes”, below goes “no”." />
-              </span>
-              <input
-                type="range"
-                min={fullRange[feature][0]}
-                max={fullRange[feature][1]}
-                step={(fullRange[feature][1] - fullRange[feature][0]) / 100}
-                value={threshold}
-                onChange={(e) => bumpThreshold(Number(e.target.value))}
-                className="flex-1 accent-[var(--accent)]"
+                <InfoTip text="Drag the line to set where the question splits the pets — left goes “no”, right goes “yes”. Watch the pets take sides!" />
+              </div>
+              <CutStrip
+                rows={selNode.rows}
+                feature={feature}
+                lo={fullRange[feature][0]}
+                hi={fullRange[feature][1]}
+                threshold={threshold}
+                onCut={bumpThreshold}
+                colorOf={colorOf}
               />
-            </label>
+            </div>
 
             {preview && (
               <div className="mt-2.5 grid grid-cols-2 gap-2 text-[11.5px]">
@@ -440,5 +534,74 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
         )}
       </div>
     </div>
+  );
+}
+
+/* "See the cut" — the selected leaf's pets laid out along one clue, with a
+ * draggable line you slide to split them. Makes the abstract threshold tactile:
+ * you watch the real pets fall onto the "no" / "yes" side as you drag. */
+function CutStrip({
+  rows,
+  feature,
+  lo,
+  hi,
+  threshold,
+  onCut,
+  colorOf,
+}: {
+  rows: DataPoint[];
+  feature: string;
+  lo: number;
+  hi: number;
+  threshold: number;
+  onCut: (v: number) => void;
+  colorOf: (label: string) => string;
+}) {
+  const SW = 300;
+  const SH = 66;
+  const PAD = 14;
+  const ref = useRef<SVGSVGElement>(null);
+  const drag = useRef(false);
+  const sx = (v: number) => PAD + ((v - lo) / (hi - lo || 1)) * (SW - PAD * 2);
+  const tx = sx(threshold);
+
+  function setFromClient(clientX: number) {
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return;
+    const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    onCut(lo + frac * (hi - lo));
+  }
+
+  return (
+    <svg
+      ref={ref}
+      viewBox={`0 0 ${SW} ${SH}`}
+      className="w-full touch-none select-none rounded-md border border-border2 bg-panel"
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        drag.current = true;
+        setFromClient(e.clientX);
+      }}
+      onPointerMove={(e) => {
+        if (drag.current) setFromClient(e.clientX);
+      }}
+      onPointerUp={() => {
+        drag.current = false;
+      }}
+    >
+      {/* "no" side tint */}
+      <rect x={0} y={0} width={tx} height={SH} fill="var(--accent)" opacity={0.06} />
+      {/* the pets along this clue */}
+      {rows.map((p, i) => {
+        const x = sx(p.features[feature]);
+        const y = PAD + ((i * 13) % (SH - PAD * 2));
+        return <circle key={i} cx={x} cy={y} r={4} fill={colorOf(p.label)} stroke="#0d1626" strokeWidth={1} />;
+      })}
+      {/* the draggable cut */}
+      <line x1={tx} y1={3} x2={tx} y2={SH - 3} stroke="var(--accent)" strokeWidth={2.5} />
+      <circle cx={tx} cy={9} r={7} fill="var(--accent)" className="cursor-ew-resize" />
+      <text x={5} y={SH - 4} fontSize={9} fill="#7d8ba3">← no</text>
+      <text x={SW - 5} y={SH - 4} textAnchor="end" fontSize={9} fill="#7d8ba3">yes →</text>
+    </svg>
   );
 }
