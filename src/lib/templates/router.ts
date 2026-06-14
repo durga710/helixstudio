@@ -18,6 +18,66 @@ import { checkTokenBudget } from "@/lib/token-budget";
 
 const DEFAULT_ID = "static-web";
 
+// ── Intent routing (the smart split) ────────────────────────────────────────
+// Keyword *scoring* alone sent most app requests to the static default (an "app"
+// word scores 1, below the confidence floor of 2). So before scoring we read the
+// prompt's INTENT: an explicit framework wins; a dynamic/app request gets a real
+// framework; only a genuinely static site type (portfolio, landing…) stays static.
+
+/** Explicit framework mention → that framework's starter (strongest signal). */
+const FRAMEWORK_HINTS: { re: RegExp; id: string }[] = [
+  { re: /\b(next\.?js|nextjs)\b/, id: "nextjs-app" },
+  { re: /\breact\b/, id: "nextjs-app" },
+  { re: /\bdjango\b/, id: "django-app" },
+  { re: /\bflask\b/, id: "flask-api" },
+  { re: /\b(express|node\.?js|nodejs)\b/, id: "express-api" },
+];
+
+/** Words that imply a dynamic, stateful application → a framework (nextjs-app). */
+const APP_INTENT = [
+  "app", "application", "web app", "webapp", "dashboard", "saas", "platform", "tool",
+  "login", "signup", "sign up", "sign in", "auth", "account", "accounts", "user", "users",
+  "admin", "crud", "database", "backend", "api", "portal", "tracker", "manager", "management",
+  "booking", "reservation", "marketplace", "social", "chat", "messaging", "messenger",
+  "todo", "to-do", "inventory", "cms", "ecommerce", "e-commerce", "commerce", "store", "shop",
+  "checkout", "crm", "scheduler", "calendar", "forum", "wiki", "directory", "analytics",
+];
+
+/** Words that imply a simple, content-only site → the instant static starter. */
+const STATIC_INTENT = [
+  "portfolio", "landing", "landing page", "brochure", "one-page", "one page",
+  "coming soon", "promo", "flyer", "resume", "cv", "business card",
+  "personal site", "personal website",
+];
+
+function countIntent(lower: string, words: Set<string>, list: string[]): number {
+  let n = 0;
+  for (const kw of list) {
+    if (kw.includes(" ") || kw.includes("-")) {
+      if (lower.includes(kw)) n++;
+    } else if (words.has(kw)) {
+      n++;
+    }
+  }
+  return n;
+}
+
+/** Resolve a starter from intent, or null to fall through to keyword scoring. */
+function intentRoute(prompt: string, templates: Templates): string | null {
+  const lower = prompt.toLowerCase();
+  for (const h of FRAMEWORK_HINTS) {
+    if (h.re.test(lower) && templates[h.id]) return h.id;
+  }
+  const words = new Set(tokenize(prompt));
+  const appHits = countIntent(lower, words, APP_INTENT);
+  const staticHits = countIntent(lower, words, STATIC_INTENT);
+  // A clearly-static site type with no app signal stays static…
+  if (staticHits > 0 && appHits === 0 && templates[DEFAULT_ID]) return DEFAULT_ID;
+  // …otherwise any app signal earns a real framework.
+  if (appHits > 0 && templates["nextjs-app"]) return "nextjs-app";
+  return null;
+}
+
 export interface Classification {
   templateId: string;
   label: string;
@@ -79,6 +139,19 @@ function alternativesFor(prompt: string, chosenId: string, templates: Templates)
 export async function classifyPrompt(prompt: string, userId: string): Promise<Classification> {
   const templates = await getAllTemplates();
   const ids = Object.keys(templates);
+
+  // Intent first: an explicit framework, an app request, or a clearly-static site
+  // type resolves here with no model call (and fixes "every app became static").
+  const intent = intentRoute(prompt, templates);
+  if (intent) {
+    return {
+      templateId: intent,
+      label: templates[intent]?.manifest.label ?? intent,
+      confident: true,
+      alternatives: alternativesFor(prompt, intent, templates),
+    };
+  }
+
   const rules = classifyByKeywords(prompt, templates);
   let chosen = rules.templateId;
 
