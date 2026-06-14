@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Scissors, Plus, Wand2, TreePine } from "lucide-react";
 import type { StudioProps } from "./index";
+import { getStudioMeta, type StudioChallenge } from "@/lib/lessons/studios";
+import { InfoTip } from "@/components/lab/info-tip";
+import { StudioCoach } from "@/components/lab/studio-coach";
 import { getDataset, featureLabel, CLASS_COLORS, type DataPoint } from "@/components/lab/datasets";
 
 /* Decision Tree Studio — the hero build loop. The student grows a real decision
@@ -126,7 +129,26 @@ const TEST = DS.points.filter((_, i) => i % 3 === 2);
 const SLOT = 124;
 const LEVEL = 82;
 
-export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
+const CHALLENGES = getStudioMeta("tree")?.challenges ?? [];
+
+/** The build-along script for Learn mode. */
+const LEARN_STEPS: { text: string; cta?: string }[] = [
+  { text: 'Your tree starts by guessing the same answer for every pet. Let’s teach it to ask a question. Pick a clue to split on — tap "Ears", "Weight" or "Tail" below.' },
+  { text: 'Now slide "the cut". The two boxes show which pets land on each side — aim for each side to be mostly ONE color. (Stuck? Tap "Suggest".)' },
+  { text: 'Happy with it? Press "Add split" to add that question to your tree.' },
+  { text: "See the two new branches? Each leaf now holds a tidier group. Click another mixed leaf and split it too — keep going until you’re 85% on new pets.", cta: "Got it" },
+];
+
+function meetsChallenge(c: StudioChallenge, testAcc: number, trainAcc: number, splits: number): boolean {
+  if (c.minAccuracy !== undefined && testAcc < c.minAccuracy) return false;
+  if (c.maxSplits !== undefined && splits > c.maxSplits) return false;
+  if (c.maxGap !== undefined && trainAcc - testAcc > c.maxGap) return false;
+  return true;
+}
+
+export function TreeStudio({ mode = "sandbox", challengeId, onProgress, onComplete, onState }: StudioProps) {
+  const challenge = useMemo(() => CHALLENGES.find((c) => c.id === challengeId), [challengeId]);
+  const [learnStep, setLearnStep] = useState(0);
   const [tree, setTree] = useState<TreeNode>(() => ({ rows: TRAIN }));
   const [sel, setSel] = useState<string | null>("");
   const [feature, setFeature] = useState(DS.featureNames[0]);
@@ -146,22 +168,36 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
   const trainAcc = useMemo(() => accuracy(tree, TRAIN), [tree]);
   const testAcc = useMemo(() => accuracy(tree, TEST), [tree]);
   const leafCountTotal = placed.filter((p) => !p.node.feature).length;
+  const splitCount = placed.filter((p) => p.node.feature).length;
+  const gap = trainAcc - testAcc;
+  const goalMet = mode === "challenge" && challenge ? meetsChallenge(challenge, testAcc, trainAcc, splitCount) : testAcc >= TARGET;
+  const denom = mode === "challenge" && challenge?.minAccuracy ? challenge.minAccuracy : TARGET;
 
   const completed = useRef(false);
   useEffect(() => {
-    onProgress?.((testAcc / TARGET) * 100);
-    onState?.({
-      leaves: leafCountTotal,
-      depth: maxDepth,
-      trainAccuracy: Math.round(trainAcc * 100),
-      testAccuracy: Math.round(testAcc * 100),
-    });
-    if (testAcc >= TARGET && !completed.current) {
+    const tp = Math.round(testAcc * 100);
+    const rp = Math.round(trainAcc * 100);
+    let narration: string;
+    if (splitCount === 0) {
+      narration = `Right now your tree asks no questions — it just guesses the most common pet for everyone, so it's ${tp}% right on new pets. Click a leaf and split it to do better.`;
+    } else {
+      narration = `Your tree asks ${splitCount} question${splitCount === 1 ? "" : "s"}. It's ${tp}% right on new pets it's never seen (${rp}% on its practice pets).`;
+      if (gap > 0.18) narration += " It does much better on practice than on new pets — that's overfitting (memorizing). Try pruning a split.";
+      else if (tp >= 85) narration += " That clears the goal — nice work.";
+      else narration += " Click a still-mixed leaf and split it to push the new-pet score up.";
+    }
+    if (mode === "challenge" && challenge) {
+      if (challenge.maxSplits !== undefined) narration += ` Mission: ${Math.round((challenge.minAccuracy ?? 0.85) * 100)}% with ${challenge.maxSplits} splits or fewer — you've used ${splitCount}.`;
+      else if (challenge.maxGap !== undefined) narration += ` Mission: keep the practice-vs-new gap under ${Math.round(challenge.maxGap * 100)}% — it's ${Math.round(Math.max(0, gap) * 100)}% now.`;
+    }
+    onProgress?.(Math.min(100, (testAcc / denom) * 100));
+    onState?.({ leaves: leafCountTotal, splits: splitCount, depth: maxDepth, trainAccuracy: rp, testAccuracy: tp, narration });
+    if (goalMet && !completed.current) {
       completed.current = true;
       onComplete();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [testAcc, trainAcc, leafCountTotal, maxDepth]);
+  }, [testAcc, trainAcc, splitCount, leafCountTotal, maxDepth, mode, challengeId]);
 
   const selNode = sel !== null ? byPath.get(sel)?.node : undefined;
   const selIsLeaf = selNode ? !selNode.feature : false;
@@ -182,6 +218,11 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
   function pickFeature(f: string) {
     setFeature(f);
     setThreshold((fullRange[f][0] + fullRange[f][1]) / 2);
+    if (mode === "learn" && learnStep === 0) setLearnStep(1);
+  }
+  function bumpThreshold(v: number) {
+    setThreshold(Math.round(v * 10) / 10);
+    if (mode === "learn" && learnStep === 1) setLearnStep(2);
   }
 
   function addSplit() {
@@ -196,6 +237,7 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
     // Nudge the student to the messier new leaf.
     const child = sel + (gini(splitRows(selNode.rows, f, t).low, CLASSES) >= gini(splitRows(selNode.rows, f, t).high, CLASSES) ? "L" : "R");
     setSel(child);
+    if (mode === "learn" && learnStep < 3) setLearnStep(3);
   }
 
   function suggest() {
@@ -205,6 +247,7 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
       setFeature(b.feature);
       setThreshold(Math.round(b.threshold * 10) / 10);
     }
+    if (mode === "learn" && learnStep <= 1) setLearnStep(2);
   }
 
   function prune() {
@@ -218,14 +261,30 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
 
   return (
     <div className="rounded-card border border-border bg-panel2 p-4">
+      {mode === "learn" && (
+        <StudioCoach
+          index={learnStep}
+          total={LEARN_STEPS.length}
+          done={learnStep >= LEARN_STEPS.length}
+          text={
+            learnStep < LEARN_STEPS.length
+              ? LEARN_STEPS[learnStep].text
+              : "You’ve got the hang of it — keep splitting the mixed leaves to reach 85% on new pets, or switch to Challenge mode up top."
+          }
+          cta={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].cta : undefined}
+          onNext={learnStep < LEARN_STEPS.length && LEARN_STEPS[learnStep].cta ? () => setLearnStep((s) => s + 1) : undefined}
+        />
+      )}
+
       {/* scoreboard */}
       <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px]">
         <span className="inline-flex items-center gap-1.5 font-semibold text-txt">
           <TreePine className="h-4 w-4 text-accent" /> Your tree
         </span>
-        <span className="text-txt3">
+        <span className="inline-flex items-center gap-1 text-txt3">
           On new pets (test): <b className="text-txt" style={{ color: testAcc >= TARGET ? "var(--ok)" : undefined }}>{Math.round(testAcc * 100)}%</b>
           <span className="text-txt3"> · goal {Math.round(TARGET * 100)}%</span>
+          <InfoTip text="These are pets the tree never saw while you built it. Doing well here means it really learned the pattern, not just memorized." />
         </span>
         <span className="text-txt3">On its own examples (train): <b className="text-txt2">{Math.round(trainAcc * 100)}%</b></span>
         <span className="text-txt3">{leafCountTotal} leaf{leafCountTotal === 1 ? "" : "ves"}</span>
@@ -293,7 +352,10 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
         ) : selIsLeaf ? (
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[12px] font-semibold text-txt2">Split these {selNode.rows.length} pets by:</span>
+              <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-txt2">
+                Split these {selNode.rows.length} pets by:
+                <InfoTip text="A clue is a measurement you can ask about — here: weight, ear size, or tail length." />
+              </span>
               {DS.featureNames.map((f) => (
                 <button
                   key={f}
@@ -314,14 +376,17 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
             </div>
 
             <label className="mt-2.5 flex items-center gap-2 text-[11.5px] text-txt3">
-              <span className="w-20 shrink-0">cut at {threshold}{DS.units?.[feature] ? ` ${DS.units[feature]}` : ""}</span>
+              <span className="inline-flex w-24 shrink-0 items-center gap-1">
+                cut at {threshold}{DS.units?.[feature] ? ` ${DS.units[feature]}` : ""}
+                <InfoTip text="The cut is the number where the question splits the pets — above goes “yes”, below goes “no”." />
+              </span>
               <input
                 type="range"
                 min={fullRange[feature][0]}
                 max={fullRange[feature][1]}
                 step={(fullRange[feature][1] - fullRange[feature][0]) / 100}
                 value={threshold}
-                onChange={(e) => setThreshold(Math.round(Number(e.target.value) * 10) / 10)}
+                onChange={(e) => bumpThreshold(Number(e.target.value))}
                 className="flex-1 accent-[var(--accent)]"
               />
             </label>
@@ -372,12 +437,6 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
           </div>
         )}
       </div>
-
-      {trainAcc - testAcc > 0.18 && (
-        <p className="mt-2 text-[11px] text-txt3">
-          💡 Your tree is much better on its own examples than on new pets — that&apos;s <b className="text-txt2">overfitting</b>. It memorized instead of learning the pattern. Try pruning a split.
-        </p>
-      )}
     </div>
   );
 }
