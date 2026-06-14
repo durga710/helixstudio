@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Network, Sparkles, Minus, Plus, RotateCcw } from "lucide-react";
 import { CLASS_COLORS } from "@/components/lab/datasets";
+import { initNet, forward, trainEpochs, accuracyOf, type Net, type Sample } from "@/lib/lab/mlp";
 import type { StudioProps } from "./index";
 import { getStudioMeta, type StudioChallenge } from "@/lib/lessons/studios";
 import { InfoTip } from "@/components/lab/info-tip";
@@ -15,7 +16,6 @@ import { StudioCoach } from "@/components/lab/studio-coach";
  * that depth/width is what bends the line. Pure JS, trains live. */
 
 const TARGET = 0.9;
-const LR = 0.6;
 const EPOCHS_PER_TICK = 18;
 const MAX_ROUNDS = 900;
 const W = 300;
@@ -24,11 +24,6 @@ const GRID = 22;
 
 const IN = CLASS_COLORS[1]; // Core (teal)
 const OUT = CLASS_COLORS[0]; // Ring (red)
-
-interface Sample {
-  x: [number, number];
-  y: number; // 1 = Core, 0 = Ring
-}
 
 // A core surrounded by a ring — not linearly separable (normalized to ~[-1,1]).
 const DATA: Sample[] = [
@@ -41,68 +36,6 @@ const DATA: Sample[] = [
     return { x: [0.85 * Math.cos(ang), 0.85 * Math.sin(ang)] as [number, number], y: 0 };
   }),
 ];
-
-interface Net {
-  W1: number[][];
-  b1: number[];
-  W2: number[];
-  b2: number;
-}
-
-function initNet(h: number): Net {
-  const r = () => (Math.random() * 2 - 1) * 0.9;
-  return { W1: Array.from({ length: h }, () => [r(), r()]), b1: Array.from({ length: h }, r), W2: Array.from({ length: h }, r), b2: r() };
-}
-
-const sig = (z: number) => 1 / (1 + Math.exp(-z));
-
-function forward(net: Net, x: [number, number]) {
-  const a1 = net.W1.map((w, j) => Math.tanh(w[0] * x[0] + w[1] * x[1] + net.b1[j]));
-  const out = sig(net.W2.reduce((s, w, j) => s + w * a1[j], 0) + net.b2);
-  return { a1, out };
-}
-
-function trainEpochs(net: Net, data: Sample[], epochs: number): Net {
-  const W1 = net.W1.map((r) => [...r]);
-  const b1 = [...net.b1];
-  const W2 = [...net.W2];
-  let b2 = net.b2;
-  const Hn = W1.length;
-  const n = data.length;
-  for (let e = 0; e < epochs; e++) {
-    const gW1 = W1.map(() => [0, 0]);
-    const gb1 = Array(Hn).fill(0);
-    const gW2 = Array(Hn).fill(0);
-    let gb2 = 0;
-    for (const d of data) {
-      const a1 = W1.map((w, j) => Math.tanh(w[0] * d.x[0] + w[1] * d.x[1] + b1[j]));
-      const out = sig(W2.reduce((s, w, j) => s + w * a1[j], 0) + b2);
-      const dz2 = out - d.y;
-      for (let j = 0; j < Hn; j++) {
-        gW2[j] += dz2 * a1[j];
-        const dz1 = dz2 * W2[j] * (1 - a1[j] * a1[j]);
-        gW1[j][0] += dz1 * d.x[0];
-        gW1[j][1] += dz1 * d.x[1];
-        gb1[j] += dz1;
-      }
-      gb2 += dz2;
-    }
-    for (let j = 0; j < Hn; j++) {
-      W2[j] -= (LR * gW2[j]) / n;
-      W1[j][0] -= (LR * gW1[j][0]) / n;
-      W1[j][1] -= (LR * gW1[j][1]) / n;
-      b1[j] -= (LR * gb1[j]) / n;
-    }
-    b2 -= (LR * gb2) / n;
-  }
-  return { W1, b1, W2, b2 };
-}
-
-function accuracyOf(net: Net): number {
-  let ok = 0;
-  for (const d of DATA) if ((forward(net, d.x).out > 0.5 ? 1 : 0) === d.y) ok++;
-  return ok / DATA.length;
-}
 
 function hexLerp(a: string, b: string, t: number): string {
   const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
@@ -138,7 +71,7 @@ export function NetworkStudio({ mode = "sandbox", challengeId, onProgress, onCom
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const done = useRef(false);
 
-  const acc = useMemo(() => accuracyOf(net), [net]);
+  const acc = useMemo(() => accuracyOf(net, DATA), [net]);
   const goalMet = mode === "challenge" && challenge ? meetsChallenge(challenge, acc, h) : acc >= TARGET;
 
   const stop = () => {
@@ -196,7 +129,7 @@ export function NetworkStudio({ mode = "sandbox", challengeId, onProgress, onCom
       setNet(working);
       setRound(r);
       // Self-terminate once it's learned the shape (or we hit the cap).
-      if (accuracyOf(working) >= TARGET || r >= MAX_ROUNDS) stop();
+      if (accuracyOf(working, DATA) >= TARGET || r >= MAX_ROUNDS) stop();
     }, 60);
   }
 
