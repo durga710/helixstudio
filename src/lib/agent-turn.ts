@@ -30,7 +30,10 @@ import {
   type ChangeManifest,
   type ToolContext,
 } from "@/lib/workspace-tools";
-import { listWorkspaceFiles, readWorkspaceFile } from "@/lib/workspace";
+import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFiles } from "@/lib/workspace";
+import { getTemplate } from "@/lib/templates/store";
+import { buildTemplateNote } from "@/lib/templates/router";
+import { resolveTemplateId } from "@/lib/templates/select";
 import { setProgress, clearProgress } from "@/lib/progress";
 import { usingSandboxBackend, runnerEnabled } from "@/lib/app-runner";
 import { verifyBuild, verifyMarker } from "@/lib/verify";
@@ -172,8 +175,35 @@ export async function runAgentTurn(opts: {
   // AGENTS.md/CLAUDE.md, a digest of older turns, and a short verbatim
   // window — under a hard input budget.
   emit("reading the workspace…");
-  const tree = await withGitAuth(gitAuth, () => listWorkspaceFiles(ws)).catch(() => []);
-  const treePaths = tree.map((f) => f.path);
+  let tree = await withGitAuth(gitAuth, () => listWorkspaceFiles(ws)).catch(() => []);
+  let treePaths = tree.map((f) => f.path);
+
+  // First build turn on an EMPTY from-scratch workspace → inject the premium-gated
+  // starter from the user's idea BEFORE building, so the agent customizes a real
+  // skeleton (cheap) and the preview renders instead of staying blank. Covers any
+  // path that reaches the agent empty (e.g. "Create from scratch" → first chat).
+  if (mode === "build" && ws.mode === "SCRATCH" && treePaths.length === 0 && !ws.notes && userMessage) {
+    try {
+      const templateId = await resolveTemplateId({
+        prompt: userMessage,
+        userId,
+        buildKind: ws.kind === "game" ? "game" : "app",
+      });
+      const tpl = templateId ? await getTemplate(templateId) : undefined;
+      if (tpl) {
+        emit("scaffolding a starter…");
+        const note = buildTemplateNote(tpl);
+        await writeWorkspaceFiles(ws, tpl.files.map((f) => ({ path: f.path, content: f.content })));
+        await db().workspace.update({ where: { id: ws.id }, data: { notes: note } });
+        ws.notes = note; // reflect it in this turn's context
+        tree = await withGitAuth(gitAuth, () => listWorkspaceFiles(ws)).catch(() => tree);
+        treePaths = tree.map((f) => f.path);
+      }
+    } catch {
+      // best-effort — fall through to building from scratch
+    }
+  }
+
   const pkgJson = treePaths.includes("package.json")
     ? await withGitAuth(gitAuth, () => readWorkspaceFile(ws, "package.json")).catch(() => null)
     : null;

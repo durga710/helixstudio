@@ -13,10 +13,9 @@ import { ok, apiErrors } from "@/lib/api-response";
 import { getProvider, getGitAuth, withGitAuth, isValidRepoId, PROVIDER_META } from "@/lib/git";
 import { isValidBranchName } from "@/lib/repo-files";
 import { guard } from "@/lib/route-helpers";
-import { isAdminEmail } from "@/lib/admin";
 import { getTemplate } from "@/lib/templates/store";
-import { buildTemplateNote, classifyPrompt, classifyGameTemplate } from "@/lib/templates/router";
-import { templateForCategory, templateForEngine } from "@/lib/templates/engines";
+import { buildTemplateNote } from "@/lib/templates/router";
+import { resolveTemplateId } from "@/lib/templates/select";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -94,55 +93,18 @@ export async function POST(req: Request) {
     // Resolve the starter: an explicit templateId wins; otherwise classify the
     // prompt silently (the engine is hidden from the user — it just feels like
     // the AI chose the stack).
-    let templateId = parsed.data.templateId;
-    const promptText = parsed.data.prompt?.trim();
     const { buildKind, gameCategory, engineOverride, buildMode } = parsed.data;
-
-    // Resolve the starter, highest precedence first (all 0-token):
-    // 1) admin engine override → that engine's starter (silently ignored for
-    //    non-admins so a forged body can't bypass routing);
-    // 2) a chosen game category → its forced starter;
-    // 3) a game with "My Own Idea" (or no category) → keyword game-classify;
-    // 4) back-compat buildMode;
-    // 5) otherwise (app) → the regular prompt classifier (today's behavior).
-    if (!templateId && engineOverride && isAdminEmail(g.user.email)) {
-      templateId = templateForEngine(engineOverride) ?? undefined;
-    }
-    if (!templateId && gameCategory) {
-      templateId = templateForCategory(gameCategory) ?? undefined;
-    }
-    if (!templateId && buildKind === "game" && promptText) {
-      // "My Own Idea" (category resolved to null) or game with no category.
-      try {
-        templateId = await classifyGameTemplate(promptText);
-      } catch {
-        templateId = "game-2d";
-      }
-    }
-    if (!templateId) {
-      if (buildMode === "game2d") templateId = "game-2d";
-      else if (buildMode === "game3d") templateId = "game-3d";
-    }
-    if (!templateId && buildKind !== "game" && promptText) {
-      try {
-        templateId = (await classifyPrompt(promptText, g.user.id)).templateId;
-      } catch {
-        // classifier unavailable → blank workspace (today's behavior).
-      }
-    }
-    // Premium upgrade: paid users get the premium, themeable skeleton for the
-    // chosen framework; guests/free get the clean basic one (a deliberate upsell).
-    const PREMIUM_VARIANT: Record<string, string> = {
-      "static-web": "static-premium",
-      "game-2d": "game-2d-premium",
-      "game-3d": "game-3d-premium",
-      "game-3d-pc": "game-3d-premium",
-    };
-    if (templateId && PREMIUM_VARIANT[templateId]) {
-      const u = await db().user.findUnique({ where: { id: g.user.id }, select: { tier: true, isGuest: true } });
-      const premium = isAdminEmail(g.user.email) || (!u?.isGuest && (u?.tier === "pro" || u?.tier === "team"));
-      if (premium) templateId = PREMIUM_VARIANT[templateId];
-    }
+    // Resolve the (premium-gated) starter — shared with the first-turn injector.
+    const templateId = await resolveTemplateId({
+      prompt: parsed.data.prompt,
+      userId: g.user.id,
+      userEmail: g.user.email,
+      buildKind,
+      gameCategory,
+      engineOverride,
+      buildMode,
+      templateId: parsed.data.templateId,
+    });
 
     const tpl = templateId ? await getTemplate(templateId) : undefined;
     const ws = await db().workspace.create({

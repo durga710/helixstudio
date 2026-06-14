@@ -36,7 +36,7 @@ export function useWorkspaceCreation(onNavigate?: () => void) {
     router.push(`/editor/${workspaceId}?new=1`);
   }
 
-  async function createScratch(name: string): Promise<void> {
+  async function createScratch(name: string, prompt?: string): Promise<void> {
     if (creating) return;
     setCreating(true);
     setError(null);
@@ -44,7 +44,13 @@ export function useWorkspaceCreation(onNavigate?: () => void) {
       const res = await fetch("/api/workspaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "SCRATCH", ...(name.trim() ? { name: name.trim() } : {}) }),
+        // A prompt (the user's idea) lets the server classify + inject a premium
+        // starter at creation, so the editor opens already styled + running.
+        body: JSON.stringify({
+          mode: "SCRATCH",
+          ...(name.trim() ? { name: name.trim() } : {}),
+          ...(prompt && prompt.trim() ? { prompt: prompt.trim(), buildKind: "app" } : {}),
+        }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
