@@ -2,15 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick, Bot, Hammer, ArrowRight, Clock, Check, GraduationCap } from "lucide-react";
+import { Brain, Hammer, ArrowRight, GraduationCap, Check } from "lucide-react";
 import type { LessonManifest } from "@/lib/lessons/types";
-import { Card } from "@/components/ui/card";
-import { Pill } from "@/components/ui/pill";
 
-/* The AI Lab gallery: pick a lesson, learn AI by training a real model. Each
- * card is a self-contained guided flow — no code, no setup. */
-
-const ICONS: Record<string, typeof Sparkles> = { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick, Bot };
+/* The AI Lab hub: two ways to learn — guided Lessons (read + train, step by
+ * step) and Studios (build a model yourself on a workbench). Each is its own
+ * section you click into. */
 
 export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
   const [status, setStatus] = useState<Record<string, string>>({});
@@ -29,6 +26,18 @@ export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
     };
   }, []);
 
+  const total = lessons.length;
+  const doneCount = lessons.filter((l) => status[l.id] === "completed").length;
+  const anyInProgress = lessons.some((l) => status[l.id] === "in_progress");
+  const lessonsMeta =
+    total === 0
+      ? "Lessons coming soon"
+      : doneCount > 0
+        ? `${doneCount} of ${total} done`
+        : anyInProgress
+          ? "In progress"
+          : `${total} lessons · start from zero`;
+
   return (
     <div className="pad-screen">
       <div className="mx-auto max-w-[1000px]">
@@ -38,81 +47,75 @@ export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
           <Brain className="h-5 w-5 text-txt3" strokeWidth={1.7} />
         </div>
         <p className="mt-1 max-w-[620px] text-[13px] text-txt2">
-          Learn how AI really works by <span className="text-txt">training your own models</span> — hands-on,
-          step by step, no code. Pick a lesson and go.
+          Learn how AI really works — hands-on, no code. Pick a path: follow{" "}
+          <span className="text-txt">guided lessons</span>, or jump in and{" "}
+          <span className="text-txt">build a model yourself</span>.
         </p>
 
-        {/* Studios — the hands-on hero: pick a concept and build it on a workbench. */}
-        <Link
-          href="/lab/studio"
-          className="mt-5 flex items-center gap-3.5 rounded-card border border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-gradient-to-r from-[color-mix(in_srgb,var(--accent)_12%,transparent)] to-transparent p-4 transition-all duration-150 hover:-translate-y-px hover:border-accent"
-        >
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl">
-            <Hammer className="h-5 w-5 text-accent" strokeWidth={1.8} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-2 text-[14.5px] font-semibold text-txt">
-              Studios <span className="rounded-full bg-accent px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wide text-accent-ink">New</span>
-            </span>
-            <span className="mt-0.5 block text-[12.5px] text-txt2">
-              Don&apos;t just read about it — <span className="text-txt">build it</span>. Grow a decision tree, train a
-              network, and more on an interactive workbench.
-            </span>
-          </span>
-          <ArrowRight className="h-4 w-4 shrink-0 text-accent" />
-        </Link>
-
-        {lessons.length === 0 ? (
-          <Card className="mt-6 p-8 text-center text-sm text-txt3">No lessons yet — check back soon.</Card>
-        ) : (
-          <ul className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {lessons.map((l) => {
-              const Icon = ICONS[l.icon] ?? Sparkles;
-              const st = status[l.id];
-              return (
-                <li key={l.id}>
-                  <Link
-                    href={`/lab/${l.id}`}
-                    className="block h-full rounded-card border border-border bg-panel p-5 shadow-card transition-all duration-150 hover:-translate-y-px hover:border-accent"
-                  >
-                    <div className="mb-3 flex items-center gap-2.5">
-                      <span className="grid h-10 w-10 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-hl">
-                        <Icon className="h-5 w-5 text-accent" strokeWidth={1.8} />
-                      </span>
-                      {st === "completed" ? (
-                        <Pill tone="green" className="inline-flex items-center gap-1">
-                          <Check className="h-3 w-3" /> Done
-                        </Pill>
-                      ) : st === "in_progress" ? (
-                        <Pill tone="accent">In progress</Pill>
-                      ) : (
-                        <Pill tone="neutral" className="capitalize">
-                          {l.level}
-                        </Pill>
-                      )}
-                    </div>
-                    <div className="text-[15px] font-semibold text-txt">{l.title}</div>
-                    {l.authored && (
-                      <span className="mt-1 inline-flex items-center gap-1 text-[10.5px] font-medium text-accent">
-                        <GraduationCap className="h-3 w-3" /> from your teacher
-                      </span>
-                    )}
-                    <p className="mt-1.5 text-[12.5px] leading-relaxed text-txt2">{l.blurb}</p>
-                    <div className="mt-3 flex items-center gap-3 text-[11px] text-txt3">
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> ~{l.estMinutes} min
-                      </span>
-                      <span className="ml-auto inline-flex items-center gap-1 text-accent">
-                        Start <ArrowRight className="h-3 w-3" />
-                      </span>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <SectionCard
+            href="/lab/lessons"
+            icon={<GraduationCap className="h-5 w-5 text-accent" strokeWidth={1.8} />}
+            title="Lessons"
+            desc="Guided, hands-on lessons that teach AI one small step at a time. Each ends with you training a real model."
+            meta={lessonsMeta}
+            metaIcon={doneCount > 0 ? <Check className="h-3 w-3 text-ok" /> : undefined}
+          />
+          <SectionCard
+            href="/lab/studio"
+            icon={<Hammer className="h-5 w-5 text-accent" strokeWidth={1.8} />}
+            title="Studios"
+            desc="Don't just read about it — build it. Grow a decision tree, train a network, and more on an interactive workbench."
+            meta="Build it yourself"
+            badge="New"
+          />
+        </div>
       </div>
     </div>
+  );
+}
+
+function SectionCard({
+  href,
+  icon,
+  title,
+  desc,
+  meta,
+  metaIcon,
+  badge,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  meta: string;
+  metaIcon?: React.ReactNode;
+  badge?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex h-full flex-col rounded-card border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] bg-gradient-to-b from-[color-mix(in_srgb,var(--accent)_9%,transparent)] to-transparent p-5 shadow-card transition-all duration-150 hover:-translate-y-px hover:border-accent"
+    >
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl">
+          {icon}
+        </span>
+        <span className="flex items-center gap-2 text-[16px] font-semibold text-txt">
+          {title}
+          {badge && (
+            <span className="rounded-full bg-accent px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wide text-accent-ink">
+              {badge}
+            </span>
+          )}
+        </span>
+        <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-accent transition-transform group-hover:translate-x-0.5" />
+      </div>
+      <p className="text-[12.5px] leading-relaxed text-txt2">{desc}</p>
+      <div className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-medium text-txt3">
+        {metaIcon}
+        {meta}
+      </div>
+    </Link>
   );
 }
