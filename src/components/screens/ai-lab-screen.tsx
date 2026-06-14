@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Brain, Hammer, ArrowRight, GraduationCap, Check, Gamepad2 } from "lucide-react";
+import { Brain, Hammer, ArrowRight, GraduationCap, Check } from "lucide-react";
 import type { LessonManifest } from "@/lib/lessons/types";
 
 /* The AI Lab hub: two ways to learn — guided Lessons (read + train, step by
@@ -47,33 +47,12 @@ export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
           <Brain className="h-5 w-5 text-txt3" strokeWidth={1.7} />
         </div>
         <p className="mt-1 max-w-[620px] text-[13px] text-txt2">
-          Learn how AI really works — hands-on, no code. <span className="text-txt">Play a game</span>, follow{" "}
+          Learn how AI really works — hands-on, no code. Pick a path: follow{" "}
           <span className="text-txt">guided lessons</span>, or jump in and{" "}
           <span className="text-txt">build a model yourself</span>.
         </p>
 
-        {/* Featured: play a game */}
-        <Link
-          href="/lab/game/teach-the-robot"
-          className="group mt-6 flex items-center gap-4 rounded-card border border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-gradient-to-r from-[color-mix(in_srgb,var(--accent)_16%,transparent)] to-transparent p-4 transition-all duration-150 hover:-translate-y-px hover:border-accent"
-        >
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl text-2xl">
-            🤖
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-2 text-[15px] font-semibold text-txt">
-              Play: Teach the Robot
-              <span className="rounded-full bg-accent px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wide text-accent-ink">New</span>
-            </span>
-            <span className="mt-0.5 block text-[12.5px] text-txt2">
-              Give a robot brain cells and train it to learn shapes — the fun way to feel how AI learns.
-            </span>
-          </span>
-          <Gamepad2 className="h-5 w-5 shrink-0 text-accent" />
-          <ArrowRight className="h-4 w-4 shrink-0 text-accent transition-transform group-hover:translate-x-0.5" />
-        </Link>
-
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <SectionCard
             href="/lab/lessons"
             icon={<GraduationCap className="h-5 w-5 text-accent" strokeWidth={1.8} />}
