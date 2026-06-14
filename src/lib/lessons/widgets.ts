@@ -42,6 +42,11 @@ export const WIDGET_CATALOG: WidgetInfo[] = [
     desc: "The student tilts a line with weight sliders to separate two groups, or presses 'Let it learn' to watch the neuron tune its own weights. Use for: neurons, weights, decision boundary, how a network learns.",
   },
   {
+    id: "neuronBoundary",
+    label: "Decision-boundary lab (guided, phased)",
+    desc: "A guided 3-phase neuron lesson driven by config.phase: 'explore' (the student drags a line by hand to split two groups and sees stragglers it can't catch), 'reveal' (a neuron tunes its OWN line, with wrong dots flashing, until almost none remain), 'youdo' (fresh easy data, no hints — set a rough line and press Train). Use ONE per phase in sequence. Use for: how a neuron learns, decision boundary, weights, training as self-correction from mistakes.",
+  },
+  {
     id: "langModel",
     label: "Language model (next-word predictor)",
     desc: "The student trains a tiny language model on text, then generates new text — adjusting the context window and 'creativity' (temperature) and watching the next-word probabilities. Use for: language models, LLMs, next-token prediction, tokens, temperature, how ChatGPT works.",

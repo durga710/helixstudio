@@ -154,12 +154,65 @@ const PENGUINS: Dataset = {
   ],
 };
 
+function pb(label: string, earSize: number, tailLength: number): DataPoint {
+  return { label, features: { earSize, tailLength } };
+}
+
+/** Cats vs dogs by ear size & tail length — two groups that mostly separate
+ * with a straight line, but a handful sit on the "wrong" side, so a hand-drawn
+ * line tops out around 90%. The overlap is the point: it sets up "a single line
+ * can't catch everyone — so how does a neuron do better?" Used by the guided
+ * decision-boundary widget in the explore + reveal phases. */
+const BOUNDARY: Dataset = {
+  id: "boundary",
+  name: "Cats & dogs",
+  featureNames: ["earSize", "tailLength"],
+  units: { earSize: "cm", tailLength: "cm" },
+  classes: ["Cat", "Dog"],
+  summary: "24 pets · 2 kinds · split them with one line",
+  points: [
+    // Cats — lower-left cluster (small ears, shorter tails)
+    pb("Cat", 2, 3), pb("Cat", 3, 2), pb("Cat", 2, 4), pb("Cat", 4, 3), pb("Cat", 3, 4),
+    pb("Cat", 2, 2), pb("Cat", 4, 2), pb("Cat", 3, 3), pb("Cat", 1, 4),
+    // a few cats drift toward dog territory (the overlap)
+    pb("Cat", 5, 5), pb("Cat", 6, 4), pb("Cat", 5, 6),
+    // Dogs — upper-right cluster (bigger ears, longer tails)
+    pb("Dog", 8, 7), pb("Dog", 7, 8), pb("Dog", 9, 6), pb("Dog", 7, 7), pb("Dog", 8, 8),
+    pb("Dog", 6, 8), pb("Dog", 9, 8), pb("Dog", 7, 6), pb("Dog", 8, 6),
+    // a few dogs drift toward cat territory (the overlap)
+    pb("Dog", 5, 7), pb("Dog", 6, 6), pb("Dog", 4, 6),
+  ],
+};
+
+/** A cleaner cats-vs-dogs set with a clear gap — a neuron can reach ~100%. Used
+ * for the widget's "you do" phase so the learner gets a real win solo. */
+const BOUNDARY_EASY: Dataset = {
+  id: "boundaryEasy",
+  name: "More pets",
+  featureNames: ["earSize", "tailLength"],
+  units: { earSize: "cm", tailLength: "cm" },
+  classes: ["Cat", "Dog"],
+  summary: "24 fresh pets · 2 kinds · a clear gap between them",
+  points: [
+    // Cats — tight lower-left cluster
+    pb("Cat", 1, 2), pb("Cat", 2, 1), pb("Cat", 2, 3), pb("Cat", 3, 2), pb("Cat", 1, 3),
+    pb("Cat", 3, 1), pb("Cat", 2, 2), pb("Cat", 3, 3), pb("Cat", 1, 1), pb("Cat", 4, 2),
+    pb("Cat", 2, 4), pb("Cat", 3, 4),
+    // Dogs — tight upper-right cluster, clear gap
+    pb("Dog", 8, 9), pb("Dog", 9, 8), pb("Dog", 7, 9), pb("Dog", 9, 7), pb("Dog", 8, 8),
+    pb("Dog", 7, 8), pb("Dog", 9, 9), pb("Dog", 8, 7), pb("Dog", 7, 7), pb("Dog", 6, 9),
+    pb("Dog", 9, 6), pb("Dog", 8, 6),
+  ],
+};
+
 export const DATASETS: Record<string, Dataset> = {
   flowers: FLOWERS,
   fruit2d: FRUIT2D,
   blobs: BLOBS,
   creatures: CREATURES,
   penguins: PENGUINS,
+  boundary: BOUNDARY,
+  boundaryEasy: BOUNDARY_EASY,
 };
 
 export function getDataset(id: string | undefined): Dataset {

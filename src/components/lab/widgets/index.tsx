@@ -68,6 +68,16 @@ const NeuronViz = dynamic(() => import("./neuron").then((m) => m.NeuronViz), {
     );
   },
 });
+const NeuronBoundary = dynamic(() => import("./neuron-boundary").then((m) => m.NeuronBoundary), {
+  ssr: false,
+  loading: function NeuronBoundaryLoading() {
+    return (
+      <div className="grid place-items-center rounded-card border border-border bg-panel2 p-10 text-[12px] text-txt3">
+        loading…
+      </div>
+    );
+  },
+});
 const LangModel = dynamic(() => import("./lang-model").then((m) => m.LangModel), {
   ssr: false,
   loading: function LangModelLoading() {
@@ -88,6 +98,7 @@ export const WIDGETS: Record<string, ComponentType<WidgetProps>> = {
   regression: RegressionPlayground,
   tree: TreeExplorer,
   neuron: NeuronViz,
+  neuronBoundary: NeuronBoundary,
   langModel: LangModel,
 };
 

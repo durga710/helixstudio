@@ -321,7 +321,9 @@ function StepCard({
       ? step.title || step.body.slice(0, 60)
       : step.kind === "quiz"
         ? step.question
-        : `Widget: ${step.widget}`;
+        : step.kind === "widget"
+          ? `Widget: ${step.widget}`
+          : step.prompt;
 
   return (
     <div className="rounded-card border border-border bg-panel">

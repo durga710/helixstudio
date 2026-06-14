@@ -118,61 +118,138 @@ export const LESSONS: Record<string, Lesson> = {
   "how-a-brain-learns": {
     "manifest": {
       "id": "how-a-brain-learns",
-      "title": "How a brain learns",
-      "blurb": "Meet the neuron behind ChatGPT — set its weights, then train it round by round to learn on its own.",
-      "level": "intermediate",
-      "estMinutes": 12,
+      "title": "How a neuron learns",
+      "blurb": "Draw a line to tell cats from dogs — then watch a real neuron tune its own line until it beats you.",
+      "level": "beginner",
+      "estMinutes": 14,
       "icon": "Brain",
       "concept": "neural networks",
-      "order": 6
+      "order": 6,
+      "objectives": [
+        "What a neuron really is — a line that splits things into two groups",
+        "Why a line you draw by hand can't quite catch everything",
+        "How a neuron fixes its own line by learning from its mistakes",
+        "How to train one yourself, from scratch, on brand-new data"
+      ],
+      "glossary": [
+        {
+          "term": "Neuron",
+          "def": "The tiniest part of an AI brain. With two clues it makes one call: this group or that one — by drawing a line."
+        },
+        {
+          "term": "Decision boundary",
+          "def": "The line a neuron draws. Everything on one side is one group; everything on the other side is the other."
+        },
+        {
+          "term": "Weights",
+          "def": "The numbers that tilt and slide the line. Changing the weights moves the boundary."
+        },
+        {
+          "term": "Training",
+          "def": "Doing the same thing over and over: check which dots are on the wrong side, nudge the line a little, repeat."
+        },
+        {
+          "term": "Accuracy",
+          "def": "How many it got on the right side, out of all of them. 100% means every dot is sorted correctly."
+        }
+      ]
     },
     "steps": [
       {
         "kind": "explain",
-        "title": "The AI behind the headlines",
-        "body": "Chatbots that write essays, apps that make art — almost all of them run on **neural networks**, built from a tiny, simple part called a **neuron**.\n\nA digital neuron is just a small decision-maker: it takes a few numbers in, weighs them up, and makes one call — *this group or that one*. Each input has a **weight** — a knob for how much that input matters. Tuning those weights is the *entire* secret to making a neuron smart."
+        "title": "A robot that sorts pets",
+        "body": "Imagine a robot with one job: look at a pet and say **cat or dog**. It can't see fur or hear barks — all it gets is two clues: **how big the ears are** and **how long the tail is**.\n\nIf we put every pet on a chart — ear size going across, tail length going up — cats land in one corner and dogs in another. So here's the robot's whole trick: **draw a line** with cats on one side and dogs on the other. That line is the entire brain. Let's build it."
       },
       {
-        "kind": "explain",
-        "title": "It draws a line",
-        "body": "With two inputs, a neuron's decision is literally a **line** on a graph: everything on one side is \"Group A,\" everything on the other is \"Group B.\" The weights **tilt and slide** that line.\n\nBelow are two groups of dots. First grab the knobs and tilt the line yourself — then let the neuron tune them for you."
+        "kind": "predict",
+        "title": "First, a guess",
+        "prompt": "Do you think **one straight line** could separate almost all the cats from the dogs on that chart?",
+        "choices": [
+          "Yes — one straight line could split most of them",
+          "No — you'd need a curvy, wiggly line",
+          "I'm honestly not sure yet"
+        ],
+        "afterPick": "Hold that thought. You're about to draw the line yourself and see what really happens. →",
+        "youWillDo": "make a quick prediction"
       },
       {
         "kind": "widget",
-        "widget": "neuron",
-        "title": "Set it, then train it",
-        "body": "Drag the **Weight** and **Bias** sliders to tilt the line between the two groups. Then press **Train 1 round** over and over and watch the neuron nudge its *own* weights a little each time — or **Auto-train** to the finish. Goal: separate them 100%.",
+        "widget": "neuronBoundary",
+        "title": "Draw the line yourself",
+        "body": "Here's the chart. **Drag the two purple dots** up and down to swing the line until cats and dogs are on different sides. Watch the **wrong** counter — get it as low as you can, then press **Lock in my line**.",
+        "youWillDo": "drag the line to split cats from dogs",
         "config": {
-          "dataset": "blobs"
+          "phase": "explore",
+          "dataset": "boundary"
         }
       },
       {
         "kind": "explain",
-        "title": "That's what 'learning' is",
-        "body": "Each round you pressed, the neuron checked which dots it got wrong and nudged its weights a little to fix them — over and over until the line snapped into place.\n\nThat self-tuning loop — *guess, check how wrong, adjust, repeat* — is the heartbeat of **all** modern AI. When a neural network \"learns,\" the thing that changes inside it is its **weights**."
+        "title": "So close — but not perfect",
+        "body": "Notice what happened: you got *most* of them, but a few stubborn dots stayed on the wrong side no matter how you tilted the line. That's not your fault — the groups overlap a little, and a line placed **by hand** can only do so much.\n\nSo here's the real question: how could the robot do **better** than your best guess? The secret is that it doesn't guess just once. It **adjusts** — again and again. Let's watch."
       },
       {
-        "kind": "quiz",
-        "title": "What is 'learning'?",
-        "question": "When a neural network \"learns,\" what is actually changing inside it?",
-        "choices": [
-          "Its color",
-          "Its weights (the knobs)",
-          "Its screen size",
-          "Its name"
-        ],
-        "answer": 1,
-        "explain": "Learning = adjusting the weights. Every AI you've heard of is just doing this, on a massive scale."
+        "kind": "widget",
+        "widget": "neuronBoundary",
+        "title": "Watch the neuron learn",
+        "body": "This line starts out **bad on purpose**. Press **Watch it learn**. Every time a dot is on the wrong side (it flashes with a red ring), the neuron **nudges the line a tiny bit** to fix it — then checks again, and again. Watch the wrong rings disappear.",
+        "youWillDo": "watch a neuron tune its own line",
+        "config": {
+          "phase": "reveal",
+          "dataset": "boundary"
+        }
       },
       {
         "kind": "explain",
-        "title": "One neuron → a whole network",
-        "body": "A single neuron can only draw **one straight line** — great for two tidy groups, but real problems are messier. So we connect **many** neurons in layers, and their simple lines combine into **curves and complex shapes**. That's the *deep* in \"deep learning.\"\n\nWant to feel it? The **Neural Net Studio** gives you a problem one neuron *can't* solve — you add neurons and train a real little network until the boundary curves around it."
+        "title": "Now it has names",
+        "body": "What you just watched has real names — and now they'll make sense:\n\n- The line is the **decision boundary**.\n- The numbers that tilt and slide it are the neuron's **weights**.\n- **Learning** is just this: after each mistake, nudge the weights a little so the line fits better — over and over.\n\nThat's it. That self-fixing loop *is* a neuron learning. Every AI you've heard of does this — only with a lot more dots and a lot more lines."
+      },
+      {
+        "kind": "quiz",
+        "title": "Check yourself",
+        "question": "When the neuron \"learns,\" what is actually changing each round?",
+        "choices": [
+          "It deletes the dots it keeps getting wrong",
+          "Its weights — the numbers that tilt the line",
+          "The colors of the dots",
+          "Nothing really changes"
+        ],
+        "answer": 1,
+        "explain": "Right! Learning = nudging the **weights** after each mistake. The dots never change — the line does."
+      },
+      {
+        "kind": "widget",
+        "widget": "neuronBoundary",
+        "title": "Your turn — train one",
+        "body": "New pets, and this time **no hints**. Set a rough line with the purple dots, then press **Train my neuron** and watch it finish the job on its own.",
+        "youWillDo": "train your own neuron on fresh data",
+        "config": {
+          "phase": "youdo",
+          "dataset": "boundaryEasy"
+        }
+      },
+      {
+        "kind": "reflect",
+        "title": "Make it yours",
+        "prompt": "In your own words: **how does a neuron learn** to tell two groups apart?",
+        "placeholder": "Like: it starts with a not-great line, then…",
+        "recall": {
+          "question": "A neuron starts with a line that isn't great. How does it get better?",
+          "choices": [
+            "It memorizes every single dot",
+            "It nudges its weights a little after each mistake, over and over",
+            "It throws away the dots it gets wrong",
+            "It waits for a human to fix the line"
+          ],
+          "answer": 1,
+          "explain": "Exactly — guess, see what's wrong, nudge the weights, repeat. That loop is the heartbeat of every AI."
+        },
+        "youWillDo": "explain it back in your own words"
       },
       {
         "kind": "explain",
         "title": "Same idea, gigantic scale 🎉",
-        "body": "The AI that chats with you is a neural network with **billions** of weights, trained on a huge chunk of the internet. But peek inside and it's the exact thing you just did: neurons, weights, and a learning loop that nudges the weights to be a little less wrong.\n\n**Next up:** see that idea make *words* — train a tiny language model in **How AI writes**."
+        "body": "You just built and trained a real neuron — drew its boundary, watched it fix its own weights, then trained a fresh one solo. That exact loop, with **billions** of weights and millions of dots, is what powers the chatbots and image apps you've heard about.\n\nOne last thing: a single neuron can only draw **one straight line**. Some groups can't be split that way — they need a *curve*. The fix is to wire **many** neurons together into a **network**, and their simple lines combine into curves.\n\n**Next up:** see this same idea make *words* — train a tiny language model in **How AI writes**."
       }
     ]
   },
