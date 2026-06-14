@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ClipboardList,
   Gamepad2,
+  Lightbulb,
   type LucideIcon,
 } from "lucide-react";
 import { GAME_CATEGORIES } from "@/lib/templates/engines";
@@ -176,6 +177,9 @@ export function ChatPanel({
   const [queuingTask, setQueuingTask] = useState(false);
   const guestBlocked = isGuest && guestRemaining === 0;
   const scrollRef = useRef<HTMLDivElement>(null);
+  // "Ideas" popover: re-opens the mode-specific greeting + suggestions after the
+  // conversation has started (so the opening guidance is always one click away).
+  const [ideasOpen, setIdeasOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   // Flips true on the turn's first real activity event, so the warm-up prelude
   // knows to stop and hand off to the agent's actual work.
@@ -644,10 +648,20 @@ export function ChatPanel({
   return (
     <div className="glass-panel-strong relative flex h-full min-h-0 flex-col overflow-hidden">
       {/* Chat header: identity + model switcher */}
-      <div className="flex items-center gap-2 border-b border-border px-4 py-2">
+      <div className="relative flex items-center gap-2 border-b border-border px-4 py-2">
         <Sparkles className="h-4 w-4 shrink-0 text-accent" />
         <span className="label-tactical text-[11px]">Chat</span>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {workspace.mode === "SCRATCH" && messages && messages.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIdeasOpen((v) => !v)}
+              title="Ideas & what you can ask for"
+              className="inline-flex items-center gap-1 rounded-lg border border-border2 bg-panel2 px-2 py-1 text-[11px] text-txt2 transition-colors hover:border-accent hover:text-txt"
+            >
+              <Lightbulb className="h-3.5 w-3.5 text-accent" /> Ideas
+            </button>
+          )}
           {isGuest ? (
             <span className="label-tactical">
               beta model
@@ -656,6 +670,30 @@ export function ChatPanel({
             <ModelPicker />
           )}
         </div>
+        {ideasOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setIdeasOpen(false)} />
+            <div className="absolute right-3 top-[calc(100%+4px)] z-50 w-[min(340px,90vw)] rounded-xl border border-border2 bg-panel p-3 shadow-pop">
+              <p className="mb-1 text-[13px] font-semibold text-txt">{modeGreeting(workspace).title}</p>
+              <p className="mb-2.5 text-[11.5px] leading-relaxed text-txt3">{modeGreeting(workspace).body}</p>
+              <div className="flex flex-col gap-1.5">
+                {starterSuggestions(workspace).map((sx) => (
+                  <button
+                    key={sx.title}
+                    type="button"
+                    onClick={() => {
+                      setInput(sx.prompt);
+                      setIdeasOpen(false);
+                    }}
+                    className="rounded-lg border border-border bg-panel2 px-3 py-1.5 text-left text-[12px] text-txt2 transition-colors hover:border-accent hover:text-txt"
+                  >
+                    {sx.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Plan-mode banner: always on while in plan mode so the state is never a
