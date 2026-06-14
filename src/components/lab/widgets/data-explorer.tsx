@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { WidgetProps } from "./index";
 import { getDataset, featureLabel, CLASS_COLORS } from "@/components/lab/datasets";
 
@@ -34,7 +34,12 @@ export function DataExplorer({ config, onComplete, onState }: WidgetProps) {
   const sx = (v: number) => PAD + ((v - xMin) / (xMax - xMin || 1)) * (W - PAD * 2);
   const sy = (v: number) => H - PAD - ((v - yMin) / (yMax - yMin || 1)) * (H - PAD * 2);
 
-  onState?.({ dataset: ds.id, x, y });
+  // Report state from an effect — calling onState during render would loop with
+  // the parent's setState (LessonRunner's setLabState) and freeze the page.
+  useEffect(() => {
+    onState?.({ dataset: ds.id, x, y });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ds.id, x, y]);
 
   return (
     <div className="rounded-card border border-border bg-panel2 p-4">

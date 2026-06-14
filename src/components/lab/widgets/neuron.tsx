@@ -65,7 +65,12 @@ export function NeuronViz({ config, onComplete, onState }: WidgetProps) {
   };
 
   const acc = Math.round(accuracyOf(weights) * 100);
-  onState?.({ weights, accuracy: acc });
+  // From an effect, not render: onState in render loops with the parent's
+  // setState (LessonRunner's setLabState) and freezes the page.
+  useEffect(() => {
+    onState?.({ weights, accuracy: acc });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acc, weights]);
 
   // Boundary: w1*x + w2*y + bias = 0 → y = -(w1*x + bias)/w2
   const lineY = (x: number) => (Math.abs(weights.w2) < 1e-6 ? NaN : -(weights.w1 * x + weights.bias) / weights.w2);

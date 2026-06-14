@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { WidgetProps } from "./index";
 import { getDataset, featureLabel, CLASS_COLORS } from "@/components/lab/datasets";
 
@@ -54,7 +54,12 @@ export function TreeExplorer({ config, onComplete, onState }: WidgetProps) {
   }
   const acc = Math.round((correct / ds.points.length) * 100);
 
-  onState?.({ splitFeat, threshold: Math.round(threshold * 10) / 10, accuracy: acc });
+  // From an effect, not render: calling onState during render loops with the
+  // parent's setState (LessonRunner's setLabState) and freezes the page.
+  useEffect(() => {
+    onState?.({ splitFeat, threshold: Math.round(threshold * 10) / 10, accuracy: acc });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitFeat, threshold, acc]);
 
   return (
     <div className="rounded-card border border-border bg-panel2 p-4">
