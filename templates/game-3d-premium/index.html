@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>My 3D Game</title>
+    <link rel="stylesheet" href="style.css" />
+    <!-- Babylon.js from a CDN — leave this; game.js uses the global `BABYLON`. -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  </head>
+  <body>
+    <canvas id="renderCanvas"></canvas>
+
+    <!-- Themed HTML overlay (the 3D world renders behind it). -->
+    <div id="ui">
+      <header class="bar">
+        <span class="brand">🎮 <span data-game-name>My 3D Game</span></span>
+        <label class="theme">Theme <select id="theme-select"></select></label>
+      </header>
+
+      <div id="hud" class="hud hidden">Score <b id="score">0</b> · Orbs left <b id="left">6</b></div>
+
+      <div id="menu" class="overlay">
+        <div class="card">
+          <h1>My 3D Game</h1>
+          <p>Move with <b>WASD</b> / arrow keys · collect every glowing orb.</p>
+          <button id="play-btn" class="btn">▶ Play</button>
+        </div>
+      </div>
+
+      <div id="over" class="overlay hidden">
+        <div class="card">
+          <h1 id="over-title">You win! 🎉</h1>
+          <p id="over-score">Score: 0</p>
+          <button id="again-btn" class="btn">↻ Play again</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="game.js"></script>
+  </body>
+</html>

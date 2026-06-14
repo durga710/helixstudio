@@ -135,6 +135,8 @@ export async function POST(req: Request) {
     const PREMIUM_VARIANT: Record<string, string> = {
       "static-web": "static-premium",
       "game-2d": "game-2d-premium",
+      "game-3d": "game-3d-premium",
+      "game-3d-pc": "game-3d-premium",
     };
     if (templateId && PREMIUM_VARIANT[templateId]) {
       const u = await db().user.findUnique({ where: { id: g.user.id }, select: { tier: true, isGuest: true } });

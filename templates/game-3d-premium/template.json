@@ -1,0 +1,10 @@
+{
+  "id": "game-3d-premium",
+  "label": "Premium 3D Game (Babylon.js)",
+  "framework": "game",
+  "engine": "babylon",
+  "description": "A premium, fully-structured 3D game skeleton — Babylon.js (CDN): a Menu → Play → Win flow, a movable player, orbit/follow camera, lights, a themed HUD, collectibles, a win condition, and 6 themeable palettes. No build step; previews instantly. The AI builds the gameplay in game.js.",
+  "keywords": [],
+  "notesBlurb": "PREMIUM 3D game skeleton (game-3d-premium, Babylon.js via CDN). The scene, camera, lights, HTML UI flow (menu/HUD/win in index.html), state machine, and the 6-palette theme system in game.js ALREADY WORK. To build the user's game, edit the GAMEPLAY in game.js — the meshes (BABYLON.MeshBuilder), the level/entities in spawnOrbs(), movement + win logic in tick()/collect(), and scoring. Use the PALETTES colors and applyTheme() — never hard-code colors. Keep it a PLAIN script using the global `BABYLON` (NO ES module imports; do NOT switch to Three.js — its CDN is ES-module-only and breaks here). Do NOT rebuild the camera/lights/UI flow/theme system or add a build step. No external 3D model files. You usually only need to read + edit game.js.",
+  "cli": "overlay-only"
+}
