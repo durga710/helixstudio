@@ -14,11 +14,16 @@ interface Held {
   from: string;
   latest: string;
 }
+interface Suggestion {
+  lib: string;
+  why: string;
+}
 interface LibraryState {
   checkedAt?: string;
   applied?: boolean;
   bumped?: { name: string; from: string; to: string }[];
   held?: Held[];
+  suggestions?: Suggestion[];
 }
 interface FreshnessItem {
   templateId: string;
@@ -44,6 +49,8 @@ export function TemplateFreshness() {
   const [items, setItems] = useState<FreshnessItem[]>([]);
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
+  const [scouting, setScouting] = useState(false);
+  const [scoutNote, setScoutNote] = useState<string | null>(null);
   const [lines, setLines] = useState<string[]>([]);
   const termRef = useRef<HTMLDivElement>(null);
 
@@ -101,12 +108,35 @@ export function TemplateFreshness() {
     void load();
   }
 
+  async function scout() {
+    setScouting(true);
+    setScoutNote(null);
+    try {
+      const res = await fetch("/api/admin/templates/scout", { method: "POST" });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        const n = Object.keys(json.data.suggestions ?? {}).length;
+        setScoutNote(`Got suggestions for ${n} template${n === 1 ? "" : "s"} — see below.`);
+        await load();
+      } else {
+        setScoutNote(json?.error?.message ?? "Scout failed.");
+      }
+    } catch {
+      setScoutNote("Scout failed.");
+    }
+    setScouting(false);
+  }
+
   return (
     <div className="rounded-card-lg border border-border bg-panel p-4">
       <div className="flex items-center gap-2">
         <button type="button" disabled={running} onClick={() => void run()} className={btn}>
           {running ? "Running…" : "Refresh premium libraries"}
         </button>
+        <button type="button" disabled={scouting} onClick={() => void scout()} className={btn}>
+          {scouting ? "Scouting…" : "Suggest libraries (AI)"}
+        </button>
+        {scoutNote && <span className="text-[11px] text-txt3">{scoutNote}</span>}
       </div>
       <p className="mt-2 text-[11px] text-txt3">
         Bumps each premium template&apos;s libraries to the latest safe version (same-major minor/patch), build-gates
@@ -137,6 +167,12 @@ export function TemplateFreshness() {
               {bumped.length > 0 && (
                 <div className="mt-0.5 text-[11px] text-ok">
                   bumped: {bumped.map((b) => `${b.name}→${b.to}`).join(", ")}
+                </div>
+              )}
+              {(t.libraryState?.suggestions?.length ?? 0) > 0 && (
+                <div className="mt-1 text-[11px] text-txt3">
+                  <span className="text-accent">AI suggests:</span>{" "}
+                  {t.libraryState!.suggestions!.map((s) => `${s.lib} (${s.why})`).join(", ")}
                 </div>
               )}
               {t.freshnessError && <div className="mt-0.5 text-[11px] text-bad">{t.freshnessError}</div>}

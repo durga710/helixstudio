@@ -24,6 +24,7 @@ export type AiUsageKind =
   | "undo_preview"
   | "rerank"
   | "template_classify"
+  | "library_scout"
   | "intake_curation"
   | "embed"
   | "tutor"
