@@ -69,10 +69,11 @@ async function writeTemplate(sbx: Sbx, dir: string, files: TemplateFile[], onLog
 async function freshenCdn(
   tpl: Template,
   onLog: RefreshLog,
+  includeMajors: boolean,
 ): Promise<{ files: TemplateFile[] | null; plan: BumpPlan }> {
   const libs = extractCdnLibs(tpl.files);
   const latest = await fetchLatestNpmMany(libs.map((l) => l.lib));
-  const plan = planCdnBumps(libs, latest);
+  const plan = planCdnBumps(libs, latest, { includeMajors });
   if (plan.bumps.length === 0) return { files: null, plan };
 
   // Guard: every rewritten CDN version must actually resolve (no 404).
@@ -92,8 +93,10 @@ async function freshenCdn(
 export async function runPremiumFreshness(opts: {
   onLog: RefreshLog;
   deadline: number;
+  /** Apply (not hold) the major bumps for this one template — admin "approve". */
+  includeMajorsFor?: string;
 }): Promise<FreshnessSummary> {
-  const { onLog, deadline } = opts;
+  const { onLog, deadline, includeMajorsFor } = opts;
   const summary: FreshnessSummary = { bumped: [], verified: [], held: [], failed: [], remaining: [] };
 
   const templates = await getAllTemplates();
@@ -137,11 +140,12 @@ export async function runPremiumFreshness(opts: {
       }
       const cfg = VERIFY[id];
       const tpl = templates[id];
-      onLog(`\n▶ ${id} (${cfg.kind})`);
+      const includeMajors = includeMajorsFor === id;
+      onLog(`\n▶ ${id} (${cfg.kind})${includeMajors ? " — including major bumps (approved)" : ""}`);
 
       try {
         if (cfg.kind === "cdn") {
-          const { files, plan } = await freshenCdn(tpl, onLog);
+          const { files, plan } = await freshenCdn(tpl, onLog, includeMajors);
           if (plan.held.length) summary.held.push(id);
           if (!files) {
             onLog(`  up to date (no safe CDN bump)`);
@@ -180,7 +184,7 @@ export async function runPremiumFreshness(opts: {
           if (pkg) {
             const deps = parseExactNpmDeps(pkg.content);
             const latest = await fetchLatestNpmMany(deps.map((d) => d.name));
-            plan = planNpmBumps(deps, latest);
+            plan = planNpmBumps(deps, latest, { includeMajors });
             if (plan.bumps.length) {
               files = tpl.files.map((f) =>
                 f.path === "package.json" ? { path: f.path, content: applyNpmBumps(f.content, plan.bumps) } : f,

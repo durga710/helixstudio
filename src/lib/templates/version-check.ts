@@ -67,10 +67,12 @@ export function parseExactNpmDeps(pkgJsonContent: string): { name: string; versi
   return out;
 }
 
-/** Plan npm bumps from current pins + latest versions. */
+/** Plan npm bumps from current pins + latest versions. With `includeMajors` the
+ * major jumps are applied instead of held (used when an admin approves one). */
 export function planNpmBumps(
   deps: { name: string; version: string }[],
   latest: Record<string, string | null>,
+  opts?: { includeMajors?: boolean },
 ): BumpPlan {
   const held: HeldMajor[] = [];
   const candidates: DepBump[] = [];
@@ -78,7 +80,7 @@ export function planNpmBumps(
   for (const d of deps) {
     const lt = latest[d.name];
     if (!lt || !semver.valid(d.version) || !semver.valid(lt) || !semver.gt(lt, d.version)) continue;
-    if (semver.major(lt) > semver.major(d.version)) {
+    if (semver.major(lt) > semver.major(d.version) && !opts?.includeMajors) {
       held.push({ name: d.name, from: d.version, latest: lt });
     } else {
       candidates.push({ name: d.name, from: d.version, to: lt });
@@ -142,14 +144,18 @@ export function extractCdnLibs(files: TemplateFile[]): CdnLib[] {
   return [...seen.entries()].map(([lib, version]) => ({ lib, version }));
 }
 
-/** Plan CDN bumps (same rules: same-major minor/patch; majors held). */
-export function planCdnBumps(libs: CdnLib[], latest: Record<string, string | null>): BumpPlan {
+/** Plan CDN bumps (same rules: same-major minor/patch; majors held unless approved). */
+export function planCdnBumps(
+  libs: CdnLib[],
+  latest: Record<string, string | null>,
+  opts?: { includeMajors?: boolean },
+): BumpPlan {
   const bumps: DepBump[] = [];
   const held: HeldMajor[] = [];
   for (const l of libs) {
     const lt = latest[l.lib];
     if (!lt || !semver.valid(l.version) || !semver.valid(lt) || !semver.gt(lt, l.version)) continue;
-    if (semver.major(lt) > semver.major(l.version)) {
+    if (semver.major(lt) > semver.major(l.version) && !opts?.includeMajors) {
       held.push({ name: l.lib, from: l.version, latest: lt });
     } else {
       bumps.push({ name: l.lib, from: l.version, to: lt });

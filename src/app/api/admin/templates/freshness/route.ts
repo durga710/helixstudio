@@ -15,10 +15,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-export async function POST() {
+export async function POST(req: Request) {
   const g = await guardAdmin();
   if ("response" in g) return g.response;
   if (!dbEnabled()) return apiErrors.badRequest("No database configured.");
+
+  // Optional: approve (apply) the held major bumps for ONE template.
+  const body = (await req.json().catch(() => null)) as { approveMajorFor?: string } | null;
+  const includeMajorsFor = typeof body?.approveMajorFor === "string" ? body.approveMajorFor : undefined;
 
   const encoder = new TextEncoder();
   const deadline = Date.now() + 280_000;
@@ -36,7 +40,7 @@ export async function POST() {
       void (async () => {
         write({ type: "log", line: `▶ Premium-library freshness started by ${g.admin.email}` });
         try {
-          const summary = await runPremiumFreshness({ onLog: (line) => write({ type: "log", line }), deadline });
+          const summary = await runPremiumFreshness({ onLog: (line) => write({ type: "log", line }), deadline, includeMajorsFor });
           const tail =
             `\nDone — ${summary.bumped.length} bumped, ${summary.verified.length} verified` +
             (summary.held.length ? `, ${summary.held.length} with held majors` : "") +

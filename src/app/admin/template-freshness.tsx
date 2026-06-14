@@ -36,6 +36,8 @@ interface FreshnessItem {
 
 const btn =
   "rounded-lg border border-border2 bg-panel2 px-3 py-1.5 text-[12px] font-medium text-txt2 hover:border-accent hover:text-txt disabled:cursor-not-allowed disabled:opacity-50";
+const btnSm =
+  "rounded-md border border-border2 bg-panel2 px-2 py-1 text-[11px] font-medium text-txt2 hover:border-accent hover:text-txt disabled:cursor-not-allowed disabled:opacity-50";
 
 function lineTone(l: string): string {
   if (l.startsWith("✔") || l.startsWith("✓")) return "text-ok";
@@ -51,6 +53,8 @@ export function TemplateFreshness() {
   const [running, setRunning] = useState(false);
   const [scouting, setScouting] = useState(false);
   const [scoutNote, setScoutNote] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState<string | null>(null);
+  const [previewNote, setPreviewNote] = useState<string | null>(null);
   const [lines, setLines] = useState<string[]>([]);
   const termRef = useRef<HTMLDivElement>(null);
 
@@ -72,12 +76,39 @@ export function TemplateFreshness() {
     termRef.current?.scrollTo({ top: termRef.current.scrollHeight });
   }, [lines]);
 
-  async function run() {
+  async function preview(id: string) {
+    setPreviewing(id);
+    setPreviewNote(null);
+    try {
+      const res = await fetch("/api/admin/templates/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateId: id }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok && json.data.url) {
+        window.open(json.data.url, "_blank", "noopener");
+        setPreviewNote(`${id}: opened live preview (give it a few seconds to boot; expires in ~10 min)${json.data.note ? ` — ${json.data.note}` : ""}`);
+      } else {
+        setPreviewNote(`${id}: ${json?.error?.message ?? "preview failed"}`);
+      }
+    } catch {
+      setPreviewNote(`${id}: preview failed`);
+    }
+    setPreviewing(null);
+  }
+
+  async function run(approveMajorFor?: string) {
     setOpen(true);
     setRunning(true);
     setLines([]);
     try {
-      const res = await fetch("/api/admin/templates/freshness", { method: "POST" });
+      const res = await fetch("/api/admin/templates/freshness", {
+        method: "POST",
+        ...(approveMajorFor
+          ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ approveMajorFor }) }
+          : {}),
+      });
       if (!res.body) throw new Error("no stream");
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -143,6 +174,7 @@ export function TemplateFreshness() {
         the result in a sandbox, and auto-applies it only on a green build. Major versions are held for your review; a
         red build keeps the current template. Runs weekly via cron; this is the manual trigger.
       </p>
+      {previewNote && <p className="mt-1 text-[11px] text-txt2">{previewNote}</p>}
 
       <div className="mt-3 divide-y divide-border/60">
         {items.map((t) => {
@@ -176,6 +208,16 @@ export function TemplateFreshness() {
                 </div>
               )}
               {t.freshnessError && <div className="mt-0.5 text-[11px] text-bad">{t.freshnessError}</div>}
+              <div className="mt-1.5 flex items-center gap-2">
+                <button type="button" disabled={previewing === t.templateId} onClick={() => void preview(t.templateId)} className={btnSm}>
+                  {previewing === t.templateId ? "Starting…" : "Preview live"}
+                </button>
+                {held.length > 0 && (
+                  <button type="button" disabled={running} onClick={() => void run(t.templateId)} className={btnSm}>
+                    Approve {held.length} major →
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
