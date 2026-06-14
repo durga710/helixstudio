@@ -65,6 +65,7 @@ CREATE TABLE "Assignment" (
     "instructions" TEXT NOT NULL,
     "dueAt" TIMESTAMP(3),
     "starterWorkspaceId" TEXT,
+    "lessonId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

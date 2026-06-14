@@ -49,6 +49,7 @@ export async function GET(_req: Request, { params }: Params) {
     instructions: assignment.instructions,
     dueAt: assignment.dueAt ? assignment.dueAt.toISOString() : null,
     starterWorkspaceId: assignment.starterWorkspaceId,
+    lessonId: assignment.lessonId,
     isOwner,
   };
 

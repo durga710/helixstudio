@@ -381,4 +381,7 @@ CREATE TABLE IF NOT EXISTS "Lesson" (
 
 CREATE INDEX IF NOT EXISTS "Lesson_authorId_updatedAt_idx" ON "Lesson"("authorId", "updatedAt");
 CREATE INDEX IF NOT EXISTS "Lesson_spaceId_status_idx" ON "Lesson"("spaceId", "status");
+
+-- 2026-06 · Lesson assignments (assign a lesson as graded homework)
+ALTER TABLE "Assignment" ADD COLUMN IF NOT EXISTS "lessonId" TEXT;
 `;

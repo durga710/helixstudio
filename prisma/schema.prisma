@@ -149,6 +149,10 @@ model Assignment {
   starterWorkspaceId String?
   starterWorkspace   Workspace? @relation("AssignmentStarter", fields: [starterWorkspaceId], references: [id], onDelete: SetNull)
 
+  // AI Lab "lesson assignment": when set, this is a lesson (bundled id or an
+  // authored Lesson id) to complete, auto-graded by its quiz — no workspace.
+  lessonId String?
+
   createdAt   DateTime               @default(now())
   updatedAt   DateTime               @updatedAt
   submissions AssignmentSubmission[]

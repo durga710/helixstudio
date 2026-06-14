@@ -54,6 +54,7 @@ interface Detail {
   title: string;
   instructions: string;
   dueAt: string | null;
+  lessonId?: string | null;
   isOwner: boolean;
   mine?: Mine | null;
   roster?: RosterRow[];
@@ -374,7 +375,12 @@ function StudentPanel({
           <span className="text-[11px] text-txt3">submitted {timeAgo(mine.submittedAt)}</span>
         )}
         <div className="ml-auto flex flex-wrap gap-2">
-          {!mine ? (
+          {detail.lessonId ? (
+            <Button onClick={() => router.push(`/lab/${detail.lessonId}`)}>
+              <ArrowRight className="h-3.5 w-3.5" />
+              {mine?.status === "reviewed" ? "Review lesson" : mine ? "Continue lesson" : "Open lesson"}
+            </Button>
+          ) : !mine ? (
             <Button onClick={() => void start()} disabled={busy}>
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
               Start assignment

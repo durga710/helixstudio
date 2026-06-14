@@ -18,6 +18,7 @@ export type SpaceEventAction =
   | "submitted"
   | "reviewed"
   | "revision_requested"
+  | "lesson_completed"
   | "pushed"
   | "forked"
   | "task_added"

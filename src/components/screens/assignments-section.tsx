@@ -3,19 +3,27 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, ClipboardList, GraduationCap, Loader2, Plus } from "lucide-react";
+import { CalendarClock, ClipboardList, GraduationCap, Loader2, Plus, Brain } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Input, Textarea } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
+
+interface CatalogLesson {
+  id: string;
+  title: string;
+  group: string;
+}
 
 interface AssignmentRow {
   id: string;
   title: string;
   dueAt: string | null;
   hasStarter: boolean;
+  lessonId: string | null;
   createdAt: string;
   // instructor
   startedCount?: number;
@@ -60,11 +68,14 @@ export function AssignmentsSection({
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // Create form
+  const [kind, setKind] = useState<"project" | "lesson">("project");
   const [title, setTitle] = useState("");
   const [instructions, setInstructions] = useState("");
   const [dueAt, setDueAt] = useState("");
   const [starterId, setStarterId] = useState("");
+  const [lessonId, setLessonId] = useState("");
   const [ownWorkspaces, setOwnWorkspaces] = useState<OwnWorkspace[] | null>(null);
+  const [lessons, setLessons] = useState<CatalogLesson[] | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -111,8 +122,29 @@ export function AssignmentsSection({
     };
   }, [dialogOpen, ownWorkspaces]);
 
+  // The teacher's lessons + bundled starters feed the lesson picker.
+  useEffect(() => {
+    if (!dialogOpen || lessons !== null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/lab/lessons/catalog?spaceId=${spaceId}`, { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        if (!cancelled) setLessons(res.ok && json?.ok ? (json.data.lessons as CatalogLesson[]) : []);
+      } catch {
+        if (!cancelled) setLessons([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dialogOpen, lessons, spaceId]);
+
+  const lessonMode = kind === "lesson";
+  const canCreate = title.trim() && (lessonMode ? Boolean(lessonId) : Boolean(instructions.trim()));
+
   async function create() {
-    if (creating || !title.trim() || !instructions.trim()) return;
+    if (creating || !canCreate) return;
     setCreating(true);
     setFormError(null);
     try {
@@ -121,9 +153,9 @@ export function AssignmentsSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim(),
-          instructions,
+          instructions: lessonMode ? instructions.trim() || "Complete this lesson — finish all the steps and quizzes." : instructions,
           ...(dueAt ? { dueAt: new Date(dueAt).toISOString() } : {}),
-          ...(starterId ? { starterWorkspaceId: starterId } : {}),
+          ...(lessonMode ? { lessonId } : starterId ? { starterWorkspaceId: starterId } : {}),
         }),
       });
       const json = await res.json().catch(() => null);
@@ -133,6 +165,8 @@ export function AssignmentsSection({
         setInstructions("");
         setDueAt("");
         setStarterId("");
+        setLessonId("");
+        setKind("project");
         toast("Assignment created");
         await load();
       } else if (json?.error?.code === "UPGRADE_REQUIRED") {
@@ -196,7 +230,10 @@ export function AssignmentsSection({
                   className="flex w-full items-center gap-3 rounded-card border border-border bg-panel px-4 py-3 text-left transition-colors hover:border-accent"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-medium text-txt">{a.title}</span>
+                    <span className="flex items-center gap-1.5 truncate text-[13px] font-medium text-txt">
+                      {a.lessonId && <Brain className="h-3.5 w-3.5 shrink-0 text-accent" aria-label="Lesson" />}
+                      <span className="truncate">{a.title}</span>
+                    </span>
                     <span className="mt-0.5 flex items-center gap-2 text-[11px] text-txt3">
                       {a.dueAt && (
                         <span className="inline-flex items-center gap-1">
@@ -228,7 +265,7 @@ export function AssignmentsSection({
         <DialogContent>
           <DialogHeader
             title="New assignment"
-            description="Students get their own copy of the starter code and work in the editor."
+            description="Assign a coding project, or an AI Lab lesson that auto-grades from its quiz."
           />
           <form
             className="space-y-3 p-5"
@@ -237,19 +274,29 @@ export function AssignmentsSection({
               void create();
             }}
           >
+            <Segmented
+              options={[
+                { value: "project", label: "Project" },
+                { value: "lesson", label: "Lesson" },
+              ]}
+              value={kind}
+              onChange={(v) => setKind(v as "project" | "lesson")}
+              aria-label="Assignment type"
+              className="self-start"
+            />
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Title — e.g. Build a todo app"
+              placeholder={lessonMode ? "Title — e.g. Homework: Decision trees" : "Title — e.g. Build a todo app"}
               aria-label="Assignment title"
               autoFocus
             />
             <Textarea
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
-              placeholder="Instructions (markdown) — what to build, what gets assessed…"
+              placeholder={lessonMode ? "Optional note for students…" : "Instructions (markdown) — what to build, what gets assessed…"}
               aria-label="Instructions"
-              rows={6}
+              rows={lessonMode ? 2 : 6}
             />
             <div className="flex flex-wrap gap-2">
               <label className="flex flex-1 items-center gap-2 text-xs text-txt3">
@@ -262,29 +309,63 @@ export function AssignmentsSection({
                   className="text-[12px]"
                 />
               </label>
-              <label className="flex flex-1 items-center gap-2 text-xs text-txt3">
-                Starter
-                <select
-                  value={starterId}
-                  onChange={(e) => setStarterId(e.target.value)}
-                  aria-label="Starter workspace"
-                  className="h-9 w-full rounded-lg border border-border2 bg-panel2 px-2 text-[12px] text-txt outline-none focus:border-accent"
-                >
-                  <option value="">None (blank workspace)</option>
-                  {(ownWorkspaces ?? []).map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {lessonMode ? (
+                <label className="flex flex-1 items-center gap-2 text-xs text-txt3">
+                  Lesson
+                  <select
+                    value={lessonId}
+                    onChange={(e) => {
+                      setLessonId(e.target.value);
+                      const l = (lessons ?? []).find((x) => x.id === e.target.value);
+                      if (l && !title.trim()) setTitle(l.title);
+                    }}
+                    aria-label="Lesson"
+                    className="h-9 w-full rounded-lg border border-border2 bg-panel2 px-2 text-[12px] text-txt outline-none focus:border-accent"
+                  >
+                    <option value="">Choose a lesson…</option>
+                    {lessons === null ? (
+                      <option disabled>loading…</option>
+                    ) : (
+                      ["Your lessons", "Starter lessons"].map((grp) => {
+                        const items = lessons.filter((l) => l.group === grp);
+                        return items.length ? (
+                          <optgroup key={grp} label={grp}>
+                            {items.map((l) => (
+                              <option key={l.id} value={l.id}>
+                                {l.title}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null;
+                      })
+                    )}
+                  </select>
+                </label>
+              ) : (
+                <label className="flex flex-1 items-center gap-2 text-xs text-txt3">
+                  Starter
+                  <select
+                    value={starterId}
+                    onChange={(e) => setStarterId(e.target.value)}
+                    aria-label="Starter workspace"
+                    className="h-9 w-full rounded-lg border border-border2 bg-panel2 px-2 text-[12px] text-txt outline-none focus:border-accent"
+                  >
+                    <option value="">None (blank workspace)</option>
+                    {(ownWorkspaces ?? []).map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
             {formError && <p className="text-xs text-warn">{formError}</p>}
             <div className="flex justify-end gap-2 pt-1">
               <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={creating || !title.trim() || !instructions.trim()}>
+              <Button type="submit" disabled={creating || !canCreate}>
                 {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Create"}
               </Button>
             </div>

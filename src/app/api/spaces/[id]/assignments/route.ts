@@ -47,13 +47,15 @@ export async function GET(_req: Request, { params }: Params) {
     title: true,
     dueAt: true,
     starterWorkspaceId: true,
+    lessonId: true,
     createdAt: true,
   } as const;
-  const shape = (a: { id: string; title: string; dueAt: Date | null; starterWorkspaceId: string | null; createdAt: Date }) => ({
+  const shape = (a: { id: string; title: string; dueAt: Date | null; starterWorkspaceId: string | null; lessonId: string | null; createdAt: Date }) => ({
     id: a.id,
     title: a.title,
     dueAt: a.dueAt ? a.dueAt.toISOString() : null,
     hasStarter: Boolean(a.starterWorkspaceId),
+    lessonId: a.lessonId,
     createdAt: a.createdAt.toISOString(),
   });
 
@@ -103,6 +105,9 @@ const CreateSchema = z.object({
   instructions: z.string().min(1).max(20_000),
   dueAt: z.iso.datetime().optional(),
   starterWorkspaceId: z.string().optional(),
+  // AI Lab lesson assignment: a lesson id (bundled slug or authored Lesson id)
+  // the student completes; auto-graded by its quiz.
+  lessonId: z.string().max(80).optional(),
 });
 
 export async function POST(req: Request, { params }: Params) {
@@ -134,7 +139,8 @@ export async function POST(req: Request, { params }: Params) {
       title: parsed.data.title.trim(),
       instructions: parsed.data.instructions,
       dueAt: parsed.data.dueAt ? new Date(parsed.data.dueAt) : null,
-      starterWorkspaceId: parsed.data.starterWorkspaceId ?? null,
+      starterWorkspaceId: parsed.data.lessonId ? null : parsed.data.starterWorkspaceId ?? null,
+      lessonId: parsed.data.lessonId ?? null,
     },
     select: { id: true, title: true },
   });
