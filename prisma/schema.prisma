@@ -321,6 +321,12 @@ model Workspace {
   // per-mode panels (Game gets a Play panel). AI/Lab mode is workspace-less.
   kind String @default("app")
 
+  // The sub-type the user picked at creation (e.g. a game category like
+  // "platformer"/"world3d"). Persists the choice WITHOUT preloading a template,
+  // so the editor stays mode-specific and the first chat turn injects the right
+  // starter. null for plain apps.
+  gameCategory String?
+
   // Shared into a Space → Space members can view/open/copy it (read-only).
   // null = private to the owner.
   spaceId String?

@@ -22,7 +22,10 @@ import {
   ShieldCheck,
   ChevronDown,
   ClipboardList,
+  Gamepad2,
+  type LucideIcon,
 } from "lucide-react";
+import { GAME_CATEGORIES } from "@/lib/templates/engines";
 import { cn } from "@/lib/utils";
 import { warmupSteps } from "@/lib/warmup-steps";
 import { readCache, writeCache } from "@/lib/client-cache";
@@ -79,6 +82,42 @@ const STARTERS = [
   { icon: CreditCard, title: "Pricing page", prompt: "A pricing page with three tiers and a featured plan" },
   { icon: Newspaper, title: "Mini blog", prompt: "A simple blog with three sample posts and a clean reading layout" },
 ] as const;
+
+/** Mode-specific starter suggestions — NEVER cross-mode. A game editor shows its
+ * category's game ideas (a 3D-game project shows 3D ideas); an app editor shows
+ * app ideas. Keeps the chat situation-specific. */
+function starterSuggestions(ws: WorkspaceMeta): { icon: LucideIcon; title: string; prompt: string }[] {
+  if (ws.kind === "game") {
+    const cat = ws.gameCategory ? GAME_CATEGORIES.find((c) => c.id === ws.gameCategory) : undefined;
+    const sugg = cat?.suggestions ?? GAME_CATEGORIES[0].suggestions;
+    return sugg.map((s) => ({ icon: Gamepad2, title: s, prompt: s }));
+  }
+  return STARTERS.map((s) => ({ icon: s.icon, title: s.title, prompt: s.prompt }));
+}
+
+/** Inviting, mode-specific greeting + a graceful hint at what you can ask for. */
+function modeGreeting(ws: WorkspaceMeta): { title: string; body: string } {
+  if (ws.mode === "IMPORT") {
+    return {
+      title: ws.repo ?? "Your repo",
+      body: "Ask Helix to change anything in this repo — it reads the files, edits them in the workspace, and you push when ready.",
+    };
+  }
+  if (ws.kind === "game") {
+    const cat = ws.gameCategory ? GAME_CATEGORIES.find((c) => c.id === ws.gameCategory) : undefined;
+    const is3d = (cat?.templateId ?? "").includes("3d");
+    return {
+      title: "What game are we making?",
+      body: is3d
+        ? "Describe the game and Helix builds it — hit Play to try it. You can ask to change the environment or background, add objects to the world, move the camera, or drop in obstacles and pickups."
+        : "Describe the game and Helix builds it — hit Play to try it. You can ask to add levels, enemies, a scoreboard, power-ups, sounds, or change how it looks.",
+    };
+  }
+  return {
+    title: "What are we building?",
+    body: "Describe the app you want — files appear as Helix writes them. You can ask for new pages, a form, a dashboard, or a fresh look anytime, then push to GitHub when you like it.",
+  };
+}
 
 /** A curation question returned by the intake engine (/api/.../intake). */
 interface IntakeQ {
@@ -648,7 +687,11 @@ export function ChatPanel({
                   <Sparkles className="h-3.5 w-3.5 text-accent" />
                 </span>
                 <div className="max-w-[88%] rounded-2xl border border-border bg-panel2 px-4 py-2.5 text-sm leading-relaxed text-txt">
-                  New project! Before I build — <span className="font-medium">what are you making?</span> A sentence is plenty.
+                  New project! Before I build —{" "}
+                  <span className="font-medium">
+                    {workspace.kind === "game" ? "what game do you want to make?" : "what are you making?"}
+                  </span>{" "}
+                  A sentence is plenty.
                 </div>
               </div>
 
@@ -656,7 +699,7 @@ export function ChatPanel({
                 <div className="pl-[38px]">
                   <p className="mb-1.5 text-[11px] text-txt3">Type it below — or start from one of these:</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {STARTERS.map((sx) => (
+                    {starterSuggestions(workspace).map((sx) => (
                       <button
                         key={sx.title}
                         type="button"
@@ -743,22 +786,12 @@ export function ChatPanel({
                 <Sparkles className="h-7 w-7 text-accent" />
               </div>
               <h2 className="brand-gradient-text mb-2 text-2xl font-semibold tracking-tight">
-                {workspace.mode === "IMPORT"
-                  ? workspace.repo
-                  : workspace.kind === "game"
-                    ? "What game are we making?"
-                    : "What are we building?"}
+                {modeGreeting(workspace).title}
               </h2>
-              <p className="mb-6 text-sm leading-relaxed text-txt2">
-                {workspace.mode === "IMPORT"
-                  ? "Ask Helix to change anything in this repo — it reads the files, edits them in the workspace, and you push when ready."
-                  : workspace.kind === "game"
-                    ? "Describe the game you want. Helix builds it — hit Play to try it, then keep tweaking until it's fun."
-                    : "Describe the app you want. Files appear in the workspace as Helix writes them — push to GitHub when you like what you see."}
-              </p>
+              <p className="mb-6 text-sm leading-relaxed text-txt2">{modeGreeting(workspace).body}</p>
               {workspace.mode === "SCRATCH" && (
                 <div className="grid gap-2 text-left">
-                  {STARTERS.map((sx) => (
+                  {starterSuggestions(workspace).map((sx) => (
                     <button
                       key={sx.title}
                       type="button"
@@ -771,7 +804,9 @@ export function ChatPanel({
                       </span>
                       <span>
                         <span className="block text-sm font-medium text-txt">{sx.title}</span>
-                        <span className="mt-0.5 block text-xs leading-snug text-txt3">{sx.prompt}</span>
+                        {sx.title !== sx.prompt && (
+                          <span className="mt-0.5 block text-xs leading-snug text-txt3">{sx.prompt}</span>
+                        )}
                       </span>
                     </button>
                   ))}

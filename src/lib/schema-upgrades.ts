@@ -396,4 +396,7 @@ ALTER TABLE "Workspace" ADD COLUMN IF NOT EXISTS "kind" TEXT NOT NULL DEFAULT 'a
 ALTER TABLE "Template" ADD COLUMN IF NOT EXISTS "libraryState" JSONB;
 ALTER TABLE "Template" ADD COLUMN IF NOT EXISTS "libraryCheckedAt" TIMESTAMP(3);
 ALTER TABLE "Template" ADD COLUMN IF NOT EXISTS "freshnessError" TEXT;
+
+-- 2026-06 · Workspace sub-type (game category) — mode-specific editor without preloading
+ALTER TABLE "Workspace" ADD COLUMN IF NOT EXISTS "gameCategory" TEXT;
 `;

@@ -13,10 +13,6 @@ import { ok, apiErrors } from "@/lib/api-response";
 import { getProvider, getGitAuth, withGitAuth, isValidRepoId, PROVIDER_META } from "@/lib/git";
 import { isValidBranchName } from "@/lib/repo-files";
 import { guard } from "@/lib/route-helpers";
-import { getTemplate } from "@/lib/templates/store";
-import { buildTemplateNote } from "@/lib/templates/router";
-import { personalizeTemplateFiles } from "@/lib/templates/personalize";
-import { resolveTemplateId } from "@/lib/templates/select";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,43 +84,24 @@ export async function POST(req: Request) {
   if (!parsed.success) return apiErrors.validation(parsed.error);
 
   if (parsed.data.mode === "SCRATCH") {
-    // Optional template injection: seed the workspace's files + notes from a
-    // pre-made starter (0 AI tokens). Invalid/absent templateId → empty
-    // workspace (today's behavior, byte-for-byte).
-    // Resolve the starter: an explicit templateId wins; otherwise classify the
-    // prompt silently (the engine is hidden from the user — it just feels like
-    // the AI chose the stack).
-    const { buildKind, gameCategory, engineOverride, buildMode } = parsed.data;
-    // Resolve the (premium-gated) starter — shared with the first-turn injector.
-    const templateId = await resolveTemplateId({
-      prompt: parsed.data.prompt,
-      userId: g.user.id,
-      userEmail: g.user.email,
-      buildKind,
-      gameCategory,
-      engineOverride,
-      buildMode,
-      templateId: parsed.data.templateId,
-    });
-
-    const tpl = templateId ? await getTemplate(templateId) : undefined;
+    // NO template is seeded at creation — the editor opens empty and mode-specific.
+    // The starter is injected on the FIRST chat turn (agent-turn.ts), once the user
+    // says what they want, so we never preload a generic app/game into a fresh
+    // project. We persist the picked sub-type (game category) so that first-turn
+    // injection picks the right starter and the chat shows mode-specific suggestions
+    // — without rendering anything before the user has decided.
+    const { buildKind, gameCategory } = parsed.data;
     const wsName = parsed.data.name?.trim() || "Untitled project";
-    // 0-token: stamp the project name into the skeleton so the first render already
-    // shows the user's app, not the generic placeholder name.
-    const tplFiles = tpl ? personalizeTemplateFiles(tpl.files, { appName: wsName }) : [];
     const ws = await db().workspace.create({
       data: {
         userId: g.user.id,
         name: wsName,
         mode: "SCRATCH",
         kind: buildKind === "game" ? "game" : "app",
-        ...(tpl && {
-          notes: buildTemplateNote(tpl),
-          files: { create: tplFiles.map((f) => ({ path: f.path, content: f.content })) },
-        }),
+        ...(gameCategory ? { gameCategory } : {}),
       },
     });
-    return ok({ id: ws.id, templateId: tpl?.manifest.id });
+    return ok({ id: ws.id });
   }
 
   // IMPORT — verify access on the chosen git host and pin the branch.

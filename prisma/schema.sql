@@ -250,6 +250,7 @@ CREATE TABLE "Workspace" (
     "name" TEXT NOT NULL,
     "mode" "WorkspaceMode" NOT NULL,
     "kind" TEXT NOT NULL DEFAULT 'app',
+    "gameCategory" TEXT,
     "spaceId" TEXT,
     "provider" TEXT NOT NULL DEFAULT 'github',
     "repo" TEXT,

@@ -189,6 +189,9 @@ export async function runAgentTurn(opts: {
         prompt: userMessage,
         userId,
         buildKind: ws.kind === "game" ? "game" : "app",
+        // Respect the sub-type the user picked at creation (e.g. a 3D game), so we
+        // inject the matching starter instead of guessing from the prompt alone.
+        gameCategory: ws.gameCategory ?? undefined,
       });
       const tpl = templateId ? await getTemplate(templateId) : undefined;
       if (tpl) {

@@ -12,6 +12,9 @@ export interface WorkspaceMeta {
   mode: "SCRATCH" | "IMPORT";
   /** What this workspace builds — drives the editor's per-mode panels. */
   kind: EditorKind;
+  /** Sub-type picked at creation (e.g. a game category) — drives mode-specific
+   * chat suggestions + the right first-turn starter. null for plain apps. */
+  gameCategory?: string | null;
   repo: string | null;
   provider: string;
   baseBranch: string | null;
