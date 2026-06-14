@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Moon, Palette, Plus, Search, Sun } from "lucide-react";
 import { ACCENTS, useTheme } from "@/components/theme-provider";
 import { useShell } from "./shell-context";
@@ -33,8 +33,9 @@ function resolveTitle(pathname: string): string {
 
 export function Topbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { theme, toggleTheme, accent, setAccent } = useTheme();
-  const { setPaletteOpen, setNewProjectOpen, accentPopOpen, setAccentPopOpen } = useShell();
+  const { setPaletteOpen, accentPopOpen, setAccentPopOpen } = useShell();
   const popRef = useRef<HTMLDivElement>(null);
 
   const title = resolveTitle(pathname);
@@ -66,7 +67,7 @@ export function Topbar() {
       {/* Redundant with the "New" button on the right — hide on small screens
           where space is tight. */}
       <button
-        onClick={() => setNewProjectOpen(true)}
+        onClick={() => router.push("/editor")}
         className="hidden cursor-pointer items-center gap-1.5 rounded-card-sm border border-border2 bg-panel px-[9px] py-1 text-xs text-txt transition-colors hover:border-accent sm:inline-flex"
       >
         <Plus className="h-[13px] w-[13px]" strokeWidth={1.7} />
@@ -112,7 +113,7 @@ export function Topbar() {
       </button>
 
       <button
-        onClick={() => setNewProjectOpen(true)}
+        onClick={() => router.push("/editor")}
         className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-accent bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink transition hover:brightness-110"
       >
         <Plus className="h-[15px] w-[15px]" strokeWidth={2} />

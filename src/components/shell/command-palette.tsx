@@ -32,7 +32,7 @@ export function CommandPalette() {
 }
 
 function PaletteDialog({ onClose }: { onClose: () => void }) {
-  const { setNewProjectOpen, setAccentPopOpen } = useShell();
+  const { setAccentPopOpen } = useShell();
   const { toggleTheme } = useTheme();
   const router = useRouter();
   const [query, setQueryState] = useState("");
@@ -52,9 +52,9 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
       { id: "theme", group: "Customize", label: "Toggle dark / light theme", icon: Moon, shortcut: "⌘ ⇧ L", run: toggleTheme },
       { id: "accent", group: "Customize", label: "Change accent color", icon: Palette, run: () => setAccentPopOpen(true) },
       { id: "settings", group: "Customize", label: "Open Settings", icon: Settings, run: go("/settings") },
-      { id: "new", group: "Actions", label: "New project / import repo", icon: Plus, run: () => setNewProjectOpen(true) },
+      { id: "new", group: "Actions", label: "New project — App, Game or AI", icon: Plus, run: go("/editor") },
     ];
-  }, [router, toggleTheme, setNewProjectOpen, setAccentPopOpen]);
+  }, [router, toggleTheme, setAccentPopOpen]);
 
   const filtered = useMemo(
     () => items.filter((i) => i.label.toLowerCase().includes(query.toLowerCase())),

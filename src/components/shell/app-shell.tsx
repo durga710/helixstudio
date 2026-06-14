@@ -4,7 +4,6 @@ import { ShellProvider } from "./shell-context";
 import { Rail } from "./rail";
 import { Topbar } from "./topbar";
 import { CommandPalette } from "./command-palette";
-import { NewProjectModal } from "./new-project-modal";
 
 export function AppShell({
   userInitials,
@@ -31,7 +30,6 @@ export function AppShell({
         </div>
       </div>
       <CommandPalette />
-      <NewProjectModal />
     </ShellProvider>
   );
 }

@@ -7,7 +7,6 @@ import {
   Loader2,
   Sparkles,
   Wrench,
-  ExternalLink,
   Globe,
   UserRound,
   CreditCard,
@@ -29,6 +28,7 @@ import { warmupSteps } from "@/lib/warmup-steps";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
+import { Markdown } from "@/components/ui/markdown";
 import type { WorkspaceMeta } from "@/components/studio/studio";
 import { ModelPicker } from "@/components/studio/model-picker";
 
@@ -95,30 +95,6 @@ function stripBrief(content: string): string {
   return i >= 0 ? content.slice(i + marker.length) : content;
 }
 
-/** Render assistant text with clickable links. */
-function Linkified({ text }: { text: string }) {
-  const parts = text.split(/(https?:\/\/[^\s)]+)/g);
-  return (
-    <>
-      {parts.map((part, i) =>
-        /^https?:\/\//.test(part) ? (
-          <a
-            key={i}
-            href={part}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-0.5 break-all text-accent underline underline-offset-2 hover:brightness-110"
-          >
-            {part.replace(/^https:\/\/(www\.)?/, "").slice(0, 60)}
-            <ExternalLink className="h-3 w-3 shrink-0" />
-          </a>
-        ) : (
-          <span key={i}>{part}</span>
-        ),
-      )}
-    </>
-  );
-}
 
 /**
  * The Helix chatbox. Sends one message per turn to the workspace chat route;
@@ -868,7 +844,7 @@ export function ChatPanel({
                           Proposed plan
                         </div>
                       )}
-                      {m.role === "assistant" ? <Linkified text={m.content} /> : m.content}
+                      {m.role === "assistant" ? <Markdown content={m.content} /> : m.content}
                     </div>
                     {showPlanButtons && (
                       <div className="mt-2 flex flex-wrap gap-2 pl-1">
@@ -972,8 +948,8 @@ export function ChatPanel({
                   <Sparkles className="h-3.5 w-3.5 animate-pulse text-accent" />
                 </span>
                 {streaming ? (
-                  <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl border border-accent/25 bg-hl px-4 py-2.5 text-sm text-txt">
-                    {streaming}
+                  <div className="max-w-[85%] rounded-2xl border border-accent/25 bg-hl px-4 py-2.5 text-sm text-txt">
+                    <Markdown content={streaming} />
                     <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-accent align-middle" />
                   </div>
                 ) : worklog.length > 0 ? (

@@ -8,10 +8,17 @@ import { Fragment } from "react";
  * Everything is rendered as React nodes; no raw HTML injection. */
 
 function InlineMd({ text }: { text: string }) {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\))/g);
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\)|https?:\/\/[^\s)]+)/g);
   return (
     <>
       {parts.map((part, i) => {
+        if (/^https?:\/\//.test(part)) {
+          return (
+            <a key={i} href={part} target="_blank" rel="noreferrer" className="break-all text-accent underline underline-offset-2 hover:brightness-110">
+              {part.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60)}
+            </a>
+          );
+        }
         if (part.startsWith("**") && part.endsWith("**")) {
           return (
             <b key={i} className="font-semibold text-txt">

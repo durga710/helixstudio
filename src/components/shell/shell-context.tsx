@@ -6,8 +6,6 @@ import { useTheme } from "@/components/theme-provider";
 interface ShellContextValue {
   paletteOpen: boolean;
   setPaletteOpen: (open: boolean) => void;
-  newProjectOpen: boolean;
-  setNewProjectOpen: (open: boolean) => void;
   accentPopOpen: boolean;
   setAccentPopOpen: (open: boolean) => void;
 }
@@ -16,7 +14,6 @@ const ShellContext = createContext<ShellContextValue | null>(null);
 
 export function ShellProvider({ children }: { children: React.ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [accentPopOpen, setAccentPopOpen] = useState(false);
   const { toggleTheme } = useTheme();
 
@@ -37,7 +34,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ShellContext.Provider
-      value={{ paletteOpen, setPaletteOpen, newProjectOpen, setNewProjectOpen, accentPopOpen, setAccentPopOpen }}
+      value={{ paletteOpen, setPaletteOpen, accentPopOpen, setAccentPopOpen }}
     >
       {children}
     </ShellContext.Provider>
