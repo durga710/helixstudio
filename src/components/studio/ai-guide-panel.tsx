@@ -12,7 +12,13 @@ interface Msg {
   text: string;
 }
 
-const STARTERS = ["Teach me decision trees", "How do neural networks work?", "I want to train something"];
+const STARTERS = [
+  "Train an image classifier I can test live",
+  "Build a decision tree and see how it splits",
+  "Watch a neural network learn, step by step",
+  "Predict numbers with a regression model",
+  "Explain machine learning like I'm brand new",
+];
 
 export function AiGuidePanel({
   openStudioId,
@@ -84,7 +90,8 @@ export function AiGuidePanel({
             <div className="mb-3 flex items-center gap-2 text-txt">
               <Sparkles className="h-4 w-4 text-accent" /> Hey! I&apos;m your AI guide.
             </div>
-            Tell me what you want to learn and I&apos;ll open the right studio and walk you through building it.
+            Tell me what you want to build or learn — I&apos;ll open the right studio and walk you through it, step
+            by step. Not sure where to start? Try one of these:
             <div className="mt-4 flex flex-col gap-2">
               {STARTERS.map((s) => (
                 <button

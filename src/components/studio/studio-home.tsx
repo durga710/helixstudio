@@ -26,6 +26,7 @@ import {
   Map as MapIcon,
   Globe,
   Blocks,
+  X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
@@ -105,6 +106,7 @@ export function StudioHome({
   const [scratchName, setScratchName] = useState("");
   const [idea, setIdea] = useState("");
   const [namePrompt, setNamePrompt] = useState(false);
+  const [showOther, setShowOther] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -114,6 +116,7 @@ export function StudioHome({
   function choose(k: Kind) {
     setKind(k);
     setView("create");
+    setShowOther(false);
     setError(null);
   }
   function backToChooser() {
@@ -405,43 +408,82 @@ export function StudioHome({
   }
 
   /* -------------------------------- chooser -------------------------------- */
+  const renderChoiceCard = (c: (typeof CHOICES)[number]) => {
+    const Icon = c.icon;
+    return (
+      <button
+        key={c.kind}
+        type="button"
+        onClick={() => choose(c.kind)}
+        className="group flex flex-col items-center gap-3 rounded-2xl border border-border bg-panel p-6 text-center shadow-card transition-all duration-150 hover:-translate-y-0.5 hover:border-accent"
+      >
+        <span className="grid h-14 w-14 place-items-center rounded-2xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-hl transition-colors group-hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)]">
+          <Icon className="h-7 w-7 text-accent" strokeWidth={1.7} />
+        </span>
+        <span className="text-[17px] font-semibold text-txt">{c.title}</span>
+        <span className="text-[12.5px] leading-relaxed text-txt2">{c.desc}</span>
+        <span className="mt-1 flex flex-wrap justify-center gap-1.5">
+          {c.examples.map((ex) => (
+            <span key={ex} className="rounded-full border border-border2 bg-panel2 px-2 py-0.5 text-[10.5px] text-txt3">
+              {ex}
+            </span>
+          ))}
+        </span>
+        <span className="mt-1 inline-flex items-center gap-1 text-[12px] font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">
+          Start <ArrowRight className="h-3.5 w-3.5" />
+        </span>
+      </button>
+    );
+  };
+
   return (
     <div className="space-y-12">
       <section className="pt-4 text-center">
         <h1 className="text-[28px] font-bold tracking-tight text-txt sm:text-[32px]">What do you want to make?</h1>
         <p className="mx-auto mt-2 max-w-[460px] text-sm text-txt2">Pick one to begin. Each project is its own thing — start a new one anytime to make something different.</p>
 
-        <div className="mx-auto mt-8 grid max-w-[920px] gap-4 sm:grid-cols-3">
-          {CHOICES.map((c) => {
-            const Icon = c.icon;
-            return (
-              <button
-                key={c.kind}
-                type="button"
-                onClick={() => choose(c.kind)}
-                className="group flex flex-col items-center gap-3 rounded-2xl border border-border bg-panel p-6 text-center shadow-card transition-all duration-150 hover:-translate-y-0.5 hover:border-accent"
-              >
-                <span className="grid h-14 w-14 place-items-center rounded-2xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-hl transition-colors group-hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)]">
-                  <Icon className="h-7 w-7 text-accent" strokeWidth={1.7} />
-                </span>
-                <span className="text-[17px] font-semibold text-txt">{c.title}</span>
-                <span className="text-[12.5px] leading-relaxed text-txt2">{c.desc}</span>
-                <span className="mt-1 flex flex-wrap justify-center gap-1.5">
-                  {c.examples.map((ex) => (
-                    <span key={ex} className="rounded-full border border-border2 bg-panel2 px-2 py-0.5 text-[10.5px] text-txt3">
-                      {ex}
-                    </span>
-                  ))}
-                </span>
-                <span className="mt-1 inline-flex items-center gap-1 text-[12px] font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">
-                  Start <ArrowRight className="h-3.5 w-3.5" />
-                </span>
-              </button>
-            );
-          })}
+        {/* The two primary creation modes; everything else lives behind "Other". */}
+        <div className="mx-auto mt-8 grid max-w-[620px] gap-4 sm:grid-cols-2">
+          {CHOICES.filter((c) => c.kind === "app" || c.kind === "game").map(renderChoiceCard)}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowOther(true)}
+          className="mx-auto mt-4 inline-flex items-center gap-1.5 rounded-xl border border-border bg-panel px-4 py-2 text-[13px] font-medium text-txt2 transition-colors hover:border-accent hover:text-txt"
+        >
+          <Sparkles className="h-4 w-4 text-accent" /> Other ways to create
+        </button>
+
         {error && <p className="mt-4 text-xs text-warn">{error}</p>}
       </section>
+
+      {showOther && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={() => setShowOther(false)}>
+          <div
+            className="w-full max-w-[460px] rounded-2xl border border-border2 bg-panel p-5 shadow-pop"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-[15px] font-semibold text-txt">More ways to create</h2>
+              <button type="button" onClick={() => setShowOther(false)} className="text-txt3 transition-colors hover:text-txt">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid gap-3">
+              {CHOICES.filter((c) => c.kind === "ai").map(renderChoiceCard)}
+              {/* Roadmap placeholder — design 3D inventions/models (not yet live). */}
+              <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border2 bg-panel2 p-6 text-center opacity-70">
+                <span className="grid h-14 w-14 place-items-center rounded-2xl border border-border2 bg-hl">
+                  <Blocks className="h-7 w-7 text-txt3" strokeWidth={1.7} />
+                </span>
+                <span className="text-[15px] font-semibold text-txt2">Build 3D Models</span>
+                <span className="text-[12px] leading-relaxed text-txt3">Design inventions &amp; 3D objects — coming soon.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {workspaces.length > 0 && (
         <section>
