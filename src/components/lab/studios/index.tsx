@@ -3,15 +3,9 @@
 import { useEffect } from "react";
 import type { ComponentType } from "react";
 import dynamic from "next/dynamic";
-import type { StudioMode } from "@/lib/lessons/studios";
 
 /** A studio reports progress toward its goal and a "built it" signal. */
 export interface StudioProps {
-  /** Which mode the workbench is in. Studios adapt their guidance/scoring; a
-   * studio not yet mode-aware just behaves like sandbox. */
-  mode?: StudioMode;
-  /** The active Challenge mission id (when mode === "challenge"). */
-  challengeId?: string;
   /** 0–100 toward the goal — drives the workbench's goal meter. */
   onProgress?: (pct: number) => void;
   /** Goal reached — marks the studio built. */
@@ -43,7 +37,7 @@ export const STUDIOS: Record<string, ComponentType<StudioProps>> = {
 };
 
 /** Renders a studio by id, or a friendly placeholder if it's not wired yet. */
-export function StudioHost({ studio, mode, challengeId, onProgress, onComplete, onState }: { studio: string } & StudioProps) {
+export function StudioHost({ studio, onProgress, onComplete, onState }: { studio: string } & StudioProps) {
   const Comp = STUDIOS[studio];
 
   useEffect(() => {
@@ -58,5 +52,5 @@ export function StudioHost({ studio, mode, challengeId, onProgress, onComplete, 
       </div>
     );
   }
-  return <Comp mode={mode} challengeId={challengeId} onProgress={onProgress} onComplete={onComplete} onState={onState} />;
+  return <Comp onProgress={onProgress} onComplete={onComplete} onState={onState} />;
 }

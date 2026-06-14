@@ -5,7 +5,6 @@ import { Network, Sparkles, Minus, Plus, RotateCcw } from "lucide-react";
 import { CLASS_COLORS } from "@/components/lab/datasets";
 import { initNet, forward, trainEpochs, accuracyOf, type Net, type Sample } from "@/lib/lab/mlp";
 import type { StudioProps } from "./index";
-import { getStudioMeta, type StudioChallenge } from "@/lib/lessons/studios";
 import { InfoTip } from "@/components/lab/info-tip";
 import { StudioCoach } from "@/components/lab/studio-coach";
 
@@ -46,8 +45,6 @@ function hexLerp(a: string, b: string, t: number): string {
 
 const toSvg = (v: number) => ((v + 1.15) / 2.3) * W;
 
-const CHALLENGES = getStudioMeta("network")?.challenges ?? [];
-
 const LEARN_STEPS: { text: string; cta?: string }[] = [
   { text: "Start with 1 hidden neuron and press “Train”. Watch the boundary — one neuron can only draw a straight LINE." },
   { text: "A straight line can’t wrap around a ring, so it gets stuck below 90%. The fix: add more neurons. Bump “Hidden neurons” up to 3 or 4." },
@@ -55,14 +52,7 @@ const LEARN_STEPS: { text: string; cta?: string }[] = [
   { text: "See the boundary curve around the ring? That’s why we stack neurons into a network. Train until you hit 90%.", cta: "Got it" },
 ];
 
-function meetsChallenge(c: StudioChallenge, acc: number, h: number): boolean {
-  if (c.minAccuracy !== undefined && acc < c.minAccuracy) return false;
-  if (c.maxNeurons !== undefined && h > c.maxNeurons) return false;
-  return true;
-}
-
-export function NetworkStudio({ mode = "sandbox", challengeId, onProgress, onComplete, onState }: StudioProps) {
-  const challenge = useMemo(() => CHALLENGES.find((c) => c.id === challengeId), [challengeId]);
+export function NetworkStudio({ onProgress, onComplete, onState }: StudioProps) {
   const [h, setH] = useState(1);
   const [net, setNet] = useState<Net>(() => initNet(1));
   const [round, setRound] = useState(0);
@@ -72,7 +62,7 @@ export function NetworkStudio({ mode = "sandbox", challengeId, onProgress, onCom
   const done = useRef(false);
 
   const acc = useMemo(() => accuracyOf(net, DATA), [net]);
-  const goalMet = mode === "challenge" && challenge ? meetsChallenge(challenge, acc, h) : acc >= TARGET;
+  const goalMet = acc >= TARGET;
 
   const stop = () => {
     if (timer.current) clearInterval(timer.current);
@@ -90,7 +80,6 @@ export function NetworkStudio({ mode = "sandbox", challengeId, onProgress, onCom
       if (h === 1 && acc < TARGET) narration += " One neuron draws only a straight line, so it's stuck — add more hidden neurons to bend the boundary.";
       else if (acc >= TARGET) narration += " The boundary curved around the ring — you built a working network. 🎉";
       else narration += " Getting there — keep training, or add a neuron to bend the boundary more.";
-      if (mode === "challenge" && challenge?.minAccuracy !== undefined) narration += ` Mission: 90% with as few neurons as you can — you're using ${h}.`;
     }
     onProgress?.((acc / TARGET) * 100);
     onState?.({ neurons: h, rounds: round, accuracy: pct, training, narration });
@@ -99,7 +88,7 @@ export function NetworkStudio({ mode = "sandbox", challengeId, onProgress, onCom
       onComplete();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [acc, round, h, training, mode, challengeId]);
+  }, [acc, round, h, training]);
 
   useEffect(() => () => void (timer.current && clearInterval(timer.current)), []);
 
@@ -110,17 +99,15 @@ export function NetworkStudio({ mode = "sandbox", challengeId, onProgress, onCom
     setNet(initNet(clamped));
     setRound(0);
     done.current = false;
-    if (mode === "learn" && learnStep === 1 && clamped > 1) setLearnStep(2);
+    if (learnStep === 1 && clamped > 1) setLearnStep(2);
   }
 
   function train() {
     if (timer.current) return;
     done.current = false;
     setTraining(true);
-    if (mode === "learn") {
-      if (learnStep === 0) setLearnStep(1);
-      else if (learnStep === 2 && h > 1) setLearnStep(3);
-    }
+    if (learnStep === 0) setLearnStep(1);
+    else if (learnStep === 2 && h > 1) setLearnStep(3);
     let working = net;
     let r = round;
     timer.current = setInterval(() => {
@@ -157,16 +144,15 @@ export function NetworkStudio({ mode = "sandbox", challengeId, onProgress, onCom
 
   return (
     <div className="rounded-card border border-border bg-panel2 p-4">
-      {mode === "learn" && (
-        <StudioCoach
-          index={learnStep}
-          total={LEARN_STEPS.length}
-          done={learnStep >= LEARN_STEPS.length}
-          text={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].text : "You’ve built a real network — train it to 90% around the ring, or try Challenge mode up top."}
-          cta={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].cta : undefined}
-          onNext={learnStep < LEARN_STEPS.length && LEARN_STEPS[learnStep].cta ? () => setLearnStep((s) => s + 1) : undefined}
-        />
-      )}
+      <StudioCoach
+        index={learnStep}
+        total={LEARN_STEPS.length}
+        done={learnStep >= LEARN_STEPS.length}
+        text={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].text : "You’ve built a real network — train it to 90% around the ring!"}
+        cta={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].cta : undefined}
+        onNext={learnStep < LEARN_STEPS.length && LEARN_STEPS[learnStep].cta ? () => setLearnStep((s) => s + 1) : undefined}
+      />
+
 
       <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px]">
         <span className="inline-flex items-center gap-1.5 font-semibold text-txt">

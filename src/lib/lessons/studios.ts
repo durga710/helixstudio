@@ -11,24 +11,6 @@
 
 import type { GlossaryTerm } from "./types";
 
-/** The three ways to use a studio. Learn = coached step-by-step; Challenge =
- * scored missions; Sandbox = free build with always-on explanation. */
-export type StudioMode = "learn" | "challenge" | "sandbox";
-
-/** A scored mission for Challenge mode. The studio interprets whichever criteria
- * fields apply to it (all optional). */
-export interface StudioChallenge {
-  id: string;
-  title: string;
-  desc: string;
-  minAccuracy?: number; // 0–1 (tree / network)
-  maxSplits?: number; // tree
-  maxGap?: number; // tree — train/test gap ceiling
-  maxError?: number; // regression
-  maxRounds?: number; // cluster / network
-  maxNeurons?: number; // network
-}
-
 export interface StudioMeta {
   id: string;
   title: string;
@@ -40,8 +22,6 @@ export interface StudioMeta {
   objectives?: string[];
   /** Plain-language definitions for the in-studio "Words" panel. */
   glossary?: GlossaryTerm[];
-  /** Scored missions for Challenge mode. */
-  challenges?: StudioChallenge[];
   /** The ML idea being built. */
   concept: string;
   /** The thing the student is working toward (shown in the workbench header). */
@@ -72,10 +52,6 @@ export const STUDIO_CATALOG: StudioMeta[] = [
       { term: "Overfitting", def: "When the tree memorizes the exact practice pets instead of learning the pattern — it then flops on new pets." },
       { term: "New pets (test set)", def: "Pets the tree never saw while building. Doing well on these is what really counts." },
     ],
-    challenges: [
-      { id: "lean", title: "Lean tree", desc: "Reach 85% on new pets with 3 splits or fewer — keep it simple.", minAccuracy: 0.85, maxSplits: 3 },
-      { id: "no-overfit", title: "Don't memorize", desc: "Reach 80% on new pets while keeping the gap between practice and new pets under 12%.", minAccuracy: 0.8, maxGap: 0.12 },
-    ],
     concept: "decision trees",
     goal: "Reach 85% accuracy on pets it has never seen",
     icon: "GitBranch",
@@ -102,10 +78,6 @@ export const STUDIO_CATALOG: StudioMeta[] = [
       { term: "Overfitting", def: "The curve is too bendy and chases the noise — great on its dots, bad on new ones." },
       { term: "New points (test set)", def: "Dots the curve never trained on. Low error on these is the real goal." },
     ],
-    challenges: [
-      { id: "accurate", title: "Tight predictor", desc: "Get the error on new points under 0.5.", maxError: 0.5 },
-      { id: "spot-overfit", title: "Spot the overfit", desc: "Crank the bendiness too high to see it overfit, then dial back to under 0.5 error.", maxError: 0.5 },
-    ],
     concept: "regression models",
     goal: "Get the error on new points under 0.5",
     icon: "LineChart",
@@ -131,10 +103,6 @@ export const STUDIO_CATALOG: StudioMeta[] = [
       { term: "Spread", def: "How far dots sit from their group's center, added up. Tighter groups = smaller spread." },
       { term: "Unlabeled data", def: "Dots with no answer attached — the computer has to find the structure itself." },
     ],
-    challenges: [
-      { id: "fast", title: "Quick find", desc: "Uncover the 3 groups in 5 rounds or fewer.", maxRounds: 5 },
-      { id: "wrong-k", title: "Wrong number of groups", desc: "Try K=2 and K=4 to see why the number matters, then nail it with K=3." },
-    ],
     concept: "clustering algorithms",
     goal: "Uncover the 3 hidden groups",
     icon: "Boxes",
@@ -159,10 +127,6 @@ export const STUDIO_CATALOG: StudioMeta[] = [
       { term: "Training", def: "The network adjusts its dials over many rounds to make fewer mistakes." },
       { term: "Decision boundary", def: "The line/curve that separates one class from the other (the colored regions)." },
       { term: "Accuracy", def: "The share of dots it gets on the right side. 90% is the goal here." },
-    ],
-    challenges: [
-      { id: "fewest", title: "Lean network", desc: "Beat the ring at 90% with as few hidden neurons as you can.", minAccuracy: 0.9 },
-      { id: "one-fails", title: "Why one fails", desc: "See one neuron stall, then add neurons until the boundary curves around the ring (90%).", minAccuracy: 0.9 },
     ],
     concept: "neural networks",
     goal: "Separate the ring from the core (90%)",

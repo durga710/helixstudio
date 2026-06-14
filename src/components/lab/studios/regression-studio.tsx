@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LineChart, Sparkles } from "lucide-react";
 import type { StudioProps } from "./index";
-import { getStudioMeta, type StudioChallenge } from "@/lib/lessons/studios";
 import { InfoTip } from "@/components/lab/info-tip";
 import { StudioCoach } from "@/components/lab/studio-coach";
 
@@ -83,8 +82,6 @@ function rmse(c: number[], points: { x: number; y: number }[]): number {
 
 const DEGREE_LABEL: Record<number, string> = { 1: "straight line", 2: "gentle curve", 3: "bendy curve", 4: "very bendy" };
 
-const CHALLENGES = getStudioMeta("regression")?.challenges ?? [];
-
 const LEARN_STEPS: { text: string; cta?: string }[] = [
   { text: "Pick how bendy the line can be — start at 1 (a straight line) — then press Fit." },
   { text: "Teal dots are practice; the hollow gold dots are NEW points it never trained on. The score that matters is “Error on new points” — lower is better.", cta: "Got it" },
@@ -93,13 +90,7 @@ const LEARN_STEPS: { text: string; cta?: string }[] = [
   { text: "Now dial in a bendiness that gets the error on new points under 0.5 to win.", cta: "Got it" },
 ];
 
-function meetsChallenge(c: StudioChallenge, testRMSE: number | null): boolean {
-  if (c.maxError !== undefined) return testRMSE !== null && testRMSE <= c.maxError;
-  return testRMSE !== null && testRMSE <= TARGET_RMSE;
-}
-
-export function RegressionStudio({ mode = "sandbox", challengeId, onProgress, onComplete, onState }: StudioProps) {
-  const challenge = useMemo(() => CHALLENGES.find((c) => c.id === challengeId), [challengeId]);
+export function RegressionStudio({ onProgress, onComplete, onState }: StudioProps) {
   const [degree, setDegree] = useState(1);
   const [coeffs, setCoeffs] = useState<number[] | null>(null);
   const [fittedDegree, setFittedDegree] = useState(1);
@@ -111,7 +102,7 @@ export function RegressionStudio({ mode = "sandbox", challengeId, onProgress, on
 
   const trainRMSE = useMemo(() => (coeffs ? rmse(coeffs, TRAIN) : null), [coeffs]);
   const testRMSE = useMemo(() => (coeffs ? rmse(coeffs, TEST) : null), [coeffs]);
-  const goalMet = mode === "challenge" && challenge ? meetsChallenge(challenge, testRMSE) : testRMSE !== null && testRMSE <= TARGET_RMSE;
+  const goalMet = testRMSE !== null && testRMSE <= TARGET_RMSE;
 
   useEffect(() => {
     let narration: string;
@@ -136,15 +127,13 @@ export function RegressionStudio({ mode = "sandbox", challengeId, onProgress, on
       onComplete();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [testRMSE, trainRMSE, fittedDegree, mode, challengeId]);
+  }, [testRMSE, trainRMSE, fittedDegree]);
 
   function fit() {
     setCoeffs(fitPoly(TRAIN, degree));
     setFittedDegree(degree);
-    if (mode === "learn") {
-      if (learnStep === 0) setLearnStep(1);
-      else if (learnStep === 2 && degree >= 3) setLearnStep(3);
-    }
+    if (learnStep === 0) setLearnStep(1);
+    else if (learnStep === 2 && degree >= 3) setLearnStep(3);
   }
 
   const curve = useMemo(() => {
@@ -159,16 +148,15 @@ export function RegressionStudio({ mode = "sandbox", challengeId, onProgress, on
 
   return (
     <div className="rounded-card border border-border bg-panel2 p-4">
-      {mode === "learn" && (
-        <StudioCoach
-          index={learnStep}
-          total={LEARN_STEPS.length}
-          done={learnStep >= LEARN_STEPS.length}
-          text={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].text : "You’ve got it — find the bendiness that keeps the new-point error under 0.5, or try Challenge mode."}
-          cta={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].cta : undefined}
-          onNext={learnStep < LEARN_STEPS.length && LEARN_STEPS[learnStep].cta ? () => setLearnStep((s) => s + 1) : undefined}
-        />
-      )}
+      <StudioCoach
+        index={learnStep}
+        total={LEARN_STEPS.length}
+        done={learnStep >= LEARN_STEPS.length}
+        text={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].text : "You’ve got it — find the bendiness that keeps the new-point error under 0.5."}
+        cta={learnStep < LEARN_STEPS.length ? LEARN_STEPS[learnStep].cta : undefined}
+        onNext={learnStep < LEARN_STEPS.length && LEARN_STEPS[learnStep].cta ? () => setLearnStep((s) => s + 1) : undefined}
+      />
+
 
       <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px]">
         <span className="inline-flex items-center gap-1.5 font-semibold text-txt">
