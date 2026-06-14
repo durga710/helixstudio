@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick, Bot, ArrowRight, Clock, Check, GraduationCap } from "lucide-react";
+import { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick, Bot, Hammer, ArrowRight, Clock, Check, GraduationCap } from "lucide-react";
 import type { LessonManifest } from "@/lib/lessons/types";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
@@ -41,6 +41,26 @@ export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
           Learn how AI really works by <span className="text-txt">training your own models</span> — hands-on,
           step by step, no code. Pick a lesson and go.
         </p>
+
+        {/* Studios — the hands-on hero: pick a concept and build it on a workbench. */}
+        <Link
+          href="/lab/studio"
+          className="mt-5 flex items-center gap-3.5 rounded-card border border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-gradient-to-r from-[color-mix(in_srgb,var(--accent)_12%,transparent)] to-transparent p-4 transition-all duration-150 hover:-translate-y-px hover:border-accent"
+        >
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl">
+            <Hammer className="h-5 w-5 text-accent" strokeWidth={1.8} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2 text-[14.5px] font-semibold text-txt">
+              Studios <span className="rounded-full bg-accent px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wide text-accent-ink">New</span>
+            </span>
+            <span className="mt-0.5 block text-[12.5px] text-txt2">
+              Don&apos;t just read about it — <span className="text-txt">build it</span>. Grow a decision tree, train a
+              network, and more on an interactive workbench.
+            </span>
+          </span>
+          <ArrowRight className="h-4 w-4 shrink-0 text-accent" />
+        </Link>
 
         {lessons.length === 0 ? (
           <Card className="mt-6 p-8 text-center text-sm text-txt3">No lessons yet — check back soon.</Card>

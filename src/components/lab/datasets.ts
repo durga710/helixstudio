@@ -94,10 +94,45 @@ const BLOBS: Dataset = {
   ],
 };
 
+function pc(label: string, weight: number, ears: number, tail: number): DataPoint {
+  return { label, features: { weight, ears, tail } };
+}
+
+/** Pets told apart by three measurements — needs 2–3 splits to sort well (one
+ * split only isolates rabbits). A little overlap (a small dog, a heavy cat, a
+ * long-tailed rabbit) keeps it under 100% so deeper trees visibly overfit.
+ * Built for the Decision Tree Studio (rows ordered by kind; every 3rd = test). */
+const CREATURES: Dataset = {
+  id: "creatures",
+  name: "Pets",
+  featureNames: ["weight", "ears", "tail"],
+  units: { weight: "kg", ears: "cm", tail: "cm" },
+  classes: ["Cat", "Dog", "Rabbit"],
+  summary: "36 pets · 3 kinds · 3 measurements (weight, ears, tail)",
+  points: [
+    // Cats — light, medium ears, long tail
+    pc("Cat", 4.0, 6, 26), pc("Cat", 4.5, 5, 28), pc("Cat", 3.8, 6, 24),
+    pc("Cat", 5.0, 7, 30), pc("Cat", 4.2, 5, 25), pc("Cat", 4.8, 6, 27),
+    pc("Cat", 3.5, 6, 23), pc("Cat", 6.0, 7, 29), pc("Cat", 4.4, 5, 26),
+    pc("Cat", 4.6, 6, 28), pc("Cat", 4.0, 6, 24), pc("Cat", 5.5, 7, 31),
+    // Dogs — heavy, long tail (a couple of small dogs overlap the cats)
+    pc("Dog", 12, 8, 32), pc("Dog", 20, 6, 30), pc("Dog", 6.5, 5, 24),
+    pc("Dog", 25, 9, 35), pc("Dog", 15, 7, 28), pc("Dog", 30, 8, 36),
+    pc("Dog", 11, 5, 25), pc("Dog", 18, 7, 31), pc("Dog", 22, 6, 33),
+    pc("Dog", 14, 8, 29), pc("Dog", 27, 9, 34), pc("Dog", 7.0, 6, 26),
+    // Rabbits — tiny, long ears, stubby tail (one long-tailed rabbit overlaps)
+    pc("Rabbit", 1.8, 11, 5), pc("Rabbit", 2.0, 10, 4), pc("Rabbit", 1.5, 12, 6),
+    pc("Rabbit", 2.4, 9, 5), pc("Rabbit", 1.6, 11, 4), pc("Rabbit", 2.2, 13, 6),
+    pc("Rabbit", 1.4, 10, 3), pc("Rabbit", 2.6, 12, 9), pc("Rabbit", 1.9, 11, 5),
+    pc("Rabbit", 2.1, 9, 4), pc("Rabbit", 1.7, 12, 6), pc("Rabbit", 2.3, 10, 5),
+  ],
+};
+
 export const DATASETS: Record<string, Dataset> = {
   flowers: FLOWERS,
   fruit2d: FRUIT2D,
   blobs: BLOBS,
+  creatures: CREATURES,
 };
 
 export function getDataset(id: string | undefined): Dataset {
