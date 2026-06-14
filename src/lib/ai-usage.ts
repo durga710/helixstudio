@@ -29,6 +29,7 @@ export type AiUsageKind =
   | "embed"
   | "tutor"
   | "lesson_generation"
+  | "lesson_assist"
   | "compaction"
   | "lab_guide";
 

@@ -18,29 +18,13 @@ import { checkTokenBudget } from "@/lib/token-budget";
 import { recordAiUsage } from "@/lib/ai-usage";
 import { resolveAiPrefs, runOneShot } from "@/lib/ai-agent";
 import { coerceLessonDoc } from "@/lib/lessons/schema";
-import { WIDGET_CATALOG } from "@/lib/lessons/widgets";
+import { lessonAuthoringGuide } from "@/lib/lessons/authoring-guide";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const Schema = z.object({ spaceId: z.string().min(1).max(60), prompt: z.string().min(3).max(600) });
-
-const ICONS = "Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick";
-
-function systemPrompt(): string {
-  const widgets = WIDGET_CATALOG.map((w) => `  - "${w.id}": ${w.desc}`).join("\n");
-  return `You design ONE short, interactive lesson for kids (ages ~10–16) in an "AI Lab" where students learn AI by doing.
-Return ONLY minified JSON — no prose, no code fences — shaped EXACTLY like:
-{"manifest":{"title":"...","blurb":"one-line hook","level":"beginner","estMinutes":12,"icon":"Sparkles","concept":"short topic","order":100},"steps":[ ... ]}
-Each step is ONE of:
-- {"kind":"explain","title":"optional short title","body":"friendly markdown teaching text; short paragraphs; **bold** key terms"}
-- {"kind":"quiz","title":"optional","question":"...","choices":["a","b","c"],"answer":0,"explain":"why that's right"}
-- {"kind":"widget","widget":"<id>","title":"optional","body":"one-line intro"}
-The ONLY widget ids that exist (use one ONLY where it genuinely fits; otherwise teach with explain + quiz):
-${widgets}
-Rules: 12–18 steps; mostly explain + quiz; a clear arc (hook → teach → check understanding → reflect); plain kid language (NO jargon like "epoch", "tensor", "hyperparameter"); a quiz every few steps; end with a short recap. "icon" must be one of: ${ICONS}. "level" is beginner | intermediate | advanced.`;
-}
 
 function slugify(s: string): string {
   return (
@@ -83,8 +67,8 @@ export async function POST(req: Request) {
     model: prefs.model,
     apiKey: prefs.apiKey,
     baseUrl: prefs.baseUrl,
-    maxTokens: 4000,
-    system: systemPrompt(),
+    maxTokens: 14000,
+    system: lessonAuthoringGuide(),
     user: `Make a lesson about: ${prompt}`,
   });
   if ("error" in res) return apiErrors.badRequest("The AI couldn't build that lesson — try again or rephrase.");

@@ -48,9 +48,30 @@ export async function POST(req: Request) {
   if (!(await ownsSpace(spaceId, g.user.id))) return apiErrors.notFound("Classroom");
 
   const t = title?.trim() || "Untitled lesson";
+  // Start from the house pattern (frame → predict → interact → reveal → reflect →
+  // recall), not a blank page — so teachers edit a real lesson into shape.
   const doc: Lesson = {
-    manifest: { id: "lesson", title: t, blurb: "A new lesson.", level: "beginner", estMinutes: 10, icon: "Sparkles", concept: "ai", order: 100 },
-    steps: [{ kind: "explain", title: "Start here", body: "Write your lesson here, or generate one with AI." }],
+    manifest: {
+      id: "lesson",
+      title: t,
+      blurb: "One-line hook that makes a student want to start.",
+      level: "beginner",
+      estMinutes: 12,
+      icon: "Sparkles",
+      concept: "ai",
+      order: 100,
+      objectives: ["What this lesson teaches — bullet one", "Bullet two", "Bullet three"],
+      glossary: [{ term: "Key term", def: "A kid-friendly meaning students can tap to read." }],
+    },
+    steps: [
+      { kind: "explain", title: "Part 1 · Hook", body: "Open with a relatable question or story. Keep it short and **bold** the key idea." },
+      { kind: "predict", title: "A quick guess", prompt: "Ask a low-stakes prediction before the reveal.", choices: ["Option A", "Option B", "Not sure"], afterPick: "Nice — let's find out together. →", youWillDo: "make a prediction" },
+      { kind: "widget", widget: "sortGame", title: "Try it", body: "Drop in an interactive widget where it fits. (Swap this for any widget — keep variety, don't repeat one.)", youWillDo: "do the hands-on part", config: { dataset: "boundary" } },
+      { kind: "explain", title: "Name the idea", body: "After they've experimented, name the concept and explain what just happened." },
+      { kind: "quiz", title: "Quick check", question: "A recognition check on the idea.", choices: ["Right answer", "A wrong one", "Another wrong one"], answer: 0, explain: "Say why it's right." },
+      { kind: "reflect", title: "Say it your way", prompt: "Ask them to explain the idea in their own words.", placeholder: "It works like…", recall: { question: "A retrieval check that resurfaces the idea.", choices: ["Right answer", "A wrong one"], answer: 0, explain: "Reinforce why." }, youWillDo: "explain it back" },
+      { kind: "explain", title: "Recap 🎉", body: "Wrap up what they learned and tee up what's next." },
+    ],
   };
 
   const row = await db().lesson.create({
