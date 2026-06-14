@@ -62,6 +62,16 @@ export const WIDGET_CATALOG: WidgetInfo[] = [
     desc: "The student presses 'train a round' (or Auto) and watches a bar chart of how many mistakes the model still makes drop toward zero each round. Use for: what error/loss is, 'learning = fewer mistakes each round', training progress — a chart modality.",
   },
   {
+    id: "customSort",
+    label: "Custom sort game (your own data)",
+    desc: "A make-your-own two-bin sort game — you set the two bin names, two clue labels, and the items (with their correct bin). The student sorts each item by its clues. config: {binA,binB,clueA,clueB,items:[{a,b,bin}]}. Use for: any 'put things in two groups' topic, on any subject.",
+  },
+  {
+    id: "customFlashcards",
+    label: "Custom flashcards (your own deck)",
+    desc: "A make-your-own flip-card deck — you set the cards (front + back). The student taps each card to flip it. config: {cards:[{front,back}]}. Use for: vocabulary, key terms, definitions, quick recall on any subject.",
+  },
+  {
     id: "langModel",
     label: "Language model (next-word predictor)",
     desc: "The student trains a tiny language model on text, then generates new text — adjusting the context window and 'creativity' (temperature) and watching the next-word probabilities. Use for: language models, LLMs, next-token prediction, tokens, temperature, how ChatGPT works.",

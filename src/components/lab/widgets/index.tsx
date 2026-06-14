@@ -108,6 +108,26 @@ const ErrorChart = dynamic(() => import("./error-chart").then((m) => m.ErrorChar
     );
   },
 });
+const CustomSort = dynamic(() => import("./custom-sort").then((m) => m.CustomSort), {
+  ssr: false,
+  loading: function CustomSortLoading() {
+    return (
+      <div className="grid place-items-center rounded-card border border-border bg-panel2 p-10 text-[12px] text-txt3">
+        loading…
+      </div>
+    );
+  },
+});
+const CustomFlashcards = dynamic(() => import("./custom-flashcards").then((m) => m.CustomFlashcards), {
+  ssr: false,
+  loading: function CustomFlashcardsLoading() {
+    return (
+      <div className="grid place-items-center rounded-card border border-border bg-panel2 p-10 text-[12px] text-txt3">
+        loading…
+      </div>
+    );
+  },
+});
 const LangModel = dynamic(() => import("./lang-model").then((m) => m.LangModel), {
   ssr: false,
   loading: function LangModelLoading() {
@@ -132,6 +152,8 @@ export const WIDGETS: Record<string, ComponentType<WidgetProps>> = {
   sortGame: SortGame,
   neuronSchematic: NeuronSchematic,
   errorChart: ErrorChart,
+  customSort: CustomSort,
+  customFlashcards: CustomFlashcards,
   langModel: LangModel,
 };
 
