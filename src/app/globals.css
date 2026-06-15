@@ -194,6 +194,66 @@ input[type="range"] {
   animation: fade-up 0.18s ease both;
 }
 
+/* ===================== MARKETING / LANDING DEMO ===================== */
+/* Block caret for the live terminal demo (TypingAnimation). */
+@keyframes helix-caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* Subtle dotted grid used behind the hero — adapts to the accent. */
+.helix-grid {
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    color-mix(in srgb, var(--txt-3) 22%, transparent) 1px,
+    transparent 0
+  );
+  background-size: 28px 28px;
+  mask-image: radial-gradient(70% 60% at 50% 30%, #000 30%, transparent 100%);
+}
+
+/* Soft accent aurora for hero / CTA backdrops. */
+.helix-aurora {
+  background:
+    radial-gradient(620px 320px at 78% 12%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 70%),
+    radial-gradient(520px 300px at 12% 0%, color-mix(in srgb, var(--brand-violet) 12%, transparent), transparent 70%);
+}
+
+/* The marketing surface is always dark, regardless of the in-app theme
+   switcher. Re-declare the dark token values on the wrapper so every
+   token-based utility (text-txt, bg-panel, var(--accent)…) resolves to the
+   dark palette even when a signed-in user has light mode selected. */
+.helix-marketing {
+  --bg: #070b12;
+  --bg-2: #0a101c;
+  --panel: #0d1626;
+  --panel-2: #121d30;
+  --panel-3: #17243a;
+  --border: #1d2940;
+  --border-2: #28364f;
+  --txt: #f8fbff;
+  --txt-2: #9cadc4;
+  --txt-3: #7d8ca6;
+  --green: #34d399;
+  --amber: #fbbf24;
+  --red: #f87171;
+  --code-bg: #060a11;
+  color-scheme: dark;
+}
+
+/* Honor user motion preferences across the whole marketing surface — a final
+   safety net beyond each component's useReducedMotion handling. */
+@media (prefers-reduced-motion: reduce) {
+  .helix-marketing *,
+  .helix-marketing *::before,
+  .helix-marketing *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ===================== STUDIO (ported from GCODE) ===================== */
 /* Panel surfaces — theme-aware replacements for GCODE's dark-only glass. */
 .glass-panel {
