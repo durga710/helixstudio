@@ -97,7 +97,14 @@ export default async function EditorPage() {
   const ownWorkspaces = abandoned.length > 0 ? workspaces.filter((w) => !abandoned.some((a) => a.id === w.id)) : workspaces;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10">
+    <div className="relative isolate">
+      {/* Decorative, theme-aware backdrop — adds depth to the editor home
+          without affecting clicks or a11y (pointer-events-none, aria-hidden).
+          Subtle on light, richer on dark; all driven by theme tokens. */}
+      <div aria-hidden className="helix-aurora pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] opacity-60" />
+      <div aria-hidden className="helix-grid pointer-events-none absolute inset-x-0 top-0 -z-10 h-[440px]" />
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[260px] bg-gradient-to-b from-[color-mix(in_srgb,var(--accent)_6%,transparent)] to-transparent" />
+      <div className="mx-auto max-w-5xl px-4 py-10">
       <StudioHome
         isGuest={Boolean(session.user.isGuest)}
         isAdmin={isAdminEmail(session.user.email ?? "")}
@@ -125,6 +132,7 @@ export default async function EditorPage() {
           ownerName: w.user.name ?? w.user.email ?? "a teammate",
         }))}
       />
+      </div>
     </div>
   );
 }
