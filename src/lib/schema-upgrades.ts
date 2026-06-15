@@ -416,4 +416,8 @@ CREATE TABLE IF NOT EXISTS "LabWidget" (
 
 CREATE INDEX IF NOT EXISTS "LabWidget_authorId_updatedAt_idx" ON "LabWidget"("authorId", "updatedAt");
 CREATE INDEX IF NOT EXISTS "LabWidget_spaceId_idx" ON "LabWidget"("spaceId");
+
+-- 2026-06 · Persisted synthesized build-chat summary (so reloads match the live
+-- narration: content holds the model's raw reply, summary holds our own prose)
+ALTER TABLE "WorkspaceMessage" ADD COLUMN IF NOT EXISTS "summary" TEXT;
 `;

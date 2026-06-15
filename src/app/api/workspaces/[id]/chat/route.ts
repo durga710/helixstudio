@@ -93,6 +93,7 @@ export async function POST(req: Request, { params }: Params) {
             write({
               type: "final",
               text: result.text,
+              summary: result.summary ?? undefined,
               actions: result.actions,
               changes: result.changes,
               verify: result.verify,

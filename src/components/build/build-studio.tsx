@@ -22,7 +22,7 @@ import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
 import { isGodotProject } from "@/lib/templates/engines";
 import { scaffoldSteps } from "@/lib/scaffold-steps";
 import { buildTasks } from "@/lib/build-tasks";
-import { buildNarration, friendlyActivity, synthesizeReply, paraphraseRequest, holdingLines } from "@/lib/build-feed";
+import { buildNarration, friendlyActivity, paraphraseRequest, holdingLines } from "@/lib/build-feed";
 import { BuildBoard } from "@/components/build/build-board";
 import { cn } from "@/lib/utils";
 
@@ -373,6 +373,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             type: string;
             label?: string;
             text?: string;
+            summary?: string;
             message?: string;
             code?: string;
             files?: string[];
@@ -436,24 +437,16 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             resolved = true;
             turnDone.current = true;
             feedActive.current = false;
-            // Hybrid: write our own varied, truthful summary from the real result;
-            // keep the model's reply behind a "details" toggle.
-            const synth = synthesizeReply({
-              changes: evt.changes,
-              verify: evt.verify,
-              userMessage: trimmed,
-              kind: brief === "game" || brief === "godot" ? "game" : "app",
-              isFirstBuild: isInitialBuild,
-              seed: workspace.id,
-            });
+            // Hybrid: the server computed our varied, truthful, PERSISTED summary
+            // — show it and keep the model's reply behind a "details" toggle.
             setMessages((prev) => [
               ...prev,
               {
                 id: nextId.current++,
                 role: "assistant",
-                content: synth ?? evt.text ?? "Done.",
+                content: evt.summary ?? evt.text ?? "Done.",
                 worklog: turnLog,
-                aiText: synth ? evt.text || undefined : undefined,
+                aiText: evt.summary ? evt.text || undefined : undefined,
               },
             ]);
             setActivities([]);
@@ -516,10 +509,14 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       const res = await fetch(`/api/workspaces/${workspace.id}`, { cache: "no-store" });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) return;
-      const hist = (json.data.messages as Array<{ role: "user" | "assistant"; content: string }>).map((m) => ({
+      const hist = (
+        json.data.messages as Array<{ role: "user" | "assistant"; content: string; summary?: string | null }>
+      ).map((m) => ({
         id: nextId.current++,
         role: m.role,
-        content: m.role === "user" ? stripBrief(m.content) : m.content,
+        // Assistant turns with a stored summary show it, raw reply → "details".
+        content: m.role === "user" ? stripBrief(m.content) : m.summary || m.content,
+        aiText: m.role === "assistant" && m.summary ? m.content : undefined,
       }));
       if (hist.length) setMessages(hist);
     } catch {

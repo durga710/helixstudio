@@ -316,6 +316,7 @@ CREATE TABLE "WorkspaceMessage" (
     "workspaceId" TEXT NOT NULL,
     "role" TEXT NOT NULL,
     "content" TEXT NOT NULL,
+    "summary" TEXT,
     "actions" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

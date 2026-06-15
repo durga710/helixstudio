@@ -35,6 +35,7 @@ import { getTemplate } from "@/lib/templates/store";
 import { buildTemplateNote } from "@/lib/templates/router";
 import { personalizeTemplateFiles } from "@/lib/templates/personalize";
 import { resolveTemplateId } from "@/lib/templates/select";
+import { synthesizeReply } from "@/lib/build-feed";
 import { setProgress, clearProgress } from "@/lib/progress";
 import { usingSandboxBackend, runnerEnabled } from "@/lib/app-runner";
 import { verifyBuild, verifyMarker, canVerifyInProcess } from "@/lib/verify";
@@ -80,6 +81,9 @@ export type TurnAction = { tool: string; label: string; log?: string };
 
 export interface TurnResult {
   text: string;
+  /** Our own user-facing summary for a build turn that changed files (the model's
+   * raw reply stays in `text` for the "details" toggle). Null otherwise. */
+  summary?: string | null;
   actions: TurnAction[];
   changes: ChangeManifest;
   tokensUsed: number;
@@ -193,6 +197,7 @@ export async function runAgentTurn(opts: {
   // starter from the user's idea BEFORE building, so the agent customizes a real
   // skeleton (cheap) and the preview renders instead of staying blank. Covers any
   // path that reaches the agent empty (e.g. "Create from scratch" → first chat).
+  let scaffolded = false;
   if (mode === "build" && ws.mode === "SCRATCH" && treePaths.length === 0 && !ws.notes && userMessage) {
     try {
       const templateId = await resolveTemplateId({
@@ -216,6 +221,7 @@ export async function runAgentTurn(opts: {
         // Hand the real scaffold file list to the client so it can play a live
         // "building the home page…/wiring navigation…" feed while we customize.
         onEvent?.({ type: "scaffold", files: treePaths, stack: tpl.manifest.label });
+        scaffolded = true; // this turn IS the first build → "your app is ready" phrasing
       }
     } catch {
       // best-effort — fall through to building from scratch
@@ -593,6 +599,22 @@ export async function runAgentTurn(opts: {
       }
     }
 
+    // Our own user-facing summary for build turns that changed files — varied,
+    // truthful (derived from the real changes + verify), and 0-token. Shown
+    // INSTEAD of the model's prose; the raw reply stays in `content` for the
+    // "details" toggle. Persisted so a reload shows exactly what was shown live.
+    const summary =
+      mode === "build"
+        ? synthesizeReply({
+            changes,
+            verify,
+            userMessage,
+            kind: ws.kind === "game" ? "game" : "app",
+            isFirstBuild: scaffolded,
+            seed: ws.id,
+          })
+        : null;
+
     // Persist the turn (best-effort — the reply still goes out if this fails).
     if (persist) {
       try {
@@ -601,7 +623,7 @@ export async function runAgentTurn(opts: {
             data: { workspaceId: ws.id, role: "user", content: userMessage },
           }),
           db().workspaceMessage.create({
-            data: { workspaceId: ws.id, role: "assistant", content: text, actions },
+            data: { workspaceId: ws.id, role: "assistant", content: text, actions, ...(summary ? { summary } : {}) },
           }),
           ...aiUsageOps({
             userId,
@@ -624,7 +646,7 @@ export async function runAgentTurn(opts: {
       ? Math.max(0, (dbUser.tokenLimit ?? GUEST_TOKEN_LIMIT) - (dbUser.tokensUsed + tokensUsed))
       : null;
 
-    return { text, actions, changes, tokensUsed, guestRemaining, verify };
+    return { text, summary, actions, changes, tokensUsed, guestRemaining, verify };
   } finally {
     clearProgress(ws.id);
   }

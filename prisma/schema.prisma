@@ -600,7 +600,8 @@ model WorkspaceMessage {
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   role        String // "user" | "assistant"
-  content     String
+  content     String // the model's raw reply (kept for the "details" toggle)
+  summary     String? // our synthesized, user-facing summary (shown instead of content when set)
   actions     Json? // [{tool, label}]
   createdAt   DateTime  @default(now())
 

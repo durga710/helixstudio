@@ -29,7 +29,7 @@ import {
 import { GAME_CATEGORIES } from "@/lib/templates/engines";
 import { cn } from "@/lib/utils";
 import { warmupSteps } from "@/lib/warmup-steps";
-import { buildNarration, friendlyActivity, synthesizeReply, paraphraseRequest, holdingLines } from "@/lib/build-feed";
+import { buildNarration, friendlyActivity, paraphraseRequest, holdingLines } from "@/lib/build-feed";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
@@ -140,6 +140,17 @@ function stripBrief(content: string): string {
   return i >= 0 ? content.slice(i + marker.length) : content;
 }
 
+/** Map a persisted message to a Msg. An assistant turn with a stored `summary`
+ * (our synthesized prose) shows the summary, with the model's raw reply kept
+ * behind the "details" toggle — so a reload matches exactly what was shown live. */
+type HistoryMsg = { role: "user" | "assistant"; content: string; summary?: string | null; actions?: Action[] | null };
+function hydrateMessage(m: HistoryMsg): Msg {
+  if (m.role === "user") return { role: "user", content: stripBrief(m.content), actions: m.actions ?? undefined };
+  return m.summary
+    ? { role: "assistant", content: m.summary, actions: m.actions ?? undefined, aiText: m.content || undefined }
+    : { role: "assistant", content: m.content, actions: m.actions ?? undefined };
+}
+
 
 /**
  * The Helix chatbox. Sends one message per turn to the workspace chat route;
@@ -229,13 +240,7 @@ export function ChatPanel({
         const json = await res.json().catch(() => null);
         if (cancelled) return;
         if (res.ok && json?.ok) {
-          const fresh = (
-            json.data.messages as { role: "user" | "assistant"; content: string; actions: Action[] | null }[]
-          ).map((m) => ({
-                  role: m.role,
-                  content: m.role === "user" ? stripBrief(m.content) : m.content,
-                  actions: m.actions ?? undefined,
-                }));
+          const fresh = (json.data.messages as HistoryMsg[]).map(hydrateMessage);
           setMessages(fresh);
           writeCache(`ws:${workspace.id}:messages`, fresh);
         } else if (!cached) {
@@ -451,30 +456,19 @@ export function ChatPanel({
     // guest counter, and surface any file changes to the workspace panel.
     const handleFinal = (data: {
       text?: string;
+      summary?: string;
       actions?: Action[];
       changes?: TaskChanges;
-      verify?: { status: "passed" | "failed" | "skipped"; command?: string };
       guestRemaining?: number;
     }) => {
-      // Hybrid: on a build turn that changed files, WE write the user-facing
-      // summary (varied, truthful, derived from the real result) and tuck the
-      // model's own reply behind a "details" toggle. Plan turns and Q&A turns
-      // (no file changes) keep the model's text as-is.
-      const synth =
-        sendMode === "build"
-          ? synthesizeReply({
-              changes: data.changes,
-              verify: data.verify,
-              userMessage: content,
-              kind: workspace.kind === "game" ? "game" : "app",
-              isFirstBuild: isNewProject,
-              seed: workspace.id,
-            })
-          : null;
+      // Hybrid: the SERVER computed our user-facing summary (varied, truthful,
+      // and PERSISTED, so a reload matches this exactly). When present we show it
+      // and tuck the model's own reply behind a "details" toggle; Q&A/plan turns
+      // (no summary) keep the model's text.
       setMessages((m) => [
         ...(m ?? []),
-        synth
-          ? { role: "assistant", content: synth, actions: data.actions, aiText: data.text || undefined }
+        data.summary
+          ? { role: "assistant", content: data.summary, actions: data.actions, aiText: data.text || undefined }
           : { role: "assistant", content: data.text ?? "", actions: data.actions },
       ]);
       if (typeof data.guestRemaining === "number") setGuestRemaining(data.guestRemaining);
@@ -720,13 +714,7 @@ export function ChatPanel({
               const res = await fetch(`/api/workspaces/${workspace.id}`, { cache: "no-store" });
               const json = await res.json().catch(() => null);
               if (!cancelled && res.ok && json?.ok) {
-                const fresh = (
-                  json.data.messages as { role: "user" | "assistant"; content: string; actions: Action[] | null }[]
-                ).map((m) => ({
-                  role: m.role,
-                  content: m.role === "user" ? stripBrief(m.content) : m.content,
-                  actions: m.actions ?? undefined,
-                }));
+                const fresh = (json.data.messages as HistoryMsg[]).map(hydrateMessage);
                 // Only replace when the reload actually returned rows — a
                 // replica-lag empty read must never wipe a live conversation.
                 if (fresh.length) {

@@ -24,7 +24,7 @@ export async function GET(_req: Request, { params }: Params) {
   const messages = await db().workspaceMessage.findMany({
     where: { workspaceId: g.ws.id },
     orderBy: { createdAt: "asc" },
-    select: { role: true, content: true, actions: true },
+    select: { role: true, content: true, summary: true, actions: true },
     take: 100,
   });
 
