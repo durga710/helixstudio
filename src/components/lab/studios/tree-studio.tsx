@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Scissors, Plus, Wand2, TreePine, PawPrint } from "lucide-react";
+import { Scissors, Plus, Wand2, TreePine, Play, Pause, Flame } from "lucide-react";
 import type { StudioProps } from "./index";
 import { InfoTip } from "@/components/lab/info-tip";
 import { StudioCoach } from "@/components/lab/studio-coach";
@@ -28,6 +28,16 @@ interface Placed {
   path: string;
   x: number;
   depth: number;
+}
+
+/** A pet currently flowing down the tree in the live sorting machine. */
+interface Flyer {
+  id: number;
+  pet: DataPoint;
+  route: string[];
+  step: number;
+  landed?: boolean;
+  correct?: boolean;
 }
 
 /* ---- pure tree helpers ---- */
@@ -165,11 +175,23 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
   }, []);
   const [threshold, setThreshold] = useState((fullRange[DS.featureNames[0]][0] + fullRange[DS.featureNames[0]][1]) / 2);
 
-  // "Send a pet down the tree" animation state.
-  const [runPet, setRunPet] = useState<DataPoint | null>(null);
-  const [runRoute, setRunRoute] = useState<string[]>([]);
-  const [runIdx, setRunIdx] = useState(0);
-  const runTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Live "sorting machine": pets continuously flow down the tree into their group.
+  const [machineOn, setMachineOn] = useState(false);
+  const [score, setScore] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [sorted, setSorted] = useState(0);
+  const [hits, setHits] = useState(0);
+  const [flyersView, setFlyersView] = useState<Flyer[]>([]);
+  const flyers = useRef<Flyer[]>([]);
+  const flyId = useRef(0);
+  const queue = useRef<DataPoint[]>([]);
+  const streakRef = useRef(0);
+  const treeRef = useRef(tree);
+  const spawnTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tickTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    treeRef.current = tree;
+  }, [tree]);
 
   const { placed, leafCount, maxDepth } = useMemo(() => layout(tree), [tree]);
   const byPath = useMemo(() => new Map(placed.map((p) => [p.path, p])), [placed]);
@@ -235,7 +257,7 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
 
   function addSplit() {
     if (sel === null || !selNode || selNode.feature || !preview || preview.empty || selDepth >= MAX_DEPTH) return;
-    stopRun();
+    flyers.current = [];
     const f = feature;
     const t = threshold;
     const next = updateAt(tree, sel, (leaf) => {
@@ -261,45 +283,99 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
 
   function prune() {
     if (sel === null || !selNode || !selNode.feature) return;
-    stopRun();
+    flyers.current = [];
     setTree(updateAt(tree, sel, (n) => ({ rows: n.rows })));
   }
 
-  function stopRun() {
-    if (runTimer.current) clearInterval(runTimer.current);
-    runTimer.current = null;
-    setRunPet(null);
+  function shuffled(): DataPoint[] {
+    const r = [...DS.points];
+    for (let i = r.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [r[i], r[j]] = [r[j], r[i]];
+    }
+    return r;
   }
-  function runPetThrough() {
-    if (runTimer.current) clearInterval(runTimer.current);
-    const pet = TEST[Math.floor(Math.random() * TEST.length)];
-    const route = routeOf(tree, pet);
-    setRunPet(pet);
-    setRunRoute(route);
-    setRunIdx(0);
-    if (route.length <= 1) return;
-    let i = 0;
-    runTimer.current = setInterval(() => {
-      i++;
-      setRunIdx(i);
-      if (i >= route.length - 1) {
-        if (runTimer.current) clearInterval(runTimer.current);
-        runTimer.current = null;
+  function spawnFlyer() {
+    if (flyers.current.filter((f) => !f.landed).length >= 5) return;
+    if (queue.current.length === 0) queue.current = shuffled();
+    const pet = queue.current.pop()!;
+    flyers.current = [...flyers.current, { id: flyId.current++, pet, route: routeOf(treeRef.current, pet), step: 0 }];
+    setFlyersView(flyers.current);
+  }
+  function tickFlyers() {
+    const next: Flyer[] = [];
+    let dScore = 0;
+    let dSorted = 0;
+    let dHits = 0;
+    let s = streakRef.current;
+    for (const f of flyers.current) {
+      if (f.landed) continue; // already showed its verdict last tick — drop it
+      if (f.step >= f.route.length - 1) {
+        const correct = predict(treeRef.current, f.pet) === f.pet.label;
+        dSorted++;
+        if (correct) {
+          dHits++;
+          s += 1;
+          dScore += 10 + s * 2;
+        } else {
+          s = 0;
+        }
+        next.push({ ...f, landed: true, correct });
+      } else {
+        next.push({ ...f, step: f.step + 1 });
       }
-    }, 620);
+    }
+    flyers.current = next;
+    if (dSorted) {
+      setScore((x) => x + dScore);
+      setSorted((x) => x + dSorted);
+      setHits((x) => x + dHits);
+      setStreak(s);
+      streakRef.current = s;
+    }
+    setFlyersView(flyers.current);
   }
-  useEffect(() => () => void (runTimer.current && clearInterval(runTimer.current)), []);
+  function startMachine() {
+    if (machineOn) return;
+    setScore(0);
+    setStreak(0);
+    setSorted(0);
+    setHits(0);
+    streakRef.current = 0;
+    flyers.current = [];
+    setFlyersView([]);
+    queue.current = shuffled();
+    setMachineOn(true);
+    spawnTimer.current = setInterval(spawnFlyer, 720);
+    tickTimer.current = setInterval(tickFlyers, 260);
+  }
+  function stopMachine() {
+    setMachineOn(false);
+    if (spawnTimer.current) clearInterval(spawnTimer.current);
+    if (tickTimer.current) clearInterval(tickTimer.current);
+    spawnTimer.current = null;
+    tickTimer.current = null;
+    flyers.current = [];
+    setFlyersView(flyers.current);
+  }
+  useEffect(
+    () => () => {
+      if (spawnTimer.current) clearInterval(spawnTimer.current);
+      if (tickTimer.current) clearInterval(tickTimer.current);
+    },
+    [],
+  );
 
   const svgW = leafCount * SLOT;
   const svgH = (maxDepth + 1) * LEVEL;
   const colorOf = (label: string) => CLASS_COLORS[CLASSES.indexOf(label) % CLASS_COLORS.length];
 
-  // "Run a pet" derived state.
-  const visited = new Set(runRoute.slice(1, runIdx + 1));
-  const runDone = runPet !== null && runIdx >= runRoute.length - 1;
-  const runLeaf = runDone ? byPath.get(runRoute[runRoute.length - 1])?.node : undefined;
-  const runPred = runLeaf ? majority(runLeaf.rows, CLASSES).label : null;
-  const runCorrect = runPred !== null && runPet ? runPred === runPet.label : false;
+  // Live machine derived state.
+  const liveAcc = sorted > 0 ? Math.round((hits / sorted) * 100) : 0;
+  const activeEdges = new Set<string>();
+  for (const f of flyersView) {
+    for (let k = 1; k <= Math.min(f.step, f.route.length - 1); k++) activeEdges.add(f.route[k]);
+  }
 
   return (
     <div className="rounded-card border border-border bg-panel2 p-4">
@@ -330,12 +406,25 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
         <span className="text-txt3">On its own examples (train): <b className="text-txt2">{Math.round(trainAcc * 100)}%</b></span>
         <span className="text-txt3">{leafCountTotal} leaf{leafCountTotal === 1 ? "" : "ves"}</span>
         <button
-          onClick={runPetThrough}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-2.5 py-1 text-[12px] font-medium text-txt2 transition-colors hover:border-accent hover:text-txt"
+          onClick={machineOn ? stopMachine : startMachine}
+          className={`ml-auto inline-flex items-center gap-1.5 rounded-md border-none px-3 py-1.5 text-[12.5px] font-bold transition ${machineOn ? "bg-panel2 text-txt2 hover:text-txt" : "bg-accent text-accent-ink hover:brightness-110"}`}
         >
-          <PawPrint className="h-3.5 w-3.5 text-accent" /> Send a pet down
+          {machineOn ? <><Pause className="h-3.5 w-3.5" /> Stop</> : <><Play className="h-3.5 w-3.5" /> Start sorting!</>}
         </button>
       </div>
+
+      {/* live machine HUD */}
+      {machineOn && (
+        <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--accent)_9%,transparent)] px-3 py-2 text-[12.5px]">
+          <span className="font-bold text-txt">Score <span className="text-accent">{score}</span></span>
+          <span className="inline-flex items-center gap-1 text-txt2">
+            <Flame className={`h-3.5 w-3.5 ${streak >= 3 ? "text-bad" : "text-txt3"}`} /> streak <b className="text-txt">{streak}</b>
+          </span>
+          <span className="text-txt3">sorted <b className="text-txt2">{sorted}</b></span>
+          <span className="text-txt3">live accuracy <b style={{ color: liveAcc >= 85 ? "var(--ok)" : "var(--txt)" }}>{liveAcc}%</b></span>
+          <span className="ml-auto text-[11px] text-txt3">keep splitting glowing leaves to sort more correctly →</span>
+        </div>
+      )}
 
       {/* tree diagram */}
       <div className="overflow-x-auto rounded-md border border-border2 bg-panel p-2">
@@ -349,7 +438,7 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
               if (!c) return null;
               const cx = c.x * SLOT + SLOT / 2;
               const cy = c.depth * LEVEL + 26;
-              const onRoute = visited.has(p.path + dir);
+              const onRoute = activeEdges.has(p.path + dir);
               return (
                 <g key={p.path + dir}>
                   <line x1={px} y1={py + 14} x2={cx} y2={cy - 14} stroke={onRoute ? "var(--accent)" : "#2a3a55"} strokeWidth={onRoute ? 3 : 1.4} />
@@ -396,40 +485,22 @@ export function TreeStudio({ onProgress, onComplete, onState }: StudioProps) {
             );
           })}
 
-          {/* the pet hopping down the tree */}
-          {runPet &&
-            (() => {
-              const pos = byPath.get(runRoute[Math.min(runIdx, runRoute.length - 1)]);
-              if (!pos) return null;
-              const tx = pos.x * SLOT + SLOT / 2;
-              const ty = pos.depth * LEVEL + 26;
-              return (
-                <g style={{ transform: `translate(${tx}px, ${ty}px)`, transition: "transform 0.55s ease" }}>
-                  <circle r={13} fill="var(--accent)" fillOpacity={0.22} stroke="var(--accent)" strokeWidth={2} />
-                  <text textAnchor="middle" dy={4.5} fontSize={14}>🐾</text>
-                </g>
-              );
-            })()}
+          {/* pets flowing down into their group */}
+          {flyersView.map((f) => {
+            const pos = byPath.get(f.route[Math.min(f.step, f.route.length - 1)]);
+            if (!pos) return null;
+            const tx = pos.x * SLOT + SLOT / 2;
+            const ty = pos.depth * LEVEL + 26;
+            const col = f.landed ? (f.correct ? "var(--ok)" : "var(--bad)") : "var(--accent)";
+            return (
+              <g key={f.id} style={{ transform: `translate(${tx}px, ${ty}px)`, transition: "transform 0.24s linear" }}>
+                <circle r={12} fill={col} fillOpacity={0.22} stroke={col} strokeWidth={2} />
+                <text textAnchor="middle" dy={4.5} fontSize={13}>{f.landed ? (f.correct ? "✅" : "❌") : "🐾"}</text>
+              </g>
+            );
+          })}
         </svg>
       </div>
-
-      {/* run-a-pet verdict */}
-      {runDone && runPet && runPred && (
-        <div
-          className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-3 py-2 text-[12px]"
-          style={{ borderColor: runCorrect ? "var(--ok)" : "var(--bad)", background: `color-mix(in srgb, ${runCorrect ? "var(--ok)" : "var(--bad)"} 8%, transparent)` }}
-        >
-          <PawPrint className="h-3.5 w-3.5 shrink-0 text-accent" />
-          <span className="text-txt2">
-            This pet ({DS.featureNames.map((f) => `${featureLabel(f)} ${runPet.features[f]}`).join(", ")}) followed the questions and landed on{" "}
-            <b style={{ color: colorOf(runPred) }}>{runPred}</b> —{" "}
-            {runCorrect ? <span className="font-semibold text-ok">correct! ✓</span> : <span className="font-semibold text-bad">it&apos;s really a {runPet.label} ✗</span>}
-          </span>
-          <button onClick={runPetThrough} className="ml-auto rounded-md border border-border2 bg-panel2 px-2 py-0.5 text-[11px] text-txt2 transition-colors hover:border-accent hover:text-txt">
-            Try another
-          </button>
-        </div>
-      )}
 
       {/* control panel */}
       <div className="mt-3 rounded-md border border-border2 bg-panel p-3">
