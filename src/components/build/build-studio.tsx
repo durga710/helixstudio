@@ -24,7 +24,32 @@ import { scaffoldSteps } from "@/lib/scaffold-steps";
 import { buildTasks } from "@/lib/build-tasks";
 import { buildNarration, friendlyActivity, paraphraseRequest, holdingLines } from "@/lib/build-feed";
 import { BuildBoard } from "@/components/build/build-board";
+import {
+  AgentPipelinePanel,
+  PIPELINE_AGENT_IDS,
+  type PipelinePhaseId,
+  type PhaseState,
+  type PhaseView,
+} from "@/components/build/agent-pipeline-panel";
 import { cn } from "@/lib/utils";
+
+/** Display name per agent — for the progress label while a phase is working. */
+const AGENT_NAMES: Record<PipelinePhaseId, string> = {
+  planner: "Planner",
+  analyzer: "Repository Analyzer",
+  architect: "Architect",
+  engineer: "Engineer",
+  reviewer: "Reviewer",
+  security: "Security Auditor",
+  performance: "Performance Auditor",
+};
+
+function initPhases(): Record<PipelinePhaseId, PhaseView> {
+  return Object.fromEntries(PIPELINE_AGENT_IDS.map((id) => [id, { state: "waiting" as PhaseState }])) as Record<
+    PipelinePhaseId,
+    PhaseView
+  >;
+}
 
 /* The Lovable-style builder: the agent writes the app while the right pane
  * previews it live. Rides entirely on the existing workspace machinery —
@@ -119,12 +144,19 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   const [limitHit, setLimitHit] = useState(false);
   const [openDetails, setOpenDetails] = useState<number | null>(null); // message id with expanded "what the model said"
 
+  // Live seven-agent pipeline (the real counterpart to the welcome Watch Demo):
+  // state per agent + overall progress, driven by `phase` stream events.
+  const [phases, setPhases] = useState<Record<PipelinePhaseId, PhaseView>>(initPhases);
+  const [progress, setProgress] = useState(0);
+  const [progressLabel, setProgressLabel] = useState("Ready");
+
   const [filePaths, setFilePaths] = useState<string[]>([]);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewNonce, setPreviewNonce] = useState(0);
   const [tab, setTab] = useState<"preview" | "code">("preview");
-  // Left column switches between the conversation and the live build board.
-  const [chatTab, setChatTab] = useState<"chat" | "board">("chat");
+  // Left column switches between the conversation, the agent pipeline, and the
+  // build board.
+  const [chatTab, setChatTab] = useState<"chat" | "agents" | "board">("chat");
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedContent, setSelectedContent] = useState<string | null>(null);
@@ -317,6 +349,12 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       setSetupSteps([]); // scaffold checklist is first-turn only
       setError(null);
       setBuilding(true);
+      // Reset the live pipeline and surface it (matches the welcome demo: watch
+      // the seven agents work, then flip back to chat for the result).
+      setPhases(initPhases());
+      setProgress(0);
+      setProgressLabel("Starting…");
+      setChatTab("agents");
 
       // The build board tracks the INITIAL build only (brief !== "none").
       const isInitialBuild = brief !== "none";
@@ -355,7 +393,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
         const res = await fetch(`/api/workspaces/${workspace.id}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: trimmed, brief: prefix || undefined, mode: "build" }),
+          body: JSON.stringify({ message: trimmed, brief: prefix || undefined, mode: "build", pipeline: true }),
           signal: ctl.signal,
         });
 
@@ -379,13 +417,25 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             files?: string[];
             changes?: { written: string[]; deleted: string[] };
             verify?: { status: "passed" | "failed" | "skipped"; command?: string };
+            id?: PipelinePhaseId;
+            state?: PhaseState;
+            result?: string;
+            progress?: number;
+            phases?: { id: PipelinePhaseId; result: string }[];
           };
           try {
             evt = JSON.parse(line);
           } catch {
             return;
           }
-          if (evt.type === "scaffold") {
+          if (evt.type === "phase" && evt.id) {
+            // Live seven-agent pipeline: update the agent's lane + the bar.
+            const id = evt.id;
+            const state = (evt.state ?? "working") as PhaseState;
+            setPhases((p) => ({ ...p, [id]: { state, result: evt.result ?? p[id]?.result } }));
+            if (typeof evt.progress === "number") setProgress(evt.progress);
+            if (state === "working") setProgressLabel(AGENT_NAMES[id]);
+          } else if (evt.type === "scaffold") {
             // New project: the starter template landed — play the live feed from
             // its real files (the board + preview still react to writes below).
             const files = (evt as unknown as { files?: string[] }).files ?? [];
@@ -437,6 +487,16 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             resolved = true;
             turnDone.current = true;
             feedActive.current = false;
+            // Mark the pipeline complete and fold in any final phase results.
+            setProgress(100);
+            setProgressLabel("Complete");
+            if (evt.phases) {
+              setPhases((p) => {
+                const next = { ...p };
+                for (const ph of evt.phases!) next[ph.id] = { state: "complete", result: ph.result };
+                return next;
+              });
+            }
             // Hybrid: the server computed our varied, truthful, PERSISTED summary
             // — show it and keep the model's reply behind a "details" toggle.
             setMessages((prev) => [
@@ -450,6 +510,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
               },
             ]);
             setActivities([]);
+            setChatTab("chat"); // pipeline done → show the reply
             void refreshPreview();
           } else if (evt.type === "error") {
             resolved = true;
@@ -458,6 +519,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             if (evt.code === "GUEST_LIMIT") setLimitHit(true);
             setError(evt.message ?? "The agent hit an error — try again.");
             setActivities([]);
+            setChatTab("chat"); // surface the error in the conversation
             if (isInitialBuild) setBoardErrored(true);
           }
         };
@@ -877,9 +939,10 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
 
         {/* Chat / build timeline */}
         <section className="flex min-h-0 flex-col border-t border-border bg-bg2 lg:border-r lg:border-t-0">
-          {/* Left-column tabs: the conversation, or the live build board. */}
+          {/* Left-column tabs: the conversation, the live agent pipeline, or the
+              build board. */}
           <div className="flex shrink-0 items-center gap-1 border-b border-border bg-bg2 px-2 py-1.5">
-            {(["chat", "board"] as const).map((t) => (
+            {(["chat", "agents", "board"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setChatTab(t)}
@@ -888,7 +951,10 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
                   chatTab === t ? "bg-panel2 text-txt" : "text-txt3 hover:text-txt",
                 )}
               >
-                {t === "chat" ? "Chat" : "Build plan"}
+                {t === "chat" ? "Chat" : t === "agents" ? "Agents" : "Build plan"}
+                {t === "agents" && building && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-label="building" />
+                )}
                 {t === "board" && boardTasks.length > 0 && (
                   <span className="rounded-full bg-panel px-1.5 text-[10px] text-txt3">{boardTasks.length}</span>
                 )}
@@ -899,7 +965,11 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             ))}
           </div>
 
-          {chatTab === "board" ? (
+          {chatTab === "agents" ? (
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <AgentPipelinePanel phases={phases} progress={progress} progressLabel={progressLabel} />
+            </div>
+          ) : chatTab === "board" ? (
             <div className="min-h-0 flex-1 overflow-hidden">
               <BuildBoard
                 tasks={boardTasks}
