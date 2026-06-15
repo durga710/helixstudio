@@ -66,7 +66,14 @@ import { composeDigest } from "@/lib/conversation-memory";
 // become a one-line-per-turn digest (see src/lib/chat-context.ts).
 const HISTORY_LIMIT = 40;
 
-export type TurnEvent = { type: "activity"; label: string } | { type: "delta"; text: string };
+export type TurnEvent =
+  | { type: "activity"; label: string }
+  | { type: "delta"; text: string }
+  // Emitted once, right after a new project's starter template is injected: the
+  // real file paths the client narrates as a live "building …" construction feed
+  // (src/lib/build-feed.ts) while the agent customizes the skeleton. Masks the
+  // long model latency so the chat never reads as frozen.
+  | { type: "scaffold"; files: string[]; stack?: string };
 
 /** A tool/marker shown under a message. `log` rides on verify markers only. */
 export type TurnAction = { tool: string; label: string; log?: string };
@@ -176,9 +183,11 @@ export async function runAgentTurn(opts: {
   // collapsed tree outline, its own curated PROJECT NOTES, the repo's
   // AGENTS.md/CLAUDE.md, a digest of older turns, and a short verbatim
   // window — under a hard input budget.
-  emit("reading the workspace…");
   let tree = await withGitAuth(gitAuth, () => listWorkspaceFiles(ws)).catch(() => []);
   let treePaths = tree.map((f) => f.path);
+  // Accurate label: an empty from-scratch workspace is being SET UP, not read —
+  // there's no existing code to read/review yet.
+  emit(ws.mode === "SCRATCH" && treePaths.length === 0 ? "setting up your project…" : "reading the workspace…");
 
   // First build turn on an EMPTY from-scratch workspace → inject the premium-gated
   // starter from the user's idea BEFORE building, so the agent customizes a real
@@ -204,6 +213,9 @@ export async function runAgentTurn(opts: {
         ws.notes = note; // reflect it in this turn's context
         tree = await withGitAuth(gitAuth, () => listWorkspaceFiles(ws)).catch(() => tree);
         treePaths = tree.map((f) => f.path);
+        // Hand the real scaffold file list to the client so it can play a live
+        // "building the home page…/wiring navigation…" feed while we customize.
+        onEvent?.({ type: "scaffold", files: treePaths, stack: tpl.manifest.label });
       }
     } catch {
       // best-effort — fall through to building from scratch

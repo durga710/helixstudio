@@ -87,15 +87,6 @@ export function synthesizeBrief(opts: {
   return parts.join(" ");
 }
 
-/** Build the deterministic stack question from the classifier's candidates. */
-function stackQuestion(label: string, alternatives: { label: string }[]): IntakeQuestion {
-  const options = Array.from(new Set([label, ...alternatives.map((a) => a.label)]))
-    .filter(Boolean)
-    .slice(0, 5);
-  options.push("You decide");
-  return { key: "stack", text: "Which stack should I use?", options };
-}
-
 /** B: one small, primed, constrained call for scope questions on a vague idea. */
 async function aiScopeQuestions(opts: {
   idea: string;
@@ -170,9 +161,11 @@ export async function curate(opts: {
 
   // Round 1 → gate.
   const questions: IntakeQuestion[] = [];
-  // Only ask the stack when neither the classifier nor an archetype knows it.
-  if (!classification.confident && !archetype)
-    questions.push(stackQuestion(classification.label, classification.alternatives));
+  // We NEVER openly ask the user which stack to use — picking a framework is the
+  // engine's job, not a question a beginner can answer. The classifier (or the
+  // matched archetype, or the safe default) infers it silently and it goes into
+  // the brief; the user can always say "use X instead" in chat. Scope questions
+  // below are only about WHAT to build, never HOW to build it.
 
   // Vague idea → a clarifying question. Prefer the archetype's curated one
   // (free); only fall back to a tiny AI call when we have no archetype.

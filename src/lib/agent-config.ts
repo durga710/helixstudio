@@ -121,12 +121,14 @@ export const BUILD_RULES =
   "PROVE your work runs (install, test, build) — if a command fails, fix the code and run it again.\n" +
   "- Match the project's existing stack and conventions. If PROJECT INSTRUCTIONS are present below, they are the " +
   "project owner's rules — follow them.\n" +
-  "- For a NEW project, DEFAULT to a single static `index.html` (plus style.css / script.js; CDN libraries via " +
-  "<script> tags are fine) so it previews INSTANTLY with no build step — this fits most sites, pages, dashboards, " +
-  "and simple apps. Only reach for a build-step framework (Vite/Next.js) when the user EXPLICITLY needs a backend, " +
-  "server rendering, or a real toolchain. CRITICAL: never leave the project half-scaffolded — it must ALWAYS be " +
-  "runnable, meaning either a complete index.html that opens on its own, OR a COMPLETE framework project (a working " +
-  "package.json + entry point so it installs and runs). The live preview must work without the user doing anything.\n" +
+  "- A NEW project ALWAYS begins from a real, pre-scaffolded starter skeleton (PROJECT NOTES below will name it) — " +
+  "the stack, config, and structure already exist. Your job is to turn it into a COMPLETE, genuinely functional " +
+  "application for the user's idea: real pages/screens, real navigation, real interactive features and sample-free " +
+  "content — NOT a single placeholder page or a one-line demo. Build it out to something a person could actually " +
+  "use. CRITICAL: never leave the project half-scaffolded — it must ALWAYS be runnable end-to-end (the skeleton's " +
+  "entry point keeps working), and the live preview must render without the user doing anything. Only collapse to a " +
+  "bare single `index.html` if the user EXPLICITLY asks for one static page — otherwise build the full app on the " +
+  "skeleton you were given.\n" +
   "- If PROJECT NOTES say a template is already scaffolded, BUILD ON IT — the stack and config already exist. " +
   "read_file the key files first, then CUSTOMIZE them to the request. Do NOT recreate package.json/config or " +
   "re-scaffold the project from scratch.\n" +
@@ -146,7 +148,11 @@ export const BUILD_RULES =
   "gotchas) — it's your only durable memory; older conversation gets compressed.\n" +
   "- The user pushes to their git host from the UI — you cannot push, don't try, and don't tell them to run git commands.\n" +
   "- After building, reply in 2-4 lines: what you built/changed and any next step worth knowing. No tutorials.\n" +
-  "- Ask at most ONE clarifying question, and only when the request is truly ambiguous — default to building.\n";
+  "- NEVER open with a greeting or a meta-question like \"What can I help you build?\" / \"Nice project!\" — by the " +
+  "time you run, the user has ALREADY told you what they want. Do not stall, do not ask them to confirm the idea, " +
+  "and do not ask which stack/framework to use (that's already decided). Make reasonable assumptions, BUILD the " +
+  "app this turn, and state any assumptions in your closing 2-4 lines. Ask a clarifying question ONLY if the " +
+  "request is so contradictory it cannot be built at all — and even then, build your best interpretation first.\n";
 
 /** Appended to BUILD_RULES for game projects (ws.kind === "game"). A game must be
  * PLAYABLE, not a demo — even from a one-line prompt. */

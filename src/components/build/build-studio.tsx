@@ -21,6 +21,7 @@ import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
 import { isGodotProject } from "@/lib/templates/engines";
 import { scaffoldSteps } from "@/lib/scaffold-steps";
 import { buildTasks } from "@/lib/build-tasks";
+import { buildFeedLabels, FEED_HOLDING_LINES } from "@/lib/build-feed";
 import { BuildBoard } from "@/components/build/build-board";
 import { cn } from "@/lib/utils";
 
@@ -89,6 +90,11 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   // freshly-scaffolded project (derived from the real injected files).
   const [setupSteps, setSetupSteps] = useState<string[]>([]);
   const realActivityStarted = useRef(false);
+  // Live "construction feed" (shared with the editor): narrate the just-injected
+  // starter template as paced "building …" lines so the chat stays alive while
+  // the agent customizes it. turnDone stops the feed the moment the turn lands.
+  const feedActive = useRef(false);
+  const turnDone = useRef(false);
   const [building, setBuilding] = useState(false);
 
   // Live build board — scoped to the INITIAL build turn (a follow-up edit must
@@ -248,11 +254,37 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
 
   /* ----------------------------- agent turn ------------------------- */
 
+  // Play the friendly construction feed into the chat activity line from the
+  // REAL scaffolded files — "Building the home page…", "Wiring up the
+  // navigation…" — so the long model turn never reads as a frozen loader.
+  const startBuildFeed = useCallback(
+    (files: string[], idea: string, kind: "app" | "game") => {
+      if (feedActive.current) return;
+      feedActive.current = true;
+      realActivityStarted.current = true; // the scaffold checklist bows out
+      const seq = [...buildFeedLabels(files, { idea, kind }), ...FEED_HOLDING_LINES];
+      void (async () => {
+        const shown: string[] = [];
+        for (let i = 0; i < seq.length; i++) {
+          if (turnDone.current) return;
+          shown.push(seq[i]);
+          setActivities([...shown]);
+          const concrete = i < seq.length - FEED_HOLDING_LINES.length;
+          await new Promise((r) => setTimeout(r, (concrete ? 800 : 2400) + Math.random() * (concrete ? 700 : 1400)));
+        }
+      })();
+    },
+    [],
+  );
+
   const send = useCallback(
     async (text: string, brief: "static" | "template" | "game" | "godot" | "none" = "none") => {
       const trimmed = text.trim();
       if (!trimmed) return;
       localTurn.current = true;
+      realActivityStarted.current = false;
+      feedActive.current = false;
+      turnDone.current = false;
       setMessages((prev) => [...prev, { id: nextId.current++, role: "user", content: trimmed }]);
       setActivities([]);
       setSetupSteps([]); // scaffold checklist is first-turn only
@@ -285,11 +317,16 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
                 ? TEMPLATE_BRIEF
                 : "";
       let turnLog: string[] = [];
+      // Watchdog: never let the chat hang forever if a turn stops reporting back.
+      const ctl = new AbortController();
+      const watchdog = setTimeout(() => ctl.abort(), 315_000);
+      let resolved = false;
       try {
         const res = await fetch(`/api/workspaces/${workspace.id}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: trimmed, brief: prefix || undefined, mode: "build" }),
+          signal: ctl.signal,
         });
 
         if (!res.headers.get("content-type")?.includes("application/x-ndjson")) {
@@ -308,11 +345,24 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
           } catch {
             return;
           }
-          if (evt.type === "activity" && evt.label) {
+          if (evt.type === "scaffold") {
+            // New project: the starter template landed — play the live feed from
+            // its real files (the board + preview still react to writes below).
+            const files = (evt as unknown as { files?: string[] }).files ?? [];
+            startBuildFeed(files, trimmed, brief === "game" || brief === "godot" ? "game" : "app");
+          } else if (evt.type === "activity" && evt.label) {
             // Real agent work has begun — let the scaffold checklist stop.
             realActivityStarted.current = true;
             turnLog = [...turnLog, evt.label];
-            setActivities(turnLog);
+            // While the construction feed plays, it owns the chat activity line —
+            // don't overwrite it with the raw, noisy file-write labels. The board
+            // + preview still advance off the same labels below.
+            const noisy =
+              feedActive.current &&
+              /^(wrote|created|deleted|read|edited|editing|writing|reading|scanning|listing|searching|scaffolding|setting up your)/i.test(
+                evt.label,
+              );
+            if (!noisy) setActivities(turnLog);
             if (isInitialBuild) {
               setBoardSteps((s) => s + 1);
               // The board reacts to what the build reveals: real verify/fix/test
@@ -339,7 +389,13 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
               if (refreshTimer.current) clearTimeout(refreshTimer.current);
               refreshTimer.current = setTimeout(() => void refreshPreview(), 400);
             }
+          } else if (evt.type === "delta") {
+            feedActive.current = false; // the real reply is arriving — stop the feed
+            turnDone.current = true;
           } else if (evt.type === "final") {
+            resolved = true;
+            turnDone.current = true;
+            feedActive.current = false;
             setMessages((prev) => [
               ...prev,
               { id: nextId.current++, role: "assistant", content: evt.text ?? "Done.", worklog: turnLog },
@@ -347,6 +403,9 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             setActivities([]);
             void refreshPreview();
           } else if (evt.type === "error") {
+            resolved = true;
+            turnDone.current = true;
+            feedActive.current = false;
             if (evt.code === "GUEST_LIMIT") setLimitHit(true);
             setError(evt.message ?? "The agent hit an error — try again.");
             setActivities([]);
@@ -364,17 +423,32 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
           }
         }
         if (buffer) consume(buffer);
+        // The stream closed without a result — surface it instead of leaving a
+        // finished-looking feed with no reply.
+        if (!resolved) {
+          setError("The build didn't report back — reload in a moment to see the result, or try again.");
+          if (isInitialBuild) setBoardErrored(true);
+        }
       } catch (e) {
-        setError(e instanceof Error ? e.message : "The agent hit an error — try again.");
+        setError(
+          ctl.signal.aborted
+            ? "This is taking longer than expected — the build may still be finishing in the background. Reload in a moment, or try again."
+            : e instanceof Error
+              ? e.message
+              : "The agent hit an error — try again.",
+        );
         setActivities([]);
         if (isInitialBuild) setBoardErrored(true);
       } finally {
+        clearTimeout(watchdog);
+        turnDone.current = true;
+        feedActive.current = false;
         setBuilding(false);
         if (isInitialBuild) setBoardBuilding(false);
         localTurn.current = false;
       }
     },
-    [workspace.id, refreshPreview, filePaths],
+    [workspace.id, refreshPreview, filePaths, startBuildFeed],
   );
 
   /* ----------------------- persistence / resume -------------------- */

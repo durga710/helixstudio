@@ -30,7 +30,10 @@ export function classifyTurn(message: string): TurnKind {
 }
 
 // Each pool starts with a natural opener; the rest get shuffled in. All lines
-// are true regardless of the eventual answer.
+// are true regardless of the eventual answer. NOTE: no pool may claim to
+// "review"/"read existing code" — those are false on a brand-new project, which
+// is exactly when the first turn runs. The `scaffold` pool is what an empty
+// project always shows (see warmupSteps' isNewProject override).
 const POOLS: Record<TurnKind, string[]> = {
   ask: [
     "Reading your question",
@@ -41,15 +44,15 @@ const POOLS: Record<TurnKind, string[]> = {
     "Gathering context",
   ],
   build: [
-    "Reviewing the workspace",
+    "Reading the workspace",
     "Mapping out the approach",
     "Lining up the files to change",
     "Checking the existing stack",
     "Gathering context",
   ],
   scaffold: [
-    "Choosing the right stack",
-    "Sketching the project structure",
+    "Setting up your project",
+    "Choosing the starter stack",
     "Preparing the foundation",
     "Lining up the starter files",
     "Planning the build",
@@ -57,7 +60,7 @@ const POOLS: Record<TurnKind, string[]> = {
   edit: [
     "Reading the workspace",
     "Finding the right files",
-    "Reviewing the current code",
+    "Looking over the relevant code",
     "Working out the change",
     "Gathering context",
   ],
@@ -67,9 +70,15 @@ const POOLS: Record<TurnKind, string[]> = {
  * A dynamic warm-up sequence for a turn: a natural opener plus 1–3 randomly
  * chosen, randomly ordered follow-ups from the intent's pool — so consecutive
  * turns rarely look the same.
+ *
+ * `isNewProject` forces the new-project (scaffold) pool no matter how the
+ * message reads: a brand-new workspace has NO code, so any "reviewing / reading
+ * the existing code" line would be a lie. This is the fix for the editor saying
+ * "reviewing your codebase" on an empty project.
  */
-export function warmupSteps(message: string): string[] {
-  const [opener, ...rest] = POOLS[classifyTurn(message)];
+export function warmupSteps(message: string, opts: { isNewProject?: boolean } = {}): string[] {
+  const kind = opts.isNewProject ? "scaffold" : classifyTurn(message);
+  const [opener, ...rest] = POOLS[kind];
   // Fisher–Yates shuffle of the follow-ups (client-only; Math.random is fine).
   for (let i = rest.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));

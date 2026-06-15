@@ -29,6 +29,7 @@ import {
 import { GAME_CATEGORIES } from "@/lib/templates/engines";
 import { cn } from "@/lib/utils";
 import { warmupSteps } from "@/lib/warmup-steps";
+import { buildFeedLabels, FEED_HOLDING_LINES } from "@/lib/build-feed";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
@@ -184,6 +185,11 @@ export function ChatPanel({
   // Flips true on the turn's first real activity event, so the warm-up prelude
   // knows to stop and hand off to the agent's actual work.
   const realActivityStarted = useRef(false);
+  // Live "construction feed": true while the new-project scaffold narration is
+  // playing (so we suppress the noisy raw file-write labels and let the friendly
+  // feed own the story); turnDone stops the feed the instant the turn resolves.
+  const feedActive = useRef(false);
+  const turnDone = useRef(false);
   // True while THIS tab is running a turn, so the resume poller stands down.
   const localSend = useRef(false);
 
@@ -353,6 +359,30 @@ export function ChatPanel({
     setQueuingTask(false);
   }
 
+  // The live construction feed: narrate the just-injected starter template as
+  // paced, friendly "building …" lines (from the REAL files) so the chat stays
+  // alive and premium while the agent customizes the skeleton in the background.
+  function startBuildFeed(files: string[], idea: string) {
+    if (feedActive.current) return;
+    feedActive.current = true;
+    realActivityStarted.current = true; // the generic warm-up bows out
+    const kind = workspace.kind === "game" ? "game" : "app";
+    const sequence = [...buildFeedLabels(files, { idea, kind })];
+    // Concrete file-derived lines first, then a few generic "still working"
+    // lines; the LAST worklog item always spins, so even after the scripted
+    // feed ends the chat reads as live until the real reply lands.
+    sequence.push(...FEED_HOLDING_LINES);
+    void (async () => {
+      for (let i = 0; i < sequence.length; i++) {
+        if (turnDone.current) return;
+        setWorklog((w) => (turnDone.current ? w : [...w, sequence[i]]));
+        // File lines tick briskly; the generic tail breathes slower.
+        const concrete = i < sequence.length - FEED_HOLDING_LINES.length;
+        await new Promise((r) => setTimeout(r, (concrete ? 800 : 2400) + Math.random() * (concrete ? 700 : 1400)));
+      }
+    })();
+  }
+
   async function send(
     text: string,
     sendMode: "plan" | "build" = mode,
@@ -361,6 +391,10 @@ export function ChatPanel({
   ) {
     const content = text.trim();
     if (!content || busy || messages === null) return;
+    // A from-scratch workspace with nothing built yet (no assistant turn) is a
+    // NEW project — the warm-up must use new-project framing, never "reviewing
+    // the existing code", because there isn't any yet.
+    const isNewProject = workspace.mode === "SCRATCH" && !messages.some((m) => m.role === "assistant");
     localSend.current = true;
     setMessages((m) => [...(m ?? []), { role: "user", content }]);
     setInput("");
@@ -372,8 +406,10 @@ export function ChatPanel({
     // with honest, process-true steps (a question never shows "scaffolding").
     // Stops the instant the agent's real work starts streaming in.
     realActivityStarted.current = false;
+    feedActive.current = false;
+    turnDone.current = false;
     void (async () => {
-      for (const step of warmupSteps(content)) {
+      for (const step of warmupSteps(content, { isNewProject })) {
         if (realActivityStarted.current) break;
         setWorklog((w) => (realActivityStarted.current ? w : [...w, step]));
         await new Promise((r) => setTimeout(r, 360 + Math.floor(Math.random() * 560)));
@@ -397,11 +433,20 @@ export function ChatPanel({
       if (ch && (ch.written.length > 0 || ch.deleted.length > 0)) onChanges(ch.written, ch.deleted);
     };
 
+    // Watchdog: a build turn can legitimately run a while, but it must NEVER
+    // hang the chat forever. If the whole turn outlasts the server ceiling
+    // (~300s) we abort so the UI resolves to a retry instead of an endless
+    // spinner. Reset on the finally below.
+    const ctl = new AbortController();
+    const watchdog = setTimeout(() => ctl.abort(), 315_000);
+    let resolved = false; // did we receive a final or error event?
+
     try {
       const res = await fetch(`/api/workspaces/${workspace.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: content, mode: sendMode, verify: sendVerify, brief: brief || undefined }),
+        signal: ctl.signal,
       });
 
       const isNdjson = res.headers.get("content-type")?.includes("application/x-ndjson");
@@ -421,19 +466,42 @@ export function ChatPanel({
           } catch {
             return; // ignore malformed partials
           }
-          if (evt.type === "activity") {
+          if (evt.type === "scaffold") {
+            // New project: the starter template just landed — narrate it as a
+            // live "building …" feed from the real files (masks model latency).
+            startBuildFeed((evt.files as string[]) ?? [], content);
+          } else if (evt.type === "activity") {
             const label = (evt.label as string) ?? null;
             // Real work has begun — let the warm-up prelude bow out.
             realActivityStarted.current = true;
-            setActivity(label);
-            if (label) setWorklog((w) => [...w, label]);
+            // While the construction feed is playing, swallow the raw, noisy
+            // file-write labels ("wrote app/page.tsx") — the friendly feed owns
+            // the narrative. Verify/test/fix labels still pass through so the
+            // "testing the build" phase shows naturally.
+            const noisy =
+              feedActive.current &&
+              /^(wrote|created|deleted|read|edited|editing|writing|reading|scanning|listing|searching|scaffolding|setting up your)/i.test(
+                label ?? "",
+              );
+            if (!noisy) {
+              setActivity(label);
+              if (label) setWorklog((w) => [...w, label]);
+            }
           } else if (evt.type === "delta") {
             realActivityStarted.current = true; // the reply is streaming — stop warm-up
+            feedActive.current = false; // the real reply is here — stop the feed
+            turnDone.current = true;
             setStreaming((s) => s + ((evt.text as string) ?? ""));
           } else if (evt.type === "final") {
+            resolved = true;
+            turnDone.current = true;
+            feedActive.current = false;
             setStreaming("");
             handleFinal(evt as Parameters<typeof handleFinal>[0]);
           } else if (evt.type === "error") {
+            resolved = true;
+            turnDone.current = true;
+            feedActive.current = false;
             setStreaming("");
             if (evt.code === "GUEST_LIMIT") setGuestRemaining(0);
             setMessages((m) => [
@@ -454,8 +522,21 @@ export function ChatPanel({
           }
         }
         if (buffer) consume(buffer); // trailing line without newline
+        // The stream closed but never delivered a final/error — don't leave the
+        // user staring at a finished-looking feed with no result.
+        if (!resolved) {
+          setMessages((m) => [
+            ...(m ?? []),
+            {
+              role: "assistant",
+              content:
+                "The build didn't report back — it may still be finishing in the background. Reload in a moment to see the result, or send your request again.",
+            },
+          ]);
+        }
       } else {
         // Fallback for an older, non-streaming server.
+        resolved = true;
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.ok) {
           if (json?.error?.code === "GUEST_LIMIT") setGuestRemaining(0);
@@ -468,7 +549,21 @@ export function ChatPanel({
         }
       }
     } catch {
-      setMessages((m) => [...(m ?? []), { role: "assistant", content: "Network error. Try again." }]);
+      // Aborted by the watchdog vs. a real network failure — different copy, but
+      // either way the chat resolves instead of hanging forever.
+      setMessages((m) => [
+        ...(m ?? []),
+        {
+          role: "assistant",
+          content: ctl.signal.aborted
+            ? "This is taking longer than expected — the build may still be finishing in the background. Reload in a moment, or try again."
+            : "Network error. Try again.",
+        },
+      ]);
+    } finally {
+      clearTimeout(watchdog);
+      turnDone.current = true;
+      feedActive.current = false;
     }
     setStreaming("");
     setBusy(false);
