@@ -11,6 +11,14 @@ import {
   UserRound,
   CreditCard,
   Newspaper,
+  LayoutDashboard,
+  ShoppingBag,
+  CalendarDays,
+  MessageSquare,
+  ListTodo,
+  BookOpen,
+  Building2,
+  Utensils,
   Clock,
   GitCompare,
   Lock,
@@ -29,7 +37,7 @@ import {
 import { GAME_CATEGORIES } from "@/lib/templates/engines";
 import { cn } from "@/lib/utils";
 import { warmupSteps } from "@/lib/warmup-steps";
-import { buildNarration, friendlyActivity, paraphraseRequest, holdingLines } from "@/lib/build-feed";
+import { buildNarration, friendlyActivity, paraphraseRequest, holdingLines, seededRng } from "@/lib/build-feed";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
@@ -81,23 +89,40 @@ function timeAgo(iso: string): string {
   return `${Math.round(h / 24)}d`;
 }
 
+// A pool of app starters — we show a VARIED subset (seeded per project) so two
+// projects never get the same four suggestions.
 const STARTERS = [
   { icon: Globe, title: "Waitlist landing page", prompt: "A waitlist landing page with a bold hero and email signup form" },
   { icon: UserRound, title: "Portfolio site", prompt: "A personal portfolio site with an about section and project cards" },
   { icon: CreditCard, title: "Pricing page", prompt: "A pricing page with three tiers and a featured plan" },
   { icon: Newspaper, title: "Mini blog", prompt: "A simple blog with three sample posts and a clean reading layout" },
+  { icon: LayoutDashboard, title: "Analytics dashboard", prompt: "An analytics dashboard with summary cards and a couple of charts" },
+  { icon: ListTodo, title: "Task tracker", prompt: "A task tracker with a board, draggable cards, and statuses" },
+  { icon: ShoppingBag, title: "Product page", prompt: "A product landing page with a gallery, features, and a buy button" },
+  { icon: CalendarDays, title: "Event page", prompt: "An event page with a schedule, speakers, and an RSVP form" },
+  { icon: MessageSquare, title: "Feedback board", prompt: "A feedback board where people can post ideas and upvote them" },
+  { icon: BookOpen, title: "Docs site", prompt: "A documentation site with a sidebar, search, and clean reading pages" },
+  { icon: Building2, title: "Startup site", prompt: "A startup marketing site with a hero, features, testimonials, and a CTA" },
+  { icon: Utensils, title: "Recipe site", prompt: "A recipe site with cards, a detail page, and a search bar" },
 ] as const;
 
-/** Mode-specific starter suggestions — NEVER cross-mode. A game editor shows its
- * category's game ideas (a 3D-game project shows 3D ideas); an app editor shows
- * app ideas. Keeps the chat situation-specific. */
+/** Deterministically shuffle then take `n` from a pool, using a seeded PRNG so
+ * the choice is stable for one project but varies across projects. */
+function pickN<T>(pool: readonly T[], n: number, seed: string): T[] {
+  const rng = seededRng(seed);
+  return [...pool].sort(() => rng() - 0.5).slice(0, n);
+}
+
+/** Mode-specific starter suggestions — NEVER cross-mode, and DYNAMIC: a different
+ * varied set per project (seeded by the workspace id) so the same four ideas
+ * never show every time. A game editor shows its category's game ideas. */
 function starterSuggestions(ws: WorkspaceMeta): { icon: LucideIcon; title: string; prompt: string }[] {
   if (ws.kind === "game") {
     const cat = ws.gameCategory ? GAME_CATEGORIES.find((c) => c.id === ws.gameCategory) : undefined;
     const sugg = cat?.suggestions ?? GAME_CATEGORIES[0].suggestions;
-    return sugg.map((s) => ({ icon: Gamepad2, title: s, prompt: s }));
+    return pickN(sugg, 4, ws.id).map((s) => ({ icon: Gamepad2, title: s, prompt: s }));
   }
-  return STARTERS.map((s) => ({ icon: s.icon, title: s.title, prompt: s.prompt }));
+  return pickN(STARTERS, 4, ws.id).map((s) => ({ icon: s.icon, title: s.title, prompt: s.prompt }));
 }
 
 /** Inviting, mode-specific greeting + a graceful hint at what you can ask for. */
@@ -196,7 +221,7 @@ export function ChatPanel({
   // "Ideas" popover: re-opens the mode-specific greeting + suggestions after the
   // conversation has started (so the opening guidance is always one click away).
   const [ideasOpen, setIdeasOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   // Flips true on the turn's first real activity event, so the warm-up prelude
   // knows to stop and hand off to the agent's actual work.
   const realActivityStarted = useRef(false);
@@ -227,6 +252,15 @@ export function ChatPanel({
     if (modeToastTimer.current) clearTimeout(modeToastTimer.current);
     modeToastTimer.current = setTimeout(() => setModeToast(null), 2000);
   }
+
+  // Auto-grow the composer with its content (capped), and shrink back to one
+  // line after a send clears it — so long prompts aren't cramped on one line.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 168)}px`;
+  }, [input]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1317,7 +1351,7 @@ export function ChatPanel({
             if (intakeActive) intakeSubmit(input);
             else void send(input);
           }}
-          className="flex items-center gap-2 border-t border-border p-3"
+          className="flex items-end gap-2 border-t border-border p-3"
         >
           <Segmented
             options={[
@@ -1350,10 +1384,18 @@ export function ChatPanel({
               <span className="hidden sm:inline">Verify</span>
             </button>
           )}
-          <input
+          <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter sends; Shift+Enter makes a newline (so longer prompts are easy).
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                e.currentTarget.form?.requestSubmit();
+              }
+            }}
+            rows={1}
             disabled={guestBlocked}
             placeholder={
               guestBlocked
@@ -1372,7 +1414,7 @@ export function ChatPanel({
                         ? "Describe the game you want built…"
                         : "Describe the app you want built…"
             }
-            className="flex-1 rounded-xl border border-border bg-bg2 px-4 py-2.5 text-sm text-txt placeholder:text-txt3 focus:border-accent focus:outline-none disabled:opacity-60"
+            className="scroll-area max-h-44 min-h-[44px] flex-1 resize-none rounded-xl border border-border bg-bg2 px-4 py-2.5 text-sm leading-relaxed text-txt placeholder:text-txt3 focus:border-accent focus:outline-none disabled:opacity-60"
           />
           {!isGuest && mode === "build" && (
             <Button

@@ -21,6 +21,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { GUEST_TOKEN_LIMIT } from "@/lib/auth";
 import { tierMonthlyLimit } from "@/lib/agent-config";
+import { isAdminEmail } from "@/lib/admin";
 
 export type BudgetCode = "GUEST_LIMIT" | "TOKEN_LIMIT" | "SUSPENDED";
 
@@ -63,6 +64,7 @@ export async function checkTokenBudget(userId: string): Promise<BudgetResult> {
     where: { id: userId },
     select: {
       id: true,
+      email: true,
       isGuest: true,
       tier: true,
       tokensUsed: true,
@@ -73,6 +75,12 @@ export async function checkTokenBudget(userId: string): Promise<BudgetResult> {
     },
   });
   if (!u) return { ok: true, user: null, limit: null, remaining: null };
+
+  // Admins (platform operators, by ADMIN_EMAILS) are never metered — unlimited
+  // AI, no quota. They run the product; quota is for members/guests.
+  if (isAdminEmail(u.email)) {
+    return { ok: true, user: u, limit: null, remaining: null };
+  }
 
   if (u.suspendedAt) {
     return {
