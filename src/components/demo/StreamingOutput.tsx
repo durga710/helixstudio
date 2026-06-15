@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 interface StreamingOutputProps {
   /** Text to reveal token-by-token. */
@@ -22,9 +22,9 @@ function tokenize(text: string): string[] {
 }
 
 /**
- * Streams `text` a token at a time to mimic live model output. Owns its timer
- * and reports completion so `DemoEngine` can advance only after the stream
- * finishes — keeping the terminal, agents, and progress bar in lockstep.
+ * Streams `text` a token at a time to mimic live model output. Reports
+ * completion so `DemoEngine` advances only after the stream finishes — keeping
+ * the terminal, agents, and progress bar in lockstep.
  */
 export function StreamingOutput({
   text,
@@ -34,37 +34,36 @@ export function StreamingOutput({
   onComplete,
   className,
 }: StreamingOutputProps) {
-  const tokens = useRef<string[]>([]);
-  if (tokens.current.join("") !== text) tokens.current = tokenize(text);
+  const tokens = useMemo(() => tokenize(text), [text]);
+  const total = tokens.length;
 
-  const [shown, setShown] = useState(instant ? tokens.current.length : 0);
-  const onCompleteRef = useRef(onComplete);
-  onCompleteRef.current = onComplete;
+  const [shown, setShown] = useState(instant ? total : 0);
+
+  // Reset progress when the source text (or instant mode) changes. The
+  // store-previous-prop-in-render pattern keeps this out of an effect.
+  const resetKey = `${text} ${instant}`;
+  const [prevKey, setPrevKey] = useState(resetKey);
+  if (prevKey !== resetKey) {
+    setPrevKey(resetKey);
+    setShown(instant ? total : 0);
+  }
 
   useEffect(() => {
-    setShown(instant ? tokens.current.length : 0);
-  }, [text, instant]);
-
-  useEffect(() => {
-    if (instant) {
-      onCompleteRef.current?.();
+    if (instant || shown >= total) {
+      onComplete?.();
       return;
     }
     if (paused) return;
-    if (shown >= tokens.current.length) {
-      onCompleteRef.current?.();
-      return;
-    }
     const jitter = speed * (0.7 + Math.random() * 0.9);
     const id = window.setTimeout(() => setShown((s) => s + 1), jitter);
     return () => window.clearTimeout(id);
-  }, [shown, text, speed, paused, instant]);
+  }, [shown, total, speed, paused, instant, onComplete]);
 
-  const streaming = !instant && shown < tokens.current.length;
+  const streaming = !instant && shown < total;
 
   return (
     <span className={className}>
-      {tokens.current.slice(0, shown).join("")}
+      {tokens.slice(0, shown).join("")}
       {streaming && (
         <span aria-hidden className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-px animate-pulse rounded-[1px] bg-accent/80 align-middle" />
       )}
