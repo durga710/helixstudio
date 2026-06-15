@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:studios": "node scripts/studio-smoke.mjs",
     "postinstall": "prisma generate",
     "gen:docs": "node scripts/gen-docs.mjs",
     "gen:templates": "node scripts/gen-templates.mjs",
