@@ -1,0 +1,40 @@
+Helix Studio — Proprietary License
+Copyright (c) 2026 Helix Studio. All rights reserved.
+
+This repository and its contents (the "Software"), except where a different
+license is explicitly stated for a subdirectory or file, are the proprietary and
+confidential property of Helix Studio.
+
+1. Grant
+   No license or right to use, copy, modify, merge, publish, distribute,
+   sublicense, or sell copies of the Software is granted, except as expressly
+   set out in a separate written agreement signed by Helix Studio.
+
+2. Permitted use
+   You may view and fork this repository on GitHub solely for the purposes of
+   evaluation, reference, and submitting contributions back to Helix Studio
+   (subject to CONTRIBUTING.md). Any other use requires prior written permission.
+
+3. Restrictions
+   You may not (a) use the Software or any portion of it to operate a competing
+   product or service, (b) remove or alter any proprietary notices, or
+   (c) redistribute the Software except as permitted above.
+
+4. Third-party components
+   The Software includes third-party components that are licensed under their
+   own terms. In particular, the bundled agent skills in the `skills/`
+   directory are licensed under the MIT License (see `skills/LICENSE`).
+   Dependencies installed from package registries remain under their respective
+   licenses.
+
+5. No warranty
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+6. Limitation of liability
+   IN NO EVENT SHALL HELIX STUDIO BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+   LIABILITY ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+   OR OTHER DEALINGS IN THE SOFTWARE.
+
+For licensing inquiries: legal@helixstudio.org
