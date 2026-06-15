@@ -29,7 +29,7 @@ import {
 import { GAME_CATEGORIES } from "@/lib/templates/engines";
 import { cn } from "@/lib/utils";
 import { warmupSteps } from "@/lib/warmup-steps";
-import { buildFeedLabels, FEED_HOLDING_LINES } from "@/lib/build-feed";
+import { buildNarration, friendlyActivity, synthesizeReply, paraphraseRequest, holdingLines } from "@/lib/build-feed";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
@@ -47,6 +47,9 @@ interface Msg {
   role: "user" | "assistant";
   content: string;
   actions?: Action[];
+  /** The model's own raw reply, kept behind a "details" toggle when we showed
+   * our own synthesized summary as the message content (hybrid). */
+  aiText?: string;
 }
 
 interface TaskChanges {
@@ -163,6 +166,7 @@ export function ChatPanel({
   const [verifyOn, setVerifyOn] = useState(true);
   const [verifying, setVerifying] = useState(false);
   const [openLog, setOpenLog] = useState<number | null>(null); // message index with expanded log
+  const [openDetails, setOpenDetails] = useState<number | null>(null); // message index with expanded "what the model said"
   const [busy, setBusy] = useState(false);
   const [activity, setActivity] = useState<string | null>(null);
   // The turn's activity as a live ticking checklist (the agent's REAL work —
@@ -367,18 +371,39 @@ export function ChatPanel({
     feedActive.current = true;
     realActivityStarted.current = true; // the generic warm-up bows out
     const kind = workspace.kind === "game" ? "game" : "app";
-    const sequence = [...buildFeedLabels(files, { idea, kind })];
-    // Concrete file-derived lines first, then a few generic "still working"
-    // lines; the LAST worklog item always spins, so even after the scripted
-    // feed ends the chat reads as live until the real reply lands.
-    sequence.push(...FEED_HOLDING_LINES);
+    // Seeded by the workspace id → varied wording/order per project (never reads
+    // as canned), but stable within this project. The estimate paces it so a
+    // fast build shows calmer lines and a big one shows more.
+    const { steps, holding, estimateMs } = buildNarration(files, { idea, kind, seed: workspace.id });
+    const perStep = Math.max(700, Math.min(2600, Math.round(estimateMs / Math.max(4, steps.length))));
+    const sequence = [...steps, ...holding];
     void (async () => {
       for (let i = 0; i < sequence.length; i++) {
         if (turnDone.current) return;
         setWorklog((w) => (turnDone.current ? w : [...w, sequence[i]]));
-        // File lines tick briskly; the generic tail breathes slower.
-        const concrete = i < sequence.length - FEED_HOLDING_LINES.length;
-        await new Promise((r) => setTimeout(r, (concrete ? 800 : 2400) + Math.random() * (concrete ? 700 : 1400)));
+        // Concrete file lines pace to the estimate; the generic tail breathes
+        // slower, and the LAST item always spins so it reads live until the
+        // real reply lands.
+        const concrete = i < steps.length;
+        await new Promise((r) => setTimeout(r, (concrete ? perStep : 2600) + Math.random() * (concrete ? 300 : 1400)));
+      }
+    })();
+  }
+
+  // Follow-up requests on an existing project: open with a paraphrase of what
+  // they asked (never echoed verbatim), then breathe with varied holding lines —
+  // so a fix turn reads like a real assistant working, not a blank loader.
+  function startFixFeed(message: string) {
+    if (feedActive.current) return;
+    feedActive.current = true;
+    realActivityStarted.current = true;
+    const seed = `${workspace.id}:${message}`;
+    const seq = [`${paraphraseRequest(message, seed)}…`, ...holdingLines(seed)];
+    void (async () => {
+      for (let i = 0; i < seq.length; i++) {
+        if (turnDone.current) return;
+        setWorklog((w) => (turnDone.current ? w : [...w, seq[i]]));
+        await new Promise((r) => setTimeout(r, 1100 + Math.random() * 900));
       }
     })();
   }
@@ -408,13 +433,19 @@ export function ChatPanel({
     realActivityStarted.current = false;
     feedActive.current = false;
     turnDone.current = false;
-    void (async () => {
-      for (const step of warmupSteps(content, { isNewProject })) {
-        if (realActivityStarted.current) break;
-        setWorklog((w) => (realActivityStarted.current ? w : [...w, step]));
-        await new Promise((r) => setTimeout(r, 360 + Math.floor(Math.random() * 560)));
-      }
-    })();
+    if (sendMode === "build" && !isNewProject) {
+      // Follow-up build/fix on an existing project → paraphrased "on it" feed.
+      // (A new project waits for the scaffold event → construction feed.)
+      startFixFeed(content);
+    } else {
+      void (async () => {
+        for (const step of warmupSteps(content, { isNewProject })) {
+          if (realActivityStarted.current) break;
+          setWorklog((w) => (realActivityStarted.current ? w : [...w, step]));
+          await new Promise((r) => setTimeout(r, 360 + Math.floor(Math.random() * 560)));
+        }
+      })();
+    }
 
     // Replicates the old success path: append the assistant turn, update the
     // guest counter, and surface any file changes to the workspace panel.
@@ -422,11 +453,29 @@ export function ChatPanel({
       text?: string;
       actions?: Action[];
       changes?: TaskChanges;
+      verify?: { status: "passed" | "failed" | "skipped"; command?: string };
       guestRemaining?: number;
     }) => {
+      // Hybrid: on a build turn that changed files, WE write the user-facing
+      // summary (varied, truthful, derived from the real result) and tuck the
+      // model's own reply behind a "details" toggle. Plan turns and Q&A turns
+      // (no file changes) keep the model's text as-is.
+      const synth =
+        sendMode === "build"
+          ? synthesizeReply({
+              changes: data.changes,
+              verify: data.verify,
+              userMessage: content,
+              kind: workspace.kind === "game" ? "game" : "app",
+              isFirstBuild: isNewProject,
+              seed: workspace.id,
+            })
+          : null;
       setMessages((m) => [
         ...(m ?? []),
-        { role: "assistant", content: data.text ?? "", actions: data.actions },
+        synth
+          ? { role: "assistant", content: synth, actions: data.actions, aiText: data.text || undefined }
+          : { role: "assistant", content: data.text ?? "", actions: data.actions },
       ]);
       if (typeof data.guestRemaining === "number") setGuestRemaining(data.guestRemaining);
       const ch = data.changes;
@@ -471,20 +520,20 @@ export function ChatPanel({
             // live "building …" feed from the real files (masks model latency).
             startBuildFeed((evt.files as string[]) ?? [], content);
           } else if (evt.type === "activity") {
-            const label = (evt.label as string) ?? null;
+            const label = (evt.label as string) ?? "";
             // Real work has begun — let the warm-up prelude bow out.
             realActivityStarted.current = true;
-            // While the construction feed is playing, swallow the raw, noisy
-            // file-write labels ("wrote app/page.tsx") — the friendly feed owns
-            // the narrative. Verify/test/fix labels still pass through so the
-            // "testing the build" phase shows naturally.
-            const noisy =
-              feedActive.current &&
-              /^(wrote|created|deleted|read|edited|editing|writing|reading|scanning|listing|searching|scaffolding|setting up your)/i.test(
-                label ?? "",
-              );
-            if (!noisy) {
-              setActivity(label);
+            if (feedActive.current) {
+              // During the construction feed, rephrase real labels into the same
+              // warm, varied voice (verify → "Running a quick test…") and drop
+              // the noisy file-write labels — the stored feed owns the narrative.
+              const shown = friendlyActivity(label, workspace.id);
+              if (shown) {
+                setActivity(shown);
+                setWorklog((w) => [...w, shown]);
+              }
+            } else {
+              setActivity(label || null);
               if (label) setWorklog((w) => [...w, label]);
             }
           } else if (evt.type === "delta") {
@@ -1051,6 +1100,23 @@ export function ChatPanel({
                         </div>
                       )}
                       {m.role === "assistant" ? <Markdown content={m.content} /> : m.content}
+                      {m.aiText && (
+                        <div className="mt-1.5 border-t border-border/60 pt-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setOpenDetails((cur) => (cur === i ? null : i))}
+                            className="inline-flex items-center gap-1 text-[11px] text-txt3 transition-colors hover:text-txt2"
+                          >
+                            <ChevronDown className={cn("h-3 w-3 transition-transform", openDetails === i && "rotate-180")} />
+                            {openDetails === i ? "Hide details" : "Details"}
+                          </button>
+                          {openDetails === i && (
+                            <div className="mt-1 text-[13px] leading-relaxed text-txt2">
+                              <Markdown content={m.aiText} />
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     {showPlanButtons && (
                       <div className="mt-2 flex flex-wrap gap-2 pl-1">

@@ -147,7 +147,9 @@ export const BUILD_RULES =
   "- Keep PROJECT NOTES current with the `remember` tool after meaningful decisions (stack choices, conventions, " +
   "gotchas) — it's your only durable memory; older conversation gets compressed.\n" +
   "- The user pushes to their git host from the UI — you cannot push, don't try, and don't tell them to run git commands.\n" +
-  "- After building, reply in 2-4 lines: what you built/changed and any next step worth knowing. No tutorials.\n" +
+  "- After building, reply in 1-2 SHORT lines. The UI already shows the user a summary of the files you changed, " +
+  "so do NOT re-list files or restate what changed — mention only a caveat, assumption, or next step genuinely worth " +
+  "knowing (often there's nothing to add, and that's fine). No tutorials, no preamble.\n" +
   "- NEVER open with a greeting or a meta-question like \"What can I help you build?\" / \"Nice project!\" — by the " +
   "time you run, the user has ALREADY told you what they want. Do not stall, do not ask them to confirm the idea, " +
   "and do not ask which stack/framework to use (that's already decided). Make reasonable assumptions, BUILD the " +

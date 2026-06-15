@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowUp,
   Check,
+  ChevronDown,
   Code2,
   Eye,
   Loader2,
@@ -21,7 +22,7 @@ import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
 import { isGodotProject } from "@/lib/templates/engines";
 import { scaffoldSteps } from "@/lib/scaffold-steps";
 import { buildTasks } from "@/lib/build-tasks";
-import { buildFeedLabels, FEED_HOLDING_LINES } from "@/lib/build-feed";
+import { buildNarration, friendlyActivity, synthesizeReply, paraphraseRequest, holdingLines } from "@/lib/build-feed";
 import { BuildBoard } from "@/components/build/build-board";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +44,9 @@ interface ChatMessage {
   content: string;
   /** The agent's activity log for the turn that produced this reply. */
   worklog?: string[];
+  /** The model's raw reply, kept behind a "details" toggle when we showed our
+   * own synthesized summary as the content (hybrid). */
+  aiText?: string;
 }
 
 /* First-turn brief: the workspace is empty and the preview is a sandboxed
@@ -113,6 +117,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [limitHit, setLimitHit] = useState(false);
+  const [openDetails, setOpenDetails] = useState<number | null>(null); // message id with expanded "what the model said"
 
   const [filePaths, setFilePaths] = useState<string[]>([]);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
@@ -262,19 +267,41 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       if (feedActive.current) return;
       feedActive.current = true;
       realActivityStarted.current = true; // the scaffold checklist bows out
-      const seq = [...buildFeedLabels(files, { idea, kind }), ...FEED_HOLDING_LINES];
+      // Stored, seeded narration (varied per project, paced to the estimate).
+      const { steps, holding, estimateMs } = buildNarration(files, { idea, kind, seed: workspace.id });
+      const perStep = Math.max(700, Math.min(2600, Math.round(estimateMs / Math.max(4, steps.length))));
+      const seq = [...steps, ...holding];
       void (async () => {
-        const shown: string[] = [];
         for (let i = 0; i < seq.length; i++) {
           if (turnDone.current) return;
-          shown.push(seq[i]);
-          setActivities([...shown]);
-          const concrete = i < seq.length - FEED_HOLDING_LINES.length;
-          await new Promise((r) => setTimeout(r, (concrete ? 800 : 2400) + Math.random() * (concrete ? 700 : 1400)));
+          // Append (so real verify/test lines can interleave via friendlyActivity).
+          setActivities((a) => (turnDone.current ? a : [...a, seq[i]]));
+          const concrete = i < steps.length;
+          await new Promise((r) => setTimeout(r, (concrete ? perStep : 2600) + Math.random() * (concrete ? 300 : 1400)));
         }
       })();
     },
-    [],
+    [workspace.id],
+  );
+
+  // Follow-up requests on an existing project: open with a paraphrase of what
+  // they asked (never verbatim), then breathe with varied holding lines.
+  const startFixFeed = useCallback(
+    (message: string) => {
+      if (feedActive.current) return;
+      feedActive.current = true;
+      realActivityStarted.current = true;
+      const seed = `${workspace.id}:${message}`;
+      const seq = [`${paraphraseRequest(message, seed)}…`, ...holdingLines(seed)];
+      void (async () => {
+        for (let i = 0; i < seq.length; i++) {
+          if (turnDone.current) return;
+          setActivities((a) => (turnDone.current ? a : [...a, seq[i]]));
+          await new Promise((r) => setTimeout(r, 1100 + Math.random() * 900));
+        }
+      })();
+    },
+    [workspace.id],
   );
 
   const send = useCallback(
@@ -293,6 +320,9 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
 
       // The build board tracks the INITIAL build only (brief !== "none").
       const isInitialBuild = brief !== "none";
+      // A follow-up edit has no scaffold event, so kick the paraphrased fix feed
+      // now; an initial build waits for the scaffold event → construction feed.
+      if (!isInitialBuild) startFixFeed(trimmed);
       if (isInitialBuild) {
         setBoardTasks(buildTasks(filePaths));
         setBoardBuilding(true);
@@ -339,7 +369,16 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
         let buffer = "";
         const consume = (line: string) => {
           if (!line.trim()) return;
-          let evt: { type: string; label?: string; text?: string; message?: string; code?: string };
+          let evt: {
+            type: string;
+            label?: string;
+            text?: string;
+            message?: string;
+            code?: string;
+            files?: string[];
+            changes?: { written: string[]; deleted: string[] };
+            verify?: { status: "passed" | "failed" | "skipped"; command?: string };
+          };
           try {
             evt = JSON.parse(line);
           } catch {
@@ -353,16 +392,17 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
           } else if (evt.type === "activity" && evt.label) {
             // Real agent work has begun — let the scaffold checklist stop.
             realActivityStarted.current = true;
-            turnLog = [...turnLog, evt.label];
-            // While the construction feed plays, it owns the chat activity line —
-            // don't overwrite it with the raw, noisy file-write labels. The board
-            // + preview still advance off the same labels below.
-            const noisy =
-              feedActive.current &&
-              /^(wrote|created|deleted|read|edited|editing|writing|reading|scanning|listing|searching|scaffolding|setting up your)/i.test(
-                evt.label,
-              );
-            if (!noisy) setActivities(turnLog);
+            turnLog = [...turnLog, evt.label]; // raw labels feed the final worklog
+            // While the stored feed plays it owns the chat display: rephrase real
+            // labels into the same voice (verify → "Running a quick test…") and
+            // append; drop the noisy file-write labels. The board + preview still
+            // advance off the raw labels below.
+            if (feedActive.current) {
+              const friendly = friendlyActivity(evt.label, workspace.id);
+              if (friendly) setActivities((a) => [...a, friendly]);
+            } else {
+              setActivities(turnLog);
+            }
             if (isInitialBuild) {
               setBoardSteps((s) => s + 1);
               // The board reacts to what the build reveals: real verify/fix/test
@@ -396,9 +436,25 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             resolved = true;
             turnDone.current = true;
             feedActive.current = false;
+            // Hybrid: write our own varied, truthful summary from the real result;
+            // keep the model's reply behind a "details" toggle.
+            const synth = synthesizeReply({
+              changes: evt.changes,
+              verify: evt.verify,
+              userMessage: trimmed,
+              kind: brief === "game" || brief === "godot" ? "game" : "app",
+              isFirstBuild: isInitialBuild,
+              seed: workspace.id,
+            });
             setMessages((prev) => [
               ...prev,
-              { id: nextId.current++, role: "assistant", content: evt.text ?? "Done.", worklog: turnLog },
+              {
+                id: nextId.current++,
+                role: "assistant",
+                content: synth ?? evt.text ?? "Done.",
+                worklog: turnLog,
+                aiText: synth ? evt.text || undefined : undefined,
+              },
             ]);
             setActivities([]);
             void refreshPreview();
@@ -448,7 +504,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
         localTurn.current = false;
       }
     },
-    [workspace.id, refreshPreview, filePaths, startBuildFeed],
+    [workspace.id, refreshPreview, filePaths, startBuildFeed, startFixFeed],
   );
 
   /* ----------------------- persistence / resume -------------------- */
@@ -893,6 +949,23 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
                         </div>
                       )}
                       <Markdown content={m.content} />
+                      {m.aiText && (
+                        <div className="mt-1.5 border-t border-border2/60 pt-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setOpenDetails((cur) => (cur === m.id ? null : m.id))}
+                            className="inline-flex items-center gap-1 text-[11px] text-txt3 transition-colors hover:text-txt2"
+                          >
+                            <ChevronDown className={cn("h-3 w-3 transition-transform", openDetails === m.id && "rotate-180")} />
+                            {openDetails === m.id ? "Hide details" : "Details"}
+                          </button>
+                          {openDetails === m.id && (
+                            <div className="mt-1 text-[12.5px] leading-relaxed text-txt2">
+                              <Markdown content={m.aiText} />
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="whitespace-pre-wrap text-txt2">{m.content}</div>
