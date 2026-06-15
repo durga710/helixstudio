@@ -418,6 +418,19 @@ CREATE INDEX IF NOT EXISTS "LabWidget_authorId_updatedAt_idx" ON "LabWidget"("au
 CREATE INDEX IF NOT EXISTS "LabWidget_spaceId_idx" ON "LabWidget"("spaceId");
 
 -- 2026-06 · Persisted synthesized build-chat summary (so reloads match the live
--- narration: content holds the model's raw reply, summary holds our own prose)
-ALTER TABLE "WorkspaceMessage" ADD COLUMN IF NOT EXISTS "summary" TEXT;
+-- narration: content holds the model's raw reply, summary holds our own prose).
+-- WorkspaceMessage is a HOT table (the chat reads/writes it constantly), so a
+-- bare "ADD COLUMN IF NOT EXISTS" still grabs ACCESS EXCLUSIVE on every boot
+-- (even as a no-op) and contends with live traffic. Guard it with a lock-free
+-- information_schema check so once the column exists, boots take NO exclusive
+-- lock here at all — only the very first apply does.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'WorkspaceMessage' AND column_name = 'summary'
+  ) THEN
+    ALTER TABLE "WorkspaceMessage" ADD COLUMN "summary" TEXT;
+  END IF;
+END $$;
 `;

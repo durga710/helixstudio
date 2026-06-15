@@ -37,7 +37,15 @@ async function ensureSchema(): Promise<void> {
       const existing = await client.query(`SELECT to_regclass('public."User"') AS t`);
       if (existing.rows[0]?.t) {
         // Already provisioned — apply additive upgrades (no-ops once applied).
-        await client.query(`BEGIN;\n${UPGRADE_SQL}\nCOMMIT;`);
+        // CRITICAL: cap how long any DDL may wait for a lock. Without this, a
+        // no-op ALTER on a HOT table (e.g. WorkspaceMessage, hammered by chat)
+        // still requests ACCESS EXCLUSIVE and, finding no gap in traffic, blocks
+        // forever — hanging schemaReady() and 504-ing every guarded route. With
+        // lock_timeout the ALTER fails fast; the upgrade just applies on a
+        // quieter boot instead (and the recheck below confirms provisioning).
+        await client.query(
+          `BEGIN;\nSET LOCAL lock_timeout = '3s';\nSET LOCAL statement_timeout = '60s';\n${UPGRADE_SQL}\nCOMMIT;`,
+        );
         return;
       }
       await client.query(`BEGIN;\n${SCHEMA_SQL}\nCOMMIT;`);
