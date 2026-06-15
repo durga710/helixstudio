@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface TypingAnimationProps {
   /** Full string to type out. */
@@ -19,9 +19,9 @@ interface TypingAnimationProps {
 }
 
 /**
- * Types `text` one character at a time. Self-contained: it owns its own timer
- * so per-character animation never re-renders the parent demo engine. Honors
- * `paused` (holds position) and `instant` (reduced-motion / SSR fallback).
+ * Types `text` one character at a time. Honors `paused` (holds position) and
+ * `instant` (reduced-motion / SSR fallback), and fires `onDone` from its effect
+ * once the string — or the instant render — is complete.
  */
 export function TypingAnimation({
   text,
@@ -33,32 +33,29 @@ export function TypingAnimation({
   className,
 }: TypingAnimationProps) {
   const [count, setCount] = useState(instant ? text.length : 0);
-  const onDoneRef = useRef(onDone);
-  onDoneRef.current = onDone;
 
-  // Reset when the source text changes (e.g. scenario rotates).
-  useEffect(() => {
+  // Reset when the source text (or instant mode) changes — kept in render via
+  // the store-previous-prop pattern rather than a setState-in-effect.
+  const resetKey = `${text} ${instant}`;
+  const [prevKey, setPrevKey] = useState(resetKey);
+  if (prevKey !== resetKey) {
+    setPrevKey(resetKey);
     setCount(instant ? text.length : 0);
-  }, [text, instant]);
-
-  // Fire completion for the instant path exactly once.
-  useEffect(() => {
-    if (instant) onDoneRef.current?.();
-  }, [instant, text]);
+  }
 
   useEffect(() => {
-    if (instant || paused) return;
-    if (count >= text.length) {
-      onDoneRef.current?.();
+    if (instant || count >= text.length) {
+      onDone?.();
       return;
     }
+    if (paused) return;
     // Type punctuation a touch slower; jitter the rest for life.
     const ch = text[count];
     const base = ch === " " ? speed * 0.5 : /[.,—"“”]/.test(ch ?? "") ? speed * 2.2 : speed;
     const jitter = base * (0.6 + Math.random() * 0.8);
     const id = window.setTimeout(() => setCount((c) => c + 1), jitter);
     return () => window.clearTimeout(id);
-  }, [count, text, speed, paused, instant]);
+  }, [count, text, speed, paused, instant, onDone]);
 
   const done = count >= text.length;
 

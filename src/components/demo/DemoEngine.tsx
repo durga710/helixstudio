@@ -44,7 +44,9 @@ export function DemoEngine({ className }: { className?: string }) {
   const [tabHidden, setTabHidden] = useState(false);
   const paused = hovered || !inView || tabHidden;
   const pausedRef = useRef(paused);
-  pausedRef.current = paused;
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
 
   useEffect(() => {
     const onVis = () => setTabHidden(document.hidden);
