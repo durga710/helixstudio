@@ -3,7 +3,9 @@ import Link from "next/link";
 import { BrandMark } from "@/components/brand";
 import { ResetPasswordForm } from "@/components/screens/reset-password-form";
 
-export const metadata: Metadata = { title: "Reset password" };
+// no-referrer: the one-time token is in the URL — never leak it in a Referer
+// header to any resource the page might touch.
+export const metadata: Metadata = { title: "Reset password", referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
 
 export default async function ResetPasswordPage({

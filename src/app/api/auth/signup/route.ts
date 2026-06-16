@@ -56,8 +56,17 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "An account with that email already exists" }, { status: 409 });
   }
 
-  await db().user.create({
-    data: { name, email, passwordHash: hashPassword(password) },
-  });
+  try {
+    await db().user.create({
+      data: { name, email, passwordHash: hashPassword(password) },
+    });
+  } catch (e) {
+    // Lost the race to a concurrent signup with the same email — the unique
+    // constraint (P2002) fired. Surface the normal "already exists", not a 500.
+    if ((e as { code?: string }).code === "P2002") {
+      return Response.json({ error: "An account with that email already exists" }, { status: 409 });
+    }
+    throw e;
+  }
   return Response.json({ ok: true }, { status: 201 });
 }

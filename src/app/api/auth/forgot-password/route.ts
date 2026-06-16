@@ -1,9 +1,10 @@
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { z } from "zod";
 import { dbEnabled, db, schemaReady } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { makeResetToken } from "@/lib/password-reset";
 import { sendEmail, passwordResetEmail } from "@/lib/email";
+import { appOrigin } from "@/lib/app-url";
 
 export const dynamic = "force-dynamic";
 
@@ -16,12 +17,6 @@ const schema = z.object({ email: z.string().trim().toLowerCase().email().max(200
 function clientIp(req: NextRequest): string {
   const fwd = req.headers.get("x-forwarded-for");
   return fwd ? fwd.split(",")[0]!.trim() : "unknown";
-}
-
-function originOf(req: NextRequest): string {
-  const proto = req.headers.get("x-forwarded-proto") ?? "https";
-  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
-  return host ? `${proto}://${host}` : new URL(req.url).origin;
 }
 
 export async function POST(req: NextRequest) {
@@ -45,13 +40,21 @@ export async function POST(req: NextRequest) {
     select: { id: true, passwordHash: true },
   });
 
+  // Per-address cap so nobody can flood a victim's inbox from many IPs. Checked
+  // silently — over the cap we just don't send, but the response is unchanged, so
+  // it leaks nothing about whether the address exists.
+  const emailRl = await rateLimit(`forgot-email:${parsed.data.email}`, { limit: 5, windowMs: 60 * 60 * 1000 });
+
   // Only password accounts can reset (OAuth-only users have no passwordHash).
   let devLink: string | undefined;
-  if (user?.passwordHash) {
+  if (user?.passwordHash && emailRl.success) {
     const token = makeResetToken({ id: user.id, passwordHash: user.passwordHash });
-    const link = `${originOf(req)}/reset-password?token=${encodeURIComponent(token)}`;
+    const link = `${appOrigin(req)}/reset-password?token=${encodeURIComponent(token)}`;
     const mail = passwordResetEmail(link);
-    await sendEmail({ to: parsed.data.email, ...mail });
+    // Send AFTER the response so request latency is identical whether or not the
+    // account exists (no timing side-channel for enumeration) — and so delivery
+    // survives the serverless function returning.
+    after(() => sendEmail({ to: parsed.data.email, ...mail }));
     if (process.env.NODE_ENV !== "production") devLink = link;
   }
 
