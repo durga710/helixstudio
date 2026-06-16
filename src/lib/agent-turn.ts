@@ -223,12 +223,26 @@ export async function runAgentTurn(opts: {
       const tpl = templateId ? await getTemplate(templateId) : undefined;
       if (tpl) {
         emit("scaffolding a starter…");
-        const note = buildTemplateNote(tpl);
         const tplFiles = personalizeTemplateFiles(tpl.files, { appName: ws.name });
+        // The premium skeletons ship an AGENTS.md/CLAUDE.md that is MODEL-FACING
+        // build guidance ("Premium app skeleton — fill the blanks"), NOT part of
+        // the user's app. Keep it OUT of the workspace so it never shows in the
+        // file tree or gets pushed to the user's repo — and feed its content to
+        // the model as PROJECT NOTES instead (model-only, never a file).
+        const isBrief = (p: string) => /(^|\/)(AGENTS|CLAUDE)\.md$/i.test(p);
+        const briefDoc = tplFiles
+          .filter((f) => isBrief(f.path))
+          .map((f) => f.content)
+          .join("\n\n")
+          .trim();
+        const projectFiles = tplFiles.filter((f) => !isBrief(f.path));
+        // The skeleton brief is the richer guidance; fall back to the manifest
+        // blurb for templates that don't ship one.
+        const note = (briefDoc || buildTemplateNote(tpl)).slice(0, 3000);
         // Don't silently swallow a failed injection — a rejected file (e.g. an
         // unsafe path) would otherwise leave the project with 0 scaffolded files
         // while still emitting a "scaffold" event, so the agent builds on nothing.
-        const wrote = await writeWorkspaceFiles(ws, tplFiles.map((f) => ({ path: f.path, content: f.content })));
+        const wrote = await writeWorkspaceFiles(ws, projectFiles.map((f) => ({ path: f.path, content: f.content })));
         if ("error" in wrote) throw new Error(`template injection failed: ${wrote.error}`);
         await db().workspace.update({ where: { id: ws.id }, data: { notes: note } });
         ws.notes = note; // reflect it in this turn's context
