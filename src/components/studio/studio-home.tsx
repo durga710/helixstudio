@@ -104,7 +104,6 @@ export function StudioHome({
   const [picking, setPicking] = useState(false);
   const [pickingHost, setPickingHost] = useState(false);
   const [scratchName, setScratchName] = useState("");
-  const [idea, setIdea] = useState("");
   const [namePrompt, setNamePrompt] = useState(false);
   const [showOther, setShowOther] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -209,41 +208,7 @@ export function StudioHome({
         {kind === "app" && (
           <section>
             <h1 className="mb-1.5 text-2xl font-semibold tracking-tight text-txt">Build an App</h1>
-            <p className="mb-6 text-sm text-txt3">Start from a description, an existing repo, or a folder on your computer.</p>
-
-            {/* Prompt-first: the idea seeds a premium starter at creation, so the
-                editor opens already styled + running. */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!idea.trim() || creating) return;
-                const name = idea.trim().split(/\s+/).slice(0, 6).join(" ").slice(0, 60);
-                void createScratch(name, idea);
-              }}
-              className="mb-4 rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[linear-gradient(110deg,color-mix(in_srgb,var(--accent)_14%,transparent),color-mix(in_srgb,#c084fc_10%,transparent))] p-4"
-            >
-              <div className="mb-2.5 flex items-center gap-2 text-sm font-medium text-txt">
-                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[var(--brand-cyan,#00ffd1)] via-accent to-[#c084fc]">
-                  <Sparkles className="h-4 w-4 text-white" strokeWidth={1.8} />
-                </span>
-                What do you want to build?
-              </div>
-              <div className="flex gap-2">
-                <input
-                  autoFocus
-                  value={idea}
-                  onChange={(e) => setIdea(e.target.value)}
-                  placeholder="e.g. a portfolio for a photographer, a habit tracker, a team dashboard…"
-                  className="flex-1 rounded-lg border border-border bg-bg2 px-3.5 py-2.5 text-sm text-txt placeholder:text-txt3 focus:border-accent focus:outline-none"
-                />
-                <Button type="submit" disabled={creating || !idea.trim()}>
-                  {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Build it"}
-                </Button>
-              </div>
-              <p className="mt-2 text-[11px] text-txt3">
-                Helix sets up a styled, working starter and builds your idea into it — refine it in chat.
-              </p>
-            </form>
+            <p className="mb-6 text-sm text-txt3">Start from scratch, an existing repo, or a folder on your computer.</p>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div

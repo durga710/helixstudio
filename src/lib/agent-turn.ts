@@ -491,6 +491,26 @@ export async function runAgentTurn(opts: {
 
         text = resp.output_text?.trim() || "";
 
+        // A model refusal lands in a `refusal` content part, NOT in output_text —
+        // so without this a refused request reads as an empty (and later faked)
+        // success. Surface the refusal reason as the reply instead.
+        if (!text) {
+          const refusal = (resp.output ?? [])
+            .flatMap((o) =>
+              (o as { type?: string; content?: unknown[] }).type === "message"
+                ? ((o as { content?: unknown[] }).content ?? [])
+                : [],
+            )
+            .map((c) => {
+              const part = c as { type?: string; refusal?: string };
+              return part.type === "refusal" ? (part.refusal ?? "") : "";
+            })
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+          if (refusal) text = refusal;
+        }
+
         // Reasoning models can exhaust the tool-loop budget with no message
         // text. Force a wrap-up turn (tools disabled) so the user always gets
         // a real answer about what happened.
@@ -555,6 +575,23 @@ export async function runAgentTurn(opts: {
         text = await salvageInlineFileWrites(text, ctx, changes);
       } catch (e) {
         console.error("[helix-chat] salvage failed", e);
+      }
+    }
+
+    // Honesty guard: a BUILD turn that changed no files and produced only a
+    // placeholder reply ("All set!"/"(no reply)") didn't actually build anything
+    // — most often a soft refusal or a chat-tuned model that won't tool-call.
+    // Never report a fake success; tell the user the truth + how to recover.
+    if (mode === "build") {
+      const noChanges = changes.written.length === 0 && changes.deleted.length === 0;
+      const trimmed = text.trim();
+      const placeholder = trimmed === "" || trimmed === "(no reply)" || /^all set\b/i.test(trimmed);
+      if (noChanges && placeholder) {
+        text =
+          "I didn't make any changes this time — the model returned nothing to build. " +
+          "This usually means the request was declined or the selected model didn't write any files. " +
+          "Try a different model in the picker (a Helix model, Claude, or GPT-5), rephrase the request, " +
+          "or break it into smaller steps (e.g. start with the data models, then the pages).";
       }
     }
 
