@@ -5,12 +5,19 @@
  * sets expectations from the request shape + project size, nothing more.
  */
 
+import { looksLikeBigJob } from "./detect";
+import { JOB_MIN_FILES } from "./config";
+
 export interface JobEstimate {
   files: number;
   workersLow: number;
   workersHigh: number;
   tokensLow: number;
   tokensHigh: number;
+  /** Whether the multi-agent JOB path is actually worth it here — a structural
+   * request AND a project big enough to justify the overhead. Below this, a
+   * single normal build turn is far cheaper. */
+  recommend: boolean;
   note: string;
 }
 
@@ -34,6 +41,7 @@ export function estimateJob(request: string, fileCount: number): JobEstimate {
     workersHigh: high,
     tokensLow: low * TOKENS_PER_WORKER,
     tokensHigh: high * TOKENS_PER_WORKER,
+    recommend: looksLikeBigJob(request) && fileCount >= JOB_MIN_FILES,
     note: "Estimate only — the planner decides the real split. Counts against your token quota.",
   };
 }

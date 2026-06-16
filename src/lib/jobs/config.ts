@@ -10,3 +10,9 @@ export const WORKER_CONCURRENCY = 3;
  * The per-worker budget check (checkTokenBudget) still applies first; this caps
  * a runaway multi-slice job even for an admin with a large quota. */
 export const JOB_TOKEN_CAP = 3_000_000;
+
+/** Minimum project size (file count) to bother with the multi-agent JOB path.
+ * Below this, a single normal build turn is far cheaper than planner + parallel
+ * workers + reviewer — so we DON'T offer/route a job for small projects. The
+ * 700K-tokens-for-3-files case was exactly this mis-route. */
+export const JOB_MIN_FILES = 12;

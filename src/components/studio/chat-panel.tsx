@@ -895,9 +895,24 @@ export function ChatPanel({
       intakeSubmit(t);
       return;
     }
+    // Only offer the heavy multi-agent JOB when the request is structural AND the
+    // project is big enough to justify it (the server `recommend` flag checks
+    // both). A small project → just build it in one cheap turn.
     if (isAdmin && mode === "build" && looksLikeBigJob(t)) {
-      setJobOffer(t);
       setInput("");
+      void (async () => {
+        try {
+          const r = await fetch(`/api/workspaces/${workspace.id}/refactor?message=${encodeURIComponent(t)}`);
+          const j = r.ok ? await r.json() : null;
+          if (j?.data?.recommend) {
+            setJobOffer(t);
+            return;
+          }
+        } catch {
+          /* fall through to a normal build */
+        }
+        void send(t);
+      })();
       return;
     }
     void send(t);

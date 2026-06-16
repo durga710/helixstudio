@@ -67,6 +67,25 @@ export function agentLimitsFor(isAdmin: boolean): AgentLimits {
   return isAdmin ? ADMIN_AGENT_LIMITS : AGENT_LIMITS;
 }
 
+/**
+ * Scale the context/tree/hop ceilings DOWN to the project's size, so we don't
+ * over-send tokens on a small project (the whole point of the engine is low
+ * token cost). A 3-file app gets a lean context; only a big codebase unlocks the
+ * full budget. Token/search caps stay as safety nets. Never goes below the base
+ * limits — so a non-admin (already at base) is unchanged; an admin on a small
+ * project drops from the 60K transform-mode context back toward base.
+ */
+export function scaleLimitsForProject(limits: AgentLimits, fileCount: number): AgentLimits {
+  const t = Math.max(0, Math.min(1, fileCount / 60)); // 0 → tiny, 1 → 60+ files
+  const lerp = (lo: number, hi: number) => Math.round(lo + (hi - lo) * t);
+  return {
+    ...limits,
+    contextChars: Math.min(limits.contextChars, lerp(AGENT_LIMITS.contextChars, limits.contextChars)),
+    treeChars: Math.min(limits.treeChars, lerp(AGENT_LIMITS.treeChars, limits.treeChars)),
+    maxHops: Math.min(limits.maxHops, lerp(AGENT_LIMITS.maxHops, limits.maxHops)),
+  };
+}
+
 /** Appended to BUILD_RULES for admin "transform mode" turns — lifts the
  * build-on-the-skeleton restrictions so LARGE refactors actually work. */
 export const TRANSFORM_RULES =

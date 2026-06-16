@@ -54,6 +54,10 @@ const ok = (c: boolean, l: string) => { c ? (pass++, console.log("  PASS", l)) :
   ok(big.tokensHigh > small.tokensHigh, "estimate: broad request → more tokens");
   ok(small.workersLow >= 2, "estimate: at least 2 workers");
   ok(/worker/.test(formatEstimate(small)) && /token/.test(formatEstimate(small)), "estimate: formats workers + tokens");
+  // size-gate: recommend a JOB only for structural request AND a big project
+  ok(estimateJob("refactor every page and route", 40).recommend === true, "recommend: big structural project → job");
+  ok(estimateJob("refactor every page and route", 4).recommend === false, "recommend: tiny project → NO job (just build)");
+  ok(estimateJob("add a contact form", 80).recommend === false, "recommend: non-structural request → NO job");
 }
 
 console.log(`\n=== job planning: ${pass} passed, ${fail} failed ===`);

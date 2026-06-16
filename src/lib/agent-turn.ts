@@ -46,6 +46,7 @@ import { withRetry } from "@/lib/ai/retry";
 import { createAgentIntent } from "@/lib/intent-ledger";
 import {
   agentLimitsFor,
+  scaleLimitsForProject,
   BUILD_RULES,
   GAME_BUILD_RULES,
   TRANSFORM_RULES,
@@ -162,8 +163,9 @@ export async function runAgentTurn(opts: {
   // never spend our keys.
   const isAdmin = isAdminEmail(prefs?.user?.email);
   // Phase-2 transform-mode ceilings (bigger context/hops/search + skeleton
-  // unlock) for admins; base limits for everyone else.
-  const limits = agentLimitsFor(isAdmin);
+  // unlock) for admins; base limits for everyone else. Scaled to the project's
+  // size below (once the tree is known) so a small project never over-sends.
+  let limits = agentLimitsFor(isAdmin);
   const ownKey =
     aiProvider === "openai"
       ? prefs?.openaiKey
@@ -314,6 +316,10 @@ export async function runAgentTurn(opts: {
   // Admin "transform mode": lift the build-on-the-skeleton limits so big
   // structural refactors are allowed (matches the unlocked engine limits).
   if (mode !== "plan" && limits.unlockSkeleton) rules += TRANSFORM_RULES;
+
+  // Size the budget to the project: a 3-file app gets a lean context; only a big
+  // codebase unlocks the full (admin) ceiling. Keeps token cost proportional.
+  limits = scaleLimitsForProject(limits, treePaths.length);
 
   const fitted = fitBudget({
     rules,
