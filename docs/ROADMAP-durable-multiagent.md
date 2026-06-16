@@ -43,28 +43,33 @@ Today every turn writes the shared `WorkspaceFile` overlay via `writeWorkspaceFi
 with no scoping — two workers touching the same file = last-write-wins race
 (that's why background tasks are capped at 3). Solving this cleanly is the crux.
 
-**Chosen approach (pragmatic, staged):**
-- The **planner assigns each sub-task a disjoint file scope** (paths/globs it may
-  touch). Workers stay in their lane → no overlap → no merge needed for the
+**Chosen approach — fast common case + correct hard case (not the lazy path):**
+We want true parallelism (speed) AND correctness, so it's a hybrid, layered so the
+fast path covers ~90% and the robust path catches the rest:
+- **Planner partitions sub-tasks into DISJOINT file scopes** wherever possible.
+  Disjoint workers run fully in parallel with **no merge at all** — the fast,
   common case.
-- **Enforce scope**: add an optional `allowedPaths` to `ToolContext`; a worker's
-  `write_files`/`edit_file`/`move_file`/`delete_file` outside its scope is
-  rejected with a clear error (the model self-corrects).
-- **Sequential commit with a conflict guard** (even when reasoning is parallel):
-  if a worker's write touches a file another worker already changed this job,
-  re-queue it to run AFTER, with the updated file in context. Defer true 3-way
-  merge until data shows it's needed.
+- **Scope enforcement**: an optional `allowedPaths` on `ToolContext`; writes
+  (`write_files`/`edit_file`/`move_file`/`delete_file`) outside a worker's scope
+  are rejected with a clear error so the model stays in its lane.
+- **Per-worker staging overlay + hunk-level merge** for the unavoidable overlaps
+  (e.g. two features that both edit one shared router/registry file). Each worker
+  writes to its own staging copy; an integrator applies **non-overlapping hunks
+  automatically** (3-way against the job's base snapshot) and only escalates a
+  true line-level conflict (rare) to a fast reconciliation turn. This is the
+  "don't cut corners" piece — real merge, not last-write-wins.
+- Base snapshot per job (the file set at job start) is the 3-way merge ancestor.
 
-This avoids git-worktree/branch machinery inside the DB-overlay model.
+Net: independent tasks parallelize freely (fast); overlapping tasks merge
+correctly (robust). No git-worktree/branch machinery — staging is just a scoped
+copy in the DB overlay keyed by job+worker.
 
 ## Architecture
 
 ### Durable job runner (Phase A)
-- Driver: **Upstash QStash** (we already use Upstash Redis) to self-trigger the
-  next step invocation, with the existing **cron as a backstop drainer** for
-  stuck jobs. (Alternative to evaluate: the Vercel Workflow DevKit — native
-  durable step/pause/resume/retry — vs. keeping it portable/self-hosted, which
-  the cron+QStash path preserves. DECISION NEEDED.)
+- Driver (LOCKED): **Upstash QStash** (we already use Upstash Redis) to
+  self-trigger the next step invocation, with the existing **cron as a backstop
+  drainer** for stuck jobs.
 - Loop: enqueue job → worker route runs "slices" until a ~280s deadline →
   checkpoint to DB → if unfinished, re-enqueue the next slice → repeat. Heartbeat
   each slice; a backstop sweep fails jobs whose heartbeat is stale (replaces the
@@ -123,13 +128,17 @@ This avoids git-worktree/branch machinery inside the DB-overlay model.
   rework rounds; estimate-and-confirm before launch.
 - Whole job = ONE intent → one-click undo; optional snapshot before start.
 
-## Open decisions (resolve before starting)
-1. **Durability driver**: QStash + cron backstop (portable, reuses Upstash) vs.
-   Vercel Workflow DevKit (native durable primitives, Vercel-coupled).
-2. **Isolation**: disjoint-scope + sequential-commit-with-conflict-guard (chosen)
-   vs. real per-worker staging + 3-way merge (defer unless needed).
-3. **Evolve orchestrator.ts** into the real system vs. build fresh and retire the
-   advisory pipeline (lean: evolve the UI, replace internals for big jobs, keep
-   the lean single-turn path for small ones).
-4. Trigger: explicit "big refactor / run as job" affordance vs. auto-detect large
-   requests and offer it.
+## Decisions (LOCKED 2026-06-16)
+1. **Durability driver**: ✅ **QStash + cron backstop** — self-trigger each step
+   via Upstash QStash (reuses our Upstash account, portable, no Vercel lock-in);
+   a cron sweeps stuck jobs.
+2. **Isolation**: ✅ **Hybrid (best + fast)** — disjoint-scope parallelism for the
+   common case + per-worker staging with hunk-level 3-way merge for unavoidable
+   overlaps (see "The hard problem" above). Explicitly NOT sequential-only and NOT
+   last-write-wins; correctness without giving up speed.
+3. **Orchestrator**: ✅ **Evolve orchestrator.ts** — reuse its UI/streaming, replace
+   the advisory internals with the real planner→workers→reviewer for big jobs;
+   keep the lean single-turn path for small ones.
+4. **Trigger**: ✅ **Auto-detect + confirm** — detect large/structural requests,
+   show a scope + cost estimate, and let the user confirm running it as a durable
+   multi-agent job (with an explicit override always available).
