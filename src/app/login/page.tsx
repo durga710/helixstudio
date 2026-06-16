@@ -65,13 +65,13 @@ const fieldInput =
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string }>;
 }) {
   const session = await auth();
   // Guests may revisit this page to upgrade to a real account.
   if (session?.user && !session.user.isGuest) redirect("/");
   const isGuest = Boolean(session?.user?.isGuest);
-  const { error } = await searchParams;
+  const { error, reset } = await searchParams;
 
   return (
     <div className="grid min-h-screen grid-cols-1 bg-[#070b12] text-[#f8fbff] md:grid-cols-2">
@@ -131,6 +131,16 @@ export default async function LoginPage({
             </>
           )}
 
+          {reset && (
+            <div
+              role="status"
+              className="mb-4 mt-5 flex items-center gap-2 rounded-[10px] border border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-3 py-2.5 text-xs text-accent"
+            >
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              Password updated — sign in with your new password.
+            </div>
+          )}
+
           {error && (
             <div
               role="alert"
@@ -165,9 +175,14 @@ export default async function LoginPage({
               <input id="email" name="email" type="email" required placeholder="you@company.com" autoComplete="email" className={fieldInput} />
             </div>
             <div className="mb-3.5">
-              <label htmlFor="password" className="mb-1.5 block text-[12.5px] font-medium text-[#9cadc4]">
-                Password
-              </label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label htmlFor="password" className="block text-[12.5px] font-medium text-[#9cadc4]">
+                  Password
+                </label>
+                <a href="/forgot-password" className="text-[12px] text-accent hover:underline">
+                  Forgot password?
+                </a>
+              </div>
               <input id="password" name="password" type="password" required placeholder="••••••••" autoComplete="current-password" className={fieldInput} />
             </div>
             <button
