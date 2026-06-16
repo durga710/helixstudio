@@ -118,8 +118,15 @@ copy in the DB overlay keyed by job+worker.
   (lock-free upgrade); QStash + the cron entry are optional accelerators. Next:
   add a `cancel` endpoint + a richer durable progress UI when Phase B lands.
 - **Phase B — Structured planner + scoped sequential workers + reviewer gate.**
-  Plan→workers (sequential, scope-enforced, one intent)→reviewer rework loop→
-  verify. Dynamic UI board. Ships: reliable, reviewed big refactors (durable via A).
+  ✅ ENGINE DONE 2026-06-16 (commit `e894c4f`): planner (jobs/planner.ts) →
+  scoped sequential workers (runAgentTurn `scope` → ToolContext.allowedPaths,
+  enforced in workspace-tools) → reviewer gate with bounded rework
+  (jobs/reviewer.ts, MAX_REWORK_ROUNDS=2). Dynamic jobs via step.appendSteps on
+  runner-core. Trigger: POST /api/workspaces/[id]/refactor (admin preview) +
+  jobs/detect.ts. 34 unit tests (runner + parse + scope + detect). REMAINING
+  Phase-B polish: one job-level intent (whole-refactor undo), the dynamic agent
+  board UI, wiring auto-detect+confirm into the chat flow, and an optional final
+  sandbox-verify step.
 - **Phase C — Parallelism + conflict guard.** Run disjoint-scope sub-tasks in
   parallel with bounded concurrency + re-queue-on-overlap. Ships: speed.
 - **Phase D — Polish.** Cost estimate+confirm, pre-job snapshot/rollback,
