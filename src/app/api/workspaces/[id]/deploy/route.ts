@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { guardWorkspace } from "@/lib/route-helpers";
 import { getDeployAuth, getDeployProvider } from "@/lib/deploy";
 import { gitHostFor } from "@/lib/deploy/types";
+import { runPreflight } from "@/lib/deploy/preflight";
 import { PROVIDER_META } from "@/lib/git";
 
 export const runtime = "nodejs";
@@ -60,6 +61,17 @@ export async function POST(req: Request, { params }: Params) {
   const auth = await getDeployAuth(user.id, provider.name);
   if (!auth) {
     return apiErrors.badRequest(`Connect ${provider.label} in Settings → Deployments first.`);
+  }
+
+  // Preflight gate: never deploy a workspace with hardcoded secrets. Other
+  // findings (SAST/weight) are advisory and surfaced in the dialog, not here.
+  const preflight = await runPreflight({ ws, userId: user.id });
+  if (!preflight.ok) {
+    const secret = preflight.security.find((f) => f.rule.startsWith("Hardcoded secret"));
+    return apiErrors.badRequest(
+      `Deploy blocked: a hardcoded secret was found${secret ? ` in ${secret.path}:${secret.line}` : ""}. ` +
+        "Move it to an environment variable, then deploy.",
+    );
   }
 
   const result = await provider.linkRepo(auth, { repo: ws.repo, name: "", gitProvider: gitHost });
