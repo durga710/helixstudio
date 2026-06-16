@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, FileCode2, Folder, FolderOpen, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, FileCode2, Folder, FolderOpen, Search, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface TreeFile {
@@ -88,6 +88,14 @@ export function FileTree({
   const tree = useMemo(() => buildTree(files), [files]);
   // Folders the user explicitly collapsed (default = expanded).
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  // While searching, show a flat list of matching files (fastest way to jump to
+  // a file by name) instead of the nested tree.
+  const matches = useMemo(
+    () => (q ? files.filter((f) => f.path.toLowerCase().includes(q)).sort((a, b) => a.path.localeCompare(b.path)) : []),
+    [files, q],
+  );
 
   const toggle = (path: string) =>
     setCollapsed((c) => {
@@ -163,5 +171,74 @@ export function FileTree({
       );
     });
 
-  return <ul className="space-y-0.5">{renderNodes(tree, 0)}</ul>;
+  return (
+    <div>
+      {/* Search — type to filter files by name/path; clears back to the tree. */}
+      <div className="relative mb-1.5 px-1">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-txt3" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search files…"
+          aria-label="Search files"
+          className="w-full rounded-md border border-border bg-bg2 py-1 pl-7 pr-6 font-mono text-[11px] text-txt placeholder:text-txt3 focus:border-accent focus:outline-none"
+        />
+        {query && (
+          <button
+            type="button"
+            aria-label="Clear search"
+            onClick={() => setQuery("")}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-txt3 transition-colors hover:text-txt"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+
+      {q ? (
+        matches.length === 0 ? (
+          <p className="px-3 py-2 font-mono text-[11px] text-txt3">No files match “{query}”.</p>
+        ) : (
+          <ul className="space-y-0.5">
+            {matches.map((f) => {
+              const name = f.path.slice(f.path.lastIndexOf("/") + 1);
+              const dir = f.path.slice(0, f.path.lastIndexOf("/"));
+              const isDirty = dirtyPaths.has(f.path);
+              return (
+                <li key={`m:${f.path}`} className="group/file relative">
+                  <button
+                    type="button"
+                    onClick={() => onOpen(f.path)}
+                    className={cn(
+                      "flex w-full items-center gap-1.5 rounded-md py-1 pl-2 pr-7 text-left font-mono text-[11px] transition-colors",
+                      selected === f.path ? "bg-hl text-accent" : "text-txt2 hover:bg-panel2 hover:text-txt",
+                      isDirty && "text-warn",
+                    )}
+                    title={f.path}
+                  >
+                    <FileCode2 className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                    <span className="truncate">
+                      {isDirty ? "● " : ""}
+                      {name}
+                      {dir && <span className="text-txt3"> · {dir}</span>}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${f.path}`}
+                    onClick={() => onDelete(f.path)}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-txt3 opacity-0 transition-all hover:text-bad group-hover/file:opacity-100"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )
+      ) : (
+        <ul className="space-y-0.5">{renderNodes(tree, 0)}</ul>
+      )}
+    </div>
+  );
 }
