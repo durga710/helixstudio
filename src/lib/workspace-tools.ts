@@ -17,6 +17,7 @@ import { db } from "@/lib/db";
 import { NOTES_MAX } from "@/lib/chat-context";
 import { AGENT_LIMITS, type AgentLimits } from "@/lib/agent-config";
 import { buildChunks, rerankSearch } from "@/lib/repo/rerank";
+import { pathInScope, outOfScopeError } from "@/lib/jobs/scope";
 
 /** A skeleton file carrying this marker is locked — the engine refuses to edit
  * or overwrite it (premium templates put it on theme/palette + boot files, so
@@ -84,6 +85,9 @@ export interface ToolContext {
   limits?: AgentLimits;
   /** Admin turn — gates the move_file tool into the list. */
   isAdmin?: boolean;
+  /** Phase-B worker scope: globs this turn may WRITE. Empty/undefined = whole
+   * project. Out-of-scope writes are rejected so workers stay in their lane. */
+  allowedPaths?: string[];
 }
 
 const READ_CAP = AGENT_LIMITS.readCap;
@@ -366,6 +370,7 @@ async function executeToolInner(
   if (!ws) return { error: "workspace not found" };
   const lim = ctx.limits ?? AGENT_LIMITS;
   const skeletonUnlocked = Boolean(ctx.limits?.unlockSkeleton);
+  const scope = ctx.allowedPaths;
 
   if (ctx.mode === "plan" && MUTATING_TOOL_NAMES.has(name)) {
     return { error: "Plan mode is read-only — finish the plan; the user approves before anything is built." };
@@ -396,6 +401,9 @@ async function executeToolInner(
       });
       const check = validateFiles(files, MAX_TOOL_FILES);
       if (!check.ok) return { error: check.error };
+      if (scope) {
+        for (const f of files) if (!pathInScope(f.path, scope)) return { error: outOfScopeError(f.path, scope) };
+      }
       // Locked skeleton files (theme/palette system, boot config) carry a
       // HELIX-LOCKED marker — refuse to overwrite them; new files are fine.
       if (!skeletonUnlocked) {
@@ -419,6 +427,7 @@ async function executeToolInner(
       if (!oldString) return { error: "old_string is required" };
       if (oldString === newString) return { error: "old_string and new_string are identical — nothing to change" };
 
+      if (scope && !pathInScope(path, scope)) return { error: outOfScopeError(path, scope) };
       const current = await readWorkspaceFile(ws, path);
       if (current === null) return { error: `${path} not found — use write_files to create it` };
       if (current.includes(LOCK_MARKER) && !skeletonUnlocked) return { error: lockedFileError(path) };
@@ -459,6 +468,7 @@ async function executeToolInner(
     case "delete_file": {
       const path = s(args.path);
       if (!path) return { error: "path is required" };
+      if (scope && !pathInScope(path, scope)) return { error: outOfScopeError(path, scope) };
       const intentId = ctx.getIntentId ? await ctx.getIntentId() : null;
       const result = await deleteWorkspaceFile(ws, path, intentId ? { intentId } : undefined);
       if ("error" in result) return result;
@@ -470,6 +480,8 @@ async function executeToolInner(
       const to = s(args.to);
       if (!from || !to) return { error: "from and to are required" };
       if (from === to) return { error: "from and to are identical — nothing to move" };
+      if (scope && (!pathInScope(from, scope) || !pathInScope(to, scope)))
+        return { error: outOfScopeError(pathInScope(from, scope) ? to : from, scope) };
       const content = await readWorkspaceFile(ws, from);
       if (content === null) return { error: `${from} not found` };
       if (content.includes(LOCK_MARKER) && !skeletonUnlocked) return { error: lockedFileError(from) };

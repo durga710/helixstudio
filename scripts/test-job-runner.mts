@@ -67,5 +67,31 @@ const base = (n: number): JobState => ({
   ok(out.state.cursor === 0, "no progress when canceled up front");
 }
 
+// 5. Dynamic steps: a "plan" step appends workers; the loop runs them too.
+{
+  const deps: SliceDeps = {
+    deadline: Date.now() + 10_000,
+    execute: async (s, i) => {
+      if (i === 0) {
+        return {
+          ok: true,
+          summary: "planned",
+          appendSteps: [
+            { kind: "agentTurn", message: "w1" },
+            { kind: "agentTurn", message: "w2" },
+          ],
+        };
+      }
+      return { ok: true, summary: `worker ${i}` };
+    },
+    onCheckpoint: async () => {},
+  };
+  const start = base(1); // just the plan step
+  const out = await runSlice(start, deps);
+  ok(out.status === "done", "dynamic: plan-grown job runs to done");
+  ok(out.state.steps.length === 3, "dynamic: 2 workers appended (1+2)");
+  ok(out.state.cursor === 3, "dynamic: cursor advanced through appended steps");
+}
+
 console.log(`\n=== job runner: ${pass} passed, ${fail} failed ===`);
 process.exit(fail ? 1 : 0);

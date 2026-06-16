@@ -4,21 +4,23 @@
  * invocations (see runner.ts / store.ts / driver.ts).
  */
 
-export type JobStepKind = "agentTurn";
+export type JobStepKind = "agentTurn" | "plan" | "review";
 
 export interface JobStep {
   kind: JobStepKind;
-  /** The instruction for this step (an agentTurn message / worker brief). */
+  /** agentTurn: the worker message. plan/review: the original request. */
   message: string;
   mode?: "plan" | "build";
   verify?: boolean;
   /** Persist a chat message for this step (default true for single-step tasks;
-   * Phase B workers set false). */
+   * Phase B workers set false — the job posts one final summary). */
   persist?: boolean;
-  /** Phase B: file scope this worker may write (globs). Empty = whole project. */
+  /** File scope this worker may write (globs). Empty = whole project. */
   scope?: string[];
   /** A short label for the live UI. */
   label?: string;
+  /** review steps: the rework round (1-based). */
+  round?: number;
 }
 
 export interface JobStepResult {
@@ -27,6 +29,9 @@ export interface JobStepResult {
   written?: string[];
   deleted?: string[];
   error?: string;
+  /** Steps to append to the job (a planner emits workers + a reviewer; a reviewer
+   * emits rework steps). This is what makes a job dynamic. */
+  appendSteps?: JobStep[];
 }
 
 /** The durable state machine persisted in WorkspaceTask.job. */

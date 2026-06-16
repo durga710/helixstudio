@@ -10,7 +10,31 @@ import "server-only";
 import { db } from "@/lib/db";
 import { runAgentTurn } from "@/lib/agent-turn";
 import { runSlice, type SliceDeps } from "./runner-core";
+import { planRefactor, type PlannedTask } from "./planner";
+import { reviewJob, MAX_REWORK_ROUNDS } from "./reviewer";
 import type { JobState, JobStatus, JobStep } from "./types";
+
+/** The message a worker sees — its scoped sub-task, isolated from the rest. */
+function workerBrief(t: PlannedTask): string {
+  const scope = t.scope.length ? `\nScope — only edit these files: ${t.scope.join(", ")}` : "";
+  const acc = t.acceptance ? `\nDone when: ${t.acceptance}` : "";
+  return (
+    `You are ONE worker in a larger change. Do ONLY this sub-task; don't touch anything outside it.\n` +
+    `Sub-task: ${t.title}${scope}${acc}\n\n${t.instruction}`
+  );
+}
+
+function workerStep(t: PlannedTask): JobStep {
+  return {
+    kind: "agentTurn",
+    message: workerBrief(t),
+    mode: "build",
+    verify: false,
+    persist: false, // the job posts ONE final summary, not one per worker
+    scope: t.scope,
+    label: t.title,
+  };
+}
 
 /** Strip undefined so the value is valid Prisma JSON input. */
 const asJson = (v: unknown) => JSON.parse(JSON.stringify(v));
@@ -80,6 +104,44 @@ export async function runJobSlice(id: string, deadline: number): Promise<{ done:
     deadline,
     execute: async (st, i) => {
       const step: JobStep = st.steps[i]!;
+
+      // PLANNER: decompose into scoped workers + a reviewer (job grows here).
+      if (step.kind === "plan") {
+        const tasks = await planRefactor(ws, st.userId, step.message);
+        const workers = (tasks.length
+          ? tasks
+          : [{ title: "Build the change", scope: [], instruction: step.message }]
+        ).map(workerStep);
+        const review: JobStep = { kind: "review", message: step.message, round: 1, label: "Review" };
+        return {
+          ok: true,
+          summary: `Planned ${workers.length} sub-task${workers.length === 1 ? "" : "s"}`,
+          appendSteps: [...workers, review],
+        };
+      }
+
+      // REVIEWER: gate the combined change; emit bounded rework or ship.
+      if (step.kind === "review") {
+        const round = step.round ?? 1;
+        const r = await reviewJob({ ws, userId: st.userId, request: step.message, changed: st.written });
+        if (r.ship || round >= MAX_REWORK_ROUNDS || r.fixes.length === 0) {
+          return { ok: true, summary: r.summary || (r.ship ? "Reviewed — shipping." : "Reviewed.") };
+        }
+        const fixers = r.fixes.map(workerStep);
+        const next: JobStep = {
+          kind: "review",
+          message: step.message,
+          round: round + 1,
+          label: `Review (round ${round + 1})`,
+        };
+        return {
+          ok: true,
+          summary: `Rework: ${r.fixes.length} fix${r.fixes.length === 1 ? "" : "es"}`,
+          appendSteps: [...fixers, next],
+        };
+      }
+
+      // WORKER / single-turn task.
       const res = await runAgentTurn({
         ws,
         userId: st.userId,
@@ -88,6 +150,7 @@ export async function runJobSlice(id: string, deadline: number): Promise<{ done:
         verify: step.verify ?? false,
         persist: step.persist ?? true,
         intentId: st.intentId ?? undefined,
+        scope: step.scope,
       });
       if ("error" in res) return { ok: false, error: res.error };
       return {

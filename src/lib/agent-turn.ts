@@ -120,6 +120,9 @@ export async function runAgentTurn(opts: {
    * The model sees `briefPrefix + message`, but only the clean `message` is
    * persisted and shown — internal prompts must never leak into the chat UI. */
   briefPrefix?: string;
+  /** Phase-B worker scope: globs this turn may WRITE (out-of-scope writes are
+   * rejected). Empty/undefined = whole project. */
+  scope?: string[];
 }): Promise<TurnResult | TurnError> {
   const { ws, userId, onEvent } = opts;
   const persist = opts.persist ?? true;
@@ -382,6 +385,7 @@ export async function runAgentTurn(opts: {
     getIntentId,
     limits,
     isAdmin,
+    allowedPaths: opts.scope,
   };
   setProgress(ws.id, "reading your message…");
   emit("thinking…");

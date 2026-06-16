@@ -54,6 +54,9 @@ export async function runSlice(state: JobState, deps: SliceDeps): Promise<SliceO
       results: [...s.results, result],
       written: result.written ? dedup([...s.written, ...result.written]) : s.written,
       deleted: result.deleted ? dedup([...s.deleted, ...result.deleted]) : s.deleted,
+      // A planner/reviewer can grow the job (workers, rework) — append in place
+      // so the loop keeps going past the original step count.
+      steps: result.appendSteps?.length ? [...s.steps, ...result.appendSteps] : s.steps,
       cursor: s.cursor + 1,
       heartbeatAt: new Date(now()).toISOString(),
     };
