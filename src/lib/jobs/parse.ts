@@ -21,7 +21,10 @@ export interface ReviewResult {
   summary: string;
 }
 
-export const MAX_REWORK_ROUNDS = 2;
+// One rework round, not two: a second review+rework cycle on a big project costs
+// a worker-batch's worth of tokens for diminishing returns (round 2 usually just
+// flags integration nits and ships anyway). Verify still runs at the end.
+export const MAX_REWORK_ROUNDS = 1;
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 

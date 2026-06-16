@@ -269,6 +269,11 @@ export async function runJobSlice(id: string, deadline: number): Promise<{ done:
                   mode: "build",
                   verify: true,
                   persist: false,
+                  // Scope to the files that changed so this final pass stays bounded
+                  // (inlines them + inherits the worker exploration cap) instead of
+                  // roaming the whole repo — its own instruction is "files the change
+                  // touched", so this matches intent. Capped list keeps the glob sane.
+                  scope: st.written.slice(0, 24),
                   label: "Verify build",
                 },
               ],

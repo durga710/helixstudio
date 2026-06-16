@@ -44,6 +44,7 @@ import { runAnthropicAgent, runLocalAgent, runToolCalls, PROVIDER_DEFAULT_MODEL 
 import { resolveBedrockModel, type BedrockResolved } from "@/lib/ai/bedrock";
 import { withRetry } from "@/lib/ai/retry";
 import { createAgentIntent } from "@/lib/intent-ledger";
+import { pathInScope } from "@/lib/jobs/scope";
 import {
   agentLimitsFor,
   scaleLimitsForProject,
@@ -346,6 +347,24 @@ export async function runAgentTurn(opts: {
   // codebase unlocks the full (admin) ceiling. Keeps token cost proportional.
   limits = scaleLimitsForProject(limits, treePaths.length);
 
+  // A SCOPED worker (Phase-B refactor sub-task) has a narrow job and its own files
+  // inlined, so it must NOT roam a big repo — without this it inherits the project's
+  // full hop/search budget (maxHops ~43 on a 48-file app) and explores everything,
+  // making a 6-worker refactor balloon. Cap exploration so cost stays proportional
+  // to N workers. The reviewer (one rework round) catches any gap from the tighter
+  // budget.
+  if (opts.scope && opts.scope.length) {
+    limits = {
+      ...limits,
+      maxHops: Math.min(limits.maxHops, 12),
+      searchFileCap: Math.min(limits.searchFileCap, 30),
+      searchMatchCap: Math.min(limits.searchMatchCap, 20),
+      semanticFileCap: Math.min(limits.semanticFileCap, 40),
+      semanticTopN: Math.min(limits.semanticTopN, 6),
+      maxTurnTokens: Math.min(limits.maxTurnTokens, 110_000),
+    };
+  }
+
   const fitted = fitBudget({
     rules,
     workspaceMeta:
@@ -372,9 +391,15 @@ export async function runAgentTurn(opts: {
   // so a larger cap is far cheaper than the per-hop re-sends that read_file causes.
   const SMALL_PROJECT_MAX_CHARS = 60_000;
   const INLINEABLE_RE = /\.(html?|css|js|jsx|ts|tsx|json|md|txt|svg|vue|svelte|py|rb|go|php|astro|mjs|cjs|yml|yaml|env|sh)$/i;
+  // What to inline: a SCOPED worker (Phase-B refactor) only touches its assigned
+  // files, so inline exactly those even inside a big repo — that's what collapses
+  // a worker from ~6 read hops to ~2. An unscoped turn inlines the whole project,
+  // but only when it's small enough to be cheaper than tool-pulling.
+  const inlineCandidates =
+    opts.scope && opts.scope.length ? treePaths.filter((p) => pathInScope(p, opts.scope)) : treePaths;
   let inlinedFiles = "";
-  if (treePaths.length > 0 && treePaths.length <= SMALL_PROJECT_MAX_FILES) {
-    const editable = treePaths.filter(
+  if (inlineCandidates.length > 0 && inlineCandidates.length <= SMALL_PROJECT_MAX_FILES) {
+    const editable = inlineCandidates.filter(
       (p) => INLINEABLE_RE.test(p) && !/(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/i.test(p),
     );
     const parts: string[] = [];
@@ -385,13 +410,14 @@ export async function runAgentTurn(opts: {
       budget -= content.length;
       parts.push(`### ${p}\n\`\`\`\n${content}\n\`\`\``);
     }
-    // Only worth it if we inlined ALL the inlineable files — otherwise the model
+    // Only worth it if we inlined ALL the candidate files — otherwise the model
     // can't trust "you already have them" and will read anyway.
     if (parts.length && parts.length === editable.length) {
+      const isScoped = !!(opts.scope && opts.scope.length);
       inlinedFiles =
-        `\n\n--- CURRENT FILE CONTENTS (the project's source files, in full, below) ---\n` +
+        `\n\n--- CURRENT FILE CONTENTS (${isScoped ? "the files assigned to this sub-task" : "the project's source files"}, in full, below) ---\n` +
         `These ARE the current files — edit them DIRECTLY. Do NOT call list_files or read_file for any path shown here; ` +
-        `you already have its complete contents. Only read a path that is NOT shown below.\n\n` +
+        `you already have its complete contents.${isScoped ? " You may only WRITE these files." : " Only read a path that is NOT shown below."}\n\n` +
         parts.join("\n\n");
     }
   }
@@ -534,7 +560,10 @@ export async function runAgentTurn(opts: {
       };
       // When the whole small project is inlined above, drop the file-read tools so
       // the model edits straight from context instead of re-reading what it has.
-      const turnTools = workspaceTools(mode, isAdmin, !!inlinedFiles);
+      // Only drop reads when the WHOLE project is inlined (unscoped) — a scoped
+      // worker keeps reads so it can still see out-of-scope references it imports.
+      const dropReads = !!inlinedFiles && !(opts.scope && opts.scope.length);
+      const turnTools = workspaceTools(mode, isAdmin, dropReads);
       try {
         let resp = await streamOrCreate({
           model: aiModel || OPENAI_MODEL,
