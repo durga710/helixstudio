@@ -4,7 +4,7 @@
  * invocations (see runner.ts / store.ts / driver.ts).
  */
 
-export type JobStepKind = "agentTurn" | "plan" | "review";
+export type JobStepKind = "agentTurn" | "plan" | "review" | "workers";
 
 export interface JobStep {
   kind: JobStepKind;
@@ -21,6 +21,8 @@ export interface JobStep {
   label?: string;
   /** review steps: the rework round (1-based). */
   round?: number;
+  /** workers steps (Phase C): the parallel task batch (PlannedTask[]). */
+  tasks?: import("./parse").PlannedTask[];
 }
 
 export interface JobStepResult {
@@ -32,6 +34,11 @@ export interface JobStepResult {
   /** Steps to append to the job (a planner emits workers + a reviewer; a reviewer
    * emits rework steps). This is what makes a job dynamic. */
   appendSteps?: JobStep[];
+  /** Phase C: the worker batch ran out of slice time — stay on this step and
+   * resume next slice from `groupDone` instead of advancing the cursor. */
+  incomplete?: boolean;
+  /** Phase C: indices of workers in the current batch that have finished. */
+  groupDone?: number[];
 }
 
 /** The durable state machine persisted in WorkspaceTask.job. */
@@ -49,6 +56,9 @@ export interface JobState {
   heartbeatAt?: string; // ISO — updated each step; staleness ⇒ rescue
   /** One intent groups EVERY write across the job into a single undo. */
   intentId?: string | null;
+  /** Phase C: completed worker indices in the in-progress parallel batch
+   * (so a slice timeout resumes the rest, not the whole batch). */
+  groupDone?: number[];
 }
 
 export type JobStatus = "queued" | "running" | "reviewing" | "done" | "error" | "canceled";

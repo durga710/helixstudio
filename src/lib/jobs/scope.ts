@@ -40,3 +40,30 @@ export function outOfScopeError(path: string, globs: string[]): string {
     `Only edit files within your scope; another worker owns the rest.`
   );
 }
+
+/** The fixed prefix of a glob (before the first wildcard). */
+function staticPrefix(glob: string): string {
+  const star = glob.indexOf("*");
+  return star === -1 ? glob : glob.slice(0, star);
+}
+
+/** Two globs MIGHT touch the same file (conservative — errs toward "yes"). */
+function globsConflict(a: string, b: string): boolean {
+  if (!a || !b) return true; // empty glob = whole project
+  if (a === b) return true;
+  const pa = staticPrefix(a);
+  const pb = staticPrefix(b);
+  // Nested prefixes ⇒ one path tree contains the other ⇒ possible overlap.
+  return pa.startsWith(pb) || pb.startsWith(pa);
+}
+
+/**
+ * True only if two worker scopes provably can't write the same file — so they're
+ * safe to run in PARALLEL. Empty/broad scopes are never disjoint (whole project).
+ * Conservative: when unsure, returns false (those workers serialize instead).
+ */
+export function scopesDisjoint(a?: string[], b?: string[]): boolean {
+  if (!a?.length || !b?.length) return false;
+  for (const ga of a) for (const gb of b) if (globsConflict(ga, gb)) return false;
+  return true;
+}

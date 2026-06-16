@@ -49,8 +49,24 @@ export async function runSlice(state: JobState, deps: SliceDeps): Promise<SliceO
       result = { ok: false, error: e instanceof Error ? e.message : "step failed" };
     }
 
+    // A parallel worker batch that ran out of slice time: record progress + group
+    // state, DON'T advance the cursor, and resume this same step next slice.
+    if (result.incomplete) {
+      s = {
+        ...s,
+        written: result.written ? dedup([...s.written, ...result.written]) : s.written,
+        deleted: result.deleted ? dedup([...s.deleted, ...result.deleted]) : s.deleted,
+        groupDone: result.groupDone ?? s.groupDone,
+        heartbeatAt: new Date(now()).toISOString(),
+      };
+      await deps.onCheckpoint(s);
+      return { status: "running", state: s };
+    }
+
     s = {
       ...s,
+      // Completed step → the parallel batch (if any) is done; clear group state.
+      groupDone: [],
       results: [...s.results, result],
       written: result.written ? dedup([...s.written, ...result.written]) : s.written,
       deleted: result.deleted ? dedup([...s.deleted, ...result.deleted]) : s.deleted,

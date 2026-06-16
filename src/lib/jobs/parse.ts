@@ -10,6 +10,9 @@ export interface PlannedTask {
   scope: string[];
   instruction: string;
   acceptance?: string;
+  /** Indices of sibling tasks that must finish first (enables parallel scheduling
+   * of the rest). Omitted = no ordering constraint. */
+  dependsOn?: number[];
 }
 
 export interface ReviewResult {
@@ -23,11 +26,15 @@ export const MAX_REWORK_ROUNDS = 2;
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 
 function toTask(t: Record<string, unknown>, fallbackTitle = ""): PlannedTask {
+  const deps = Array.isArray(t.dependsOn)
+    ? t.dependsOn.map((d) => Number(d)).filter((d) => Number.isInteger(d) && d >= 0).slice(0, 12)
+    : undefined;
   return {
     title: str(t.title, 120) || fallbackTitle,
     scope: Array.isArray(t.scope) ? t.scope.map((g) => String(g)).filter(Boolean).slice(0, 25) : [],
     instruction: str(t.instruction, 2000),
     acceptance: t.acceptance ? str(t.acceptance, 400) : undefined,
+    ...(deps && deps.length ? { dependsOn: deps } : {}),
   };
 }
 

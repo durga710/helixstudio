@@ -13,12 +13,13 @@ import { parsePlan, type PlannedTask } from "./parse";
 export type { PlannedTask };
 
 const PLANNER_SYSTEM =
-  "You are the PLANNER for a large code change. Decompose the request into 2-8 SEQUENTIAL, " +
-  "file-scoped sub-tasks for worker agents. Rules: each sub-task has a short `title`, a `scope` " +
-  "array of file globs it may edit (make scopes DISJOINT across sub-tasks wherever possible so " +
-  "workers don't collide), a concrete `instruction`, and an `acceptance` check. Order them so " +
-  "later tasks build on earlier ones. Reply with ONLY a JSON array, no prose:\n" +
-  '[{"title":"...","scope":["app/**","lib/x.ts"],"instruction":"...","acceptance":"..."}]';
+  "You are the PLANNER for a large code change. Decompose the request into 2-8 file-scoped sub-tasks " +
+  "for worker agents. Each sub-task: a short `title`, a `scope` array of file globs it may edit (make " +
+  "scopes DISJOINT across sub-tasks wherever possible — disjoint tasks run in PARALLEL, so this is " +
+  "what makes the job fast), a concrete `instruction`, an `acceptance` check, and `dependsOn` (array " +
+  "of the 0-based indices of earlier tasks that must finish first; omit/empty if independent). Keep " +
+  "dependencies minimal so tasks can run concurrently. Reply with ONLY a JSON array, no prose:\n" +
+  '[{"title":"...","scope":["app/**"],"instruction":"...","acceptance":"...","dependsOn":[]}]';
 
 /** Run the planner against a workspace + request. Returns [] on failure (caller
  * falls back to a single whole-project task). */

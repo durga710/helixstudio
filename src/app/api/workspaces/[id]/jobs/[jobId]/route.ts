@@ -30,18 +30,45 @@ export async function GET(_req: Request, { params }: Params) {
 
   const state = row.job as unknown as JobState;
   const status = row.status as JobStatus;
-  const steps = state.steps.map((s, i) => {
-    let stepState: "done" | "error" | "running" | "pending";
-    if (i < state.cursor) stepState = state.results[i]?.ok === false ? "error" : "done";
-    else if (i === state.cursor && status === "running") stepState = "running";
+
+  type BoardStep = {
+    kind: string;
+    label: string;
+    scope: string[];
+    state: "done" | "error" | "running" | "pending";
+    summary?: string;
+  };
+  const steps: BoardStep[] = [];
+  state.steps.forEach((s, i) => {
+    const isPast = i < state.cursor;
+    const isCurrent = i === state.cursor && status === "running";
+
+    // Expand a parallel worker batch into one row per worker (live per-worker
+    // state from groupDone), so the board shows the fan-out.
+    if (s.kind === "workers" && s.tasks?.length) {
+      const groupDone = new Set(state.groupDone ?? []);
+      s.tasks.forEach((t, ti) => {
+        steps.push({
+          kind: "agentTurn",
+          label: t.title,
+          scope: t.scope ?? [],
+          state: isPast || groupDone.has(ti) ? "done" : isCurrent ? "running" : "pending",
+        });
+      });
+      return;
+    }
+
+    let stepState: BoardStep["state"];
+    if (isPast) stepState = state.results[i]?.ok === false ? "error" : "done";
+    else if (isCurrent) stepState = "running";
     else stepState = "pending";
-    return {
+    steps.push({
       kind: s.kind,
       label: s.label ?? (s.kind === "agentTurn" ? "Worker" : s.kind),
       scope: s.scope ?? [],
       state: stepState,
       summary: state.results[i]?.summary,
-    };
+    });
   });
 
   return ok({

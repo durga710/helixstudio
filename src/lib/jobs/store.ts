@@ -8,11 +8,17 @@ import "server-only";
  */
 
 import { db } from "@/lib/db";
+import type { Workspace } from "@/generated/prisma/client";
 import { runAgentTurn } from "@/lib/agent-turn";
 import { runSlice, type SliceDeps } from "./runner-core";
 import { planRefactor, type PlannedTask } from "./planner";
 import { reviewJob, MAX_REWORK_ROUNDS } from "./reviewer";
+import { nextLaunchable } from "./schedule";
 import type { JobState, JobStatus, JobStep } from "./types";
+
+/** Max workers running at once (model rate-limit + token spend guard). */
+const WORKER_CONCURRENCY = 3;
+const uniq = (a: string[]) => Array.from(new Set(a));
 
 /** The message a worker sees — its scoped sub-task, isolated from the rest. */
 function workerBrief(t: PlannedTask): string {
@@ -34,6 +40,73 @@ function workerStep(t: PlannedTask): JobStep {
     scope: t.scope,
     label: t.title,
   };
+}
+
+/**
+ * Run a batch of worker sub-tasks with bounded concurrency. The scheduler only
+ * runs scope-DISJOINT tasks at the same time (Phase B enforcement guarantees they
+ * can't touch the same file), so there's never a write collision — no merge
+ * needed; conflicting tasks simply serialize. Checkpoints after each worker so a
+ * slice timeout resumes the rest. Returns complete=false when the deadline hits.
+ */
+async function runWorkerGroup(opts: {
+  ws: Workspace;
+  userId: string;
+  intentId?: string | null;
+  tasks: PlannedTask[];
+  done: number[];
+  deadline: number;
+  checkpoint: (done: number[], written: string[], deleted: string[]) => Promise<void>;
+}): Promise<{ complete: boolean; done: number[]; written: string[]; deleted: string[] }> {
+  const { ws, userId, intentId, tasks, deadline, checkpoint } = opts;
+  const done = new Set<number>(opts.done);
+  const running = new Set<number>();
+  const written = new Set<string>();
+  const deleted = new Set<string>();
+  const inflight = new Map<number, Promise<{ idx: number; res: Awaited<ReturnType<typeof runAgentTurn>> }>>();
+
+  const launch = () => {
+    if (Date.now() >= deadline) return;
+    let ready = nextLaunchable(tasks, done, running, WORKER_CONCURRENCY);
+    // Progress guard: a stall (circular/unmet deps, or every remaining task
+    // conflicting) → force the first remaining task so the job never hangs.
+    if (ready.length === 0 && running.size === 0 && done.size < tasks.length) {
+      const rem = tasks.findIndex((_, i) => !done.has(i) && !running.has(i));
+      if (rem >= 0) ready = [rem];
+    }
+    for (const idx of ready) {
+      running.add(idx);
+      inflight.set(
+        idx,
+        runAgentTurn({
+          ws,
+          userId,
+          message: workerBrief(tasks[idx]!),
+          mode: "build",
+          verify: false,
+          persist: false,
+          intentId: intentId ?? undefined,
+          scope: tasks[idx]!.scope,
+        }).then((res) => ({ idx, res })),
+      );
+    }
+  };
+
+  launch();
+  while (inflight.size > 0) {
+    const { idx, res } = await Promise.race(inflight.values());
+    inflight.delete(idx);
+    running.delete(idx);
+    done.add(idx);
+    if (!("error" in res)) {
+      res.changes.written.forEach((w) => written.add(w));
+      res.changes.deleted.forEach((d) => deleted.add(d));
+    }
+    await checkpoint([...done], [...written], [...deleted]);
+    launch();
+  }
+
+  return { complete: done.size >= tasks.length, done: [...done], written: [...written], deleted: [...deleted] };
 }
 
 /** Strip undefined so the value is valid Prisma JSON input. */
@@ -105,18 +178,60 @@ export async function runJobSlice(id: string, deadline: number): Promise<{ done:
     execute: async (st, i) => {
       const step: JobStep = st.steps[i]!;
 
-      // PLANNER: decompose into scoped workers + a reviewer (job grows here).
+      // PLANNER: decompose into a PARALLEL worker batch + a reviewer (job grows).
       if (step.kind === "plan") {
-        const tasks = await planRefactor(ws, st.userId, step.message);
-        const workers = (tasks.length
-          ? tasks
-          : [{ title: "Build the change", scope: [], instruction: step.message }]
-        ).map(workerStep);
+        const planned = await planRefactor(ws, st.userId, step.message);
+        const tasks: PlannedTask[] = planned.length
+          ? planned
+          : [{ title: "Build the change", scope: [], instruction: step.message }];
+        const workers: JobStep = {
+          kind: "workers",
+          message: step.message,
+          tasks,
+          label: `Build · ${tasks.length} worker${tasks.length === 1 ? "" : "s"}`,
+        };
         const review: JobStep = { kind: "review", message: step.message, round: 1, label: "Review" };
         return {
           ok: true,
-          summary: `Planned ${workers.length} sub-task${workers.length === 1 ? "" : "s"}`,
-          appendSteps: [...workers, review],
+          summary: `Planned ${tasks.length} sub-task${tasks.length === 1 ? "" : "s"}`,
+          appendSteps: [workers, review],
+        };
+      }
+
+      // WORKER BATCH: run the planned tasks in parallel (scope-disjoint) with
+      // bounded concurrency; resumable across slices.
+      if (step.kind === "workers") {
+        const tasks = step.tasks ?? [];
+        const group = await runWorkerGroup({
+          ws,
+          userId: st.userId,
+          intentId: st.intentId,
+          tasks,
+          done: st.groupDone ?? [],
+          deadline,
+          checkpoint: async (doneArr, w, d) => {
+            await db().workspaceTask.update({
+              where: { id },
+              data: {
+                job: asJson({
+                  ...st,
+                  groupDone: doneArr,
+                  written: uniq([...st.written, ...w]),
+                  deleted: uniq([...st.deleted, ...d]),
+                }),
+              },
+            });
+          },
+        });
+        return {
+          ok: true,
+          incomplete: !group.complete,
+          groupDone: group.done,
+          written: group.written,
+          deleted: group.deleted,
+          summary: group.complete
+            ? `Ran ${tasks.length} worker${tasks.length === 1 ? "" : "s"}`
+            : `Workers ${group.done.length}/${tasks.length}…`,
         };
       }
 
