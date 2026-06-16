@@ -38,6 +38,8 @@ import { GAME_CATEGORIES } from "@/lib/templates/engines";
 import { cn } from "@/lib/utils";
 import { warmupSteps } from "@/lib/warmup-steps";
 import { buildNarration, continuousBuildLines, friendlyActivity, paraphraseRequest, holdingLines, seededRng } from "@/lib/build-feed";
+import { looksLikeBigJob } from "@/lib/jobs/detect";
+import { JobBoard } from "@/components/studio/job-board";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
@@ -61,6 +63,8 @@ interface Msg {
   /** The turn's live step feed, kept ON the message so it doesn't vanish when
    * the turn ends (the editor used to clear it and show only the summary). */
   worklog?: string[];
+  /** A durable multi-agent job started from this message → renders a JobBoard. */
+  jobId?: string;
 }
 
 interface TaskChanges {
@@ -200,15 +204,21 @@ export function ChatPanel({
   onChanges,
   isGuest,
   isOwner = true,
+  isAdmin = false,
 }: {
   workspace: WorkspaceMeta;
   onChanges: (written: string[], deleted: string[]) => void;
   isGuest?: boolean;
   isOwner?: boolean;
+  /** Admin preview: offer a durable multi-agent refactor job for big requests. */
+  isAdmin?: boolean;
 }) {
   const [messages, setMessages] = useState<Msg[] | null>(null); // null = loading history
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<"plan" | "build">("build");
+  // Admin job offer: a big request waiting for "run as a multi-step job?" confirm.
+  const [jobOffer, setJobOffer] = useState<string | null>(null);
+  const [startingJob, setStartingJob] = useState(false);
   // Auto-verify build turns in the sandbox. ON by default (Plan→Build→Verify
   // is the standard flow now); the toggle lets you turn it off, and the
   // per-message "Verify" button works regardless.
@@ -856,6 +866,50 @@ export function ChatPanel({
   const uniqueLabels = (actions?: Action[]) =>
     actions?.length ? Array.from(new Set(actions.map((a) => a.label))) : [];
 
+  // Composer submit: admins get the "run as a multi-step job?" offer for big,
+  // structural requests; everyone else (and "just build") goes through send().
+  const onComposerSubmit = (text: string) => {
+    const t = text.trim();
+    if (!t || busy) return;
+    if (intakeActive) {
+      intakeSubmit(t);
+      return;
+    }
+    if (isAdmin && mode === "build" && looksLikeBigJob(t)) {
+      setJobOffer(t);
+      setInput("");
+      return;
+    }
+    void send(t);
+  };
+
+  const startJob = async (text: string) => {
+    setStartingJob(true);
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}/refactor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+      const body = (await res.json().catch(() => null)) as { data?: { id?: string }; error?: string } | null;
+      const newJobId = body?.data?.id;
+      if (!res.ok || !newJobId) throw new Error(body?.error ?? "Couldn't start the job.");
+      setMessages((m) => [
+        ...(m ?? []),
+        { role: "user", content: text },
+        { role: "assistant", content: "Running this as a multi-step job:", jobId: newJobId },
+      ]);
+    } catch (e) {
+      setMessages((m) => [
+        ...(m ?? []),
+        { role: "assistant", content: e instanceof Error ? e.message : "Couldn't start the job." },
+      ]);
+    } finally {
+      setStartingJob(false);
+      setJobOffer(null);
+    }
+  };
+
   return (
     <div className="glass-panel-strong relative flex h-full min-h-0 flex-col overflow-hidden">
       {/* Chat header: identity + model switcher */}
@@ -1202,6 +1256,7 @@ export function ChatPanel({
                         </div>
                       </details>
                     )}
+                    {m.jobId && <JobBoard workspaceId={workspace.id} jobId={m.jobId} />}
                     {showPlanButtons && (
                       <div className="mt-2 flex flex-wrap gap-2 pl-1">
                         <Button
@@ -1401,6 +1456,44 @@ export function ChatPanel({
         </div>
       )}
 
+      {/* Admin job offer: a big/structural request → run it as a durable
+          multi-agent job (planner → scoped workers → reviewer) or just build it. */}
+      {jobOffer && (
+        <div className="border-t border-accent/30 bg-accent/5 px-4 py-3">
+          <p className="text-[12.5px] text-txt2">
+            This looks like a big, structural change. Run it as a{" "}
+            <span className="font-medium text-txt">multi-step job</span> — it plans, splits the work
+            across scoped workers, reviews, and survives long runs.
+          </p>
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            <Button onClick={() => void startJob(jobOffer)} disabled={startingJob} className="px-3 py-1.5 text-[12px]">
+              {startingJob ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              Run as a job
+            </Button>
+            <button
+              type="button"
+              onClick={() => {
+                const t = jobOffer;
+                setJobOffer(null);
+                void send(t);
+              }}
+              disabled={startingJob}
+              className="rounded-lg border border-border px-3 py-1.5 text-[12px] text-txt2 transition-colors hover:border-accent hover:text-txt disabled:opacity-50"
+            >
+              Just build it
+            </button>
+            <button
+              type="button"
+              onClick={() => setJobOffer(null)}
+              disabled={startingJob}
+              className="px-2 py-1.5 text-[12px] text-txt3 transition-colors hover:text-txt2"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {!isOwner ? (
         <div className="flex items-center gap-2 border-t border-border bg-panel2/40 px-4 py-3 text-[12.5px] text-txt3">
           <Lock className="h-3.5 w-3.5 shrink-0" />
@@ -1410,8 +1503,7 @@ export function ChatPanel({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (intakeActive) intakeSubmit(input);
-            else void send(input);
+            onComposerSubmit(input);
           }}
           className="border-t border-border p-3"
         >
