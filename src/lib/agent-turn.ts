@@ -225,7 +225,11 @@ export async function runAgentTurn(opts: {
         emit("scaffolding a starter…");
         const note = buildTemplateNote(tpl);
         const tplFiles = personalizeTemplateFiles(tpl.files, { appName: ws.name });
-        await writeWorkspaceFiles(ws, tplFiles.map((f) => ({ path: f.path, content: f.content })));
+        // Don't silently swallow a failed injection — a rejected file (e.g. an
+        // unsafe path) would otherwise leave the project with 0 scaffolded files
+        // while still emitting a "scaffold" event, so the agent builds on nothing.
+        const wrote = await writeWorkspaceFiles(ws, tplFiles.map((f) => ({ path: f.path, content: f.content })));
+        if ("error" in wrote) throw new Error(`template injection failed: ${wrote.error}`);
         await db().workspace.update({ where: { id: ws.id }, data: { notes: note } });
         ws.notes = note; // reflect it in this turn's context
         tree = await withGitAuth(gitAuth, () => listWorkspaceFiles(ws)).catch(() => tree);
@@ -235,8 +239,10 @@ export async function runAgentTurn(opts: {
         onEvent?.({ type: "scaffold", files: treePaths, stack: tpl.manifest.label });
         scaffolded = true; // this turn IS the first build → "your app is ready" phrasing
       }
-    } catch {
-      // best-effort — fall through to building from scratch
+    } catch (e) {
+      // best-effort — fall through to building from scratch, but log so a broken
+      // template (bad path, oversize file) is visible instead of silently empty.
+      console.error("[scaffold] template injection skipped:", e);
     }
   }
 
