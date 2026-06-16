@@ -1,6 +1,6 @@
-// Verifies the template intent router picks the LIGHTEST stack that fits — static
-// by default, a small server for APIs, vite for SPAs, Next.js only for genuine
-// full-stack. (No more "Next.js for everything".)
+// Dynamic-only: every app is a real (dynamic) app. The router picks the LIGHTEST
+// dynamic stack — a Vite SPA by default, a small server for APIs, Next.js only for
+// genuine full-stack. Static is never the default (last-resort fallback only).
 //   npx tsx scripts/test-router.mts
 import { intentRoute } from "../src/lib/templates/route-intent.js";
 
@@ -14,14 +14,16 @@ const expect = (prompt: string, wanted: string) => {
   ok(got === wanted, `"${prompt}" → ${got} (wanted ${wanted})`);
 };
 
-// Default static — the cheapest, instant path (covers most apps).
-expect("make me a simple working calendar app", "static-web");
-expect("a todo app", "static-web");
-expect("an analytics dashboard with charts", "static-web");
-expect("an online store front", "static-web"); // storefront UI ≠ real commerce
-expect("a chat app", "static-web"); // chat UI ≠ real-time backend
-expect("a recipe app", "static-web");
-expect("portfolio site", "static-web");
+// Default → a lightweight Vite SPA (a real dynamic app, not static HTML).
+expect("make me a simple working calendar app", "vite-spa");
+expect("a todo app", "vite-spa");
+expect("an analytics dashboard with charts", "vite-spa");
+expect("an online store front", "vite-spa"); // storefront UI ≠ real commerce
+expect("a chat app", "vite-spa"); // chat UI ≠ real-time backend
+expect("a recipe app", "vite-spa");
+expect("portfolio site", "vite-spa");
+expect("a react app", "vite-spa");
+expect("a single page app", "vite-spa");
 
 // Genuine full-stack → Next.js (earned, not default).
 expect("a todo app with user accounts and a database", "nextjs-app");
@@ -36,9 +38,12 @@ expect("an express backend", "express-api");
 expect("a flask api", "flask-api");
 expect("a python api for products", "flask-api");
 
-// Explicit client SPA / React → vite (lighter than Next).
-expect("a react app", "vite-spa");
-expect("a single page app", "vite-spa");
+// Fallback: if vite-spa is unavailable, static still renders so the user isn't stuck.
+{
+  const hasNoVite = (id: string) => ["static-web", "nextjs-app", "express-api"].includes(id);
+  const got = intentRoute("a recipe app", hasNoVite);
+  ok(got === "static-web", `no-vite fallback: "a recipe app" → ${got} (wanted static-web)`);
+}
 
 console.log(`\n=== router intent: ${pass} passed, ${fail} failed ===`);
 process.exit(fail ? 1 : 0);

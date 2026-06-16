@@ -4,7 +4,11 @@
  * keyword scoring or model call. See router.ts for the full classifier.
  */
 
-export const DEFAULT_ID = "static-web";
+// Dynamic-only: every app builds as a real (dynamic) app. The default is the
+// LIGHTEST dynamic stack — a Vite SPA — not static HTML. Static is kept in the
+// registry only as a last-resort fallback (see intentRoute) so previews never
+// hard-break if vite-spa is somehow unavailable.
+export const DEFAULT_ID = "vite-spa";
 
 /** Explicit framework mention → that framework's starter (strongest signal). */
 const FRAMEWORK_HINTS: { re: RegExp; id: string }[] = [
@@ -35,9 +39,6 @@ const FULLSTACK_INTENT = [
 /** API/backend-first → a LIGHTWEIGHT server (express/flask/django), not Next.js. */
 const API_INTENT = ["api", "rest", "rest api", "graphql", "backend", "endpoint", "endpoints", "crud", "microservice", "webhook"];
 
-/** Explicit client-SPA intent → vite (lighter than Next for a no-server app). */
-const SPA_INTENT = ["spa", "single page", "single-page", "react app", "client-side app"];
-
 export function tokenize(s: string): string[] {
   return s
     .toLowerCase()
@@ -59,9 +60,9 @@ function countIntent(lower: string, words: Set<string>, list: string[]): number 
 
 /**
  * Resolve a starter from intent, LIGHTEST-FIRST. `has(id)` reports whether a
- * template id exists. Order: explicit framework → genuine full-stack (Next.js) →
- * API/backend (express/flask/django) → client SPA (vite) → instant static
- * (default, cheapest). Returns null only if even static is missing.
+ * template id exists. Dynamic-only order: explicit framework → genuine full-stack
+ * (Next.js) → API/backend (express/flask/django) → everything else → a lightweight
+ * Vite SPA (the default). Static is only a last-resort fallback if vite is missing.
  */
 export function intentRoute(prompt: string, has: (id: string) => boolean): string | null {
   const lower = prompt.toLowerCase();
@@ -79,10 +80,11 @@ export function intentRoute(prompt: string, has: (id: string) => boolean): strin
     if (/\b(python|flask|fastapi)\b/.test(lower) && has("flask-api")) return "flask-api";
     if (has("express-api")) return "express-api";
   }
-  // 4. Explicit client SPA / React app (no server need) → vite (lighter than Next).
-  if ((hit(SPA_INTENT) || /\breact\b/.test(lower)) && has("vite-spa")) return "vite-spa";
-  // 5. Default: instant static — cheapest to build, run, and maintain. Covers most
-  //    apps (calendars, todos, dashboards, tools) via vanilla JS + localStorage.
+  // 4. Everything else → a lightweight Vite SPA (the dynamic-only default). Covers
+  //    calculators, trackers, dashboards, tools — a real app, far lighter than Next.
   if (has(DEFAULT_ID)) return DEFAULT_ID;
+  // 5. Last-resort fallback only: if vite-spa is somehow unavailable, static still
+  //    renders inline so the user isn't left with nothing.
+  if (has("static-web")) return "static-web";
   return null;
 }
