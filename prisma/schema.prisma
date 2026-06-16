@@ -393,10 +393,13 @@ model WorkspaceTask {
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   prompt      String
-  status      String    @default("queued") // queued | running | done | error
+  status      String    @default("queued") // queued | running | reviewing | done | error | canceled
   resultText  String?
   actions     Json?
   changes     Json? // { written: string[], deleted: string[] }
+  // Durable multi-step job state: { kind, steps[], cursor, checkpoint, attempts,
+  // heartbeatAt, scheduledAt }. Null for legacy single-turn rows. See src/lib/jobs/*.
+  job         Json?
   error       String?
   createdAt   DateTime  @default(now())
   finishedAt  DateTime?

@@ -433,4 +433,17 @@ BEGIN
     ALTER TABLE "WorkspaceMessage" ADD COLUMN "summary" TEXT;
   END IF;
 END $$;
+
+-- 2026-06 · Durable multi-step jobs (planner→workers→reviewer). The whole job
+-- state machine rides in one JSONB column on WorkspaceTask. Lock-free guard so
+-- repeat boots take no exclusive lock once the column exists.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'WorkspaceTask' AND column_name = 'job'
+  ) THEN
+    ALTER TABLE "WorkspaceTask" ADD COLUMN "job" JSONB;
+  END IF;
+END $$;
 `;
