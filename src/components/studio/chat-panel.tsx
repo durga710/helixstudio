@@ -172,11 +172,21 @@ function stripBrief(content: string): string {
  * (our synthesized prose) shows the summary, with the model's raw reply kept
  * behind the "details" toggle — so a reload matches exactly what was shown live. */
 type HistoryMsg = { role: "user" | "assistant"; content: string; summary?: string | null; actions?: Action[] | null };
+// Markers that have their own UI (the plan card / the verify badge) — kept out
+// of the reconstructed step list so they aren't shown twice.
+const NON_STEP_TOOLS = new Set(["plan", "verified", "verify_failed", "verify_skipped"]);
 function hydrateMessage(m: HistoryMsg): Msg {
   if (m.role === "user") return { role: "user", content: stripBrief(m.content), actions: m.actions ?? undefined };
+  // Rebuild the turn's step feed from the persisted actions (the real ordered
+  // tool work — "read X", "wrote 3 files", "edited Y") so the steps survive a
+  // reload, not just the live session.
+  const steps = Array.isArray(m.actions)
+    ? m.actions.filter((a) => !NON_STEP_TOOLS.has(a.tool)).map((a) => a.label)
+    : [];
+  const worklog = steps.length ? steps : undefined;
   return m.summary
-    ? { role: "assistant", content: m.summary, actions: m.actions ?? undefined, aiText: m.content || undefined }
-    : { role: "assistant", content: m.content, actions: m.actions ?? undefined };
+    ? { role: "assistant", content: m.summary, actions: m.actions ?? undefined, aiText: m.content || undefined, worklog }
+    : { role: "assistant", content: m.content, actions: m.actions ?? undefined, worklog };
 }
 
 
@@ -1252,7 +1262,7 @@ export function ChatPanel({
                         </Button>
                       </div>
                     )}
-                    {labels.length > 0 && (
+                    {labels.length > 0 && !(m.worklog && m.worklog.length > 0) && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-1">
                         <Wrench className="h-3 w-3 text-txt3" />
                         {labels.map((l, j) => (
