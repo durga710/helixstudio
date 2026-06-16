@@ -9,31 +9,34 @@ export const DEFAULT_ID = "static-web";
 /** Explicit framework mention → that framework's starter (strongest signal). */
 const FRAMEWORK_HINTS: { re: RegExp; id: string }[] = [
   { re: /\b(next\.?js|nextjs)\b/, id: "nextjs-app" },
-  { re: /\breact\b/, id: "nextjs-app" },
   { re: /\bdjango\b/, id: "django-app" },
-  { re: /\bflask\b/, id: "flask-api" },
+  { re: /\b(flask|fastapi)\b/, id: "flask-api" },
   { re: /\b(express|node\.?js|nodejs)\b/, id: "express-api" },
+  // bare "react"/"vite"/"spa" → a lightweight client SPA, NOT a full Next.js app
+  // (unless a full-stack signal below also fires).
+  { re: /\b(vite|spa)\b/, id: "vite-spa" },
 ];
 
 /**
- * Words that signal a genuinely DYNAMIC need — server state, accounts, data
- * persistence, payments, real-time — which actually warrant a framework
- * (nextjs-app). Deliberately NOT here: "app", "calendar", "todo", "dashboard",
- * "tracker", "scheduler", etc. Those are perfectly good as an INSTANT static app
- * that renders in the live preview with no run step — forcing them onto a heavy
- * Next.js skeleton just made "simple calendar app" show a blank preview until the
- * user ran a cloud sandbox. Default to static; escalate only on a real signal.
+ * GENUINE full-stack needs — real server data, accounts, payments, real-time.
+ * These (and only these) warrant the heavy Next.js skeleton. Everything softer
+ * ("store", "chat", "dashboard", "social", "cms"…) is built lighter (static or a
+ * small server) — Next.js is the most expensive stack to build/run/maintain, so
+ * it must be EARNED, not the default.
  */
-const DYNAMIC_INTENT = [
-  "saas", "platform", "portal",
-  "login", "log in", "signup", "sign up", "sign in", "auth", "authentication",
-  "account", "accounts", "admin panel", "admin dashboard",
-  "database", "backend", "server-side", "api", "rest api", "graphql", "crud",
-  "real-time", "realtime", "multiplayer", "multi-user", "multi user",
-  "payment", "payments", "checkout", "stripe", "billing", "subscription",
-  "ecommerce", "e-commerce", "marketplace", "store", "shop", "cart",
-  "cms", "crm", "chat", "messaging", "messenger", "social network", "social media",
+const FULLSTACK_INTENT = [
+  "login", "log in", "sign in", "signup", "sign up", "auth", "authentication",
+  "account", "accounts", "user accounts", "saas",
+  "database", "db", "postgres", "prisma", "sql", "mongodb", "persist", "persistence",
+  "real-time", "realtime", "websocket", "multiplayer", "multi-user", "multi user",
+  "payment", "payments", "checkout", "stripe", "billing", "subscription", "ecommerce", "e-commerce",
 ];
+
+/** API/backend-first → a LIGHTWEIGHT server (express/flask/django), not Next.js. */
+const API_INTENT = ["api", "rest", "rest api", "graphql", "backend", "endpoint", "endpoints", "crud", "microservice", "webhook"];
+
+/** Explicit client-SPA intent → vite (lighter than Next for a no-server app). */
+const SPA_INTENT = ["spa", "single page", "single-page", "react app", "client-side app"];
 
 export function tokenize(s: string): string[] {
   return s
@@ -55,20 +58,31 @@ function countIntent(lower: string, words: Set<string>, list: string[]): number 
 }
 
 /**
- * Resolve a starter from intent. `has(id)` reports whether a template id exists.
- * Returns null only when even the static default is missing (→ keyword scoring).
+ * Resolve a starter from intent, LIGHTEST-FIRST. `has(id)` reports whether a
+ * template id exists. Order: explicit framework → genuine full-stack (Next.js) →
+ * API/backend (express/flask/django) → client SPA (vite) → instant static
+ * (default, cheapest). Returns null only if even static is missing.
  */
 export function intentRoute(prompt: string, has: (id: string) => boolean): string | null {
   const lower = prompt.toLowerCase();
+  const words = new Set(tokenize(prompt));
+  const hit = (list: string[]) => countIntent(lower, words, list) > 0;
+
+  // 1. Explicit framework name wins.
   for (const h of FRAMEWORK_HINTS) {
     if (h.re.test(lower) && has(h.id)) return h.id;
   }
-  const words = new Set(tokenize(prompt));
-  const dynamicHits = countIntent(lower, words, DYNAMIC_INTENT);
-  // A real dynamic need (accounts, data, payments, real-time…) earns a framework.
-  if (dynamicHits > 0 && has("nextjs-app")) return "nextjs-app";
-  // Everything else — including a generic "app", a calendar, a to-do, a dashboard
-  // — builds as an INSTANT static app (renders in the preview with no run step).
+  // 2. Genuine full-stack need (auth/data/payments/real-time) → Next.js.
+  if (hit(FULLSTACK_INTENT) && has("nextjs-app")) return "nextjs-app";
+  // 3. API/backend-first → a lightweight server. Python hint → Flask, else Express.
+  if (hit(API_INTENT)) {
+    if (/\b(python|flask|fastapi)\b/.test(lower) && has("flask-api")) return "flask-api";
+    if (has("express-api")) return "express-api";
+  }
+  // 4. Explicit client SPA / React app (no server need) → vite (lighter than Next).
+  if ((hit(SPA_INTENT) || /\breact\b/.test(lower)) && has("vite-spa")) return "vite-spa";
+  // 5. Default: instant static — cheapest to build, run, and maintain. Covers most
+  //    apps (calendars, todos, dashboards, tools) via vanilla JS + localStorage.
   if (has(DEFAULT_ID)) return DEFAULT_ID;
   return null;
 }
