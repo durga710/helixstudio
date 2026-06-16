@@ -129,6 +129,12 @@ export const BUILD_RULES =
   "entry point keeps working), and the live preview must render without the user doing anything. Only collapse to a " +
   "bare single `index.html` if the user EXPLICITLY asks for one static page — otherwise build the full app on the " +
   "skeleton you were given.\n" +
+  "- STATIC projects (no package.json — index.html + css/js, the default for simple apps): the live preview inlines " +
+  "your files into ONE sandboxed page and runs them in the browser as-is. So: write browser-runnable JS — classic " +
+  "scripts, or ES modules loaded from a CDN like esm.sh (e.g. `import confetti from 'https://esm.sh/canvas-confetti'`). " +
+  "Do NOT use bare npm imports ('import x from \"react\"'), a bundler/build step, JSX/TSX, or cross-file relative ESM " +
+  "imports that need a dev server — none of those run in the inlined preview and the page will render blank. Persisting " +
+  "to localStorage is fine (it's shimmed). Keep it a single self-contained script when you can.\n" +
   "- If PROJECT NOTES say a template is already scaffolded, BUILD ON IT — the stack and config already exist. " +
   "read_file the key files first, then CUSTOMIZE them to the request. Do NOT recreate package.json/config or " +
   "re-scaffold the project from scratch.\n" +
