@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { AlertCircle, ArrowRight, DraftingCompass, Search, Wrench } from "lucide-react";
+import { AlertCircle, ArrowRight, GitBranch, Coins } from "lucide-react";
 import { AuthError } from "next-auth";
 import { auth, demoMode, oauthProviders, signIn, DEMO_USER } from "@/lib/auth";
 import { dbEnabled } from "@/lib/db";
@@ -213,12 +213,13 @@ export default async function LoginPage({
             </div>
           )}
 
-          <div className="mt-5 text-center text-[13px] text-[#9cadc4]">
-            New to Helix Studio?{" "}
-            <a href="/signup" className="font-medium text-accent hover:underline">
-              Create an account
-            </a>
-          </div>
+          <a
+            href="/signup"
+            className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#28364f] bg-transparent px-4 py-[11px] text-sm font-medium text-[#f8fbff] transition-colors hover:border-accent hover:bg-[#121d30]"
+          >
+            New here? <span className="font-semibold text-accent">Create an account</span>
+            <ArrowRight className="h-3.5 w-3.5 text-accent" />
+          </a>
 
           <div className="mt-7 text-center text-[11.5px] leading-relaxed text-[#5f6f86]">
             By continuing you agree to our Terms and Privacy Policy.
@@ -231,7 +232,7 @@ export default async function LoginPage({
       {/* Right: brand aside */}
       <div className="relative hidden flex-col justify-center overflow-hidden border-l border-[#1d2940] bg-[radial-gradient(700px_500px_at_70%_20%,color-mix(in_srgb,var(--accent)_20%,transparent),transparent),radial-gradient(600px_400px_at_30%_90%,color-mix(in_srgb,#c084fc_14%,transparent),transparent),#0d1626] p-[60px] md:flex">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(400px_200px_at_50%_0,color-mix(in_srgb,#00ffd1_8%,transparent),transparent)]" />
-        <div className="relative max-w-[420px]">
+        <div className="relative max-w-[440px]">
           <div className="text-[26px] font-bold leading-[1.3] tracking-tight">
             From idea to production,{" "}
             <span className="bg-gradient-to-r from-[#00ffd1] via-[55%] via-accent to-[#c084fc] bg-clip-text text-transparent">
@@ -240,24 +241,59 @@ export default async function LoginPage({
             before it ships.
           </div>
           <div className="mt-4 text-sm text-[#9cadc4]">The AI coding platform built for people who ship.</div>
-          <div className="mt-9 flex gap-2">
-            {[
-              { icon: <DraftingCompass className="h-3.5 w-3.5 text-accent" />, label: "Architect" },
-              { icon: <Wrench className="h-3.5 w-3.5 text-accent" />, label: "Engineer" },
-              { icon: <Search className="h-3.5 w-3.5 text-accent" />, label: "Reviewer" },
-            ].map((chip) => (
-              <span
-                key={chip.label}
-                className="flex items-center gap-[7px] rounded-full border border-[#28364f] bg-[color-mix(in_srgb,#0d1626_60%,transparent)] px-3 py-2 text-xs text-[#9cadc4]"
-              >
-                {chip.icon}
-                {chip.label}
-              </span>
-            ))}
+
+          {/* Bring any model — and pay less per build. Truth-gated: every claim is
+              a real engine (0-token scaffolds/narration/intake, compact context,
+              rolling compaction) — see build-feed.ts / chat-context.ts. */}
+          <div className="mt-8 rounded-2xl border border-[#28364f] bg-[color-mix(in_srgb,#0d1626_55%,transparent)] p-[18px]">
+            <div className="flex items-center gap-2 text-[13.5px] font-semibold text-[#f8fbff]">
+              <Coins className="h-4 w-4 text-accent" />
+              Bring any model — pay less per build
+            </div>
+            <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#9cadc4]">
+              Run OpenAI, Claude, Gemini — or your own key. Our context engine, 0-token starters, and
+              rolling compaction cut the tokens every build spends, so the same model costs you less.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {["OpenAI", "Claude", "Gemini", "Your own key"].map((m) => (
+                <span
+                  key={m}
+                  className="rounded-full border border-[#28364f] bg-[#0d1626] px-2.5 py-1 text-[11px] font-medium text-[#9cadc4]"
+                >
+                  {m}
+                </span>
+              ))}
+            </div>
           </div>
-          <div className="mt-10 flex gap-[30px]">
+
+          {/* Git integrations — all 5 are real (src/lib/git/meta.ts): import + push. */}
+          <div className="mt-5">
+            <div className="flex items-center gap-2 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#9cadc4]">
+              <GitBranch className="h-3.5 w-3.5 text-accent" />
+              Import &amp; push to your repos
+            </div>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              {[
+                { label: "GitHub", icon: GitHubIcon },
+                { label: "GitLab", icon: null },
+                { label: "Bitbucket", icon: null },
+                { label: "Azure DevOps", icon: null },
+                { label: "Gitea", icon: null },
+              ].map((g) => (
+                <span
+                  key={g.label}
+                  className="flex items-center gap-1.5 rounded-full border border-[#28364f] bg-[color-mix(in_srgb,#0d1626_60%,transparent)] px-3 py-1.5 text-xs text-[#cdd8e8]"
+                >
+                  {g.icon ? <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{g.icon}</span> : null}
+                  {g.label}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-8 flex gap-[30px]">
             {[
-              { n: "24", l: "built-in skills" },
+              { n: "5", l: "git integrations" },
               { n: "5", l: "review agents" },
               { n: "1", l: "unified workspace" },
             ].map((stat) => (

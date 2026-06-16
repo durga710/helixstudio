@@ -1,7 +1,7 @@
 // Verifies the auto-wire safety net: an orphaned feature component gets mounted
 // on the dashboard; an already-wired one is left alone.
 //   npx tsx scripts/test-auto-wire.mts
-import { autoWireFeature } from "../src/lib/auto-wire.ts";
+import { autoWireFeature } from "../src/lib/auto-wire.js";
 
 let pass = 0, fail = 0;
 const ok = (c: boolean, label: string) => { c ? (pass++, console.log("  PASS", label)) : (fail++, console.log("  FAIL", label)); };
