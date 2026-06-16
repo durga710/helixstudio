@@ -17,6 +17,7 @@ interface BoardData {
   steps: BoardStep[];
   written: string[];
   deleted: string[];
+  tokensSpent?: number;
   error?: string;
 }
 
@@ -130,13 +131,16 @@ export function JobBoard({ workspaceId, jobId }: { workspaceId: string; jobId: s
         </ul>
       )}
 
-      {terminal && (
+      {(terminal || (data?.tokensSpent ?? 0) > 0) && (
         <p className="mt-2 border-t border-border/60 pt-2 text-[11px] text-txt3">
-          {status === "done"
-            ? `Done — ${changed} file${changed === 1 ? "" : "s"} changed across the job.`
-            : status === "canceled"
-              ? "Canceled."
-              : data?.error || "The job hit an error."}
+          {terminal
+            ? status === "done"
+              ? `Done — ${changed} file${changed === 1 ? "" : "s"} changed`
+              : status === "canceled"
+                ? "Canceled."
+                : data?.error || "The job hit an error."
+            : "Working…"}
+          {(data?.tokensSpent ?? 0) > 0 && ` · ~${Math.round((data!.tokensSpent ?? 0) / 1000)}K tokens`}
         </p>
       )}
     </div>

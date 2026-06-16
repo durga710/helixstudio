@@ -80,6 +80,7 @@ export async function GET(_req: Request, { params }: Params) {
     steps,
     written: state.written,
     deleted: state.deleted,
+    tokensSpent: state.tokensSpent ?? 0,
     error: row.error,
   });
 }

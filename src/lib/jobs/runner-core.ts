@@ -57,6 +57,7 @@ export async function runSlice(state: JobState, deps: SliceDeps): Promise<SliceO
         written: result.written ? dedup([...s.written, ...result.written]) : s.written,
         deleted: result.deleted ? dedup([...s.deleted, ...result.deleted]) : s.deleted,
         groupDone: result.groupDone ?? s.groupDone,
+        tokensSpent: (s.tokensSpent ?? 0) + (result.tokensUsed ?? 0),
         heartbeatAt: new Date(now()).toISOString(),
       };
       await deps.onCheckpoint(s);
@@ -67,6 +68,7 @@ export async function runSlice(state: JobState, deps: SliceDeps): Promise<SliceO
       ...s,
       // Completed step → the parallel batch (if any) is done; clear group state.
       groupDone: [],
+      tokensSpent: (s.tokensSpent ?? 0) + (result.tokensUsed ?? 0),
       results: [...s.results, result],
       written: result.written ? dedup([...s.written, ...result.written]) : s.written,
       deleted: result.deleted ? dedup([...s.deleted, ...result.deleted]) : s.deleted,

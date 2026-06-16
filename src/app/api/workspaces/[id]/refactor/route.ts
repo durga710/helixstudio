@@ -12,6 +12,8 @@ import { auth } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { enqueueJob } from "@/lib/jobs/driver";
 import { createAgentIntent } from "@/lib/intent-ledger";
+import { listWorkspaceFiles } from "@/lib/workspace";
+import { estimateJob } from "@/lib/jobs/estimate";
 import { guardWorkspace } from "@/lib/route-helpers";
 
 export const runtime = "nodejs";
@@ -25,6 +27,18 @@ function reqOrigin(req: Request): string {
   const proto = req.headers.get("x-forwarded-proto") ?? "http";
   const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
   return host ? `${proto}://${host}` : new URL(req.url).origin;
+}
+
+/** Pre-flight cost/scope estimate for the confirm offer (admin preview). */
+export async function GET(req: Request, { params }: Params) {
+  const { id } = await params;
+  const g = await guardWorkspace("refactor.estimate", id, { limit: 120, windowMs: 60 * 60 * 1000 }, "read");
+  if ("response" in g) return g.response;
+  const session = await auth();
+  if (!isAdminEmail(session?.user?.email)) return err("FORBIDDEN", "Admin preview.", 403);
+  const message = new URL(req.url).searchParams.get("message") ?? "";
+  const files = await listWorkspaceFiles(g.ws).catch(() => []);
+  return ok(estimateJob(message, files.length));
 }
 
 export async function POST(req: Request, { params }: Params) {

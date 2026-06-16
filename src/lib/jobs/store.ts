@@ -14,10 +14,9 @@ import { runSlice, type SliceDeps } from "./runner-core";
 import { planRefactor, type PlannedTask } from "./planner";
 import { reviewJob, MAX_REWORK_ROUNDS } from "./reviewer";
 import { nextLaunchable } from "./schedule";
+import { WORKER_CONCURRENCY, JOB_TOKEN_CAP } from "./config";
 import type { JobState, JobStatus, JobStep } from "./types";
 
-/** Max workers running at once (model rate-limit + token spend guard). */
-const WORKER_CONCURRENCY = 3;
 const uniq = (a: string[]) => Array.from(new Set(a));
 
 /** The message a worker sees — its scoped sub-task, isolated from the rest. */
@@ -57,12 +56,13 @@ async function runWorkerGroup(opts: {
   done: number[];
   deadline: number;
   checkpoint: (done: number[], written: string[], deleted: string[]) => Promise<void>;
-}): Promise<{ complete: boolean; done: number[]; written: string[]; deleted: string[] }> {
+}): Promise<{ complete: boolean; done: number[]; written: string[]; deleted: string[]; tokens: number }> {
   const { ws, userId, intentId, tasks, deadline, checkpoint } = opts;
   const done = new Set<number>(opts.done);
   const running = new Set<number>();
   const written = new Set<string>();
   const deleted = new Set<string>();
+  let tokens = 0;
   const inflight = new Map<number, Promise<{ idx: number; res: Awaited<ReturnType<typeof runAgentTurn>> }>>();
 
   const launch = () => {
@@ -101,12 +101,13 @@ async function runWorkerGroup(opts: {
     if (!("error" in res)) {
       res.changes.written.forEach((w) => written.add(w));
       res.changes.deleted.forEach((d) => deleted.add(d));
+      tokens += res.tokensUsed ?? 0;
     }
     await checkpoint([...done], [...written], [...deleted]);
     launch();
   }
 
-  return { complete: done.size >= tasks.length, done: [...done], written: [...written], deleted: [...deleted] };
+  return { complete: done.size >= tasks.length, done: [...done], written: [...written], deleted: [...deleted], tokens };
 }
 
 /** Strip undefined so the value is valid Prisma JSON input. */
@@ -162,6 +163,17 @@ export async function runJobSlice(id: string, deadline: number): Promise<{ done:
   if (status === "done" || status === "error" || status === "canceled") return { done: true, status };
 
   const state = row.job as unknown as JobState;
+
+  // Job-level token ceiling (across slices) — stops a runaway refactor even for
+  // an admin with a large quota. The per-worker budget check still applies first.
+  if ((state.tokensSpent ?? 0) >= JOB_TOKEN_CAP) {
+    await db().workspaceTask.update({
+      where: { id },
+      data: { status: "error", error: "Job token budget reached.", finishedAt: new Date() },
+    });
+    return { done: true, status: "error" };
+  }
+
   const ws = await db().workspace.findUnique({ where: { id: row.workspaceId } });
   if (!ws) {
     await db().workspaceTask.update({
@@ -229,6 +241,7 @@ export async function runJobSlice(id: string, deadline: number): Promise<{ done:
           groupDone: group.done,
           written: group.written,
           deleted: group.deleted,
+          tokensUsed: group.tokens,
           summary: group.complete
             ? `Ran ${tasks.length} worker${tasks.length === 1 ? "" : "s"}`
             : `Workers ${group.done.length}/${tasks.length}…`,
@@ -294,6 +307,7 @@ export async function runJobSlice(id: string, deadline: number): Promise<{ done:
         summary: res.summary ?? res.text,
         written: res.changes.written,
         deleted: res.changes.deleted,
+        tokensUsed: res.tokensUsed,
       };
     },
     onCheckpoint: async (st) => {

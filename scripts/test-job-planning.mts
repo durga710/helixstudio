@@ -3,6 +3,7 @@
 import { parsePlan, parseReview } from "../src/lib/jobs/parse.js";
 import { pathInScope } from "../src/lib/jobs/scope.js";
 import { looksLikeBigJob } from "../src/lib/jobs/detect.js";
+import { estimateJob, formatEstimate } from "../src/lib/jobs/estimate.js";
 
 let pass = 0, fail = 0;
 const ok = (c: boolean, l: string) => { c ? (pass++, console.log("  PASS", l)) : (fail++, console.log("  FAIL", l)); };
@@ -43,6 +44,16 @@ const ok = (c: boolean, l: string) => { c ? (pass++, console.log("  PASS", l)) :
   ok(looksLikeBigJob("convert this into a marketplace") === true, "detect: 'convert' → big");
   ok(looksLikeBigJob("change the button color") === false, "detect: small change → not big");
   ok(looksLikeBigJob("update every page to use the new header") === true, "detect: 'every page' → big");
+}
+
+// estimate
+{
+  const small = estimateJob("add a contact page", 10);
+  const big = estimateJob("refactor every page and restructure all the routes across the app", 80);
+  ok(big.workersHigh >= small.workersHigh, "estimate: broad request → more workers");
+  ok(big.tokensHigh > small.tokensHigh, "estimate: broad request → more tokens");
+  ok(small.workersLow >= 2, "estimate: at least 2 workers");
+  ok(/worker/.test(formatEstimate(small)) && /token/.test(formatEstimate(small)), "estimate: formats workers + tokens");
 }
 
 console.log(`\n=== job planning: ${pass} passed, ${fail} failed ===`);

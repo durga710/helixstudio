@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { warmupSteps } from "@/lib/warmup-steps";
 import { buildNarration, continuousBuildLines, friendlyActivity, paraphraseRequest, holdingLines, seededRng } from "@/lib/build-feed";
 import { looksLikeBigJob } from "@/lib/jobs/detect";
+import { formatEstimate, type JobEstimate } from "@/lib/jobs/estimate";
 import { JobBoard } from "@/components/studio/job-board";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { Button } from "@/components/ui/button";
@@ -219,6 +220,7 @@ export function ChatPanel({
   // Admin job offer: a big request waiting for "run as a multi-step job?" confirm.
   const [jobOffer, setJobOffer] = useState<string | null>(null);
   const [startingJob, setStartingJob] = useState(false);
+  const [offerEstimate, setOfferEstimate] = useState<string | null>(null);
   // Auto-verify build turns in the sandbox. ON by default (Plan→Build→Verify
   // is the standard flow now); the toggle lets you turn it off, and the
   // per-message "Verify" button works regardless.
@@ -244,6 +246,24 @@ export function ChatPanel({
     if (!line) return;
     setWorklog((w) => (turnDone.current || (w.length && w[w.length - 1] === line) ? w : [...w, line]));
   }, []);
+
+  // Fetch the cost/scope estimate when a job offer appears (admin preview).
+  useEffect(() => {
+    if (!jobOffer) {
+      setOfferEstimate(null);
+      return;
+    }
+    let alive = true;
+    fetch(`/api/workspaces/${workspace.id}/refactor?message=${encodeURIComponent(jobOffer)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (alive && j?.data) setOfferEstimate(formatEstimate(j.data as JobEstimate));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [jobOffer, workspace.id]);
   // Live assistant reply, streamed token-by-token (replaced by the real message
   // on the final event).
   const [streaming, setStreaming] = useState("");
@@ -1465,6 +1485,9 @@ export function ChatPanel({
             <span className="font-medium text-txt">multi-step job</span> — it plans, splits the work
             across scoped workers, reviews, and survives long runs.
           </p>
+          {offerEstimate && (
+            <p className="mt-1 font-mono text-[11px] text-txt3">Estimate: {offerEstimate}</p>
+          )}
           <div className="mt-2.5 flex flex-wrap gap-2">
             <Button onClick={() => void startJob(jobOffer)} disabled={startingJob} className="px-3 py-1.5 text-[12px]">
               {startingJob ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}

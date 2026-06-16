@@ -39,6 +39,8 @@ export interface JobStepResult {
   incomplete?: boolean;
   /** Phase C: indices of workers in the current batch that have finished. */
   groupDone?: number[];
+  /** Tokens this step spent (accumulated into JobState.tokensSpent). */
+  tokensUsed?: number;
 }
 
 /** The durable state machine persisted in WorkspaceTask.job. */
@@ -59,6 +61,8 @@ export interface JobState {
   /** Phase C: completed worker indices in the in-progress parallel batch
    * (so a slice timeout resumes the rest, not the whole batch). */
   groupDone?: number[];
+  /** Total tokens spent across all steps (Phase D — cost display + JOB_TOKEN_CAP). */
+  tokensSpent?: number;
 }
 
 export type JobStatus = "queued" | "running" | "reviewing" | "done" | "error" | "canceled";
