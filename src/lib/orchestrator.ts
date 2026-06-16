@@ -194,6 +194,7 @@ export async function runBuildPipeline(opts: {
       model: prefs.model,
       apiKey: prefs.apiKey,
       baseUrl: prefs.baseUrl,
+      extraHeaders: prefs.extraHeaders,
       maxTokens: 700,
       system:
         "You are the Planner in a build pipeline. Decompose the user's request into a tight numbered " +
@@ -235,6 +236,7 @@ export async function runBuildPipeline(opts: {
       model: prefs.model,
       apiKey: prefs.apiKey,
       baseUrl: prefs.baseUrl,
+      extraHeaders: prefs.extraHeaders,
       maxTokens: 200,
       system:
         "You are the Architect in a build pipeline. In ONE short sentence (max 18 words), state the technical " +
@@ -303,6 +305,7 @@ export async function runBuildPipeline(opts: {
         model: prefs.model,
         apiKey: prefs.apiKey,
         baseUrl: prefs.baseUrl,
+        extraHeaders: prefs.extraHeaders,
         diffText: diff,
       });
       if (!("error" in r)) {

@@ -93,6 +93,10 @@ export async function runAnthropicAgent(opts: {
   messages: AgentMessage[];
   ctx: ToolContext;
   apiKey?: string;
+  /** Override the API host (e.g. the Bedrock Anthropic-compatible endpoint). */
+  baseUrl?: string;
+  /** Extra request headers (e.g. Bedrock's anthropic-workspace-id). */
+  extraHeaders?: Record<string, string>;
   /** Live token deltas of the assistant's reply (streaming). */
   onText?: (delta: string) => void;
 }): Promise<AgentResult | { error: string }> {
@@ -100,8 +104,14 @@ export async function runAnthropicAgent(opts: {
   if (!apiKey) return { error: "Anthropic is not configured — add your API key in Settings → AI model." };
 
   // The SDK handles SSE parsing + tool-use reconstruction (.finalMessage) and
-  // transient-error retries (maxRetries), so the runner stays simple.
-  const client = new Anthropic({ apiKey, maxRetries: 2 });
+  // transient-error retries (maxRetries), so the runner stays simple. baseURL +
+  // defaultHeaders let the same runner drive Claude on Bedrock (mantle endpoint).
+  const client = new Anthropic({
+    apiKey,
+    maxRetries: 2,
+    ...(opts.baseUrl ? { baseURL: opts.baseUrl } : {}),
+    ...(opts.extraHeaders ? { defaultHeaders: opts.extraHeaders } : {}),
+  });
 
   const tools: Anthropic.Tool[] = functionTools(opts.ctx.mode).map((t) => ({
     name: t.name,
@@ -191,13 +201,19 @@ export async function runLocalAgent(opts: {
   messages: AgentMessage[];
   ctx: ToolContext;
   apiKey?: string;
+  /** Extra request headers (e.g. Bedrock's openai-project). */
+  extraHeaders?: Record<string, string>;
   /** What to call the endpoint in error messages (e.g. "Gemini"). */
   label?: string;
 }): Promise<AgentResult | { error: string }> {
   const label = opts.label ?? "the local model";
   // Many local/custom endpoints need no auth; cloud OpenAI-compatible ones
-  // (e.g. Gemini) get their key resolved upstream and passed in here.
-  const client = new OpenAI({ apiKey: opts.apiKey || "not-needed", baseURL: opts.baseUrl });
+  // (e.g. Gemini, Bedrock) get their key resolved upstream and passed in here.
+  const client = new OpenAI({
+    apiKey: opts.apiKey || "not-needed",
+    baseURL: opts.baseUrl,
+    ...(opts.extraHeaders ? { defaultHeaders: opts.extraHeaders } : {}),
+  });
 
   const tools = functionTools(opts.ctx.mode).map((t) => ({
     type: "function" as const,
@@ -287,9 +303,11 @@ export async function resolveAiPrefs(userId: string): Promise<{
   model: string;
   apiKey?: string;
   baseUrl: string;
+  extraHeaders?: Record<string, string>;
 }> {
   const { db } = await import("@/lib/db");
   const { OPENAI_MODEL } = await import("@/lib/openai");
+  const { resolveBedrockModel } = await import("@/lib/ai/bedrock");
   const prefs = await db().userPreferences.findUnique({
     where: { userId },
     select: {
@@ -305,6 +323,22 @@ export async function resolveAiPrefs(userId: string): Promise<{
   });
   const provider = prefs?.aiProvider ?? "openai";
   const prefModel = prefs?.aiModel === "default" ? "" : (prefs?.aiModel ?? "");
+
+  // Bedrock-served models (platform default, no BYO key). Map to the matching
+  // transport: openai-protocol → the OpenAI-compatible path; claude → anthropic.
+  if (provider === "bedrock") {
+    const r = resolveBedrockModel(prefModel);
+    if (r) {
+      return {
+        provider: r.protocol === "anthropic" ? "anthropic" : "local",
+        model: r.modelId,
+        apiKey: r.apiKey,
+        baseUrl: r.baseUrl,
+        extraHeaders: r.headers,
+      };
+    }
+  }
+
   const model = prefModel || PROVIDER_DEFAULT_MODEL[provider] || OPENAI_MODEL;
   const apiKey = resolveAiKey({
     provider,
@@ -329,6 +363,8 @@ export async function runOneShot(opts: {
   user: string;
   /** Anthropic output budget (its API requires one). Default 2048. */
   maxTokens?: number;
+  /** Extra request headers (e.g. Bedrock's openai-project) for the OpenAI path. */
+  extraHeaders?: Record<string, string>;
 }): Promise<{ text: string; tokensUsed: number } | { error: string }> {
   try {
     if (opts.provider === "anthropic") {
@@ -364,7 +400,11 @@ export async function runOneShot(opts: {
     // openai, gemini, and local all speak the OpenAI-compatible chat surface.
     // Gemini has a fixed base URL; local is a user-supplied endpoint.
     const baseURL = opts.provider === "gemini" ? GEMINI_BASE_URL : opts.provider === "local" ? opts.baseUrl : undefined;
-    const client = new OpenAI({ baseURL, apiKey: opts.apiKey || "not-needed" });
+    const client = new OpenAI({
+      baseURL,
+      apiKey: opts.apiKey || "not-needed",
+      ...(opts.extraHeaders ? { defaultHeaders: opts.extraHeaders } : {}),
+    });
     if (opts.provider !== "local" && !opts.apiKey) {
       const label = opts.provider === "gemini" ? "Gemini" : "OpenAI";
       return { error: `No ${label} API key — add one in Settings → AI model.` };
@@ -400,6 +440,8 @@ export async function runReviewer(opts: {
   diffText: string;
   /** Override the default code-review framing (e.g. assignment grading). */
   system?: string;
+  /** Extra request headers (e.g. Bedrock's openai-project). */
+  extraHeaders?: Record<string, string>;
 }): Promise<{ text: string; tokensUsed: number } | { error: string }> {
   const system =
     opts.system ??
@@ -414,6 +456,7 @@ export async function runReviewer(opts: {
     baseUrl: opts.baseUrl,
     system,
     user: `PENDING CHANGES:\n\n${opts.diffText}`,
+    extraHeaders: opts.extraHeaders,
   });
   if ("error" in result) return result;
   return { text: result.text || "(no review produced)", tokensUsed: result.tokensUsed };

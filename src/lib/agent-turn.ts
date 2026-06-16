@@ -40,6 +40,7 @@ import { setProgress, clearProgress } from "@/lib/progress";
 import { usingSandboxBackend, runnerEnabled } from "@/lib/app-runner";
 import { verifyBuild, verifyMarker, canVerifyInProcess } from "@/lib/verify";
 import { runAnthropicAgent, runLocalAgent, runToolCalls, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
+import { resolveBedrockModel, type BedrockResolved } from "@/lib/ai/bedrock";
 import { withRetry } from "@/lib/ai/retry";
 import { createAgentIntent } from "@/lib/intent-ledger";
 import {
@@ -173,6 +174,17 @@ export async function runAgentTurn(opts: {
     aiModel = process.env.GUEST_AI_MODEL || PROVIDER_DEFAULT_MODEL[aiProvider] || "";
     aiBaseUrl = process.env.GUEST_AI_BASE_URL || aiBaseUrl;
     memberKey = undefined;
+  }
+
+  // Bedrock-served models are the platform default: the bearer key resolves for
+  // EVERY signed-in user (no BYO, no admin gate), metered by the normal token
+  // quota. The transport (OpenAI- or Anthropic-compatible) is chosen per model.
+  const bedrock: BedrockResolved | null = aiProvider === "bedrock" ? resolveBedrockModel(aiModel) : null;
+  if (aiProvider === "bedrock") {
+    if (!bedrock) {
+      return { error: "That model isn't available right now — pick another in Settings → AI model." };
+    }
+    memberKey = bedrock.apiKey;
   }
 
   const ai = aiProvider === "openai" && memberKey ? new OpenAI({ apiKey: memberKey }) : null;
@@ -344,11 +356,36 @@ export async function runAgentTurn(opts: {
   let changes: ChangeManifest;
   let tokensUsed = 0;
   try {
-    if (aiProvider === "anthropic" || aiProvider === "local" || aiProvider === "gemini") {
+    if (aiProvider === "anthropic" || aiProvider === "local" || aiProvider === "gemini" || aiProvider === "bedrock") {
       // Gemini speaks the OpenAI chat API over a fixed base URL, so it runs
       // through the same OpenAI-compatible runner as the local provider.
-      const result = await withGitAuth(gitAuth, () =>
-        aiProvider === "anthropic"
+      // Bedrock routes by the resolved model's protocol: Claude → the Anthropic
+      // runner (mantle endpoint), everything else → the OpenAI-compatible runner.
+      const result = await withGitAuth(gitAuth, () => {
+        if (bedrock) {
+          return bedrock.protocol === "anthropic"
+            ? runAnthropicAgent({
+                model: bedrock.modelId,
+                instructions,
+                messages,
+                ctx,
+                apiKey: bedrock.apiKey,
+                baseUrl: bedrock.baseUrl,
+                extraHeaders: bedrock.headers,
+                onText,
+              })
+            : runLocalAgent({
+                model: bedrock.modelId,
+                baseUrl: bedrock.baseUrl,
+                instructions,
+                messages,
+                ctx,
+                apiKey: bedrock.apiKey,
+                extraHeaders: bedrock.headers,
+                label: "the Bedrock model",
+              });
+        }
+        return aiProvider === "anthropic"
           ? runAnthropicAgent({ model: aiModel, instructions, messages, ctx, apiKey: memberKey, onText })
           : runLocalAgent({
               model: aiModel,
@@ -358,8 +395,8 @@ export async function runAgentTurn(opts: {
               ctx,
               apiKey: memberKey,
               label: aiProvider === "gemini" ? "Gemini" : "the local model",
-            }),
-      );
+            });
+      });
       if ("error" in result) return { error: result.error };
       ({ text, actions, changes, tokensUsed } = result);
     } else {
