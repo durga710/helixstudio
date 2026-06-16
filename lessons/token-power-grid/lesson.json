@@ -1,0 +1,84 @@
+{
+  "id": "token-power-grid",
+  "title": "Token Power Grid",
+  "blurb": "Every word an AI writes burns energy. Run a city's AI on a tight token budget without a blackout.",
+  "level": "intermediate",
+  "estMinutes": 9,
+  "icon": "Gauge",
+  "concept": "tokens and efficiency",
+  "order": 13,
+  "objectives": [
+    "What tokens are and why they cost energy",
+    "Why longer answers cost more",
+    "How to match an answer's length to what's actually needed"
+  ],
+  "glossary": [
+    { "term": "Token", "def": "A small chunk of text (about a word piece). AIs read and write in tokens." },
+    { "term": "Compute", "def": "The computer work an AI does. More tokens = more compute = more energy." },
+    { "term": "Budget", "def": "A limit on how many tokens you can spend." },
+    { "term": "Efficiency", "def": "Getting the most helpfulness out of the fewest tokens." }
+  ],
+  "steps": [
+    {
+      "kind": "explain",
+      "title": "The city runs on tokens",
+      "body": "A futuristic city powers all its AI helpers from one energy grid. Every time an AI generates text, it uses **tokens** — and tokens take **computation**, which takes **energy**.\n\nMore words → more tokens → more power drawn. The city engineer needs you: keep the AI helpful **and** keep the lights on."
+    },
+    {
+      "kind": "predict",
+      "title": "Short vs long",
+      "prompt": "Which answer costs the grid more energy?",
+      "choices": [
+        "A short, direct reply",
+        "A long, detailed reply with extra examples"
+      ],
+      "afterPick": "The long one — more tokens, more compute, more energy. Detail is great, but only when it's actually needed. Let's manage a real budget. →"
+    },
+    {
+      "kind": "widget",
+      "widget": "tokenGrid",
+      "title": "Answer the city within budget",
+      "youWillDo": "answer every request without blowing the token budget",
+      "body": "Each citizen request is **simple** or **needs detail**. Pick a reply length for each — but watch the **token meter**. Spend detail where it helps, keep simple asks short, and stay under budget. Go over and the grid browns out!"
+    },
+    {
+      "kind": "explain",
+      "title": "Match the length to the need",
+      "body": "The trick wasn't “always short” or “always long.” It was **matching the reply to the request**: short answers for simple questions, detail only where it genuinely helped.\n\nThat's efficiency — the most help for the fewest tokens. At the scale of millions of requests, it's the difference between a stable grid and a blackout."
+    },
+    {
+      "kind": "quiz",
+      "title": "Why does length matter?",
+      "question": "Why does a longer AI answer cost more to produce?",
+      "choices": [
+        "Longer answers are always wrong",
+        "Each extra token is extra computation, which uses more energy",
+        "The internet charges per letter",
+        "It doesn't cost any more"
+      ],
+      "answer": 1,
+      "explain": "Every token is real compute. More tokens = more energy and cost — which is why efficient prompting and answers matter at scale."
+    },
+    {
+      "kind": "reflect",
+      "title": "Say it your way",
+      "prompt": "Why is it smart to ask an AI for a short answer when a short answer is all you need?",
+      "placeholder": "Because every word the AI writes…",
+      "recall": {
+        "question": "Using fewer tokens (when you can) mainly helps by…",
+        "choices": [
+          "Saving compute, energy, and cost",
+          "Making the AI smarter",
+          "Changing the answer's meaning"
+        ],
+        "answer": 0,
+        "explain": "Fewer tokens → less compute → less energy and cost, with the same usefulness."
+      }
+    },
+    {
+      "kind": "explain",
+      "title": "Efficient AI 🎉",
+      "body": "You learned something most people never think about: AI has a **real running cost**. The huge models you use run in **data centers** that draw serious electricity.\n\nGood AI design isn't just about being smart — it's about being **efficient**: helpful answers, fewer wasted tokens. **Next up:** put it all together and run a whole AI product, start to finish."
+    }
+  ]
+}

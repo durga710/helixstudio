@@ -1,0 +1,85 @@
+{
+  "id": "ai-maze-explorer",
+  "title": "AI Maze Explorer",
+  "blurb": "Trap a robot in a maze, set the rewards, and watch it teach itself the way out — no path required.",
+  "level": "intermediate",
+  "estMinutes": 10,
+  "icon": "Map",
+  "concept": "reinforcement learning",
+  "order": 8,
+  "objectives": [
+    "What reinforcement learning is",
+    "How rewards — not instructions — shape what an AI does",
+    "Why a wrong reward leads to weird behavior"
+  ],
+  "glossary": [
+    { "term": "Reward", "def": "Points the AI gets (or loses) for what it does. Good things give points, bad things take them away." },
+    { "term": "Reinforcement learning", "def": "Learning by trying things over and over and keeping what earns the most reward." },
+    { "term": "Agent", "def": "The thing that's learning and making choices — here, the little robot." },
+    { "term": "Episode", "def": "One full attempt — from the start until the robot reaches the goal or gives up." }
+  ],
+  "steps": [
+    {
+      "kind": "explain",
+      "title": "A robot in a maze",
+      "body": "A little robot is dropped into a maze. It has **no map** and nobody tells it the way out.\n\nAll you can do is decide what's **good** and what's **bad**: reaching the exit feels great, bumping a wall hurts, and wandering forever is a waste. Then the robot tries… and tries… and tries — and slowly figures the rest out itself."
+    },
+    {
+      "kind": "predict",
+      "title": "First try?",
+      "prompt": "When the robot first wakes up in the maze, what will it do?",
+      "choices": [
+        "Walk straight to the exit",
+        "Bumble around almost randomly",
+        "Refuse to move"
+      ],
+      "afterPick": "At the start it knows *nothing*, so it mostly bumbles — bumping walls and backtracking. The magic is what happens after lots of tries. Let's watch. →"
+    },
+    {
+      "kind": "widget",
+      "widget": "maze",
+      "title": "Set the rewards, then train",
+      "youWillDo": "set the rewards and train the robot",
+      "body": "Set your **rewards** (reaching the exit, hitting a wall, taking a step), then press **Train** a few times and **Watch it go**. Early on it's clumsy; after enough rounds it finds a clean path.\n\nWhen that works, try the **Bad rewards** button — make hitting walls a *good* thing — and watch what the robot decides to do."
+    },
+    {
+      "kind": "explain",
+      "title": "You never drew the path",
+      "body": "Notice what you actually did: you **never told the robot the route**. You only said what was worth points.\n\nThe robot found the path by **trial and error** — keeping the moves that earned reward and dropping the ones that didn't. That's **reinforcement learning**."
+    },
+    {
+      "kind": "quiz",
+      "title": "What did the rewards do?",
+      "question": "When you made *hitting a wall* give points, why did the robot start crashing into walls on purpose?",
+      "choices": [
+        "It was broken",
+        "It does whatever earns the most reward — and you told it walls pay",
+        "It got scared of the exit",
+        "Mazes are too hard for AI"
+      ],
+      "answer": 1,
+      "explain": "Exactly — the robot chases reward. If you reward the wrong thing, you get the wrong behavior. The reward *is* the instruction."
+    },
+    {
+      "kind": "reflect",
+      "title": "Say it your way",
+      "prompt": "In your own words: how did the robot learn the maze without being given the path?",
+      "placeholder": "It learned by…",
+      "recall": {
+        "question": "Reinforcement learning means the AI learns mainly by…",
+        "choices": [
+          "Being given the exact answer",
+          "Trying things and chasing rewards",
+          "Reading a rulebook"
+        ],
+        "answer": 1,
+        "explain": "Try → get reward → keep what works. Over and over."
+      }
+    },
+    {
+      "kind": "explain",
+      "title": "Where this shows up 🎉",
+      "body": "You just used **reinforcement learning** — the same idea behind:\n\n- game AIs that get scary-good at chess and video games\n- warehouse and delivery **robots** finding routes\n- self-driving cars learning to steer\n\nThe big lesson: **you shape behavior with rewards, not step-by-step orders** — so picking the right reward is everything. **Next up:** clean the messy data that AI learns from."
+    }
+  ]
+}

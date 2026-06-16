@@ -1,0 +1,85 @@
+{
+  "id": "bias-busters",
+  "title": "Bias Busters",
+  "blurb": "A scholarship AI seems unfair. Investigate the data, balance it, and make the model fair for everyone.",
+  "level": "intermediate",
+  "estMinutes": 9,
+  "icon": "Scale",
+  "concept": "fairness",
+  "order": 11,
+  "objectives": [
+    "Why AI can be unfair without anyone meaning it to be",
+    "How unbalanced data creates bias",
+    "How balancing data makes a model fairer"
+  ],
+  "glossary": [
+    { "term": "Bias", "def": "When an AI is unfairly better or worse for some group of people." },
+    { "term": "Representation", "def": "How much each group shows up in the training data." },
+    { "term": "Balanced data", "def": "Data with a fair number of examples from each group." },
+    { "term": "Fairness", "def": "The AI working about equally well for everyone it affects." }
+  ],
+  "steps": [
+    {
+      "kind": "explain",
+      "title": "Something seems unfair",
+      "body": "A city uses an AI to hand out scholarships. Lately, students from **School B** keep getting rejected — way more than students from **School A**. People are upset, and nobody programmed it to be unfair.\n\nYou're the investigator. Time to look at the data."
+    },
+    {
+      "kind": "predict",
+      "title": "Where's the unfairness coming from?",
+      "prompt": "Nobody wrote a rule to reject School B. So why might the AI be unfair to them?",
+      "choices": [
+        "The AI is being mean on purpose",
+        "It barely saw any School B examples, so it learned them poorly",
+        "School B students are worse"
+      ],
+      "afterPick": "It's the data. An AI learns from what it sees — and it barely saw School B. Let's fix that. →"
+    },
+    {
+      "kind": "widget",
+      "widget": "biasBusters",
+      "title": "Balance the data, then retrain",
+      "youWillDo": "balance the examples and retrain until it's fair",
+      "body": "See how lopsided the examples are? Add more **School B** examples to balance things out, then **Retrain** and watch the per-group accuracy and the **fairness** score. Keep going until both groups are treated about equally."
+    },
+    {
+      "kind": "explain",
+      "title": "Fairer data, fairer AI",
+      "body": "As you balanced the examples, School B's accuracy climbed to match School A's. You didn't change the algorithm — you gave it a **fair view of the world** to learn from.\n\nAI repeats the patterns in its data. If the data under-represents a group, the AI will too."
+    },
+    {
+      "kind": "quiz",
+      "title": "What fixed it?",
+      "question": "What made the scholarship AI fairer?",
+      "choices": [
+        "A faster computer",
+        "Giving it a balanced number of examples from each group",
+        "Hiding School B from the data",
+        "Telling it to be nice"
+      ],
+      "answer": 1,
+      "explain": "Balanced representation. When every group is fairly represented, the model learns to treat them fairly."
+    },
+    {
+      "kind": "reflect",
+      "title": "Say it your way",
+      "prompt": "How can an AI end up unfair even when no one meant it to be?",
+      "placeholder": "It can happen when the data…",
+      "recall": {
+        "question": "AI bias often comes from…",
+        "choices": [
+          "Data that under-represents some groups",
+          "Computers disliking people",
+          "Using too much electricity"
+        ],
+        "answer": 0,
+        "explain": "Unbalanced data → biased patterns → unfair results."
+      }
+    },
+    {
+      "kind": "explain",
+      "title": "Responsible AI 🎉",
+      "body": "You just did the work of an **AI fairness** team: spotting bias, tracing it to the data, and fixing it.\n\nThis matters everywhere AI touches people — loans, hiring, healthcare. Responsible AI means checking *who* the data represents. **Next up:** build a recommendation system that learns what people like."
+    }
+  ]
+}

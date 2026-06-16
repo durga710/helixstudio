@@ -1,0 +1,85 @@
+{
+  "id": "ai-factory",
+  "title": "AI Factory",
+  "blurb": "Run a whole AI company. Take a product from raw data to launch — every choice along the line matters.",
+  "level": "advanced",
+  "estMinutes": 10,
+  "icon": "Factory",
+  "concept": "machine learning pipeline",
+  "order": 14,
+  "objectives": [
+    "That machine learning is a process, not one step",
+    "How the stages connect: collect, clean, train, test, deploy",
+    "Why early shortcuts cause expensive problems later"
+  ],
+  "glossary": [
+    { "term": "Pipeline", "def": "The full assembly line of an AI product, from data to launch and beyond." },
+    { "term": "Deploy", "def": "Release the model so real people use it." },
+    { "term": "Monitor", "def": "Keep watching after launch to catch new problems." },
+    { "term": "Model drift", "def": "When a model gets worse over time because the world changed since it was trained." }
+  ],
+  "steps": [
+    {
+      "kind": "explain",
+      "title": "You inherit an AI company",
+      "body": "Congratulations — you're the new boss of a struggling AI company. The board wants one thing: a **successful AI product**.\n\nHere's the catch. A great model isn't one magic step. It's a whole **pipeline**: collect data, clean it, train, test, deploy, and keep watching. Mess up early and you'll pay for it later."
+    },
+    {
+      "kind": "predict",
+      "title": "Where do problems start?",
+      "prompt": "A deployed AI product is making bad predictions. Where did the trouble most likely begin?",
+      "choices": [
+        "Only at the very last step",
+        "Earlier in the pipeline — like rushed data or skipped testing",
+        "Nowhere, bad luck"
+      ],
+      "afterPick": "Usually upstream. A shortcut in collecting or cleaning quietly becomes a disaster after launch. Let's run the line. →"
+    },
+    {
+      "kind": "widget",
+      "widget": "pipeline",
+      "title": "Run the line",
+      "youWillDo": "make a choice at each stage, then deploy",
+      "body": "Move your product through each stage — **Collect → Clean → Train → Test → Deploy**. Make a choice at each one, watch the **health** score, then **Deploy & monitor** to see how it does in the real world. Try a few runs and compare your launches."
+    },
+    {
+      "kind": "explain",
+      "title": "Every stage connects",
+      "body": "Notice how choices **stacked up**. Cheap data plus skipped cleaning didn't just cost a little — it compounded, and a fancy model made it worse by memorizing the junk.\n\nThat's the big idea: machine learning is a **process**. Success depends on every stage working together, not one heroic step."
+    },
+    {
+      "kind": "quiz",
+      "title": "The big picture",
+      "question": "What's the most accurate way to describe building an AI product?",
+      "choices": [
+        "Just train a model and you're done",
+        "A connected process where every stage affects the final result",
+        "Mostly luck",
+        "Only the deploy step matters"
+      ],
+      "answer": 1,
+      "explain": "Collect → clean → train → test → deploy → monitor. Each stage feeds the next, and shortcuts travel downstream."
+    },
+    {
+      "kind": "reflect",
+      "title": "Say it your way",
+      "prompt": "You've now trained models, cleaned data, set rewards, and shipped a product. In your own words: why is building good AI more than just 'making a smart model'?",
+      "placeholder": "Because a good AI product also needs…",
+      "recall": {
+        "question": "A successful AI product depends most on…",
+        "choices": [
+          "One clever step",
+          "The whole pipeline working together",
+          "Avoiding testing to save time"
+        ],
+        "answer": 1,
+        "explain": "Every stage matters — that's the lifecycle of real machine learning."
+      }
+    },
+    {
+      "kind": "explain",
+      "title": "You ran the whole factory 🎉",
+      "body": "You just did what real AI teams do: take a product through its **entire lifecycle**, balancing speed, cost, and quality at every step.\n\nAnd you've now seen the big picture of AI — how it **learns from examples**, **explores with rewards**, **depends on clean, fair data**, **follows clear instructions**, and **costs real energy to run**. That's not just *using* AI — that's understanding *why it behaves the way it does*. 🏆"
+    }
+  ]
+}
