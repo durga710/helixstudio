@@ -11,6 +11,7 @@ import { ok, err, apiErrors } from "@/lib/api-response";
 import { auth } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { enqueueJob } from "@/lib/jobs/driver";
+import { createAgentIntent } from "@/lib/intent-ledger";
 import { guardWorkspace } from "@/lib/route-helpers";
 
 export const runtime = "nodejs";
@@ -46,12 +47,18 @@ export async function POST(req: Request, { params }: Params) {
   if (!parsed.success) return apiErrors.validation(parsed.error);
   const message = parsed.data.message.trim();
 
+  // One intent for the WHOLE refactor → a single click undoes everything every
+  // worker did. Workers inherit it (they don't finalize); the job finalizes it
+  // on completion.
+  const intentId = await createAgentIntent(g.ws, message).catch(() => null);
+
   const jobId = await enqueueJob({
     workspaceId: g.ws.id,
     userId: g.user.id,
     prompt: message,
     kind: "refactor",
     steps: [{ kind: "plan", message, label: "Plan" }],
+    intentId,
     devOrigin: reqOrigin(req),
   });
 

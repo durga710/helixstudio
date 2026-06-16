@@ -125,7 +125,28 @@ export async function runJobSlice(id: string, deadline: number): Promise<{ done:
         const round = step.round ?? 1;
         const r = await reviewJob({ ws, userId: st.userId, request: step.message, changed: st.written });
         if (r.ship || round >= MAX_REWORK_ROUNDS || r.fixes.length === 0) {
-          return { ok: true, summary: r.summary || (r.ship ? "Reviewed — shipping." : "Reviewed.") };
+          // Shipping → one final best-effort build/verify pass if anything changed
+          // (workers ran with verify:false for speed; this catches integration
+          // errors across their separate edits).
+          if (st.written.length > 0) {
+            return {
+              ok: true,
+              summary: r.summary || "Reviewed — shipping.",
+              appendSteps: [
+                {
+                  kind: "agentTurn",
+                  message:
+                    "Run the build and fix any compile/build errors so the whole project compiles and runs. " +
+                    "Make only the minimal fixes needed across the files the change touched.",
+                  mode: "build",
+                  verify: true,
+                  persist: false,
+                  label: "Verify build",
+                },
+              ],
+            };
+          }
+          return { ok: true, summary: r.summary || "Reviewed." };
         }
         const fixers = r.fixes.map(workerStep);
         const next: JobStep = {
@@ -173,6 +194,16 @@ export async function runJobSlice(id: string, deadline: number): Promise<{ done:
 
   const terminal = outcome.status !== "running";
   const last = outcome.state.results[outcome.state.results.length - 1];
+
+  // Finalize the whole-refactor intent (one undo for everything) when the job ends.
+  if (terminal && outcome.state.intentId) {
+    await db()
+      .workspaceIntent.update({
+        where: { id: outcome.state.intentId },
+        data: { status: "final", reasoning: (last?.summary ?? "Refactor job").slice(0, 8000) },
+      })
+      .catch(() => {});
+  }
   await db().workspaceTask.update({
     where: { id },
     data: {
