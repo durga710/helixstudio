@@ -22,7 +22,7 @@ import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
 import { isGodotProject } from "@/lib/templates/engines";
 import { scaffoldSteps } from "@/lib/scaffold-steps";
 import { buildTasks } from "@/lib/build-tasks";
-import { buildNarration, friendlyActivity, paraphraseRequest, holdingLines } from "@/lib/build-feed";
+import { buildNarration, continuousBuildLines, friendlyActivity, paraphraseRequest, holdingLines } from "@/lib/build-feed";
 import { BuildBoard } from "@/components/build/build-board";
 import {
   AgentPipelinePanel,
@@ -301,16 +301,22 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       feedActive.current = true;
       realActivityStarted.current = true; // the scaffold checklist bows out
       // Stored, seeded narration (varied per project, paced to the estimate).
-      const { steps, holding, estimateMs } = buildNarration(files, { idea, kind, seed: workspace.id });
+      const { steps, estimateMs } = buildNarration(files, { idea, kind, seed: workspace.id });
       const perStep = Math.max(700, Math.min(2600, Math.round(estimateMs / Math.max(4, steps.length))));
-      const seq = [...steps, ...holding];
+      // After the structured intro, loop varied concrete file lines until the
+      // turn ends — the feed never dries up into a repeating "thinking…".
+      const loop = continuousBuildLines(files, workspace.id);
+      const push = (line: string) =>
+        setActivities((a) => (turnDone.current || (a.length && a[a.length - 1] === line) ? a : [...a, line]));
       void (async () => {
-        for (let i = 0; i < seq.length; i++) {
+        for (const s of steps) {
           if (turnDone.current) return;
-          // Append (so real verify/test lines can interleave via friendlyActivity).
-          setActivities((a) => (turnDone.current ? a : [...a, seq[i]]));
-          const concrete = i < steps.length;
-          await new Promise((r) => setTimeout(r, (concrete ? perStep : 2600) + Math.random() * (concrete ? 300 : 1400)));
+          push(s);
+          await new Promise((r) => setTimeout(r, perStep + Math.random() * 300));
+        }
+        for (let i = 0; !turnDone.current; i++) {
+          push(loop[i % loop.length]);
+          await new Promise((r) => setTimeout(r, 2200 + Math.random() * 1300));
         }
       })();
     },
@@ -325,12 +331,16 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       feedActive.current = true;
       realActivityStarted.current = true;
       const seed = `${workspace.id}:${message}`;
-      const seq = [`${paraphraseRequest(message, seed)}…`, ...holdingLines(seed)];
+      const opener = `${paraphraseRequest(message, seed)}…`;
+      const hold = holdingLines(seed);
+      const push = (line: string) =>
+        setActivities((a) => (turnDone.current || (a.length && a[a.length - 1] === line) ? a : [...a, line]));
       void (async () => {
-        for (let i = 0; i < seq.length; i++) {
-          if (turnDone.current) return;
-          setActivities((a) => (turnDone.current ? a : [...a, seq[i]]));
-          await new Promise((r) => setTimeout(r, 1100 + Math.random() * 900));
+        push(opener);
+        await new Promise((r) => setTimeout(r, 1100 + Math.random() * 900));
+        for (let i = 0; !turnDone.current; i++) {
+          push(hold[i % hold.length]);
+          await new Promise((r) => setTimeout(r, 1600 + Math.random() * 1200));
         }
       })();
     },
@@ -444,14 +454,19 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
           } else if (evt.type === "activity" && evt.label) {
             // Real agent work has begun — let the scaffold checklist stop.
             realActivityStarted.current = true;
-            turnLog = [...turnLog, evt.label]; // raw labels feed the final worklog
+            const isNoise = /^thinking…?$/i.test(evt.label);
+            // Raw labels feed the final worklog — but never the contentless
+            // "thinking…", and never stacked duplicates (that's what made the
+            // worklog repeat the same line over and over).
+            if (!isNoise && turnLog[turnLog.length - 1] !== evt.label) turnLog = [...turnLog, evt.label];
             // While the stored feed plays it owns the chat display: rephrase real
             // labels into the same voice (verify → "Running a quick test…") and
-            // append; drop the noisy file-write labels. The board + preview still
-            // advance off the raw labels below.
+            // append; drop noisy file-write labels and "thinking…". The board +
+            // preview still advance off the raw labels below.
             if (feedActive.current) {
               const friendly = friendlyActivity(evt.label, workspace.id);
-              if (friendly) setActivities((a) => [...a, friendly]);
+              if (friendly && !/^thinking…?$/i.test(friendly))
+                setActivities((a) => (a.length && a[a.length - 1] === friendly ? a : [...a, friendly]));
             } else {
               setActivities(turnLog);
             }

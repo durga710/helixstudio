@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- ported GCODE studio code; its fetch-on-mount/poll effects predate this rule and behave correctly */
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Send,
   Loader2,
@@ -37,7 +37,7 @@ import {
 import { GAME_CATEGORIES } from "@/lib/templates/engines";
 import { cn } from "@/lib/utils";
 import { warmupSteps } from "@/lib/warmup-steps";
-import { buildNarration, friendlyActivity, paraphraseRequest, holdingLines, seededRng } from "@/lib/build-feed";
+import { buildNarration, continuousBuildLines, friendlyActivity, paraphraseRequest, holdingLines, seededRng } from "@/lib/build-feed";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
@@ -228,6 +228,12 @@ export function ChatPanel({
   useEffect(() => {
     worklogRef.current = worklog;
   }, [worklog]);
+  // Append a step, collapsing back-to-back duplicates so a stalled turn never
+  // shows the same line ("thinking…", a repeated file) stacked over and over.
+  const pushStep = useCallback((line: string) => {
+    if (!line) return;
+    setWorklog((w) => (turnDone.current || (w.length && w[w.length - 1] === line) ? w : [...w, line]));
+  }, []);
   // Live assistant reply, streamed token-by-token (replaced by the real message
   // on the final event).
   const [streaming, setStreaming] = useState("");
@@ -434,18 +440,22 @@ export function ChatPanel({
     // Seeded by the workspace id → varied wording/order per project (never reads
     // as canned), but stable within this project. The estimate paces it so a
     // fast build shows calmer lines and a big one shows more.
-    const { steps, holding, estimateMs } = buildNarration(files, { idea, kind, seed: workspace.id });
+    const { steps, estimateMs } = buildNarration(files, { idea, kind, seed: workspace.id });
     const perStep = Math.max(700, Math.min(2600, Math.round(estimateMs / Math.max(4, steps.length))));
-    const sequence = [...steps, ...holding];
+    // After the structured intro, keep narrating REAL files (looping the varied
+    // pool) until the turn actually finishes — so the feed never dries up into a
+    // repeating "thinking…" and the model's latency stays hidden behind concrete
+    // filenames the user can recognize.
+    const loop = continuousBuildLines(files, workspace.id);
     void (async () => {
-      for (let i = 0; i < sequence.length; i++) {
+      for (const s of steps) {
         if (turnDone.current) return;
-        setWorklog((w) => (turnDone.current ? w : [...w, sequence[i]]));
-        // Concrete file lines pace to the estimate; the generic tail breathes
-        // slower, and the LAST item always spins so it reads live until the
-        // real reply lands.
-        const concrete = i < steps.length;
-        await new Promise((r) => setTimeout(r, (concrete ? perStep : 2600) + Math.random() * (concrete ? 300 : 1400)));
+        pushStep(s);
+        await new Promise((r) => setTimeout(r, perStep + Math.random() * 300));
+      }
+      for (let i = 0; !turnDone.current; i++) {
+        pushStep(loop[i % loop.length]);
+        await new Promise((r) => setTimeout(r, 2200 + Math.random() * 1300));
       }
     })();
   }
@@ -458,12 +468,16 @@ export function ChatPanel({
     feedActive.current = true;
     realActivityStarted.current = true;
     const seed = `${workspace.id}:${message}`;
-    const seq = [`${paraphraseRequest(message, seed)}…`, ...holdingLines(seed)];
+    const opener = `${paraphraseRequest(message, seed)}…`;
+    // Cycle varied "still working" lines until the turn ends, so a follow-up that
+    // runs long keeps breathing instead of collapsing to a repeated "thinking…".
+    const hold = holdingLines(seed);
     void (async () => {
-      for (let i = 0; i < seq.length; i++) {
-        if (turnDone.current) return;
-        setWorklog((w) => (turnDone.current ? w : [...w, seq[i]]));
-        await new Promise((r) => setTimeout(r, 1100 + Math.random() * 900));
+      pushStep(opener);
+      await new Promise((r) => setTimeout(r, 1100 + Math.random() * 900));
+      for (let i = 0; !turnDone.current; i++) {
+        pushStep(hold[i % hold.length]);
+        await new Promise((r) => setTimeout(r, 1600 + Math.random() * 1200));
       }
     })();
   }
@@ -573,18 +587,25 @@ export function ChatPanel({
             const label = (evt.label as string) ?? "";
             // Real work has begun — let the warm-up prelude bow out.
             realActivityStarted.current = true;
+            // Rephrase real labels into the warm, varied voice (verify → "Running
+            // a quick test…"); null = a noisy file-write label the feed owns.
+            const shown = friendlyActivity(label, workspace.id);
+            // "thinking…" is contentless — keep it as the live spinner only,
+            // never a logged step (it's what made the worklog repeat endlessly).
+            const isNoise = /^thinking…?$/i.test(label) || (!!shown && /^thinking…?$/i.test(shown));
             if (feedActive.current) {
-              // During the construction feed, rephrase real labels into the same
-              // warm, varied voice (verify → "Running a quick test…") and drop
-              // the noisy file-write labels — the stored feed owns the narrative.
-              const shown = friendlyActivity(label, workspace.id);
-              if (shown) {
+              // The construction/fix feed owns the narrative; only fold in
+              // meaningful rephrased lines (verify/fix), never noise.
+              if (shown && !isNoise) {
                 setActivity(shown);
-                setWorklog((w) => [...w, shown]);
+                pushStep(shown);
+              } else {
+                setActivity(shown || label || null);
               }
             } else {
-              setActivity(label || null);
-              if (label) setWorklog((w) => [...w, label]);
+              // No feed (Q&A / plan): show cleaned activity; never log bare noise.
+              setActivity(shown ?? label ?? null);
+              if (shown && !isNoise) pushStep(shown);
             }
           } else if (evt.type === "delta") {
             realActivityStarted.current = true; // the reply is streaming — stop warm-up

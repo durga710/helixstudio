@@ -212,6 +212,48 @@ export function buildNarration(
   return { steps, holding, estimateMs };
 }
 
+const BUILD_VERBS = ["Building", "Setting up", "Wiring up", "Putting together", "Adding", "Crafting", "Shaping", "Assembling"];
+const POLISH_VERBS = ["Polishing", "Refining", "Tidying up", "Finishing off", "Tightening up"];
+
+/** A concrete, human label for a single file — its page/component name when we
+ * can detect one, else a prettified file name. */
+function fileConcept(path: string): string {
+  const pg = pageName(path);
+  if (pg) return `the ${pg.toLowerCase()} page`;
+  const cp = componentName(path);
+  if (cp) return `the ${cp} component`;
+  return pretty(path.split("/").pop() || path);
+}
+
+/**
+ * An endless-feeling, varied stream of concrete "Building <file>" lines drawn
+ * from the REAL project files — so a long build never dries up into a repeating
+ * "thinking…" loader. The user always sees a real filename being worked on,
+ * which masks the model's background latency. Shuffled + seeded so no two
+ * projects read identically; the client cycles through it (looping) until the
+ * turn actually finishes.
+ */
+export function continuousBuildLines(files: string[], seed: string): string[] {
+  const rng = seededRng(seed + "|stream");
+  const concepts = Array.from(
+    new Set(
+      files
+        .filter((f) => !/\.(png|jpe?g|svg|ico|gif|webp|avif|woff2?|ttf|otf|map|lock)$/i.test(f))
+        .map(fileConcept),
+    ),
+  );
+  if (concepts.length === 0) return [...HOLDING];
+  const lines: string[] = [];
+  for (const c of concepts) lines.push(`${pickWith(rng, [...BUILD_VERBS])} ${c}`);
+  for (const c of concepts) lines.push(`${pickWith(rng, [...POLISH_VERBS])} ${c}`);
+  // Fisher–Yates with the seeded rng so the order is varied but stable per project.
+  for (let i = lines.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [lines[i], lines[j]] = [lines[j], lines[i]];
+  }
+  return lines.length ? lines : [...HOLDING];
+}
+
 /**
  * Rephrase a RAW agent activity label (e.g. the verify phase) into a friendly,
  * varied line — so the "testing/fixing" tail reads in the same warm voice as the

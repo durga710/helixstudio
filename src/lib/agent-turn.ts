@@ -210,6 +210,10 @@ export async function runAgentTurn(opts: {
   // skeleton (cheap) and the preview renders instead of staying blank. Covers any
   // path that reaches the agent empty (e.g. "Create from scratch" → first chat).
   let scaffolded = false;
+  // The starter files written this turn (the whole framework) — folded into the
+  // first build's change set so the summary + "files changed" card reflect the
+  // entire project the user got, not just the handful the model then edited.
+  let scaffoldPaths: string[] = [];
   if (mode === "build" && ws.mode === "SCRATCH" && treePaths.length === 0 && !ws.notes && userMessage) {
     try {
       const templateId = await resolveTemplateId({
@@ -248,6 +252,7 @@ export async function runAgentTurn(opts: {
         ws.notes = note; // reflect it in this turn's context
         tree = await withGitAuth(gitAuth, () => listWorkspaceFiles(ws)).catch(() => tree);
         treePaths = tree.map((f) => f.path);
+        scaffoldPaths = [...treePaths]; // the framework we just created
         // Hand the real scaffold file list to the client so it can play a live
         // "building the home page…/wiring navigation…" feed while we customize.
         onEvent?.({ type: "scaffold", files: treePaths, stack: tpl.manifest.label });
@@ -596,6 +601,16 @@ export async function runAgentTurn(opts: {
       } catch (e) {
         console.error("[helix-chat] salvage failed", e);
       }
+    }
+
+    // First build: count the WHOLE framework we created (scaffold + the model's
+    // edits), not just the files the model happened to touch — so the summary and
+    // the "files changed" card show the full project the user got. The scaffold
+    // files are real (created this turn), and folding them in here also means a
+    // scaffolded first build never misreads as "no changes".
+    if (scaffolded && scaffoldPaths.length) {
+      const have = new Set(changes.written);
+      for (const p of scaffoldPaths) if (!have.has(p)) changes.written.push(p);
     }
 
     // Honesty guard: a BUILD turn that changed no files and produced only a
