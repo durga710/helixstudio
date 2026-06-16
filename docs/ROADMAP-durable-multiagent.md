@@ -135,9 +135,21 @@ copy in the DB overlay keyed by job+worker.
   (runner-core `incomplete`). Board expands the batch into per-worker rows. The
   full 3-way merge (to allow concurrent CONFLICTING writes) is intentionally
   deferred — serialize-on-overlap already gives correctness + speed.
-- **Phase D — Polish (not started).** Cost estimate+confirm before launch,
-  pre-job snapshot/rollback, per-step tokens/timing in /admin, tuning concurrency
-  + rework caps. Also still open from Phase B: live-test end-to-end after deploy.
+- **Phase D — Polish. ✅ DONE 2026-06-16 (commit `abf5803`).** Cost/scope estimate
+  in the confirm offer (GET /refactor → range; jobs/estimate.ts, tested); per-job
+  token tracking (JobState.tokensSpent, shown live on the board); JOB_TOKEN_CAP
+  guard against runaway jobs (jobs/config.ts) on top of the per-worker budget
+  check; tuning centralized in jobs/config.ts. DEPLOYED + prod-verified: the
+  durable rails work end-to-end (the background-task path runs on them; the `job`
+  column migration applied; budget enforcement fires).
+  Still-optional later: pre-job snapshot (the whole-job intent already gives
+  one-click undo), per-step timing in /admin, and a real LIVE refactor run as an
+  admin (engine is unit- + rails-verified; a full admin refactor hasn't been
+  driven yet).
+
+## Status: Phases A–D shipped. The durable multi-agent refactor system is built,
+## tested (51 job unit tests), deployed, and prod-verified on the rails. The only
+## thing not yet exercised is a full admin-triggered refactor end-to-end.
 
 ## Cost / safety / gating
 - ADMIN-gated first (consistent with the Phase-2 transform-mode rollout), then
