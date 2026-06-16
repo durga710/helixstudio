@@ -109,10 +109,14 @@ copy in the DB overlay keyed by job+worker.
 
 ## Build order (each phase ships value independently)
 
-- **Phase A — Durable runner.** Extend WorkspaceTask + QStash step-loop + cron
-  backstop + checkpoint/resume/retry/heartbeat. Migrate the EXISTING single-turn
-  background task onto it (proves the rails). Ships: jobs that no longer die at
-  5 min; cancel; durable progress.
+- **Phase A — Durable runner. ✅ DONE 2026-06-16 (commit `c300d6e`).** One JSONB
+  `WorkspaceTask.job` state machine; pure slice runner (src/lib/jobs/runner-core.ts,
+  11/11 tests) + store/driver; `/api/jobs/[id]/step` (slice + chain) and
+  `/api/cron/jobs` (backstop, not yet wired in vercel.json); driver = QStash if
+  `QSTASH_TOKEN` else after()-chaining self-invoke. Background-task button migrated
+  onto the rails. NOTE: the `job` column applies on the next cold boot/deploy
+  (lock-free upgrade); QStash + the cron entry are optional accelerators. Next:
+  add a `cancel` endpoint + a richer durable progress UI when Phase B lands.
 - **Phase B — Structured planner + scoped sequential workers + reviewer gate.**
   Plan→workers (sequential, scope-enforced, one intent)→reviewer rework loop→
   verify. Dynamic UI board. Ships: reliable, reviewed big refactors (durable via A).
