@@ -138,6 +138,17 @@ const LangModel = dynamic(() => import("./lang-model").then((m) => m.LangModel),
     );
   },
 });
+const widgetLoader = (label: string) =>
+  function WidgetLoading() {
+    return (
+      <div className="grid place-items-center rounded-card border border-border bg-panel2 p-10 text-[12px] text-txt3">
+        {label}
+      </div>
+    );
+  };
+const Maze = dynamic(() => import("./maze").then((m) => m.Maze), { ssr: false, loading: widgetLoader("loading the maze…") });
+const DataCleaner = dynamic(() => import("./data-cleaner").then((m) => m.DataCleaner), { ssr: false, loading: widgetLoader("loading the data lab…") });
+const PromptQuest = dynamic(() => import("./prompt-quest").then((m) => m.PromptQuest), { ssr: false, loading: widgetLoader("loading…") });
 
 /** Reusable interactive ML widgets. Lessons (content) compose these by id — the
  * widget vocabulary is the only thing that gates new lessons. Keep in sync with
@@ -155,6 +166,9 @@ export const WIDGETS: Record<string, ComponentType<WidgetProps>> = {
   customSort: CustomSort,
   customFlashcards: CustomFlashcards,
   langModel: LangModel,
+  maze: Maze,
+  dataCleaner: DataCleaner,
+  promptQuest: PromptQuest,
 };
 
 /** Renders the widget for a `widget` step, or a friendly placeholder if the

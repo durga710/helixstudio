@@ -76,6 +76,21 @@ export const WIDGET_CATALOG: WidgetInfo[] = [
     label: "Language model (next-word predictor)",
     desc: "The student trains a tiny language model on text, then generates new text — adjusting the context window and 'creativity' (temperature) and watching the next-word probabilities. Use for: language models, LLMs, next-token prediction, tokens, temperature, how ChatGPT works.",
   },
+  {
+    id: "maze",
+    label: "Maze explorer (reinforcement learning)",
+    desc: "The student sets rewards (reach exit / hit wall / take a step), then trains a real Q-learning agent over hundreds of fast episodes and watches it go from random to a clean path. A 'bad rewards' preset shows how a wrong reward breaks behaviour. Use for: reinforcement learning, learning by trial and error, rewards shaping behaviour, agents, robots, game AI.",
+  },
+  {
+    id: "dataCleaner",
+    label: "Data cleaning hero (data quality)",
+    desc: "The student is handed a messy table (missing, impossible, invalid, duplicate values), fixes each bad row (remove or estimate), then trains and compares the dirty vs clean model's accuracy. Use for: data quality, preprocessing, garbage-in-garbage-out, why clean data matters more than a fancy algorithm.",
+  },
+  {
+    id: "promptQuest",
+    label: "Prompt quest (prompt engineering)",
+    desc: "The student builds a 'spell' (prompt) from parts — action, target, constraints, role — across a few challenges; a clear spell succeeds, a vague one misfires. Use for: prompt engineering, being specific, constraints, role prompting, why clear instructions get better results from an AI.",
+  },
 ];
 
 export const WIDGET_IDS: string[] = WIDGET_CATALOG.map((w) => w.id);
