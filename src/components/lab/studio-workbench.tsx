@@ -202,7 +202,7 @@ export function StudioWorkbench({
       {/* Standalone: the floating tutor is the mentor. Embedded: the AI-workspace
           guide chat is the mentor instead, fed live state via onState. */}
       {!embedded && (
-        <TutorPanel lessonId={progressId} stepIndex={0} state={{ ...labState, concept: meta.concept, goal: meta.goal }} />
+        <TutorPanel lessonId={progressId} stepIndex={0} state={{ ...labState, concept: meta.concept, goal: meta.goal }} concept={meta.concept} />
       )}
 
       {showIntro && <IntroOverlay meta={meta} onStart={closeIntro} />}

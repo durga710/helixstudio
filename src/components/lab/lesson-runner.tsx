@@ -168,7 +168,7 @@ export function LessonRunner({ lesson }: { lesson: Lesson }) {
             </button>
           </div>
         </div>
-        <TutorPanel lessonId={lessonId} stepIndex={0} state={labState} />
+        <TutorPanel lessonId={lessonId} stepIndex={0} state={labState} concept={lesson.manifest.concept} />
       </div>
     );
   }
@@ -359,7 +359,18 @@ export function LessonRunner({ lesson }: { lesson: Lesson }) {
         </div>
       </div>
 
-      <TutorPanel lessonId={lessonId} stepIndex={i} state={labState} />
+      <TutorPanel
+        lessonId={lessonId}
+        stepIndex={i}
+        state={labState}
+        concept={lesson.manifest.concept}
+        step={{
+          kind: step.kind,
+          title: "title" in step ? step.title : undefined,
+          youWillDo: "youWillDo" in step ? step.youWillDo : undefined,
+          widget: step.kind === "widget" ? step.widget : undefined,
+        }}
+      />
     </div>
   );
 }
