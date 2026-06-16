@@ -43,6 +43,9 @@ async function syncBundle(): Promise<Record<string, Template>> {
   });
   const byId = new Map(rows.map((r) => [r.templateId, r]));
 
+  const pathSet = (files: unknown): string =>
+    Array.isArray(files) ? files.map((f) => (f as { path?: string }).path ?? "").sort().join("\n") : "";
+
   const inserts: { templateId: string; manifest: object; files: object; source: string }[] = [];
   const drifted = new Set<string>();
   for (const t of Object.values(BUNDLED)) {
@@ -54,13 +57,19 @@ async function syncBundle(): Promise<Record<string, Template>> {
         files: t.files as unknown as object,
         source: "bundle",
       });
-    } else if (
+      continue;
+    }
+    // Content drift: only for bundle-sourced rows (don't clobber the freshness
+    // job's dep bumps over a content tweak).
+    const contentDrift =
       row.source === "bundle" &&
       (JSON.stringify(row.files) !== JSON.stringify(t.files) ||
-        JSON.stringify(row.manifest) !== JSON.stringify(t.manifest))
-    ) {
-      drifted.add(t.manifest.id);
-    }
+        JSON.stringify(row.manifest) !== JSON.stringify(t.manifest));
+    // Structural drift: the FILE SET changed (files added/removed — a real
+    // restructure). Propagate even to freshness-managed rows, since the row is
+    // now wrong; deps re-bump on the next freshness run.
+    const structuralDrift = pathSet(row.files) !== pathSet(t.files);
+    if (contentDrift || structuralDrift) drifted.add(t.manifest.id);
   }
 
   if (inserts.length) await db().template.createMany({ data: inserts, skipDuplicates: true });
