@@ -13,7 +13,7 @@ export default async function LibraryPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/welcome");
   // Teacher-gated: only classroom owners browse the library (kids never do).
-  if (!dbEnabled() || !(await isTeacher(session.user.id))) redirect("/lab");
+  if (!dbEnabled() || !(await isTeacher(session.user.id))) redirect("/academy");
 
   const [lessons, classes] = await Promise.all([
     getPublicLessons(),

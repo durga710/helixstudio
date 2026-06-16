@@ -133,16 +133,16 @@ export default async function DashboardPage() {
       {/* Quick entries — Learn AI + Deployments (Deployments has no nav tab) */}
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <Link
-          href="/lab"
+          href="/academy"
           className="group flex items-center gap-3.5 rounded-card-lg border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[color-mix(in_srgb,var(--accent)_7%,transparent)] px-5 py-4 transition-colors hover:border-accent"
         >
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl">
             <GraduationCap className="h-5 w-5 text-accent" strokeWidth={1.8} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[14px] font-semibold text-txt">Learn AI — the easy way</span>
+            <span className="block text-[14px] font-semibold text-txt">AI Academy — learn AI by playing</span>
             <span className="block text-[12.5px] leading-relaxed text-txt2">
-              Hands-on, guided lessons. No code — start from zero.
+              Hands-on game modules with an AI coach. No code — start from zero.
             </span>
           </span>
           <ArrowRight className="h-4 w-4 shrink-0 text-accent transition-transform group-hover:translate-x-0.5" />

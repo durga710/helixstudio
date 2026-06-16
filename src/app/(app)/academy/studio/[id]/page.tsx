@@ -13,7 +13,7 @@ interface Params {
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
   const meta = getStudioMeta(id);
-  return { title: meta ? `${meta.title} · AI Lab` : "Studio · AI Lab" };
+  return { title: meta ? `${meta.title} · AI Academy` : "Studio · AI Academy" };
 }
 
 export default async function StudioPage({ params }: Params) {

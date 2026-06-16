@@ -32,17 +32,17 @@ export function LessonsScreen({ lessons }: { lessons: LessonManifest[] }) {
   return (
     <div className="pad-screen">
       <div className="mx-auto max-w-[1000px]">
-        <Link href="/lab" className="mb-3 inline-flex items-center gap-1.5 text-[12px] text-txt3 transition-colors hover:text-txt">
-          <ArrowLeft className="h-3.5 w-3.5" /> AI Lab
+        <Link href="/academy" className="mb-3 inline-flex items-center gap-1.5 text-[12px] text-txt3 transition-colors hover:text-txt">
+          <ArrowLeft className="h-3.5 w-3.5" /> AI Academy
         </Link>
         <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Learn</div>
         <div className="flex items-center gap-2">
-          <h1 className="text-[22px] font-bold tracking-tight">Lessons</h1>
+          <h1 className="text-[22px] font-bold tracking-tight">Modules</h1>
           <GraduationCap className="h-5 w-5 text-txt3" strokeWidth={1.7} />
         </div>
         <p className="mt-1 max-w-[640px] text-[13px] text-txt2">
-          Start from zero and learn how AI really works — <span className="text-txt">hands-on, one small step
-          at a time</span>, no code. Each lesson ends with you having trained a real model.
+          Start from zero and learn how AI really works — <span className="text-txt">play-to-learn, one small step
+          at a time</span>, no code. Each module is a little game, with an AI coach beside you.
         </p>
 
         {lessons.length === 0 ? (
@@ -55,7 +55,7 @@ export function LessonsScreen({ lessons }: { lessons: LessonManifest[] }) {
               return (
                 <li key={l.id}>
                   <Link
-                    href={`/lab/${l.id}`}
+                    href={`/academy/${l.id}`}
                     className="block h-full rounded-card border border-border bg-panel p-5 shadow-card transition-all duration-150 hover:-translate-y-px hover:border-accent"
                   >
                     <div className="mb-3 flex items-center gap-2.5">

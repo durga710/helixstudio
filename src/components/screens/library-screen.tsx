@@ -45,8 +45,8 @@ export function LibraryScreen({ lessons, classes }: { lessons: LessonManifest[];
   return (
     <div className="pad-screen">
       <div className="mx-auto max-w-[1000px]">
-        <Link href="/lab" className="mb-4 inline-flex items-center gap-1.5 text-[12.5px] text-txt3 transition-colors hover:text-txt">
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to AI Lab
+        <Link href="/academy" className="mb-4 inline-flex items-center gap-1.5 text-[12.5px] text-txt3 transition-colors hover:text-txt">
+          <ArrowLeft className="h-3.5 w-3.5" /> Back to AI Academy
         </Link>
         <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Teachers</div>
         <div className="flex items-center gap-2">
@@ -83,7 +83,7 @@ export function LibraryScreen({ lessons, classes }: { lessons: LessonManifest[];
                     <p className="mt-1.5 flex-1 text-[12.5px] leading-relaxed text-txt2">{l.blurb}</p>
                     <div className="mt-3 flex items-center gap-2">
                       <Link
-                        href={`/lab/${l.id}`}
+                        href={`/academy/${l.id}`}
                         className="inline-flex items-center gap-1 rounded-md border border-border2 bg-panel2 px-2.5 py-1.5 text-[11.5px] text-txt2 transition-colors hover:border-accent hover:text-txt"
                       >
                         <Eye className="h-3.5 w-3.5" /> Preview

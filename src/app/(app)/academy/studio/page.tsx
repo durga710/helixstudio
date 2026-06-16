@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { STUDIO_CATALOG } from "@/lib/lessons/studios";
 import { StudioGalleryScreen } from "@/components/screens/studio-gallery-screen";
 
-export const metadata: Metadata = { title: "Studios · AI Lab" };
+export const metadata: Metadata = { title: "Studios · AI Academy" };
 export const dynamic = "force-dynamic";
 
 export default async function StudioGalleryPage() {

@@ -36,8 +36,8 @@ export function StudioGalleryScreen({ studios }: { studios: StudioMeta[] }) {
   return (
     <div className="pad-screen">
       <div className="mx-auto max-w-[1000px]">
-        <Link href="/lab" className="mb-3 inline-flex items-center gap-1.5 text-[12px] text-txt3 transition-colors hover:text-txt">
-          <ArrowLeft className="h-3.5 w-3.5" /> AI Lab
+        <Link href="/academy" className="mb-3 inline-flex items-center gap-1.5 text-[12px] text-txt3 transition-colors hover:text-txt">
+          <ArrowLeft className="h-3.5 w-3.5" /> AI Academy
         </Link>
         <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Build</div>
         <div className="flex items-center gap-2">
@@ -59,7 +59,7 @@ export function StudioGalleryScreen({ studios }: { studios: StudioMeta[] }) {
               return (
                 <li key={s.id}>
                   <Link
-                    href={`/lab/studio/${s.id}`}
+                    href={`/academy/studio/${s.id}`}
                     className="block h-full rounded-card border border-border bg-panel p-5 shadow-card transition-all duration-150 hover:-translate-y-px hover:border-accent"
                   >
                     <div className="mb-3 flex items-center gap-2.5">

@@ -14,7 +14,7 @@ interface Params {
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
   const lesson = getLesson(id);
-  return { title: lesson ? `${lesson.manifest.title} · AI Lab` : "AI Lab" };
+  return { title: lesson ? `${lesson.manifest.title} · AI Academy` : "AI Academy" };
 }
 
 export default async function LessonPage({ params }: Params) {

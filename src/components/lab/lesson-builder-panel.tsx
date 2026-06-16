@@ -127,7 +127,7 @@ export function LessonBuilderPanel({ spaceId }: { spaceId: string }) {
         <Sparkles className="h-4 w-4 text-accent" />
         <h3 className="text-[15px] font-semibold text-txt">AI Lesson Builder</h3>
         <Link
-          href="/lab/library"
+          href="/academy/library"
           className="ml-auto inline-flex items-center gap-1 text-[11.5px] text-txt3 transition-colors hover:text-accent"
         >
           <Library className="h-3.5 w-3.5" /> Lesson library <ArrowRight className="h-3 w-3" />

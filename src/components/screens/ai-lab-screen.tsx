@@ -5,9 +5,9 @@ import Link from "next/link";
 import { Brain, Hammer, ArrowRight, GraduationCap, Check } from "lucide-react";
 import type { LessonManifest } from "@/lib/lessons/types";
 
-/* The AI Lab hub: two ways to learn — guided Lessons (read + train, step by
- * step) and Studios (build a model yourself on a workbench). Each is its own
- * section you click into. */
+/* The AI Academy hub: two ways to learn — guided Modules (play + train, step by
+ * step, with an AI coach) and Studios (build a model yourself on a workbench).
+ * Each is its own section you click into. */
 
 export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
   const [status, setStatus] = useState<Record<string, string>>({});
@@ -31,38 +31,38 @@ export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
   const anyInProgress = lessons.some((l) => status[l.id] === "in_progress");
   const lessonsMeta =
     total === 0
-      ? "Lessons coming soon"
+      ? "Modules coming soon"
       : doneCount > 0
         ? `${doneCount} of ${total} done`
         : anyInProgress
           ? "In progress"
-          : `${total} lessons · start from zero`;
+          : `${total} modules · start from zero`;
 
   return (
     <div className="pad-screen">
       <div className="mx-auto max-w-[1000px]">
         <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Learn</div>
         <div className="flex items-center gap-2">
-          <h1 className="text-[22px] font-bold tracking-tight">AI Lab</h1>
+          <h1 className="text-[22px] font-bold tracking-tight">AI Academy</h1>
           <Brain className="h-5 w-5 text-txt3" strokeWidth={1.7} />
         </div>
         <p className="mt-1 max-w-[620px] text-[13px] text-txt2">
-          Learn how AI really works — hands-on, no code. Pick a path: follow{" "}
-          <span className="text-txt">guided lessons</span>, or jump in and{" "}
+          Learn how AI really works — by playing, not reading. Pick a path: work through{" "}
+          <span className="text-txt">game modules</span> with an AI coach beside you, or jump in and{" "}
           <span className="text-txt">build a model yourself</span>.
         </p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <SectionCard
-            href="/lab/lessons"
+            href="/academy/lessons"
             icon={<GraduationCap className="h-5 w-5 text-accent" strokeWidth={1.8} />}
-            title="Lessons"
-            desc="Guided, hands-on lessons that teach AI one small step at a time. Each ends with you training a real model."
+            title="Modules"
+            desc="Play-to-learn game modules that teach AI one small step at a time — train a puppy, escape a maze, bust bias. An AI coach guides you the whole way."
             meta={lessonsMeta}
             metaIcon={doneCount > 0 ? <Check className="h-3 w-3 text-ok" /> : undefined}
           />
           <SectionCard
-            href="/lab/studio"
+            href="/academy/studio"
             icon={<Hammer className="h-5 w-5 text-accent" strokeWidth={1.8} />}
             title="Studios"
             desc="Don't just read about it — build it. Grow a decision tree, train a network, and more on an interactive workbench."

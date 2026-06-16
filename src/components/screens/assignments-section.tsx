@@ -265,7 +265,7 @@ export function AssignmentsSection({
         <DialogContent>
           <DialogHeader
             title="New assignment"
-            description="Assign a coding project, or an AI Lab lesson that auto-grades from its quiz."
+            description="Assign a coding project, or an AI Academy module that auto-grades from its quiz."
           />
           <form
             className="space-y-3 p-5"

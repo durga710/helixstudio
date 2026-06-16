@@ -144,8 +144,8 @@ export function BuildLanding({ signedIn, isGuest, dbReady, isAdmin }: BuildLandi
     }
   }
 
-  // The AI Lab isn't a prompt-built project — just ensure a session and go.
-  async function enterLab(path = "/lab") {
+  // AI Academy isn't a prompt-built project — just ensure a session and go.
+  async function enterLab(path = "/academy") {
     if (busy) return;
     setBusy(true);
     setError(null);
