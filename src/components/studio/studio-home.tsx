@@ -190,38 +190,20 @@ export function StudioHome({
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div
-                className={cn("glass-panel-strong p-6 text-left transition-colors", !namePrompt && "cursor-pointer hover:border-accent")}
-                onClick={() => !namePrompt && setNamePrompt(true)}
+                className={cn(
+                  "glass-panel-strong cursor-pointer p-6 text-left transition-colors hover:border-accent",
+                  namePrompt && "border-accent",
+                )}
+                onClick={() => setNamePrompt((v) => !v)}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(e) => e.key === "Enter" && !namePrompt && setNamePrompt(true)}
+                onKeyDown={(e) => e.key === "Enter" && setNamePrompt((v) => !v)}
               >
                 <span className="mb-4 grid h-10 w-10 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--green)_35%,transparent)] bg-[color-mix(in_srgb,var(--green)_12%,transparent)]">
                   <FilePlus2 className="h-5 w-5 text-ok" />
                 </span>
                 <h2 className="mb-1 text-base font-medium text-txt">Create from scratch</h2>
                 <p className="text-xs leading-relaxed text-txt3">Start empty. Describe what you want; files appear as Helix writes them.</p>
-                {namePrompt && (
-                  <form
-                    className="mt-4 flex gap-2"
-                    onClick={(e) => e.stopPropagation()}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void createScratch(scratchName);
-                    }}
-                  >
-                    <input
-                      autoFocus
-                      value={scratchName}
-                      onChange={(e) => setScratchName(e.target.value)}
-                      placeholder="Project name (optional)"
-                      className="flex-1 rounded-lg border border-border bg-bg2 px-3 py-2 text-xs text-txt placeholder:text-txt3 focus:border-accent focus:outline-none"
-                    />
-                    <Button type="submit" disabled={creating}>
-                      {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Create"}
-                    </Button>
-                  </form>
-                )}
               </div>
 
               <button
@@ -283,6 +265,27 @@ export function StudioHome({
                 }}
               />
             </div>
+
+            {namePrompt && (
+              <form
+                className="mt-4 flex flex-col gap-2 rounded-xl border border-accent/40 bg-panel2/40 p-4 sm:flex-row sm:items-center"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void createScratch(scratchName);
+                }}
+              >
+                <input
+                  autoFocus
+                  value={scratchName}
+                  onChange={(e) => setScratchName(e.target.value)}
+                  placeholder="Project name (optional)"
+                  className="flex-1 rounded-lg border border-border bg-bg2 px-3 py-2 text-sm text-txt placeholder:text-txt3 focus:border-accent focus:outline-none"
+                />
+                <Button type="submit" disabled={creating} className="sm:w-auto">
+                  {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Create project"}
+                </Button>
+              </form>
+            )}
           </section>
         )}
 

@@ -1392,8 +1392,11 @@ export function ChatPanel({
             if (intakeActive) intakeSubmit(input);
             else void send(input);
           }}
-          className="flex items-end gap-2 border-t border-border p-3"
+          className="border-t border-border p-3"
         >
+          {/* Controls on top; the chat input sits full-width underneath so it
+              has room to grow into a multi-line composer. */}
+          <div className="mb-2 flex items-center gap-2">
           <Segmented
             options={[
               { value: "build", label: "Build" },
@@ -1425,6 +1428,8 @@ export function ChatPanel({
               <span className="hidden sm:inline">Verify</span>
             </button>
           )}
+          </div>
+          <div className="flex items-end gap-2">
           <textarea
             ref={inputRef}
             value={input}
@@ -1477,6 +1482,7 @@ export function ChatPanel({
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
+          </div>
         </form>
       )}
 
