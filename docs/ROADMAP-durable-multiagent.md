@@ -127,10 +127,17 @@ copy in the DB overlay keyed by job+worker.
   Phase-B polish: one job-level intent (whole-refactor undo), the dynamic agent
   board UI, wiring auto-detect+confirm into the chat flow, and an optional final
   sandbox-verify step.
-- **Phase C — Parallelism + conflict guard.** Run disjoint-scope sub-tasks in
-  parallel with bounded concurrency + re-queue-on-overlap. Ships: speed.
-- **Phase D — Polish.** Cost estimate+confirm, pre-job snapshot/rollback,
-  per-step tokens/timing in /admin, tuning concurrency + rework caps.
+- **Phase C — Parallelism + conflict guard. ✅ DONE 2026-06-16 (commit `b943925`).**
+  Planner emits a "workers" batch (scope + dependsOn); jobs/schedule.ts launches
+  only deps-ready, scope-DISJOINT tasks concurrently (cap 3). Scope enforcement
+  (Phase B) means concurrent workers can't touch the same file → no merge needed;
+  conflicts serialize. Batch is checkpointed per worker + resumable across slices
+  (runner-core `incomplete`). Board expands the batch into per-worker rows. The
+  full 3-way merge (to allow concurrent CONFLICTING writes) is intentionally
+  deferred — serialize-on-overlap already gives correctness + speed.
+- **Phase D — Polish (not started).** Cost estimate+confirm before launch,
+  pre-job snapshot/rollback, per-step tokens/timing in /admin, tuning concurrency
+  + rework caps. Also still open from Phase B: live-test end-to-end after deploy.
 
 ## Cost / safety / gating
 - ADMIN-gated first (consistent with the Phase-2 transform-mode rollout), then
