@@ -24,8 +24,9 @@ interface FileNode {
 }
 type TreeNode = DirNode | FileNode;
 
-/** Flat path list → nested tree, folders first, alphabetical. */
-function buildTree(files: TreeFile[]): TreeNode[] {
+/** Flat path list → nested tree, folders first, then just-changed files, then
+ * alphabetical (so the latest AI changes float to the top of their folder). */
+function buildTree(files: TreeFile[], recent: Set<string>): TreeNode[] {
   const root: DirNode = { type: "dir", name: "", path: "", children: [] };
   const dirs = new Map<string, DirNode>([["", root]]);
 
@@ -57,9 +58,15 @@ function buildTree(files: TreeFile[]): TreeNode[] {
   }
 
   const sortNodes = (nodes: TreeNode[]) => {
-    nodes.sort((a, b) =>
-      a.type !== b.type ? (a.type === "dir" ? -1 : 1) : a.name.localeCompare(b.name),
-    );
+    nodes.sort((a, b) => {
+      if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
+      if (a.type === "file" && b.type === "file") {
+        const ra = recent.has(a.path);
+        const rb = recent.has(b.path);
+        if (ra !== rb) return ra ? -1 : 1; // just-changed files first
+      }
+      return a.name.localeCompare(b.name);
+    });
     for (const n of nodes) if (n.type === "dir") sortNodes(n.children);
   };
   sortNodes(root.children);
@@ -74,6 +81,7 @@ export function FileTree({
   files,
   selected,
   dirtyPaths,
+  recentPaths,
   importMode,
   onOpen,
   onDelete,
@@ -81,11 +89,14 @@ export function FileTree({
   files: TreeFile[];
   selected: string | null;
   dirtyPaths: Set<string>;
+  /** Files changed by the latest AI turn — floated to the top + highlighted. */
+  recentPaths?: Set<string>;
   importMode: boolean;
   onOpen: (path: string) => void;
   onDelete: (path: string) => void;
 }) {
-  const tree = useMemo(() => buildTree(files), [files]);
+  const recent = useMemo(() => recentPaths ?? new Set<string>(), [recentPaths]);
+  const tree = useMemo(() => buildTree(files, recent), [files, recent]);
   // Folders the user explicitly collapsed (default = expanded).
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
@@ -137,6 +148,7 @@ export function FileTree({
         );
       }
       const isDirty = dirtyPaths.has(node.path);
+      const isRecent = recent.has(node.path);
       return (
         <li key={`f:${node.path}`} className="group/file relative">
           <button
@@ -147,15 +159,17 @@ export function FileTree({
               "flex w-full items-center gap-1.5 rounded-md py-1 pr-7 text-left font-mono text-[11px] transition-colors",
               selected === node.path
                 ? "bg-hl text-accent"
-                : "text-txt2 hover:bg-panel2 hover:text-txt",
+                : isRecent
+                  ? "bg-ok/10 text-ok"
+                  : "text-txt2 hover:bg-panel2 hover:text-txt",
               isDirty && "text-warn",
-              node.file.source === "workspace" && importMode && "text-ok",
+              node.file.source === "workspace" && importMode && !isRecent && "text-ok",
             )}
             title={node.path}
           >
             <FileCode2 className="h-3.5 w-3.5 shrink-0 opacity-60" />
             <span className="truncate">
-              {isDirty ? "● " : ""}
+              {isDirty ? "● " : isRecent ? "● " : ""}
               {node.name}
             </span>
           </button>
@@ -204,6 +218,7 @@ export function FileTree({
               const name = f.path.slice(f.path.lastIndexOf("/") + 1);
               const dir = f.path.slice(0, f.path.lastIndexOf("/"));
               const isDirty = dirtyPaths.has(f.path);
+              const isRecent = recent.has(f.path);
               return (
                 <li key={`m:${f.path}`} className="group/file relative">
                   <button
@@ -211,7 +226,11 @@ export function FileTree({
                     onClick={() => onOpen(f.path)}
                     className={cn(
                       "flex w-full items-center gap-1.5 rounded-md py-1 pl-2 pr-7 text-left font-mono text-[11px] transition-colors",
-                      selected === f.path ? "bg-hl text-accent" : "text-txt2 hover:bg-panel2 hover:text-txt",
+                      selected === f.path
+                        ? "bg-hl text-accent"
+                        : isRecent
+                          ? "bg-ok/10 text-ok"
+                          : "text-txt2 hover:bg-panel2 hover:text-txt",
                       isDirty && "text-warn",
                     )}
                     title={f.path}

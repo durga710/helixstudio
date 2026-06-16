@@ -201,6 +201,10 @@ export function WorkspacePanel({
   // new lines highlighted in the Code tab, with a hover/click provenance
   // card anchored next to them. Works without the Ledger toggle.
   const [recentPaths, setRecentPaths] = useState<string[]>([]);
+  // Just-changed files: highlighted + sorted to the top of the file tree, and
+  // summarized in a "what changed" banner — both fade a few seconds after a turn.
+  const [recentTreePaths, setRecentTreePaths] = useState<Set<string>>(new Set());
+  const [turnChanges, setTurnChanges] = useState<{ written: number; deleted: number } | null>(null);
   const [popover, setPopover] = useState<{
     line: number;
     /** First line of the highlighted block — the card's identity (prevents
@@ -357,7 +361,18 @@ export function WorkspacePanel({
     setPreviewNonce((n) => n + 1); // recompose the preview with fresh files
     setLedgerNonce((n) => n + 1); // refetch blame + the intents timeline
     setRecentPaths(written); // highlight the fresh lines in the Code tab
+    setRecentTreePaths(new Set(written)); // highlight + float them in the tree
+    setTurnChanges(written.length || deleted.length ? { written: written.length, deleted: deleted.length } : null);
     setPopover(null);
+    // Jump to the file that changed so the user SEES it instead of hunting — the
+    // page/entry first, else the first real (non-config) file the AI wrote.
+    if (written.length) {
+      const isConfig = (p: string) =>
+        /\.(json|lock|md|gitignore)$/i.test(p) ||
+        /(^|\/)(package|tsconfig|next\.config|postcss\.config|eslint\.config|tailwind\.config|vite\.config)/i.test(p);
+      const primary = pickPreviewEntry(written, null) ?? written.find((p) => !isConfig(p)) ?? written[0]!;
+      void openFile(primary, true);
+    }
   }, [openFile]);
 
   useEffect(() => {
@@ -372,6 +387,12 @@ export function WorkspacePanel({
         .filter(Boolean)
         .join(", "),
     );
+    // Fade the tree highlight + the "what changed" banner a few seconds later.
+    const t = setTimeout(() => {
+      setRecentTreePaths(new Set());
+      setTurnChanges(null);
+    }, 12000);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [changes?.nonce]);
 
@@ -1127,6 +1148,38 @@ export function WorkspacePanel({
         </div>
       )}
 
+      {/* "What changed" banner — appears after an AI turn, fades after a few
+          seconds, and lets the user jump straight to the diff. */}
+      {turnChanges && (turnChanges.written > 0 || turnChanges.deleted > 0) && (
+        <div className="flex items-center gap-2 border-b border-ok/30 bg-ok/10 px-3 py-2 text-[12px] text-txt2">
+          <GitCompare className="h-3.5 w-3.5 shrink-0 text-ok" />
+          <span className="min-w-0 truncate">
+            <span className="font-medium text-txt">
+              {turnChanges.written + turnChanges.deleted} file{turnChanges.written + turnChanges.deleted === 1 ? "" : "s"} changed
+            </span>{" "}
+            — opened the latest one; highlighted in the tree.
+          </span>
+          <button
+            type="button"
+            onClick={() => setTab("diff")}
+            className="ml-auto shrink-0 rounded-md border border-ok/40 px-2 py-0.5 text-[11px] font-medium text-ok transition-colors hover:bg-ok/15"
+          >
+            Review changes
+          </button>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => {
+              setTurnChanges(null);
+              setRecentTreePaths(new Set());
+            }}
+            className="shrink-0 text-txt3 transition-colors hover:text-txt"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {tab === "code" ? (
         <div className="flex min-h-0 flex-1">
           {/* File tree */}
@@ -1164,6 +1217,7 @@ export function WorkspacePanel({
                 files={files}
                 selected={selected}
                 dirtyPaths={dirtyPaths}
+                recentPaths={recentTreePaths}
                 importMode={workspace.mode === "IMPORT"}
                 onOpen={(p) => void openFile(p)}
                 onDelete={(p) => isOwner && void deleteFile(p)}
