@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { ArrowRight, MailCheck } from "lucide-react";
+import { TurnstileWidget, captchaSiteKey } from "@/components/screens/turnstile-widget";
 
 const fieldInput =
   "w-full rounded-[10px] border border-[#28364f] bg-[#0d1626] px-[13px] py-[11px] font-sans text-sm text-[#f8fbff] outline-none transition placeholder:text-[#5f6f86] focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_22%,transparent)]";
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
   const [sent, setSent] = useState(false);
   const [devLink, setDevLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -15,13 +17,17 @@ export function ForgotPasswordForm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (captchaSiteKey && !captchaToken) {
+      setError("Please complete the human check.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, turnstileToken: captchaToken || undefined }),
       });
       const body = (await res.json().catch(() => null)) as { error?: string; devLink?: string } | null;
       if (!res.ok) throw new Error(body?.error ?? "Something went wrong.");
@@ -81,10 +87,11 @@ export function ForgotPasswordForm() {
           className={fieldInput}
         />
       </div>
+      <TurnstileWidget onToken={setCaptchaToken} />
       <button
         type="submit"
-        disabled={busy}
-        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-[10px] border-none bg-accent px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
+        disabled={busy || (Boolean(captchaSiteKey) && !captchaToken)}
+        className="mt-5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-[10px] border-none bg-accent px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
       >
         {busy ? "Sending…" : "Send reset link"}
         <ArrowRight className="h-4 w-4" />

@@ -1,8 +1,12 @@
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { z } from "zod";
 import { dbEnabled, db, schemaReady } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
 import { rateLimit } from "@/lib/rate-limit";
+import { verifyTurnstile } from "@/lib/turnstile";
+import { emailConfigured, sendEmail, verifyEmail } from "@/lib/email";
+import { makeVerifyToken } from "@/lib/email-verify";
+import { appOrigin } from "@/lib/app-url";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +16,7 @@ const signupSchema = z.object({
   name: z.string().trim().min(1).max(80),
   email: z.string().trim().toLowerCase().email().max(200),
   password: z.string().min(8).max(200),
+  turnstileToken: z.string().max(4000).optional(),
 });
 
 /** Client IP from the proxy chain (Vercel sets x-forwarded-for). */
@@ -49,16 +54,33 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { name, email, password } = parsed.data;
+  const { name, email, password, turnstileToken } = parsed.data;
+
+  // Bot challenge (no-op unless TURNSTILE_SECRET_KEY is set).
+  if (!(await verifyTurnstile(turnstileToken, clientIp(req)))) {
+    return Response.json({ error: "Couldn't verify you're human — please retry." }, { status: 400 });
+  }
+
   await schemaReady();
   const existing = await db().user.findUnique({ where: { email } });
   if (existing) {
     return Response.json({ error: "An account with that email already exists" }, { status: 409 });
   }
 
+  // Require email verification ONLY when email sending is configured — otherwise
+  // we couldn't deliver the link, so auto-verify (account is usable immediately).
+  const mustVerify = emailConfigured();
+
+  let created;
   try {
-    await db().user.create({
-      data: { name, email, passwordHash: hashPassword(password) },
+    created = await db().user.create({
+      data: {
+        name,
+        email,
+        passwordHash: hashPassword(password),
+        emailVerified: mustVerify ? null : new Date(),
+      },
+      select: { id: true, email: true },
     });
   } catch (e) {
     // Lost the race to a concurrent signup with the same email — the unique
@@ -68,5 +90,14 @@ export async function POST(req: NextRequest) {
     }
     throw e;
   }
-  return Response.json({ ok: true }, { status: 201 });
+
+  if (mustVerify && created.email) {
+    const token = makeVerifyToken({ id: created.id, email: created.email });
+    const link = `${appOrigin(req)}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
+    const mail = verifyEmail(link);
+    after(() => sendEmail({ to: created.email!, ...mail }));
+  }
+
+  // verify:true tells the client to show "check your email" instead of signing in.
+  return Response.json({ ok: true, verify: mustVerify }, { status: 201 });
 }

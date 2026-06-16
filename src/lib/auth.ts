@@ -6,6 +6,12 @@ import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import { db, dbEnabled, schemaReady } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
+import { emailConfigured } from "@/lib/email";
+
+/** Email verification is enforced only for accounts created on/after this date —
+ * so turning it on (by configuring email) never locks out existing users, who
+ * predate the feature. */
+const VERIFY_ENFORCED_SINCE = new Date("2026-06-16T00:00:00Z");
 
 /** A short, non-reversible fingerprint of the password hash, embedded in the JWT
  * so a password reset (the hash changes) invalidates existing sessions on the
@@ -60,6 +66,11 @@ const providers: NextAuthConfig["providers"] = [
         await schemaReady();
         const user = await db().user.findUnique({ where: { email } });
         if (user?.passwordHash && verifyPassword(password, user.passwordHash)) {
+          // Email-verification gate: only once email is configured, and only for
+          // accounts created after the feature shipped (older users grandfathered).
+          if (emailConfigured() && !user.emailVerified && user.createdAt > VERIFY_ENFORCED_SINCE) {
+            return null; // unverified → sign-in blocked until they confirm the email
+          }
           return { id: user.id, name: user.name, email: user.email };
         }
       }

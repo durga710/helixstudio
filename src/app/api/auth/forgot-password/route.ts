@@ -5,6 +5,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { makeResetToken } from "@/lib/password-reset";
 import { sendEmail, passwordResetEmail } from "@/lib/email";
 import { appOrigin } from "@/lib/app-url";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,10 @@ export const dynamic = "force-dynamic";
  * the email maps to a real (password) account — never reveal which addresses
  * exist. In dev (no email provider) the link is returned so it's testable. */
 
-const schema = z.object({ email: z.string().trim().toLowerCase().email().max(200) });
+const schema = z.object({
+  email: z.string().trim().toLowerCase().email().max(200),
+  turnstileToken: z.string().max(4000).optional(),
+});
 
 function clientIp(req: NextRequest): string {
   const fwd = req.headers.get("x-forwarded-for");
@@ -33,6 +37,11 @@ export async function POST(req: NextRequest) {
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Enter a valid email address." }, { status: 400 });
+
+  // Bot challenge (no-op unless TURNSTILE_SECRET_KEY is set).
+  if (!(await verifyTurnstile(parsed.data.turnstileToken, clientIp(req)))) {
+    return Response.json({ error: "Couldn't verify you're human — please retry." }, { status: 400 });
+  }
 
   await schemaReady();
   const user = await db().user.findUnique({

@@ -38,6 +38,23 @@ export async function sendEmail(args: SendArgs): Promise<{ delivered: boolean }>
   }
 }
 
+/** The email-verification body (matches the dark Helix brand). */
+export function verifyEmail(link: string): { subject: string; html: string; text: string } {
+  const subject = "Verify your Helix Studio email";
+  const text =
+    `Welcome to Helix Studio! Confirm your email to activate your account (link valid for 24 hours):\n\n${link}\n\n` +
+    `If you didn't create an account, you can ignore this email.`;
+  const html = `<!doctype html><html><body style="margin:0;background:#070b12;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <div style="max-width:480px;margin:0 auto;padding:40px 24px;color:#f8fbff">
+    <div style="font-size:20px;font-weight:800;letter-spacing:-0.02em">HELIX <span style="font-weight:600;letter-spacing:0.34em;font-size:11px;color:#9cadc4">STUDIO</span></div>
+    <h1 style="font-size:20px;margin:28px 0 8px">Confirm your email</h1>
+    <p style="color:#9cadc4;font-size:14px;line-height:1.6;margin:0 0 24px">Click below to activate your account. This link expires in 24 hours.</p>
+    <a href="${link}" style="display:inline-block;background:#2f81f7;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 22px;border-radius:10px">Verify email</a>
+    <p style="color:#5f6f86;font-size:12px;line-height:1.6;margin:28px 0 0">If you didn't sign up, ignore this email.<br>Or paste this link into your browser:<br><span style="color:#9cadc4;word-break:break-all">${link}</span></p>
+  </div></body></html>`;
+  return { subject, html, text };
+}
+
 /** The password-reset email body (matches the dark Helix brand). */
 export function passwordResetEmail(link: string): { subject: string; html: string; text: string } {
   const subject = "Reset your Helix Studio password";
