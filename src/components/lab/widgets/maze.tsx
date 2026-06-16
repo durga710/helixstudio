@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Play, Zap, RotateCcw, FlaskConical, Trophy, Bot } from "lucide-react";
 import type { WidgetProps } from "./index";
 

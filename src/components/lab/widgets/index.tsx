@@ -149,6 +149,10 @@ const widgetLoader = (label: string) =>
 const Maze = dynamic(() => import("./maze").then((m) => m.Maze), { ssr: false, loading: widgetLoader("loading the maze…") });
 const DataCleaner = dynamic(() => import("./data-cleaner").then((m) => m.DataCleaner), { ssr: false, loading: widgetLoader("loading the data lab…") });
 const PromptQuest = dynamic(() => import("./prompt-quest").then((m) => m.PromptQuest), { ssr: false, loading: widgetLoader("loading…") });
+const Pipeline = dynamic(() => import("./pipeline").then((m) => m.Pipeline), { ssr: false, loading: widgetLoader("loading the factory…") });
+const BiasBusters = dynamic(() => import("./bias-busters").then((m) => m.BiasBusters), { ssr: false, loading: widgetLoader("loading…") });
+const Recommender = dynamic(() => import("./recommender").then((m) => m.Recommender), { ssr: false, loading: widgetLoader("loading…") });
+const TokenGrid = dynamic(() => import("./token-grid").then((m) => m.TokenGrid), { ssr: false, loading: widgetLoader("loading the grid…") });
 
 /** Reusable interactive ML widgets. Lessons (content) compose these by id — the
  * widget vocabulary is the only thing that gates new lessons. Keep in sync with
@@ -169,6 +173,10 @@ export const WIDGETS: Record<string, ComponentType<WidgetProps>> = {
   maze: Maze,
   dataCleaner: DataCleaner,
   promptQuest: PromptQuest,
+  pipeline: Pipeline,
+  biasBusters: BiasBusters,
+  recommender: Recommender,
+  tokenGrid: TokenGrid,
 };
 
 /** Renders the widget for a `widget` step, or a friendly placeholder if the

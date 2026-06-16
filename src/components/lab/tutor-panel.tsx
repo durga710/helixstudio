@@ -47,7 +47,9 @@ export function TutorPanel({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [diagramOpen, setDiagramOpen] = useState(false);
-  const [tipDismissed, setTipDismissed] = useState(false);
+  // Track which step's tip was dismissed (deriving avoids a reset-in-effect).
+  const [dismissedStep, setDismissedStep] = useState<number | null>(null);
+  const tipDismissed = dismissedStep === stepIndex;
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const diagram = useMemo(() => pickCoachDiagram(concept, step?.widget), [concept, step?.widget]);
@@ -86,11 +88,6 @@ export function TutorPanel({
       alive = false;
     };
   }, []);
-
-  // A fresh proactive nudge each time the step changes.
-  useEffect(() => {
-    setTipDismissed(false);
-  }, [stepIndex]);
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
@@ -144,12 +141,12 @@ export function TutorPanel({
               aria-label="Dismiss tip"
               onClick={(e) => {
                 e.stopPropagation();
-                setTipDismissed(true);
+                setDismissedStep(stepIndex);
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.stopPropagation();
-                  setTipDismissed(true);
+                  setDismissedStep(stepIndex);
                 }
               }}
               className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full border border-border2 bg-panel text-txt3 opacity-0 transition hover:text-txt group-hover:opacity-100"

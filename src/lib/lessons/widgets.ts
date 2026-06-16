@@ -91,6 +91,26 @@ export const WIDGET_CATALOG: WidgetInfo[] = [
     label: "Prompt quest (prompt engineering)",
     desc: "The student builds a 'spell' (prompt) from parts — action, target, constraints, role — across a few challenges; a clear spell succeeds, a vague one misfires. Use for: prompt engineering, being specific, constraints, role prompting, why clear instructions get better results from an AI.",
   },
+  {
+    id: "pipeline",
+    label: "AI factory (the ML pipeline)",
+    desc: "The student runs a product through Collect → Clean → Train → Test → Deploy, making one choice per stage; choices interact and add up to a launch score that decides how the product fares in the wild. Use for: the machine learning lifecycle, that ML is a process not one step, how early shortcuts cause later problems.",
+  },
+  {
+    id: "biasBusters",
+    label: "Bias busters (fairness)",
+    desc: "The student sees a model trained on lopsided data (one group over-represented), watches the per-group accuracy gap, balances the data, and retrains until it's fair. Use for: fairness, bias in AI, why representation in data matters, responsible AI.",
+  },
+  {
+    id: "recommender",
+    label: "Recommendation factory",
+    desc: "The student recommends titles to a viewer with clear tastes; matches are hits (watched), mismatches are misses (bounced), and a 'random' button shows how a clueless feed empties the room. Use for: recommendation systems, learning preferences, predicting what someone will enjoy from their patterns.",
+  },
+  {
+    id: "tokenGrid",
+    label: "Token power grid (tokens & efficiency)",
+    desc: "The student answers a city's requests, choosing how long each AI reply should be while staying under a daily token budget — matching reply length to what each request needs. Use for: tokens, compute/energy cost of AI, prompt efficiency, why longer outputs cost more, scalable AI design.",
+  },
 ];
 
 export const WIDGET_IDS: string[] = WIDGET_CATALOG.map((w) => w.id);
