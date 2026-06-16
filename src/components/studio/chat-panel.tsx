@@ -58,6 +58,9 @@ interface Msg {
   /** The model's own raw reply, kept behind a "details" toggle when we showed
    * our own synthesized summary as the message content (hybrid). */
   aiText?: string;
+  /** The turn's live step feed, kept ON the message so it doesn't vanish when
+   * the turn ends (the editor used to clear it and show only the summary). */
+  worklog?: string[];
 }
 
 interface TaskChanges {
@@ -209,6 +212,12 @@ export function ChatPanel({
   // reading, writing, verifying), so a big "create infrastructure" task reads
   // as genuine progress instead of one cycling loader line.
   const [worklog, setWorklog] = useState<string[]>([]);
+  // Mirror of worklog so the final-event handler can snapshot the steps onto the
+  // message synchronously (state isn't readable in the handler closure).
+  const worklogRef = useRef<string[]>([]);
+  useEffect(() => {
+    worklogRef.current = worklog;
+  }, [worklog]);
   // Live assistant reply, streamed token-by-token (replaced by the real message
   // on the final event).
   const [streaming, setStreaming] = useState("");
@@ -253,13 +262,15 @@ export function ChatPanel({
     modeToastTimer.current = setTimeout(() => setModeToast(null), 2000);
   }
 
-  // Auto-grow the composer with its content (capped), and shrink back to one
-  // line after a send clears it — so long prompts aren't cramped on one line.
+  // Auto-grow the composer with its content up to ~40% of the viewport, then it
+  // scrolls — so writing several paragraphs is comfortable (like Claude/ChatGPT),
+  // not trapped on one line. Shrinks back after a send clears the input.
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 168)}px`;
+    const max = Math.max(160, Math.round(window.innerHeight * 0.4));
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
   }, [input]);
 
   useEffect(() => {
@@ -499,11 +510,12 @@ export function ChatPanel({
       // and PERSISTED, so a reload matches this exactly). When present we show it
       // and tuck the model's own reply behind a "details" toggle; Q&A/plan turns
       // (no summary) keep the model's text.
+      const steps = worklogRef.current.length ? [...worklogRef.current] : undefined;
       setMessages((m) => [
         ...(m ?? []),
         data.summary
-          ? { role: "assistant", content: data.summary, actions: data.actions, aiText: data.text || undefined }
-          : { role: "assistant", content: data.text ?? "", actions: data.actions },
+          ? { role: "assistant", content: data.summary, actions: data.actions, aiText: data.text || undefined, worklog: steps }
+          : { role: "assistant", content: data.text ?? "", actions: data.actions, worklog: steps },
       ]);
       if (typeof data.guestRemaining === "number") setGuestRemaining(data.guestRemaining);
       const ch = data.changes;
@@ -1140,6 +1152,25 @@ export function ChatPanel({
                         </div>
                       )}
                     </div>
+                    {/* The turn's step feed, kept on the message (collapsible,
+                        open by default) so the detail doesn't vanish when the
+                        turn ends. */}
+                    {m.role === "assistant" && m.worklog && m.worklog.length > 0 && (
+                      <details className="group mt-2 pl-1" open>
+                        <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-[11px] text-txt3 transition-colors hover:text-txt2">
+                          <ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
+                          {m.worklog.length} steps
+                        </summary>
+                        <div className="scroll-area mt-1 max-h-44 overflow-y-auto rounded-lg border border-border/60 bg-panel2/40 px-3 py-1.5">
+                          {m.worklog.map((step, k) => (
+                            <div key={k} className="flex items-center gap-1.5 py-0.5 text-[11px] text-txt3">
+                              <Check className="h-3 w-3 shrink-0 text-ok/70" strokeWidth={2.4} />
+                              <span className="font-mono">{step}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                     {showPlanButtons && (
                       <div className="mt-2 flex flex-wrap gap-2 pl-1">
                         <Button
@@ -1395,7 +1426,7 @@ export function ChatPanel({
                 e.currentTarget.form?.requestSubmit();
               }
             }}
-            rows={1}
+            rows={2}
             disabled={guestBlocked}
             placeholder={
               guestBlocked
@@ -1414,7 +1445,7 @@ export function ChatPanel({
                         ? "Describe the game you want built…"
                         : "Describe the app you want built…"
             }
-            className="scroll-area max-h-44 min-h-[44px] flex-1 resize-none rounded-xl border border-border bg-bg2 px-4 py-2.5 text-sm leading-relaxed text-txt placeholder:text-txt3 focus:border-accent focus:outline-none disabled:opacity-60"
+            className="scroll-area max-h-[40vh] min-h-[60px] flex-1 resize-none rounded-xl border border-border bg-bg2 px-4 py-2.5 text-sm leading-relaxed text-txt placeholder:text-txt3 focus:border-accent focus:outline-none disabled:opacity-60"
           />
           {!isGuest && mode === "build" && (
             <Button

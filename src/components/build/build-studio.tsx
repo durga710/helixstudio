@@ -169,6 +169,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   const [godotError, setGodotError] = useState<string | null>(null);
 
   const bodyRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const nextId = useRef(1);
   const kicked = useRef(false);
   const composeSeq = useRef(0);
@@ -677,6 +678,16 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, activities]);
 
+  // Auto-grow the composer with its content up to ~40% of the viewport, then it
+  // scrolls — so multi-paragraph prompts aren't cramped on two lines.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const max = Math.max(160, Math.round(window.innerHeight * 0.4));
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+  }, [input]);
+
   // Guests don't get background builds (premium only), so warn before a
   // tab-close/refresh while a build is running — their work would stop.
   useEffect(() => {
@@ -1115,6 +1126,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             )}
             <div className="flex items-end gap-2 rounded-[11px] border border-border2 bg-panel px-3 py-2.5 focus-within:border-accent">
               <textarea
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -1136,7 +1148,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
                 }
                 aria-label="Message Helix"
                 disabled={building || limitHit}
-                className="max-h-32 w-full resize-none border-none bg-transparent font-sans text-[13px] text-txt outline-none placeholder:text-txt3 disabled:opacity-60"
+                className="scroll-area max-h-[40vh] min-h-[52px] w-full resize-none border-none bg-transparent font-sans text-[13px] text-txt outline-none placeholder:text-txt3 disabled:opacity-60"
               />
               <button
                 onClick={() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -83,6 +83,16 @@ export function BuildLanding({ signedIn, isGuest, dbReady, isAdmin }: BuildLandi
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-grow the prompt box with its content up to ~40% of the viewport, then
+  // it scrolls — comfortable for a long, detailed brief.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const max = Math.max(160, Math.round(window.innerHeight * 0.4));
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+  }, [prompt]);
 
   const activeCat = GAME_CATEGORIES.find((c) => c.id === gameCat) ?? GAME_CATEGORIES[0];
   const placeholder = kind === "game" ? activeCat.placeholder : WEB_PLACEHOLDER;
@@ -327,7 +337,7 @@ export function BuildLanding({ signedIn, isGuest, dbReady, isAdmin }: BuildLandi
             rows={3}
             placeholder={placeholder}
             aria-label="Describe what you want to build"
-            className="w-full resize-none border-none bg-transparent px-5 pt-4 font-sans text-[15px] leading-relaxed text-[#f8fbff] outline-none placeholder:text-[#5f6f86] disabled:opacity-60"
+            className="scroll-area max-h-[40vh] w-full resize-none border-none bg-transparent px-5 pt-4 font-sans text-[15px] leading-relaxed text-[#f8fbff] outline-none placeholder:text-[#5f6f86] disabled:opacity-60"
           />
           <div className="flex items-center gap-2 px-3.5 pb-3">
             <span className="text-[11.5px] text-[#5f6f86]">
