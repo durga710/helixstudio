@@ -675,6 +675,12 @@ export function mergeChanges(manifest: ChangeManifest, result: unknown): ChangeM
       if (typeof p === "string" && !manifest.written.includes(p)) manifest.written.push(p);
     }
   }
+  // edit_file returns { edited: true, path } — count it as a written change too,
+  // or a turn that ONLY edits existing files registers as "no changes" (false
+  // "I didn't make any changes" + no preview refresh + no summary).
+  if (r.edited === true && typeof r.path === "string" && !manifest.written.includes(r.path)) {
+    manifest.written.push(r.path);
+  }
   if (Array.isArray(r.deletedPaths)) {
     for (const p of r.deletedPaths) {
       if (typeof p === "string" && !manifest.deleted.includes(p)) {

@@ -475,7 +475,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             }
             // The app takes shape live: refresh the preview as files land, and
             // feed the board a real write signal so cards advance for real.
-            if (/^(wrote|deleted)/.test(evt.label)) {
+            if (/^(wrote|edited|updated|deleted)/.test(evt.label)) {
               if (isInitialBuild) setBoardWrites((w) => w + 1);
               if (refreshTimer.current) clearTimeout(refreshTimer.current);
               refreshTimer.current = setTimeout(() => void refreshPreview(), 400);
