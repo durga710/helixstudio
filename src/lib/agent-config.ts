@@ -138,6 +138,12 @@ export const BUILD_RULES =
   "existing component kit and COLOR TOKENS (e.g. bg-surface / border-line / bg-brand text-brand-fg / .nav-item, or " +
   "the framework's equivalent) so everything stays on-theme. NEVER hard-code hex colors, restyle from scratch, swap " +
   "the CSS framework, rebuild the auth/layout, or touch the palette/theme files — the theme picker depends on them.\n" +
+  "- WIRE IT IN (CRITICAL): a feature is NOT built until the user can SEE it on the page they land on. In the premium " +
+  "Next.js skeleton the landing route is `app/(app)/dashboard/page.tsx` — the root `app/page.tsx` only REDIRECTS there, " +
+  "so editing `app/page.tsx` shows the user NOTHING. After you create a feature component (e.g. components/<feature>/...), " +
+  "you MUST import and render it on the landing page, replacing the marked 'AI: BUILD ... HERE' region. Standalone files " +
+  "that no page imports are dead code — the app opens to the leftover placeholder and looks broken. read_file the landing " +
+  "page, mount your component there, and make sure it's what renders first.\n" +
   "- REPLACE EVERY PLACEHOLDER before you finish — this is mandatory, not optional. The skeleton ships with filler " +
   "(a generic product name, sample stat numbers AND their labels, demo rows, 'your app/feature goes here' copy) " +
   "ONLY so it renders before you build. The user must NEVER see any of it: leftover sample data, lorem, demo rows, " +

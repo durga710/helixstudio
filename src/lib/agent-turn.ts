@@ -36,6 +36,7 @@ import { buildTemplateNote } from "@/lib/templates/router";
 import { personalizeTemplateFiles } from "@/lib/templates/personalize";
 import { resolveTemplateId } from "@/lib/templates/select";
 import { synthesizeReply } from "@/lib/build-feed";
+import { autoWireFeature } from "@/lib/auto-wire";
 import { setProgress, clearProgress } from "@/lib/progress";
 import { usingSandboxBackend, runnerEnabled } from "@/lib/app-runner";
 import { verifyBuild, verifyMarker, canVerifyInProcess } from "@/lib/verify";
@@ -627,6 +628,27 @@ export async function runAgentTurn(opts: {
           "This usually means the request was declined or the selected model didn't write any files. " +
           "Try a different model in the picker (a Helix model, Claude, or GPT-5), rephrase the request, " +
           "or break it into smaller steps (e.g. start with the data models, then the pages).";
+      }
+    }
+
+    // Wiring safety net: if the model built a feature component but left it
+    // orphaned (not rendered on the page the user lands on), mount it on the
+    // dashboard so the app never opens to a leftover placeholder. Runs before
+    // verify so the wired page is part of the build check. Best-effort.
+    if (mode === "build" && changes.written.length > 0) {
+      try {
+        const wiredPath = await autoWireFeature({
+          paths: Array.from(new Set([...treePaths, ...changes.written])),
+          written: changes.written,
+          readFile: (p) => withGitAuth(gitAuth, () => readWorkspaceFile(ws, p)).catch(() => null),
+          writeFiles: (files) => withGitAuth(gitAuth, () => writeWorkspaceFiles(ws, files)),
+        });
+        if (wiredPath && !changes.written.includes(wiredPath)) {
+          changes.written.push(wiredPath);
+          actions.push({ tool: "write_files", label: "mounted the main feature on the dashboard" });
+        }
+      } catch (e) {
+        console.error("[auto-wire]", e);
       }
     }
 

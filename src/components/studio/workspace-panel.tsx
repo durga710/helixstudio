@@ -1443,14 +1443,25 @@ export function WorkspacePanel({
                 </span>
                 <div className="ml-auto flex items-center gap-2">
                   {run?.url && run.reachable && (
-                    <a
-                      href={run.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 font-mono text-[11px] text-ok transition-colors hover:brightness-110"
-                    >
-                      {run.port ? `:${run.port}` : "open preview"} <ExternalLink className="h-3 w-3" />
-                    </a>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setFullscreen((v) => !v)}
+                        aria-label={fullscreen ? "Exit full screen" : "Full screen preview"}
+                        title={fullscreen ? "Exit full screen (Esc)" : "Full screen preview"}
+                        className="inline-flex items-center gap-1 text-txt3 transition-colors hover:text-txt"
+                      >
+                        {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                      </button>
+                      <a
+                        href={run.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 font-mono text-[11px] text-ok transition-colors hover:brightness-110"
+                      >
+                        {run.port ? `:${run.port}` : "open preview"} <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </>
                   )}
                   {run && run.status !== "stopped" && run.status !== "error" ? (
                     <button
@@ -1547,6 +1558,15 @@ export function WorkspacePanel({
                   className="ml-auto text-txt3 transition-colors hover:text-ok"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFullscreen((v) => !v)}
+                  aria-label={fullscreen ? "Exit full screen" : "Full screen preview"}
+                  title={fullscreen ? "Exit full screen (Esc)" : "Full screen preview"}
+                  className="text-txt3 transition-colors hover:text-txt"
+                >
+                  {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
                 </button>
               </div>
               <div className="relative min-h-0 flex-1 bg-white">
