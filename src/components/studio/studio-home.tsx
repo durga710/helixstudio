@@ -13,7 +13,6 @@ import {
   Loader2,
   MessageSquare,
   FileCode2,
-  Trash2,
   Lock,
   UploadCloud,
   Users,
@@ -34,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { RepoPicker } from "@/components/studio/repo-picker";
 import { GitHostPicker } from "@/components/studio/git-host-picker";
 import { useWorkspaceCreation } from "@/components/studio/use-workspace-creation";
+import { WorkspaceCardMenu } from "@/components/screens/workspace-card-menu";
 import { GAME_CATEGORIES } from "@/lib/templates/engines";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 
@@ -106,7 +106,6 @@ export function StudioHome({
   const [scratchName, setScratchName] = useState("");
   const [namePrompt, setNamePrompt] = useState(false);
   const [showOther, setShowOther] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
   const { creating, error, setError, uploadNote, createScratch, createGame, importFolder, importRepo: importRepoBase } =
@@ -131,27 +130,14 @@ export function StudioHome({
     }
   }
 
-  async function deleteWorkspace(id: string) {
-    if (deleting) return;
-    if (!window.confirm("Delete this workspace? Its files and chat are gone for good (GitHub repos are untouched).")) return;
-    setDeleting(id);
-    try {
-      const res = await fetch(`/api/workspaces/${id}`, { method: "DELETE" });
-      if (res.ok) router.refresh();
-      else setError("Couldn't delete that workspace — try again.");
-    } catch {
-      setError("Network error — couldn't delete the workspace.");
-    }
-    setDeleting(null);
-  }
-
   const gameCats = GAME_CATEGORIES.filter((c) => !c.adminOnly || isAdmin);
 
   function ProjectCard(w: WorkspaceCard) {
     return (
       <li key={w.id} className="glass-panel group relative p-4 transition-colors hover:border-accent">
+        <WorkspaceCardMenu id={w.id} name={w.name} />
         <button type="button" onClick={() => router.push(`/editor/${w.id}`)} className="w-full text-left">
-          <div className="mb-2 flex items-center gap-2">
+          <div className="mb-2 flex items-center gap-2 pr-16">
             {w.kind === "game" ? (
               <Gamepad2 className="h-4 w-4 shrink-0 text-accent" />
             ) : w.mode === "IMPORT" ? (
@@ -184,14 +170,6 @@ export function StudioHome({
             </span>
             <span className="ml-auto">{timeAgo(w.updatedAt)}</span>
           </div>
-        </button>
-        <button
-          type="button"
-          aria-label="Delete workspace"
-          onClick={() => void deleteWorkspace(w.id)}
-          className="absolute right-3 top-9 text-txt3 opacity-0 transition-all hover:text-bad group-hover:opacity-100"
-        >
-          {deleting === w.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>
       </li>
     );
@@ -465,13 +443,14 @@ export function StudioHome({
           </div>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {sharedWorkspaces.map((w) => (
-              <li key={w.id}>
+              <li key={w.id} className="relative">
+                <WorkspaceCardMenu id={w.id} name={w.name} canManage={false} />
                 <button
                   type="button"
                   onClick={() => router.push(`/editor/${w.id}`)}
                   className="glass-panel block w-full p-4 text-left transition-colors hover:border-accent"
                 >
-                  <div className="mb-1 flex items-center gap-2">
+                  <div className="mb-1 flex items-center gap-2 pr-8">
                     {w.kind === "game" ? (
                       <Gamepad2 className="h-4 w-4 shrink-0 text-accent" />
                     ) : w.mode === "IMPORT" ? (

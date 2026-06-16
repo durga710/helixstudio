@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { CircuitTraces } from "@/components/brand";
 import { Pill } from "@/components/ui/pill";
 import { DashboardActions } from "@/components/screens/dashboard-actions";
+import { WorkspaceCardMenu } from "@/components/screens/workspace-card-menu";
 
 export const dynamic = "force-dynamic";
 
@@ -189,8 +190,9 @@ export default async function DashboardPage() {
             const meta = PROVIDER_META[w.provider as GitProviderName];
             return (
               <Link key={w.id} href={`/editor/${w.id}`} className="block">
-                <Card className="cursor-pointer p-4 transition-all duration-150 hover:-translate-y-px hover:border-accent">
-                  <div className="mb-2 flex items-center gap-2">
+                <Card className="relative cursor-pointer p-4 transition-all duration-150 hover:-translate-y-px hover:border-accent">
+                  <WorkspaceCardMenu id={w.id} name={w.name} />
+                  <div className="mb-2 flex items-center gap-2 pr-8">
                     {w.mode === "IMPORT" ? (
                       <FolderGit2 className="h-4 w-4 shrink-0 text-accent" strokeWidth={1.7} />
                     ) : (
@@ -240,8 +242,9 @@ export default async function DashboardPage() {
               const meta = PROVIDER_META[w.provider as GitProviderName];
               return (
                 <Link key={w.id} href={`/editor/${w.id}`} className="block">
-                  <Card className="cursor-pointer p-4 transition-all duration-150 hover:-translate-y-px hover:border-accent">
-                    <div className="mb-1 flex items-center gap-2">
+                  <Card className="relative cursor-pointer p-4 transition-all duration-150 hover:-translate-y-px hover:border-accent">
+                    <WorkspaceCardMenu id={w.id} name={w.name} canManage={false} />
+                    <div className="mb-1 flex items-center gap-2 pr-8">
                       {w.mode === "IMPORT" ? (
                         <FolderGit2 className="h-4 w-4 shrink-0 text-accent" strokeWidth={1.7} />
                       ) : (
