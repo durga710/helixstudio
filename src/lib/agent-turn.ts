@@ -98,6 +98,31 @@ export interface TurnResult {
 
 export type TurnError = { error: string; code?: BudgetCode };
 
+/**
+ * OpenAI bills cached (re-referenced) input tokens at a fraction of the full
+ * input price — ~25% for the models we run. With `previous_response_id`, every
+ * hop after the first re-references the SAME system prompt + already-read files,
+ * so most of a multi-hop turn's "input" is cached. Counting that at 100% (raw
+ * `total_tokens`) hugely overstates what the user is actually billed and burns
+ * their quota for tokens that were nearly free. We meter at the BILLED weight so
+ * a quota token ≈ a real cost — which is the entire point of this product.
+ */
+const CACHED_TOKEN_WEIGHT = 0.25;
+type UsageLike = {
+  total_tokens?: number | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  input_tokens_details?: { cached_tokens?: number | null } | null;
+} | null | undefined;
+export function billedTokens(usage: UsageLike): number {
+  if (!usage) return 0;
+  const total = usage.total_tokens ?? (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0);
+  const cached = usage.input_tokens_details?.cached_tokens ?? 0;
+  if (!cached) return total;
+  // Discount the non-billed portion of the cached tokens.
+  return Math.max(0, Math.round(total - cached * (1 - CACHED_TOKEN_WEIGHT)));
+}
+
 export async function runAgentTurn(opts: {
   ws: Workspace;
   userId: string;
@@ -336,6 +361,41 @@ export async function runAgentTurn(opts: {
     treePaths,
   }, limits.contextChars);
 
+  // Small-project fast path: for a handful of small text files, INLINE their full
+  // contents into the context instead of making the model spend a read_file hop on
+  // each one. Tool-pulling files re-sends the growing conversation on every later
+  // hop (cheap for a big repo, wasteful for a 3-file app); inlining sends them ONCE
+  // (cached on every hop after), so a tiny edit runs in ~2 hops instead of ~6.
+  // All-or-nothing + size-gated, so anything bigger keeps the lean tool-pull path.
+  const SMALL_PROJECT_MAX_FILES = 12;
+  // Generous: the whole bundle is sent ONCE on hop0 and cached on every hop after,
+  // so a larger cap is far cheaper than the per-hop re-sends that read_file causes.
+  const SMALL_PROJECT_MAX_CHARS = 60_000;
+  const INLINEABLE_RE = /\.(html?|css|js|jsx|ts|tsx|json|md|txt|svg|vue|svelte|py|rb|go|php|astro|mjs|cjs|yml|yaml|env|sh)$/i;
+  let inlinedFiles = "";
+  if (treePaths.length > 0 && treePaths.length <= SMALL_PROJECT_MAX_FILES) {
+    const editable = treePaths.filter(
+      (p) => INLINEABLE_RE.test(p) && !/(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/i.test(p),
+    );
+    const parts: string[] = [];
+    let budget = SMALL_PROJECT_MAX_CHARS;
+    for (const p of editable) {
+      const content = await withGitAuth(gitAuth, () => readWorkspaceFile(ws, p)).catch(() => null);
+      if (content == null || content.length > budget) break; // too big — fall back to tool-pull
+      budget -= content.length;
+      parts.push(`### ${p}\n\`\`\`\n${content}\n\`\`\``);
+    }
+    // Only worth it if we inlined ALL the inlineable files — otherwise the model
+    // can't trust "you already have them" and will read anyway.
+    if (parts.length && parts.length === editable.length) {
+      inlinedFiles =
+        `\n\n--- CURRENT FILE CONTENTS (the project's source files, in full, below) ---\n` +
+        `These ARE the current files — edit them DIRECTLY. Do NOT call list_files or read_file for any path shown here; ` +
+        `you already have its complete contents. Only read a path that is NOT shown below.\n\n` +
+        parts.join("\n\n");
+    }
+  }
+
   const instructions =
     fitted.rules +
     "\n--- WORKSPACE ---\n" +
@@ -346,7 +406,8 @@ export async function runAgentTurn(opts: {
       ? `\n\n--- PROJECT INSTRUCTIONS (from the repo's AGENTS.md/CLAUDE.md — follow them) ---\n${fitted.instructionsDoc}`
       : "") +
     (fitted.notes ? `\n\n--- PROJECT NOTES (yours — update via remember) ---\n${fitted.notes}` : "") +
-    (fitted.digest ? `\n\n--- EARLIER CONVERSATION (working memory) ---\n${fitted.digest}` : "");
+    (fitted.digest ? `\n\n--- EARLIER CONVERSATION (working memory) ---\n${fitted.digest}` : "") +
+    inlinedFiles;
 
   // The model sees the (optional) brief prefix; persistence/UI only ever see the
   // clean userMessage, so internal instructions never surface in the chat.
@@ -357,7 +418,7 @@ export async function runAgentTurn(opts: {
     const msgChars = messages.reduce((n, m) => n + m.content.length, 0);
     console.log(
       `[helix-chat] context: rules=${fitted.rules.length} tree=${fitted.tree.length} notes=${fitted.notes.length} ` +
-        `agentsmd=${fitted.instructionsDoc.length} digest=${fitted.digest.length} recent=${fitted.recent.length}msg/${msgChars}ch ` +
+        `agentsmd=${fitted.instructionsDoc.length} digest=${fitted.digest.length} inlined=${inlinedFiles.length} recent=${fitted.recent.length}msg/${msgChars}ch ` +
         `≈${estimateTokens(instructions.length + msgChars)} input tokens`,
     );
   }
@@ -471,15 +532,19 @@ export async function runAgentTurn(opts: {
           return withRetry(() => oai.responses.create(params));
         }
       };
+      // When the whole small project is inlined above, drop the file-read tools so
+      // the model edits straight from context instead of re-reading what it has.
+      const turnTools = workspaceTools(mode, isAdmin, !!inlinedFiles);
       try {
         let resp = await streamOrCreate({
           model: aiModel || OPENAI_MODEL,
           instructions,
           input: messages,
-          tools: workspaceTools(mode, isAdmin),
+          tools: turnTools,
           store: true,
         });
-        tokensUsed += resp.usage?.total_tokens ?? 0;
+        tokensUsed += billedTokens(resp.usage);
+        if (process.env.HELIX_TOKEN_DEBUG) console.log(`[tok] hop0 total=${resp.usage?.total_tokens} cached=${resp.usage?.input_tokens_details?.cached_tokens} in=${resp.usage?.input_tokens} out=${resp.usage?.output_tokens} billed→${tokensUsed}`);
 
         for (const item of resp.output ?? []) {
           if (item.type === "web_search_call") actions.push({ tool: "web_search", label: toolLabel("web_search", null) });
@@ -524,10 +589,11 @@ export async function runAgentTurn(opts: {
             model: aiModel || OPENAI_MODEL,
             previous_response_id: resp.id,
             input: outputs,
-            tools: workspaceTools(mode, isAdmin),
+            tools: turnTools,
             store: true,
           });
-          tokensUsed += resp.usage?.total_tokens ?? 0;
+          tokensUsed += billedTokens(resp.usage);
+          if (process.env.HELIX_TOKEN_DEBUG) console.log(`[tok] hop${hop + 1} total=${resp.usage?.total_tokens} cached=${resp.usage?.input_tokens_details?.cached_tokens} in=${resp.usage?.input_tokens} out=${resp.usage?.output_tokens} calls=${calls.length}:${calls.map((c) => c.name).join(",")} billed→${tokensUsed}`);
 
           for (const item of resp.output ?? []) {
             if (item.type === "web_search_call") actions.push({ tool: "web_search", label: toolLabel("web_search", null) });
@@ -573,11 +639,11 @@ export async function runAgentTurn(opts: {
                       : "Stop working and reply now: in 1-3 sentences, what did you change in the workspace and what (if anything) is still unfinished? Do not call tools.",
                 },
               ],
-              tools: workspaceTools(mode, isAdmin),
+              tools: turnTools,
               tool_choice: "none",
               store: true,
             });
-            tokensUsed += wrap.usage?.total_tokens ?? 0;
+            tokensUsed += billedTokens(wrap.usage);
             text = wrap.output_text?.trim() || "";
           } catch {
             // fall through to the action-based fallback
@@ -691,6 +757,16 @@ export async function runAgentTurn(opts: {
     // fix turns pass verify:false to stop recursion). Gated to non-guests and
     // an available runner; always degrades to a skip — never fails the turn.
     const verifyWanted = opts.verify ?? VERIFY_DEFAULT_ON;
+    // A tiny edit — one file changed, nothing deleted, no dependency/build-config
+    // file touched — doesn't justify a full sandbox build (minutes + a possible
+    // auto-fix model turn). We still run the FREE in-process static check on it;
+    // we only skip the EXPENSIVE sandbox/runner path. Matches effort to size.
+    const tinyEdit =
+      changes.written.length <= 1 &&
+      (changes.deleted?.length ?? 0) === 0 &&
+      !changes.written.some((p) =>
+        /(^|\/)(package(-lock)?\.json|requirements\.txt|pyproject\.toml|go\.mod|tsconfig\.json|next\.config\.|vite\.config\.)/i.test(p),
+      );
     let verify: TurnResult["verify"];
     if (
       verifyWanted &&
@@ -698,8 +774,9 @@ export async function runAgentTurn(opts: {
       changes.written.length > 0 &&
       !dbUser?.isGuest &&
       // Static/game projects verify in-process (no sandbox needed); framework apps
-      // still require the sandbox/runner for their real build.
-      (canVerifyInProcess(treePaths, pkgJson) || usingSandboxBackend() || runnerEnabled())
+      // still require the sandbox/runner for their real build — but a tiny edit
+      // skips that expensive path (the cheap in-process check still runs).
+      (canVerifyInProcess(treePaths, pkgJson) || ((usingSandboxBackend() || runnerEnabled()) && !tinyEdit))
     ) {
       const result = await verifyBuild({
         ws,

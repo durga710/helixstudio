@@ -233,7 +233,15 @@ export async function runLocalAgent(opts: {
   try {
     for (let hop = 0; hop <= lim.maxHops; hop++) {
       const resp = await withRetry(() => client.chat.completions.create({ model: opts.model, messages, tools }));
-      tokensUsed += resp.usage?.total_tokens ?? 0;
+      // Count cached (re-sent) input tokens at their ~25% billed rate — a multi-hop
+      // loop re-sends the same prompt prefix every hop; metering it at 100% would
+      // overstate cost and burn quota for near-free tokens. Mirrors billedTokens()
+      // in agent-turn.ts (kept inline to avoid a circular import).
+      {
+        const u = resp.usage;
+        const cached = u?.prompt_tokens_details?.cached_tokens ?? 0;
+        tokensUsed += Math.max(0, (u?.total_tokens ?? 0) - cached * 0.75);
+      }
       const msg = resp.choices[0]?.message;
       if (!msg) return { error: "empty response from the local model" };
 

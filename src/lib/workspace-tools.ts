@@ -294,8 +294,13 @@ const ADMIN_ONLY_TOOL_NAMES = new Set(["move_file"]);
 
 /** The tool list for a turn. Plan mode keeps only read-only tools (plus the
  * web_search built-in, which has no name field — don't filter it by name).
- * move_file is admin-only for now (Phase-2 transform mode). */
-export function workspaceTools(mode: "plan" | "build" = "build", isAdmin = false) {
+ * move_file is admin-only for now (Phase-2 transform mode).
+ *
+ * `omitFileReads` (build mode only): when the whole small project's contents are
+ * already inlined in the system prompt, the file-read tools (list/read/search)
+ * are redundant — and models call them anyway out of habit, paying a hop each.
+ * Dropping them forces the model to edit directly from context. */
+export function workspaceTools(mode: "plan" | "build" = "build", isAdmin = false, omitFileReads = false) {
   let tools = isAdmin
     ? WORKSPACE_TOOLS
     : WORKSPACE_TOOLS.filter((t) => !ADMIN_ONLY_TOOL_NAMES.has((t as { name?: string }).name ?? ""));
@@ -303,6 +308,8 @@ export function workspaceTools(mode: "plan" | "build" = "build", isAdmin = false
     tools = tools.filter(
       (t) => t.type === "web_search" || READ_ONLY_TOOL_NAMES.has((t as { name?: string }).name ?? ""),
     );
+  } else if (omitFileReads) {
+    tools = tools.filter((t) => !READ_ONLY_TOOL_NAMES.has((t as { name?: string }).name ?? ""));
   }
   return tools;
 }

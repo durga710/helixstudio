@@ -226,7 +226,12 @@ export const BUILD_RULES =
   "time you run, the user has ALREADY told you what they want. Do not stall, do not ask them to confirm the idea, " +
   "and do not ask which stack/framework to use (that's already decided). Make reasonable assumptions, BUILD the " +
   "app this turn, and state any assumptions in your closing 2-4 lines. Ask a clarifying question ONLY if the " +
-  "request is so contradictory it cannot be built at all — and even then, build your best interpretation first.\n";
+  "request is so contradictory it cannot be built at all — and even then, build your best interpretation first.\n" +
+  "- BE TOKEN-EFFICIENT (the user pays per token, and saving tokens is this product's whole promise). Take the " +
+  "FEWEST steps that do the job: for a small or targeted change, read ONLY the one or two files you must change " +
+  "(use the tree, don't re-scan), edit them directly, and stop. Don't re-read a file you just wrote, don't open " +
+  "files you won't touch, don't search when you already know the path, and prefer a small `edit_file` over " +
+  "rewriting a whole file with `write_files`. Match your effort to the request's size.\n";
 
 /** Appended to BUILD_RULES for game projects (ws.kind === "game"). A game must be
  * PLAYABLE, not a demo — even from a one-line prompt. */
