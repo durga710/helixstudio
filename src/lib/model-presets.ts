@@ -7,12 +7,12 @@
 export const MODEL_PRESETS: Record<string, { label: string; models: string[]; hint: string }> = {
   openai: {
     label: "OpenAI",
-    // Reasoning model first: gpt-5-mini reliably emits tool calls (so builds
-    // actually write files) while staying snappy. gpt-5-chat-latest is chat-tuned
-    // and tends to NARRATE edits instead of calling the tools — weaker at builds.
-    // Full gpt-5 is strongest but deliberates a long time per tool hop.
-    models: ["gpt-5-mini", "gpt-5", "gpt-4.1", "gpt-5-chat-latest"],
-    hint: "Default is gpt-5-mini — a reasoning model that reliably calls the build tools and stays snappy. gpt-5 is strongest but slower; gpt-5-chat-latest is chat-tuned and weaker at multi-file builds. Includes built-in web search; any OpenAI model id works.",
+    // Only reasoning models that reliably emit tool calls (so builds actually
+    // write files). Chat-tuned snapshots (gpt-5-chat-latest, chatgpt-*) are
+    // excluded — they narrate edits instead of calling the tools. gpt-5-mini is
+    // the snappy default; full gpt-5 is strongest but deliberates per tool hop.
+    models: ["gpt-5-mini", "gpt-5", "gpt-4.1"],
+    hint: "Default is gpt-5-mini — a reasoning model that reliably calls the build tools and stays snappy. gpt-5 is strongest but slower. Includes built-in web search; any OpenAI model id that supports tool calling works.",
   },
   anthropic: {
     label: "Anthropic (Claude)",

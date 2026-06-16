@@ -106,16 +106,17 @@ export function bedrockOpenAiBaseUrl(): string {
  * until a live probe returns a real completion (gated on model-access grants).
  */
 export const BEDROCK_MODELS: BedrockModel[] = [
-  // ---- LIVE NOW — open-weight, no model-access grant needed (verified) ----
-  // Generic runtime host in us-west-2, no project header. Supports tool calling,
-  // so it can drive the builder. Serves as the interim default while the premium
-  // models below await account-side access enablement.
+  // ---- Transport smoke-test only — NOT user-facing (confirmed: false) ----
+  // gpt-oss-20b authenticates + emits a tool call in isolation, but in a real
+  // multi-tool build it NARRATES edits instead of calling the tools (verified
+  // live: 0 writes), so it can't reliably build. Kept as the transport probe
+  // (BEDROCK_SMOKE_TEST_MODEL) but excluded from the picker.
   {
     modelId: BEDROCK_SMOKE_TEST_MODEL, // openai.gpt-oss-20b-1:0
     label: "GPT-OSS 20B",
     protocol: "openai",
     contextLabel: "open weight",
-    confirmed: true,
+    confirmed: false,
     endpoint: "runtime",
     region: "us-west-2",
     project: false,
