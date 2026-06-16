@@ -22,7 +22,7 @@ import {
   type ChangeManifest,
   type ToolContext,
 } from "@/lib/workspace-tools";
-import { AGENT_LIMITS, ANTHROPIC_MAX_OUTPUT, READONLY_TOOLS, toolResultCapFor } from "@/lib/agent-config";
+import { AGENT_LIMITS, type AgentLimits, ANTHROPIC_MAX_OUTPUT, READONLY_TOOLS, toolResultCapFor } from "@/lib/agent-config";
 import { withRetry } from "@/lib/ai/retry";
 import { resolveAiKey, GEMINI_BASE_URL, PROVIDER_DEFAULT_MODEL } from "@/lib/ai/keys";
 import { isAdminEmail } from "@/lib/admin";
@@ -43,11 +43,10 @@ export interface AgentResult {
   tokensUsed: number;
 }
 
-const MAX_HOPS = AGENT_LIMITS.maxHops;
 
 /** True once a turn has spent its token budget — stop calling tools, wrap up. */
-function outOfBudget(tokensUsed: number): boolean {
-  return tokensUsed >= AGENT_LIMITS.maxTurnTokens;
+function outOfBudget(tokensUsed: number, lim: AgentLimits = AGENT_LIMITS): boolean {
+  return tokensUsed >= lim.maxTurnTokens;
 }
 
 type FunctionTool = {
@@ -57,8 +56,8 @@ type FunctionTool = {
   parameters: Record<string, unknown>;
 };
 
-function functionTools(mode: "plan" | "build" = "build"): FunctionTool[] {
-  return (workspaceTools(mode) as ReadonlyArray<Record<string, unknown>>)
+function functionTools(mode: "plan" | "build" = "build", isAdmin = false): FunctionTool[] {
+  return (workspaceTools(mode, isAdmin) as ReadonlyArray<Record<string, unknown>>)
     .filter((t) => t.type === "function")
     .map((t) => ({
       type: "function" as const,
@@ -113,7 +112,8 @@ export async function runAnthropicAgent(opts: {
     ...(opts.extraHeaders ? { defaultHeaders: opts.extraHeaders } : {}),
   });
 
-  const tools: Anthropic.Tool[] = functionTools(opts.ctx.mode).map((t) => ({
+  const lim = opts.ctx.limits ?? AGENT_LIMITS;
+  const tools: Anthropic.Tool[] = functionTools(opts.ctx.mode, opts.ctx.isAdmin).map((t) => ({
     name: t.name,
     description: t.description,
     input_schema: t.parameters as Anthropic.Tool.InputSchema,
@@ -133,7 +133,7 @@ export async function runAnthropicAgent(opts: {
   const changes: ChangeManifest = { written: [], deleted: [] };
   let tokensUsed = 0;
 
-  for (let hop = 0; hop <= MAX_HOPS; hop++) {
+  for (let hop = 0; hop <= lim.maxHops; hop++) {
     let msg: Anthropic.Message;
     try {
       const stream = client.messages.stream({
@@ -152,7 +152,7 @@ export async function runAnthropicAgent(opts: {
     tokensUsed += (msg.usage?.input_tokens ?? 0) + (msg.usage?.output_tokens ?? 0);
     const toolUses = msg.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
 
-    if (msg.stop_reason !== "tool_use" || toolUses.length === 0 || hop === MAX_HOPS || outOfBudget(tokensUsed)) {
+    if (msg.stop_reason !== "tool_use" || toolUses.length === 0 || hop === lim.maxHops || outOfBudget(tokensUsed, lim)) {
       const text = msg.content
         .filter((b): b is Anthropic.TextBlock => b.type === "text")
         .map((b) => b.text)
@@ -183,7 +183,7 @@ export async function runAnthropicAgent(opts: {
       results.push({
         type: "tool_result",
         tool_use_id: call.id,
-        content: JSON.stringify(result).slice(0, toolResultCapFor(call.name ?? "")),
+        content: JSON.stringify(result).slice(0, toolResultCapFor(call.name ?? "", lim)),
       });
     }
     messages.push({ role: "user", content: results });
@@ -215,7 +215,8 @@ export async function runLocalAgent(opts: {
     ...(opts.extraHeaders ? { defaultHeaders: opts.extraHeaders } : {}),
   });
 
-  const tools = functionTools(opts.ctx.mode).map((t) => ({
+  const lim = opts.ctx.limits ?? AGENT_LIMITS;
+  const tools = functionTools(opts.ctx.mode, opts.ctx.isAdmin).map((t) => ({
     type: "function" as const,
     function: { name: t.name, description: t.description, parameters: t.parameters },
   }));
@@ -230,14 +231,14 @@ export async function runLocalAgent(opts: {
   let tokensUsed = 0;
 
   try {
-    for (let hop = 0; hop <= MAX_HOPS; hop++) {
+    for (let hop = 0; hop <= lim.maxHops; hop++) {
       const resp = await withRetry(() => client.chat.completions.create({ model: opts.model, messages, tools }));
       tokensUsed += resp.usage?.total_tokens ?? 0;
       const msg = resp.choices[0]?.message;
       if (!msg) return { error: "empty response from the local model" };
 
       const calls = (msg.tool_calls ?? []).filter((c) => c.type === "function");
-      if (calls.length === 0 || hop === MAX_HOPS || outOfBudget(tokensUsed)) {
+      if (calls.length === 0 || hop === lim.maxHops || outOfBudget(tokensUsed, lim)) {
         return { text: (msg.content ?? "").trim() || "(no reply)", actions, changes, tokensUsed };
       }
 
@@ -262,7 +263,7 @@ export async function runLocalAgent(opts: {
         messages.push({
           role: "tool",
           tool_call_id: call.id,
-          content: JSON.stringify(result).slice(0, toolResultCapFor(call.function.name)),
+          content: JSON.stringify(result).slice(0, toolResultCapFor(call.function.name, lim)),
         });
       }
     }

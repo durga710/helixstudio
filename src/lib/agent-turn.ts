@@ -45,9 +45,10 @@ import { resolveBedrockModel, type BedrockResolved } from "@/lib/ai/bedrock";
 import { withRetry } from "@/lib/ai/retry";
 import { createAgentIntent } from "@/lib/intent-ledger";
 import {
-  AGENT_LIMITS,
+  agentLimitsFor,
   BUILD_RULES,
   GAME_BUILD_RULES,
+  TRANSFORM_RULES,
   PLAN_RULES,
   VERIFY_DEFAULT_ON,
   VERIFY_MAX_FIX_ATTEMPTS,
@@ -157,6 +158,9 @@ export async function runAgentTurn(opts: {
   // the platform (env) key resolves ONLY for admins, so a fresh signup can
   // never spend our keys.
   const isAdmin = isAdminEmail(prefs?.user?.email);
+  // Phase-2 transform-mode ceilings (bigger context/hops/search + skeleton
+  // unlock) for admins; base limits for everyone else.
+  const limits = agentLimitsFor(isAdmin);
   const ownKey =
     aiProvider === "openai"
       ? prefs?.openaiKey
@@ -302,8 +306,11 @@ export async function runAgentTurn(opts: {
   // text the model receives.
   // Game projects get extra build rules (must be playable: controls + enemies +
   // win/score + feedback). Append to the build rules, never plan.
-  const rules =
+  let rules =
     mode === "plan" ? PLAN_RULES : ws.kind === "game" ? BUILD_RULES + GAME_BUILD_RULES : BUILD_RULES;
+  // Admin "transform mode": lift the build-on-the-skeleton limits so big
+  // structural refactors are allowed (matches the unlocked engine limits).
+  if (mode !== "plan" && limits.unlockSkeleton) rules += TRANSFORM_RULES;
 
   const fitted = fitBudget({
     rules,
@@ -311,14 +318,14 @@ export async function runAgentTurn(opts: {
       `Name: ${ws.name}\n` +
       `Mode: ${ws.mode === "IMPORT" ? `imported from ${PROVIDER_META[getProvider(ws.provider).name].label} repo ${ws.repo} @ ${ws.baseBranch} (edits overlay the repo until pushed)` : "built from scratch (files live here until pushed to a git host)"}`,
     stack: stackLine(treePaths, pkgJson),
-    tree: treeOutline(treePaths),
+    tree: treeOutline(treePaths, limits.treeChars),
     notes: ws.notes ?? "",
     instructionsDoc,
     digest: memory,
     recent,
     userMessage,
     treePaths,
-  });
+  }, limits.contextChars);
 
   const instructions =
     fitted.rules +
@@ -373,6 +380,8 @@ export async function runAgentTurn(opts: {
     onActivity: (label) => emit(label),
     mode,
     getIntentId,
+    limits,
+    isAdmin,
   };
   setProgress(ws.id, "reading your message…");
   emit("thinking…");
@@ -457,7 +466,7 @@ export async function runAgentTurn(opts: {
           model: aiModel || OPENAI_MODEL,
           instructions,
           input: messages,
-          tools: workspaceTools(mode),
+          tools: workspaceTools(mode, isAdmin),
           store: true,
         });
         tokensUsed += resp.usage?.total_tokens ?? 0;
@@ -469,8 +478,8 @@ export async function runAgentTurn(opts: {
         // Tool loop: bounded by move count AND token spend (whichever first),
         // so a long multi-file task runs to completion but a runaway turn
         // can't burn the budget. See AGENT_LIMITS in agent-config.ts.
-        for (let hop = 0; hop < AGENT_LIMITS.maxHops; hop++) {
-          if (tokensUsed >= AGENT_LIMITS.maxTurnTokens) break;
+        for (let hop = 0; hop < limits.maxHops; hop++) {
+          if (tokensUsed >= limits.maxTurnTokens) break;
           const calls = (resp.output ?? []).filter(
             (o): o is Extract<typeof o, { type: "function_call" }> => o.type === "function_call",
           );
@@ -497,7 +506,7 @@ export async function runAgentTurn(opts: {
             outputs.push({
               type: "function_call_output" as const,
               call_id: call.call_id,
-              output: JSON.stringify(result).slice(0, toolResultCapFor(call.name)),
+              output: JSON.stringify(result).slice(0, toolResultCapFor(call.name, limits)),
             });
           }
 
@@ -505,7 +514,7 @@ export async function runAgentTurn(opts: {
             model: aiModel || OPENAI_MODEL,
             previous_response_id: resp.id,
             input: outputs,
-            tools: workspaceTools(mode),
+            tools: workspaceTools(mode, isAdmin),
             store: true,
           });
           tokensUsed += resp.usage?.total_tokens ?? 0;
@@ -554,7 +563,7 @@ export async function runAgentTurn(opts: {
                       : "Stop working and reply now: in 1-3 sentences, what did you change in the workspace and what (if anything) is still unfinished? Do not call tools.",
                 },
               ],
-              tools: workspaceTools(mode),
+              tools: workspaceTools(mode, isAdmin),
               tool_choice: "none",
               store: true,
             });

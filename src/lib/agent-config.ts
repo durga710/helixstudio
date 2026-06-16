@@ -31,7 +31,48 @@ export const AGENT_LIMITS = {
   /** Files scanned / matches returned per search_files call. */
   searchFileCap: 40,
   searchMatchCap: 30,
-} as const;
+  /** Files chunked / ranked hits returned per semantic_search call. */
+  semanticFileCap: 60,
+  semanticTopN: 8,
+  /** Hard input-context budget (chars) and the tree-outline slice within it. */
+  contextChars: 24_000,
+  treeChars: 1_200,
+  /** Whether the model may restructure the locked skeleton files (transform). */
+  unlockSkeleton: false,
+};
+
+/**
+ * Phase-2 "transform mode" ceilings — bigger context, more hops/tokens, wider
+ * search, and skeleton-unlock so LARGE refactors ("change the routes", "turn it
+ * into X") fit in one turn. ADMIN-ONLY for now (cost + blast radius); everyone
+ * else uses AGENT_LIMITS. Resolve per-turn with agentLimitsFor(isAdmin).
+ */
+export const ADMIN_AGENT_LIMITS: typeof AGENT_LIMITS = {
+  ...AGENT_LIMITS,
+  maxHops: 48,
+  maxTurnTokens: 500_000,
+  searchFileCap: 120,
+  searchMatchCap: 60,
+  semanticFileCap: 150,
+  semanticTopN: 16,
+  contextChars: 60_000,
+  treeChars: 6_000,
+  unlockSkeleton: true,
+};
+
+export type AgentLimits = typeof AGENT_LIMITS;
+
+/** The per-turn limits: bumped "transform mode" for admins, base for everyone. */
+export function agentLimitsFor(isAdmin: boolean): AgentLimits {
+  return isAdmin ? ADMIN_AGENT_LIMITS : AGENT_LIMITS;
+}
+
+/** Appended to BUILD_RULES for admin "transform mode" turns — lifts the
+ * build-on-the-skeleton restrictions so LARGE refactors actually work. */
+export const TRANSFORM_RULES =
+  "\n## TRANSFORM MODE (elevated session — you can make large, structural changes)\n" +
+  "- You have a bigger budget, wider search, and a `move_file` tool (rename/move; then fix the imports/links that pointed at the old path). Use list_files / search_files to map the FULL file set before a big refactor — change every affected file, not a subset.\n" +
+  "- For large changes (restructure routes/pages, convert the app into something else) you MAY edit or restructure the skeleton — including the normally-locked auth/layout/nav/theme files. Still reuse the existing theme tokens + component kit so it stays on-brand, and keep it building/runnable at every step.\n";
 
 /** Tools that only read state — safe to execute in parallel within one hop. */
 export const READONLY_TOOLS = new Set(["list_files", "read_file", "search_files", "semantic_search"]);
@@ -42,8 +83,8 @@ export const READONLY_TOOLS = new Set(["list_files", "read_file", "search_files"
  * the model would only see the first third of a file it's about to edit. Give
  * read_file the larger budget; everything else stays at the lean default.
  */
-export function toolResultCapFor(toolName: string): number {
-  return toolName === "read_file" ? AGENT_LIMITS.readCap + 2_000 : AGENT_LIMITS.toolResultCap;
+export function toolResultCapFor(toolName: string, limits: AgentLimits = AGENT_LIMITS): number {
+  return toolName === "read_file" ? limits.readCap + 2_000 : limits.toolResultCap;
 }
 
 /**

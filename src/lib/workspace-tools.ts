@@ -15,7 +15,7 @@ import { execInSandbox } from "@/lib/runner/vercel-sandbox";
 import { setProgress } from "@/lib/progress";
 import { db } from "@/lib/db";
 import { NOTES_MAX } from "@/lib/chat-context";
-import { AGENT_LIMITS } from "@/lib/agent-config";
+import { AGENT_LIMITS, type AgentLimits } from "@/lib/agent-config";
 import { buildChunks, rerankSearch } from "@/lib/repo/rerank";
 
 /** A skeleton file carrying this marker is locked — the engine refuses to edit
@@ -80,14 +80,16 @@ export interface ToolContext {
    * callers that predate the ledger).
    */
   getIntentId?: () => Promise<string | null>;
+  /** Per-turn limits (admin "transform mode" bumps caps + unlocks skeleton). */
+  limits?: AgentLimits;
+  /** Admin turn — gates the move_file tool into the list. */
+  isAdmin?: boolean;
 }
 
 const READ_CAP = AGENT_LIMITS.readCap;
-const SEARCH_FILE_CAP = AGENT_LIMITS.searchFileCap; // files scanned per search
-const SEARCH_MATCH_CAP = AGENT_LIMITS.searchMatchCap; // matches returned per search
 const SEARCH_BATCH = 5; // concurrent file reads while scanning
-const SEMANTIC_FILE_CAP = 60; // files chunked for a semantic search
-const SEMANTIC_TOP_N = 8; // ranked hits returned
+// search/semantic caps come from the per-turn limits (admin transform mode bumps
+// them) via `lim` inside executeToolInner — see ctx.limits.
 
 export const WORKSPACE_TOOLS = [
   { type: "web_search" as const },
@@ -166,6 +168,20 @@ export const WORKSPACE_TOOLS = [
       type: "object",
       properties: { path: { type: "string" } },
       required: ["path"],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: "function" as const,
+    name: "move_file",
+    description:
+      "Rename or move a file: copies its contents to a new path and deletes the old one (atomic for the turn). " +
+      "Use for route/structure refactors. After moving, update any imports/links that referenced the old path.",
+    parameters: {
+      type: "object",
+      properties: { from: { type: "string" }, to: { type: "string" } },
+      required: ["from", "to"],
       additionalProperties: false,
     },
     strict: false,
@@ -268,15 +284,23 @@ export const WORKSPACE_TOOLS = [
 ];
 
 const READ_ONLY_TOOL_NAMES = new Set(["list_files", "read_file", "search_files", "semantic_search"]);
-const MUTATING_TOOL_NAMES = new Set(["write_files", "edit_file", "delete_file", "remember", "run_command"]);
+const MUTATING_TOOL_NAMES = new Set(["write_files", "edit_file", "delete_file", "move_file", "remember", "run_command"]);
+/** Tools gated to admin "transform mode" for now. */
+const ADMIN_ONLY_TOOL_NAMES = new Set(["move_file"]);
 
 /** The tool list for a turn. Plan mode keeps only read-only tools (plus the
- * web_search built-in, which has no name field — don't filter it by name). */
-export function workspaceTools(mode: "plan" | "build" = "build") {
-  if (mode !== "plan") return WORKSPACE_TOOLS;
-  return WORKSPACE_TOOLS.filter(
-    (t) => t.type === "web_search" || READ_ONLY_TOOL_NAMES.has((t as { name?: string }).name ?? ""),
-  );
+ * web_search built-in, which has no name field — don't filter it by name).
+ * move_file is admin-only for now (Phase-2 transform mode). */
+export function workspaceTools(mode: "plan" | "build" = "build", isAdmin = false) {
+  let tools = isAdmin
+    ? WORKSPACE_TOOLS
+    : WORKSPACE_TOOLS.filter((t) => !ADMIN_ONLY_TOOL_NAMES.has((t as { name?: string }).name ?? ""));
+  if (mode === "plan") {
+    tools = tools.filter(
+      (t) => t.type === "web_search" || READ_ONLY_TOOL_NAMES.has((t as { name?: string }).name ?? ""),
+    );
+  }
+  return tools;
 }
 
 const s = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -340,6 +364,8 @@ async function executeToolInner(
 ): Promise<unknown> {
   const ws = await getWorkspaceForUser(ctx.workspaceId, ctx.userId);
   if (!ws) return { error: "workspace not found" };
+  const lim = ctx.limits ?? AGENT_LIMITS;
+  const skeletonUnlocked = Boolean(ctx.limits?.unlockSkeleton);
 
   if (ctx.mode === "plan" && MUTATING_TOOL_NAMES.has(name)) {
     return { error: "Plan mode is read-only — finish the plan; the user approves before anything is built." };
@@ -372,9 +398,11 @@ async function executeToolInner(
       if (!check.ok) return { error: check.error };
       // Locked skeleton files (theme/palette system, boot config) carry a
       // HELIX-LOCKED marker — refuse to overwrite them; new files are fine.
-      for (const f of files) {
-        const existing = await readWorkspaceFile(ws, f.path);
-        if (existing !== null && existing.includes(LOCK_MARKER)) return { error: lockedFileError(f.path) };
+      if (!skeletonUnlocked) {
+        for (const f of files) {
+          const existing = await readWorkspaceFile(ws, f.path);
+          if (existing !== null && existing.includes(LOCK_MARKER)) return { error: lockedFileError(f.path) };
+        }
       }
       const intentId = ctx.getIntentId ? await ctx.getIntentId() : null;
       const result = await writeWorkspaceFiles(ws, files, intentId ? { intentId } : undefined);
@@ -393,7 +421,7 @@ async function executeToolInner(
 
       const current = await readWorkspaceFile(ws, path);
       if (current === null) return { error: `${path} not found — use write_files to create it` };
-      if (current.includes(LOCK_MARKER)) return { error: lockedFileError(path) };
+      if (current.includes(LOCK_MARKER) && !skeletonUnlocked) return { error: lockedFileError(path) };
 
       const occurrences = current.split(oldString).length - 1;
       let updated: string;
@@ -437,6 +465,22 @@ async function executeToolInner(
       if (ctx.cache) ctx.cache.tree = undefined; // listing changed
       return { deleted: true, deletedPaths: result.deletedPaths };
     }
+    case "move_file": {
+      const from = s(args.from);
+      const to = s(args.to);
+      if (!from || !to) return { error: "from and to are required" };
+      if (from === to) return { error: "from and to are identical — nothing to move" };
+      const content = await readWorkspaceFile(ws, from);
+      if (content === null) return { error: `${from} not found` };
+      if (content.includes(LOCK_MARKER) && !skeletonUnlocked) return { error: lockedFileError(from) };
+      const intentId = ctx.getIntentId ? await ctx.getIntentId() : null;
+      const wrote = await writeWorkspaceFiles(ws, [{ path: to, content }], intentId ? { intentId } : undefined);
+      if ("error" in wrote) return wrote;
+      const del = await deleteWorkspaceFile(ws, from, intentId ? { intentId } : undefined);
+      if ("error" in del) return del;
+      if (ctx.cache) ctx.cache.tree = undefined; // listing changed
+      return { moved: true, from, to, writtenPaths: wrote.writtenPaths, deletedPaths: del.deletedPaths };
+    }
     case "remember": {
       const notes = s(args.notes).trim();
       if (!notes) return { error: "notes is required" };
@@ -477,7 +521,7 @@ async function executeToolInner(
       const candidates = eligible
         .slice()
         .sort((a, b) => a.path.length - b.path.length || a.path.localeCompare(b.path))
-        .slice(0, SEARCH_FILE_CAP);
+        .slice(0, lim.searchFileCap);
 
       const matches: string[] = [];
       let scannedFiles = 0;
@@ -493,7 +537,7 @@ async function executeToolInner(
           for (let n = 0; n < lines.length; n++) {
             if (!re.test(lines[n])) continue;
             matches.push(`${batch[j].path}:${n + 1}: ${lines[n].trim().slice(0, 160)}`);
-            if (matches.length >= SEARCH_MATCH_CAP) {
+            if (matches.length >= lim.searchMatchCap) {
               capped = true;
               break outer;
             }
@@ -519,7 +563,7 @@ async function executeToolInner(
         .filter((f) => (!pathFilter || f.path.includes(pathFilter)) && f.size <= MAX_FILE_CHARS)
         .slice()
         .sort((a, b) => a.path.length - b.path.length || a.path.localeCompare(b.path))
-        .slice(0, SEMANTIC_FILE_CAP);
+        .slice(0, lim.semanticFileCap);
 
       const files: { path: string; content: string }[] = [];
       for (let i = 0; i < eligible.length; i += SEARCH_BATCH) {
@@ -532,7 +576,7 @@ async function executeToolInner(
 
       const chunks = buildChunks(files);
       if (chunks.length === 0) return { query, hits: [], scannedFiles: files.length };
-      const { hits, method } = await rerankSearch({ userId: ctx.userId, workspaceId: ctx.workspaceId, query, chunks, topN: SEMANTIC_TOP_N });
+      const { hits, method } = await rerankSearch({ userId: ctx.userId, workspaceId: ctx.workspaceId, query, chunks, topN: lim.semanticTopN });
       return {
         query,
         hits,
