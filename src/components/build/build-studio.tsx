@@ -153,6 +153,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   const [filePaths, setFilePaths] = useState<string[]>([]);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewNonce, setPreviewNonce] = useState(0);
+  const [previewRefreshing, setPreviewRefreshing] = useState(false);
   const [tab, setTab] = useState<"preview" | "code">("preview");
   // Left column switches between the conversation, the agent pipeline, and the
   // build board.
@@ -816,10 +817,15 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
                 </button>
                 <button
                   title="Refresh preview"
-                  onClick={() => void refreshPreview()}
-                  className="grid h-7 w-7 cursor-pointer place-items-center rounded-md border-none bg-transparent text-txt3 hover:text-txt"
+                  aria-label="Refresh preview"
+                  disabled={previewRefreshing}
+                  onClick={() => {
+                    setPreviewRefreshing(true);
+                    void refreshPreview().finally(() => setPreviewRefreshing(false));
+                  }}
+                  className="grid h-7 w-7 cursor-pointer place-items-center rounded-md border-none bg-transparent text-txt3 hover:text-txt disabled:opacity-50"
                 >
-                  <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.8} />
+                  <RefreshCw className={`h-3.5 w-3.5 ${previewRefreshing ? "animate-spin" : ""}`} strokeWidth={1.8} />
                 </button>
                 <span className="mx-1 h-4 w-px bg-border" />
                 <button

@@ -97,6 +97,7 @@ export function DeployDialog({
   // Real pre-deploy gate (security scan + tests + bundle weight).
   const [preflight, setPreflight] = useState<PreflightReport | null>(null);
   const [preflightLoading, setPreflightLoading] = useState(false);
+  const [preflightError, setPreflightError] = useState(false);
   // Monitoring: recent deployments for the linked project.
   const [events, setEvents] = useState<DeployEvent[]>([]);
 
@@ -152,12 +153,14 @@ export function DeployDialog({
   // Run the pre-deploy gate (security scan + tests + weight) when we have a repo.
   const runPreflight = useCallback(async () => {
     setPreflightLoading(true);
+    setPreflightError(false);
     try {
       const res = await fetch(`/api/workspaces/${workspaceId}/deploy/preflight`, { method: "POST" });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.ok) setPreflight(json.data as PreflightReport);
+      else setPreflightError(true);
     } catch {
-      // best-effort — the deploy button still works
+      setPreflightError(true);
     }
     setPreflightLoading(false);
   }, [workspaceId]);
@@ -298,7 +301,7 @@ export function DeployDialog({
                 </div>
               )}
               {/* Pre-deploy pipeline: real security scan + tests + weight. */}
-              {(preflightLoading || preflight) && (
+              {(preflightLoading || preflight || preflightError) && (
                 <div className="rounded-card border border-border2 bg-panel2/50 p-3">
                   <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-txt3">
                     Pre-deploy checks
@@ -318,6 +321,18 @@ export function DeployDialog({
                   {preflight && !preflight.ok && (
                     <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-bad">
                       <CircleSlash className="h-3.5 w-3.5 shrink-0" /> Fix the blocking issue above before deploying.
+                    </p>
+                  )}
+                  {preflightError && !preflightLoading && (
+                    <p className="flex items-center gap-1.5 py-1 text-[11.5px] text-warn">
+                      <CircleSlash className="h-3.5 w-3.5 shrink-0" /> Couldn&apos;t run the pre-deploy checks.
+                      <button
+                        type="button"
+                        onClick={() => void runPreflight()}
+                        className="font-medium text-accent underline-offset-2 transition-colors hover:underline"
+                      >
+                        Retry
+                      </button>
                     </p>
                   )}
                 </div>
