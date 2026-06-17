@@ -37,6 +37,17 @@ interface SecretFinding {
 const fieldCls =
   "w-full rounded-lg border border-border bg-bg2 px-3 py-2 text-xs text-txt placeholder:text-txt3 focus:border-accent focus:outline-none";
 
+/** Token-based hosts that can be connected inline (GitHub uses OAuth instead).
+ * Maps each to its PATCH /api/preferences field names (same as GitHostPicker). */
+type TokenHost = Exclude<GitProviderName, "github">;
+const HOST_FIELDS: Record<TokenHost, { token: string; baseUrl?: string; org?: string }> = {
+  gitlab: { token: "gitlabToken", baseUrl: "gitlabBaseUrl" },
+  bitbucket: { token: "bitbucketToken" },
+  azure: { token: "azureToken", org: "azureOrg" },
+  gitea: { token: "giteaToken", baseUrl: "giteaBaseUrl" },
+};
+const CONNECT_HOSTS: GitProviderName[] = ["github", "gitlab", "bitbucket", "azure", "gitea"];
+
 /**
  * Push the workspace overlay to its git host (GitHub, GitLab, Bitbucket,
  * Azure DevOps, or Gitea — copy adapts to the workspace's provider).
@@ -95,6 +106,52 @@ export function PushDialog({
   const [needsGithub, setNeedsGithub] = useState(false);
   const [result, setResult] = useState<PushResult | null>(null);
   const [secrets, setSecrets] = useState<SecretFinding[] | null>(null);
+
+  // Inline "connect another host" panel — so a new project can add a git host
+  // without leaving the dialog for Settings.
+  const [connectHost, setConnectHost] = useState<GitProviderName | null>(null);
+  const [token, setToken] = useState("");
+  const [connBaseUrl, setConnBaseUrl] = useState("");
+  const [connOrg, setConnOrg] = useState("");
+  const [connecting, setConnecting] = useState(false);
+  const [connectErr, setConnectErr] = useState<string | null>(null);
+  const connMeta = connectHost ? PROVIDER_META[connectHost] : null;
+  const connectReady =
+    token.trim().length > 0 &&
+    (!connMeta || connMeta.needsBaseUrl !== "required" || connBaseUrl.trim().length > 0) &&
+    (!connMeta?.needsOrg || connOrg.trim().length > 0);
+
+  async function connectTokenHost() {
+    if (connecting || !connectHost || connectHost === "github") return;
+    const fields = HOST_FIELDS[connectHost as TokenHost];
+    setConnecting(true);
+    setConnectErr(null);
+    try {
+      const body: Record<string, string> = { [fields.token]: token.trim() };
+      if (fields.baseUrl) body[fields.baseUrl] = connBaseUrl.trim();
+      if (fields.org) body[fields.org] = connOrg.trim();
+      const res = await fetch("/api/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        setConnectErr(json?.error?.message ?? "Couldn't save the token.");
+      } else {
+        // Connected — make it available and selected, then close the panel.
+        setConnections((c) => ({ ...c, [connectHost]: true }));
+        setProvider(connectHost);
+        setConnectHost(null);
+        setToken("");
+        setConnBaseUrl("");
+        setConnOrg("");
+      }
+    } catch {
+      setConnectErr("Network error. Try again.");
+    }
+    setConnecting(false);
+  }
 
   async function push(force = false) {
     if (busy) return;
@@ -321,13 +378,101 @@ export function PushDialog({
                           {PROVIDER_META[h].label}
                         </button>
                       ))}
-                      <a
-                        href="/settings"
-                        className="rounded-lg border border-dashed border-border2 px-2.5 py-1.5 text-xs text-txt3 transition-colors hover:border-accent hover:text-txt"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConnectHost((h) => (h ? null : "gitlab"));
+                          setToken("");
+                          setConnBaseUrl("");
+                          setConnOrg("");
+                          setConnectErr(null);
+                        }}
+                        className={cn(
+                          "rounded-lg border border-dashed px-2.5 py-1.5 text-xs transition-colors",
+                          connectHost ? "border-accent text-txt" : "border-border2 text-txt3 hover:border-accent hover:text-txt",
+                        )}
                       >
                         + connect another
-                      </a>
+                      </button>
                     </div>
+
+                    {/* Inline connect — add a git host without leaving for Settings. */}
+                    {connectHost && (
+                      <div className="mt-2.5 space-y-2.5 rounded-lg border border-border2 bg-panel2 p-3">
+                        <div className="flex flex-wrap gap-1.5">
+                          {CONNECT_HOSTS.map((h) => (
+                            <button
+                              key={h}
+                              type="button"
+                              onClick={() => {
+                                setConnectHost(h);
+                                setToken("");
+                                setConnectErr(null);
+                              }}
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] transition-colors",
+                                connectHost === h
+                                  ? "border-accent bg-hl text-txt"
+                                  : "border-border2 bg-panel text-txt2 hover:border-accent hover:text-txt",
+                              )}
+                            >
+                              {PROVIDER_META[h].label}
+                              {connections[h] && <span title="connected" className="h-1.5 w-1.5 rounded-full bg-ok" />}
+                            </button>
+                          ))}
+                        </div>
+
+                        {connectHost === "github" ? (
+                          <Button
+                            onClick={() => {
+                              if (isGuest) window.location.href = "/login";
+                              else void signIn("github", { callbackUrl: window.location.href });
+                            }}
+                            className="w-full justify-center"
+                          >
+                            <GitHubIcon className="h-3.5 w-3.5" /> {isGuest ? "Sign in with GitHub" : "Connect GitHub"}
+                          </Button>
+                        ) : (
+                          <form
+                            className="space-y-2"
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              if (connectReady) void connectTokenHost();
+                            }}
+                          >
+                            {connMeta?.tokenHelp && <p className="text-[11px] leading-relaxed text-txt3">{connMeta.tokenHelp}</p>}
+                            <input
+                              type="password"
+                              autoComplete="off"
+                              value={token}
+                              onChange={(e) => setToken(e.target.value)}
+                              placeholder={connMeta?.tokenPlaceholder ?? "access token"}
+                              className={`${fieldCls} font-mono`}
+                            />
+                            {connMeta?.needsBaseUrl !== "no" && (
+                              <input
+                                value={connBaseUrl}
+                                onChange={(e) => setConnBaseUrl(e.target.value)}
+                                placeholder={connMeta?.baseUrlPlaceholder ?? "server URL"}
+                                className={fieldCls}
+                              />
+                            )}
+                            {connMeta?.needsOrg && (
+                              <input
+                                value={connOrg}
+                                onChange={(e) => setConnOrg(e.target.value)}
+                                placeholder="your-organization"
+                                className={fieldCls}
+                              />
+                            )}
+                            {connectErr && <p className="text-[11px] text-warn">{connectErr}</p>}
+                            <Button type="submit" disabled={connecting || !connectReady} className="w-full justify-center">
+                              {connecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Connect {connMeta?.label}
+                            </Button>
+                          </form>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="label-tactical mb-1.5 block">
