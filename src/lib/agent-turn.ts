@@ -41,7 +41,7 @@ import { setProgress, clearProgress } from "@/lib/progress";
 import { usingSandboxBackend, runnerEnabled } from "@/lib/app-runner";
 import { verifyBuild, verifyMarker, canVerifyInProcess } from "@/lib/verify";
 import { runAnthropicAgent, runLocalAgent, runToolCalls, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
-import { resolveBedrockModel, type BedrockResolved } from "@/lib/ai/bedrock";
+import { bedrockEnabled, resolveBedrockModel, type BedrockResolved } from "@/lib/ai/bedrock";
 import { withRetry } from "@/lib/ai/retry";
 import { createAgentIntent } from "@/lib/intent-ledger";
 import { pathInScope } from "@/lib/jobs/scope";
@@ -178,7 +178,10 @@ export async function runAgentTurn(opts: {
       user: { select: { email: true } },
     },
   });
-  let aiProvider = prefs?.aiProvider ?? "openai";
+  // When the user hasn't chosen a provider, default to Bedrock if it's wired
+  // (platform key, no BYO needed) — it's the intended platform default for
+  // signed-in users; otherwise fall back to OpenAI.
+  let aiProvider = prefs?.aiProvider ?? (bedrockEnabled() ? "bedrock" : "openai");
   // "default" was a broken literal an old picker saved — treat as unset.
   const prefModel = prefs?.aiModel === "default" ? "" : (prefs?.aiModel ?? "");
   let aiModel = prefModel || PROVIDER_DEFAULT_MODEL[aiProvider] || "";

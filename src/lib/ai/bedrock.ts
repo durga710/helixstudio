@@ -122,7 +122,18 @@ export const BEDROCK_MODELS: BedrockModel[] = [
     project: false,
   },
 
-  // ---- Anthropic protocol (Claude) — ids confirmed, access pending ----
+  // ---- Anthropic protocol (Claude) — LIVE on the account's Bedrock project ----
+  // Confirmed available in the Bedrock console (2026-06-17): Opus 4.6 + Sonnet
+  // 4.6 (1M context, text+image), Haiku 4.5 (200K). All cross-region inference,
+  // served on the mantle /anthropic gateway with the `anthropic.<alias>` id form.
+  // If the console's "View model details" shows a different exact invocation id,
+  // substitute it here (some catalogs use a `us.` cross-region prefix / `-v1:0`
+  // suffix) — only `modelId` needs to change.
+  { modelId: "anthropic.claude-opus-4-6", label: "Claude Opus 4.6", protocol: "anthropic", contextLabel: "1M context", confirmed: true },
+  { modelId: "anthropic.claude-sonnet-4-6", label: "Claude Sonnet 4.6", protocol: "anthropic", contextLabel: "1M context", confirmed: true },
+  { modelId: "anthropic.claude-haiku-4-5", label: "Claude Haiku 4.5", protocol: "anthropic", contextLabel: "200K context", confirmed: true },
+
+  // ---- Anthropic protocol (Claude) — ids known, access not yet granted ----
   { modelId: "anthropic.claude-opus-4-8", label: "Claude Opus 4.8", protocol: "anthropic", contextLabel: "1M context", confirmed: false },
   { modelId: "anthropic.claude-opus-4-7", label: "Claude Opus 4.7", protocol: "anthropic", contextLabel: "1M context", confirmed: false },
 
