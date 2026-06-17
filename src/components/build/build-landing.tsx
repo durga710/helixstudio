@@ -386,8 +386,10 @@ export function BuildLanding({ signedIn, isGuest, dbReady, isAdmin }: BuildLandi
         )}
       </main>
 
-      <footer className="relative z-10 pb-6 text-center text-[11.5px] text-[#5f6f86]">
-        Powered by the Helix agent — plan, build, review. helixstudio.org
+      <footer className="relative z-10 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pb-6 text-center text-[11.5px] text-[#5f6f86]">
+        <span>Powered by the Helix agent — plan, build, review.</span>
+        <Link href="/terms" className="hover:text-[#9cadc4]">Terms</Link>
+        <Link href="/privacy" className="hover:text-[#9cadc4]">Privacy</Link>
       </footer>
     </div>
   );

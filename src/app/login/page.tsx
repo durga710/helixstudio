@@ -257,7 +257,15 @@ export default async function LoginPage({
           </a>
 
           <div className="mt-7 text-center text-[11.5px] leading-relaxed text-[#5f6f86]">
-            By continuing you agree to our Terms and Privacy Policy.
+            By continuing you agree to our{" "}
+            <a href="/terms" className="text-[#9cadc4] underline-offset-2 hover:text-[#f8fbff] hover:underline">
+              Terms
+            </a>{" "}
+            and{" "}
+            <a href="/privacy" className="text-[#9cadc4] underline-offset-2 hover:text-[#f8fbff] hover:underline">
+              Privacy Policy
+            </a>
+            .
             <br />
             helixstudio.org
           </div>

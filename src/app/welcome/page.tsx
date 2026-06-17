@@ -271,9 +271,11 @@ export default async function WelcomePage() {
             Helix Studio
           </Link>
           <span>© 2026 Helix Studio · helixstudio.org</span>
-          <div className="ml-auto flex gap-5">
+          <div className="ml-auto flex flex-wrap gap-5">
             <a href="#workflow" className="hover:text-txt">Workflow</a>
             <a href="#pricing" className="hover:text-txt">Pricing</a>
+            <Link href="/terms" className="hover:text-txt">Terms</Link>
+            <Link href="/privacy" className="hover:text-txt">Privacy</Link>
             <a href="https://github.com/durga710/helixstudio" className="hover:text-txt">GitHub</a>
           </div>
         </div>
