@@ -606,7 +606,7 @@ function GradeRow({
               )}
               <Button variant="ghost" onClick={() => void runAiReview()} disabled={reviewing}>
                 {reviewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bot className="h-3.5 w-3.5" />}
-                AI review
+                {reviewing ? "Reviewing…" : aiReview ? "Refresh AI review" : "AI review"}
               </Button>
             </div>
 
