@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/set-state-in-effect -- ported GCODE studio code; its fetch-on-mount/poll effects predate this rule and behave correctly */
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -231,15 +230,24 @@ type HistoryMsg = { role: "user" | "assistant"; content: string; summary?: strin
 // Markers that have their own UI (the plan card / the verify badge) — kept out
 // of the reconstructed step list so they aren't shown twice.
 const NON_STEP_TOOLS = new Set(["plan", "verified", "verify_failed", "verify_skipped"]);
+/** The turn's worklog = its REAL ordered tool work ("read X", "wrote 3 files",
+ * "edited Y"), de-duped. This is the single source for what "N steps" shows —
+ * both live-completed and after a reload — so the checklist always reflects
+ * actual work, never the warm "building…" filler that paces the live spinner. */
+function stepsFromActions(actions?: Action[] | null): string[] | undefined {
+  if (!Array.isArray(actions)) return undefined;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const a of actions) {
+    if (NON_STEP_TOOLS.has(a.tool) || !a.label || seen.has(a.label)) continue;
+    seen.add(a.label);
+    out.push(a.label);
+  }
+  return out.length ? out : undefined;
+}
 function hydrateMessage(m: HistoryMsg): Msg {
   if (m.role === "user") return { role: "user", content: stripBrief(m.content), actions: m.actions ?? undefined };
-  // Rebuild the turn's step feed from the persisted actions (the real ordered
-  // tool work — "read X", "wrote 3 files", "edited Y") so the steps survive a
-  // reload, not just the live session.
-  const steps = Array.isArray(m.actions)
-    ? m.actions.filter((a) => !NON_STEP_TOOLS.has(a.tool)).map((a) => a.label)
-    : [];
-  const worklog = steps.length ? steps : undefined;
+  const worklog = stepsFromActions(m.actions);
   return m.summary
     ? { role: "assistant", content: m.summary, actions: m.actions ?? undefined, aiText: m.content || undefined, worklog }
     : { role: "assistant", content: m.content, actions: m.actions ?? undefined, worklog };
@@ -295,7 +303,10 @@ export function ChatPanel({
   // shows the same line ("thinking…", a repeated file) stacked over and over.
   const pushStep = useCallback((line: string) => {
     if (!line) return;
-    setWorklog((w) => (turnDone.current || (w.length && w[w.length - 1] === line) ? w : [...w, line]));
+    // De-dupe against the WHOLE list, not just the last line: a long turn loops
+    // the varied "building…" pool, and without this the same handful of lines
+    // would stack up over and over (the "12 steps" of repeating filler bug).
+    setWorklog((w) => (turnDone.current || w.includes(line) ? w : [...w, line]));
   }, []);
 
   // Fetch the cost/scope estimate when a job offer appears (admin preview).
@@ -550,14 +561,16 @@ export function ChatPanel({
     realActivityStarted.current = true;
     const seed = `${workspace.id}:${message}`;
     const opener = `${paraphraseRequest(message, seed)}…`;
-    // Cycle varied "still working" lines until the turn ends, so a follow-up that
-    // runs long keeps breathing instead of collapsing to a repeated "thinking…".
+    // Cycle varied "still working" lines on the single live spinner LINE (not the
+    // step checklist) until the turn ends — so a follow-up keeps breathing
+    // without padding the worklog with looping filler. The real steps come from
+    // the turn's actual tool actions when it finishes (see handleFinal).
     const hold = holdingLines(seed);
     void (async () => {
-      pushStep(opener);
+      setActivity(opener);
       await new Promise((r) => setTimeout(r, 1100 + Math.random() * 900));
       for (let i = 0; !turnDone.current; i++) {
-        pushStep(hold[i % hold.length]);
+        setActivity(hold[i % hold.length]);
         await new Promise((r) => setTimeout(r, 1600 + Math.random() * 1200));
       }
     })();
@@ -616,7 +629,11 @@ export function ChatPanel({
       // and PERSISTED, so a reload matches this exactly). When present we show it
       // and tuck the model's own reply behind a "details" toggle; Q&A/plan turns
       // (no summary) keep the model's text.
-      const steps = worklogRef.current.length ? [...worklogRef.current] : undefined;
+      // The worklog is the turn's REAL tool work (from data.actions) — NOT the
+      // warm "building…" filler that paced the live spinner — so a finished turn
+      // shows honest steps ("edited game.js", "ran the build") and matches the
+      // reload view exactly, instead of a padded, looping list of filler lines.
+      const steps = stepsFromActions(data.actions);
       setMessages((m) => [
         ...(m ?? []),
         data.summary
