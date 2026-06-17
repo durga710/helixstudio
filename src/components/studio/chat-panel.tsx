@@ -32,6 +32,7 @@ import {
   ClipboardList,
   Gamepad2,
   Lightbulb,
+  Coins,
   type LucideIcon,
 } from "lucide-react";
 import { GAME_CATEGORIES } from "@/lib/templates/engines";
@@ -66,6 +67,9 @@ interface Msg {
   worklog?: string[];
   /** A durable multi-agent job started from this message → renders a JobBoard. */
   jobId?: string;
+  /** Tokens this turn billed (input+output, cache-weighted) — shown as a small
+   * badge under the reply so the cost of each transaction is visible. */
+  tokensUsed?: number;
 }
 
 interface TaskChanges {
@@ -114,6 +118,36 @@ const STARTERS = [
   { icon: Utensils, title: "Recipe site", prompt: "A recipe site with cards, a detail page, and a search bar" },
 ] as const;
 
+// Once a project EXISTS, "ideas" should be about improving what's there — not
+// starting over. These are generic, work-on-anything next steps (seeded variety
+// like the starters), kept zero-token/instant so the Ideas panel never lags.
+const APP_IMPROVEMENTS = [
+  { title: "Add a dark mode toggle", prompt: "Add a dark mode toggle that styles the whole app" },
+  { title: "Make it mobile-friendly", prompt: "Make the whole layout look great on phones and tablets" },
+  { title: "Add a contact form", prompt: "Add a contact form with name, email, and message" },
+  { title: "Polish the hero", prompt: "Make the hero section bolder and more polished" },
+  { title: "Add an about page", prompt: "Add an about page with a short story and the team" },
+  { title: "Add testimonials", prompt: "Add a testimonials section with a few quotes" },
+  { title: "Add an FAQ", prompt: "Add an FAQ section with a few common questions" },
+  { title: "Refresh the look", prompt: "Refresh the color scheme and spacing for a cleaner, modern look" },
+  { title: "Add a footer", prompt: "Add a footer with links and a copyright line" },
+  { title: "Add subtle animations", prompt: "Add smooth, subtle animations on scroll and hover" },
+  { title: "Add a nav bar", prompt: "Add a sticky navigation bar with links to each section" },
+  { title: "Add a call-to-action", prompt: "Add a strong call-to-action section near the bottom" },
+] as const;
+
+const GAME_IMPROVEMENTS = [
+  "Add a scoreboard",
+  "Add sound effects",
+  "Add a new level",
+  "Add power-ups",
+  "Add a start screen",
+  "Add a game-over screen",
+  "Make it get harder over time",
+  "Add enemies to dodge",
+  "Save the high score",
+] as const;
+
 /** Deterministically shuffle then take `n` from a pool, using a seeded PRNG so
  * the choice is stable for one project but varies across projects. */
 function pickN<T>(pool: readonly T[], n: number, seed: string): T[] {
@@ -121,20 +155,25 @@ function pickN<T>(pool: readonly T[], n: number, seed: string): T[] {
   return [...pool].sort(() => rng() - 0.5).slice(0, n);
 }
 
-/** Mode-specific starter suggestions — NEVER cross-mode, and DYNAMIC: a different
- * varied set per project (seeded by the workspace id) so the same four ideas
- * never show every time. A game editor shows its category's game ideas. */
-function starterSuggestions(ws: WorkspaceMeta): { icon: LucideIcon; title: string; prompt: string }[] {
+/** Mode-specific suggestions — NEVER cross-mode, and project-state-aware: a
+ * NEW project gets "what to build" starters; once a project EXISTS
+ * (`hasProject`), the ideas become "what to improve next" so the panel reflects
+ * the actual project instead of pitching a fresh app. Seeded by workspace id so
+ * the set is varied but stable, and fully instant (no AI call). */
+function starterSuggestions(ws: WorkspaceMeta, hasProject = false): { icon: LucideIcon; title: string; prompt: string }[] {
   if (ws.kind === "game") {
+    if (hasProject) return pickN(GAME_IMPROVEMENTS, 4, `${ws.id}:imp`).map((s) => ({ icon: Gamepad2, title: s, prompt: s }));
     const cat = ws.gameCategory ? GAME_CATEGORIES.find((c) => c.id === ws.gameCategory) : undefined;
     const sugg = cat?.suggestions ?? GAME_CATEGORIES[0].suggestions;
     return pickN(sugg, 4, ws.id).map((s) => ({ icon: Gamepad2, title: s, prompt: s }));
   }
+  if (hasProject) return pickN(APP_IMPROVEMENTS, 4, `${ws.id}:imp`).map((s) => ({ icon: Wrench, title: s.title, prompt: s.prompt }));
   return pickN(STARTERS, 4, ws.id).map((s) => ({ icon: s.icon, title: s.title, prompt: s.prompt }));
 }
 
-/** Inviting, mode-specific greeting + a graceful hint at what you can ask for. */
-function modeGreeting(ws: WorkspaceMeta): { title: string; body: string } {
+/** Inviting, mode-specific greeting. Once a project exists it shifts from
+ * "what are we building?" to "what should we improve?" — matching the ideas. */
+function modeGreeting(ws: WorkspaceMeta, hasProject = false): { title: string; body: string } {
   if (ws.mode === "IMPORT") {
     return {
       title: ws.repo ?? "Your repo",
@@ -142,6 +181,12 @@ function modeGreeting(ws: WorkspaceMeta): { title: string; body: string } {
     };
   }
   if (ws.kind === "game") {
+    if (hasProject) {
+      return {
+        title: "What should we add next?",
+        body: "Your game's running — ask for levels, enemies, a scoreboard, sounds, power-ups, or a new look, then hit Play to try it.",
+      };
+    }
     const cat = ws.gameCategory ? GAME_CATEGORIES.find((c) => c.id === ws.gameCategory) : undefined;
     const is3d = (cat?.templateId ?? "").includes("3d");
     return {
@@ -149,6 +194,12 @@ function modeGreeting(ws: WorkspaceMeta): { title: string; body: string } {
       body: is3d
         ? "Describe the game and Helix builds it — hit Play to try it. You can ask to change the environment or background, add objects to the world, move the camera, or drop in obstacles and pickups."
         : "Describe the game and Helix builds it — hit Play to try it. You can ask to add levels, enemies, a scoreboard, power-ups, sounds, or change how it looks.",
+    };
+  }
+  if (hasProject) {
+    return {
+      title: "What should we improve?",
+      body: "Your app's taking shape — ask for any change: a new page or section, a form, a fresh look, or a fix. Push to GitHub when you like it.",
     };
   }
   return {
@@ -559,6 +610,7 @@ export function ChatPanel({
       actions?: Action[];
       changes?: TaskChanges;
       guestRemaining?: number;
+      tokensUsed?: number;
     }) => {
       // Hybrid: the SERVER computed our user-facing summary (varied, truthful,
       // and PERSISTED, so a reload matches this exactly). When present we show it
@@ -568,8 +620,8 @@ export function ChatPanel({
       setMessages((m) => [
         ...(m ?? []),
         data.summary
-          ? { role: "assistant", content: data.summary, actions: data.actions, aiText: data.text || undefined, worklog: steps }
-          : { role: "assistant", content: data.text ?? "", actions: data.actions, worklog: steps },
+          ? { role: "assistant", content: data.summary, actions: data.actions, aiText: data.text || undefined, worklog: steps, tokensUsed: data.tokensUsed }
+          : { role: "assistant", content: data.text ?? "", actions: data.actions, worklog: steps, tokensUsed: data.tokensUsed },
       ]);
       if (typeof data.guestRemaining === "number") setGuestRemaining(data.guestRemaining);
       const ch = data.changes;
@@ -974,10 +1026,10 @@ export function ChatPanel({
           <>
             <div className="fixed inset-0 z-40" onClick={() => setIdeasOpen(false)} />
             <div className="absolute right-3 top-[calc(100%+4px)] z-50 w-[min(340px,90vw)] rounded-xl border border-border2 bg-panel p-3 shadow-pop">
-              <p className="mb-1 text-[13px] font-semibold text-txt">{modeGreeting(workspace).title}</p>
-              <p className="mb-2.5 text-[11.5px] leading-relaxed text-txt3">{modeGreeting(workspace).body}</p>
+              <p className="mb-1 text-[13px] font-semibold text-txt">{modeGreeting(workspace, true).title}</p>
+              <p className="mb-2.5 text-[11.5px] leading-relaxed text-txt3">{modeGreeting(workspace, true).body}</p>
               <div className="flex flex-col gap-1.5">
-                {starterSuggestions(workspace).map((sx) => (
+                {starterSuggestions(workspace, true).map((sx) => (
                   <button
                     key={sx.title}
                     type="button"
@@ -1290,6 +1342,15 @@ export function ChatPanel({
                           ))}
                         </div>
                       </details>
+                    )}
+                    {m.role === "assistant" && typeof m.tokensUsed === "number" && m.tokensUsed > 0 && (
+                      <div
+                        className="mt-1.5 inline-flex items-center gap-1 pl-1 text-[10.5px] text-txt3"
+                        title="Tokens this request used (input + output)"
+                      >
+                        <Coins className="h-3 w-3" strokeWidth={2} />
+                        <span className="font-mono tabular-nums">{m.tokensUsed.toLocaleString()} tokens</span>
+                      </div>
                     )}
                     {m.jobId && <JobBoard workspaceId={workspace.id} jobId={m.jobId} />}
                     {showPlanButtons && (

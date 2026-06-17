@@ -115,6 +115,7 @@ export async function POST(req: Request, { params }: Params) {
               changes: result.changes,
               verify: result.verify,
               guestRemaining: result.guestRemaining,
+              tokensUsed: result.tokensUsed,
               phases: "phases" in result ? result.phases : undefined,
             });
           }
