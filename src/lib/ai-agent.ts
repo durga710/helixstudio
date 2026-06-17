@@ -316,7 +316,7 @@ export async function resolveAiPrefs(userId: string): Promise<{
 }> {
   const { db } = await import("@/lib/db");
   const { OPENAI_MODEL } = await import("@/lib/openai");
-  const { resolveBedrockModel } = await import("@/lib/ai/bedrock");
+  const { resolveBedrockModel, bedrockEnabled } = await import("@/lib/ai/bedrock");
   const prefs = await db().userPreferences.findUnique({
     where: { userId },
     select: {
@@ -330,13 +330,13 @@ export async function resolveAiPrefs(userId: string): Promise<{
       user: { select: { email: true } },
     },
   });
-  const provider = prefs?.aiProvider ?? "openai";
+  const provider = prefs?.aiProvider ?? (bedrockEnabled() ? "bedrock" : "openai");
   const prefModel = prefs?.aiModel === "default" ? "" : (prefs?.aiModel ?? "");
 
   // Bedrock-served models (platform default, no BYO key). Map to the matching
   // transport: openai-protocol → the OpenAI-compatible path; claude → anthropic.
   if (provider === "bedrock") {
-    const r = resolveBedrockModel(prefModel);
+    const r = (prefModel ? resolveBedrockModel(prefModel) : null) ?? resolveBedrockModel(PROVIDER_DEFAULT_MODEL.bedrock!);
     if (r) {
       return {
         provider: r.protocol === "anthropic" ? "anthropic" : "local",
