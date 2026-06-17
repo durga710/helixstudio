@@ -114,6 +114,7 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
               if (e.key === "Enter" && filtered[activeIndex]) runItem(filtered[activeIndex]);
             }}
             placeholder="Search files, run a command, or ask Helix…"
+            aria-label="Search files, run a command, or ask Helix"
             autoComplete="off"
             className="w-full border-none bg-transparent font-sans text-[13.5px] text-txt outline-none placeholder:text-txt3"
           />

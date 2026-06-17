@@ -99,6 +99,14 @@ export function SettingsScreen({
   const { toast } = useToast();
   const router = useRouter();
 
+  // Model/reasoning/agent prefs change nothing visible on screen, so without a
+  // cue the user can't tell the click stuck. Confirm with a toast (the Appearance
+  // controls don't need this — the theme/accent/font change is its own receipt).
+  const savePref = (patch: Parameters<typeof update>[0]) => {
+    update(patch);
+    toast("Saved");
+  };
+
   // Profile (avatar + display name). Seeded from the SSR session to avoid a
   // flash, then reconciled with the live DB value (the session can lag ≤60s).
   const [avatar, setAvatar] = useState<string | null>(initialImage ?? null);
@@ -475,7 +483,7 @@ export function SettingsScreen({
             <Segmented<ModelTier>
               aria-label="Default model"
               value={prefs.model}
-              onChange={(model) => update({ model })}
+              onChange={(model) => savePref({ model })}
               options={[
                 { value: "haiku", label: "Haiku" },
                 { value: "sonnet", label: "Sonnet" },
@@ -487,7 +495,7 @@ export function SettingsScreen({
             <Segmented<ReasoningDepth>
               aria-label="Reasoning depth"
               value={prefs.depth}
-              onChange={(depth) => update({ depth })}
+              onChange={(depth) => savePref({ depth })}
               options={[
                 { value: "fast", label: "Fast" },
                 { value: "deep", label: "Deep" },
@@ -501,7 +509,7 @@ export function SettingsScreen({
           >
             <Switch
               checked={prefs.confirmActions}
-              onCheckedChange={(confirmActions) => update({ confirmActions })}
+              onCheckedChange={(confirmActions) => savePref({ confirmActions })}
               aria-label="Confirm before every action"
             />
           </SettingRow>
@@ -516,7 +524,7 @@ export function SettingsScreen({
           >
             <Switch
               checked={prefs.fullWorkflow}
-              onCheckedChange={(fullWorkflow) => update({ fullWorkflow })}
+              onCheckedChange={(fullWorkflow) => savePref({ fullWorkflow })}
               aria-label="Full multi-agent workflow"
             />
           </SettingRow>
@@ -527,7 +535,7 @@ export function SettingsScreen({
           >
             <Switch
               checked={prefs.autoSecurity}
-              onCheckedChange={(autoSecurity) => update({ autoSecurity })}
+              onCheckedChange={(autoSecurity) => savePref({ autoSecurity })}
               aria-label="Auto-run security review"
             />
           </SettingRow>
