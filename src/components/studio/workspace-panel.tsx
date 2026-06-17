@@ -32,7 +32,6 @@ import {
   UploadCloud,
   X,
   Pencil,
-  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
@@ -167,12 +166,10 @@ export function WorkspacePanel({
   const [pushing, setPushing] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
   const [envOpen, setEnvOpen] = useState(false);
-  // Project name (editable inline) + delete-project flow.
+  // Project name (editable inline). Deletion lives on the dashboard.
   const [name, setName] = useState(workspace.name);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(workspace.name);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deletingWs, setDeletingWs] = useState(false);
 
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewInfo, setPreviewInfo] = useState<string | null>(null);
@@ -233,6 +230,14 @@ export function WorkspacePanel({
   }
   const [run, setRun] = useState<RunInfo | null>(null);
   const [runBusy, setRunBusy] = useState(false);
+  // When the user last hit "Run app". The cloud VM is just being created in the
+  // first seconds after this, and a cold serverless instance's first status
+  // lookup can momentarily miss the brand-new sandbox and report "stopped" — so
+  // for a short grace window after a start we IGNORE a "stopped" status and keep
+  // polling, instead of giving up. This is the first-run-after-page-load bug:
+  // the first run "failed" and a manual stop+retry "fixed" it only because the
+  // retry's lookups landed once the instance was warm.
+  const runStartedAt = useRef<number | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Diff tab: pending workspace changes vs the base branch.
@@ -705,26 +710,6 @@ export function WorkspacePanel({
     }
   }
 
-  // Delete the whole project (owner only) and leave the editor.
-  async function deleteProject() {
-    if (deletingWs) return;
-    setDeletingWs(true);
-    try {
-      const res = await fetch(`/api/workspaces/${workspace.id}`, { method: "DELETE" });
-      if (res.ok) {
-        router.push("/editor");
-      } else {
-        toast("Couldn't delete the project.");
-        setDeletingWs(false);
-        setConfirmDelete(false);
-      }
-    } catch {
-      toast("Couldn't delete the project.");
-      setDeletingWs(false);
-      setConfirmDelete(false);
-    }
-  }
-
   // Premium: download the project as a zip with a one-command local setup.
   async function exportProject() {
     if (exporting) return;
@@ -857,11 +842,27 @@ export function WorkspacePanel({
 
   /* --------------------------- app runner --------------------------- */
 
+  // Just-started runs get a grace window where a transient "stopped" (the cold
+  // first lookup missing the brand-new VM) is ignored so polling continues.
+  const START_GRACE_MS = 90_000;
+
   const refreshRun = useCallback(async () => {
     try {
       const res = await fetch(`/api/workspaces/${workspace.id}/run`, { cache: "no-store" });
       const json = await res.json().catch(() => null);
-      if (res.ok && json?.ok) setRun(json.data);
+      if (!res.ok || !json?.ok) return;
+      const next = json.data as RunInfo;
+      // Within the grace window after a start, a "stopped" almost always means
+      // the new VM just isn't queryable yet — keep the current coming-up state
+      // and let the next poll catch it, rather than flipping to the placeholder.
+      if (
+        next.status === "stopped" &&
+        runStartedAt.current !== null &&
+        Date.now() - runStartedAt.current < START_GRACE_MS
+      ) {
+        return;
+      }
+      setRun(next);
     } catch {
       // next poll will catch up
     }
@@ -873,8 +874,10 @@ export function WorkspacePanel({
     try {
       const res = await fetch(`/api/workspaces/${workspace.id}/run`, { method: "POST" });
       const json = await res.json().catch(() => null);
-      if (res.ok && json?.ok) setRun(json.data);
-      else setNote(json?.error?.message ?? "Couldn't start the app.");
+      if (res.ok && json?.ok) {
+        runStartedAt.current = Date.now();
+        setRun(json.data);
+      } else setNote(json?.error?.message ?? "Couldn't start the app.");
     } catch {
       setNote("Couldn't start the app.");
     }
@@ -888,8 +891,10 @@ export function WorkspacePanel({
       const res = await fetch(`/api/workspaces/${workspace.id}/run`, { method: "DELETE" });
       // Only clear the run UI when the stop actually succeeded — otherwise the
       // app keeps running (and billing the VM) while we'd falsely show "stopped".
-      if (res.ok) setRun(null);
-      else setNote("Couldn't stop the app — it may still be running.");
+      if (res.ok) {
+        runStartedAt.current = null; // a deliberate stop ends the grace window
+        setRun(null);
+      } else setNote("Couldn't stop the app — it may still be running.");
     } catch {
       setNote("Couldn't reach the server — the app may still be running.");
     }
@@ -1119,15 +1124,8 @@ export function WorkspacePanel({
                 {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                 Export
               </Button>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                title="Delete this project"
-                aria-label="Delete project"
-                className="rounded-lg border border-border p-1.5 text-txt2 transition-colors hover:border-bad hover:text-bad"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              {/* Project deletion lives on the dashboard, not here — the editor
+                  is for working on the project, not removing it. */}
             </>
           ) : (
             <Button onClick={() => void forkWorkspace()} disabled={forking} className="px-3.5 py-1.5">
@@ -1769,42 +1767,6 @@ export function WorkspacePanel({
           hasRepo={Boolean(workspace.repo)}
           onClose={() => setDeployOpen(false)}
         />
-      )}
-      {confirmDelete && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
-          onClick={() => !deletingWs && setConfirmDelete(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl border border-border2 bg-panel p-5 shadow-pop"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-[15px] font-semibold text-txt">Delete this project?</h2>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-txt2">
-              <span className="font-medium text-txt">{name || "This project"}</span> and all its files will be
-              permanently deleted. This can&apos;t be undone.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(false)}
-                disabled={deletingWs}
-                className="rounded-lg border border-border px-3.5 py-1.5 text-sm text-txt2 transition-colors hover:text-txt disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void deleteProject()}
-                disabled={deletingWs}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-bad px-3.5 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {deletingWs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                Delete project
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
