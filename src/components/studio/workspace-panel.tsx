@@ -35,7 +35,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
+import { pickPreviewEntry } from "@/lib/preview-html";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
@@ -55,6 +55,9 @@ import { IntentsPanel } from "@/components/studio/intents-panel";
 import { UndoDialog } from "@/components/studio/undo-dialog";
 import { IntentPopover } from "@/components/studio/intent-popover";
 import type { OnMount } from "@monaco-editor/react";
+import { useAppRunner } from "@/components/studio/use-app-runner";
+import { useWorkspaceDiff } from "@/components/studio/use-workspace-diff";
+import { useLivePreview } from "@/components/studio/use-live-preview";
 
 const editorLoading = (
   <div className="grid h-full place-items-center text-sm text-txt3">
@@ -174,14 +177,11 @@ export function WorkspacePanel({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deletingWs, setDeletingWs] = useState(false);
 
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  const [previewInfo, setPreviewInfo] = useState<string | null>(null);
   const [previewNonce, setPreviewNonce] = useState(0);
   // Games need the iframe focused for keyboard input; a one-time "click to play"
   // hint makes the first focus obvious (the in-iframe helper re-focuses on click).
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const [playOverlay, setPlayOverlay] = useState(true);
-  const composeSeq = useRef(0);
   const monacoTheme = useMonacoTheme();
 
   // Intent ledger: per-line provenance in the Code tab + the Intents tab's
@@ -217,34 +217,6 @@ export function WorkspacePanel({
   // Intents the user has dismissed — never auto-reopen their provenance card.
   const dismissedIntents = useRef<Set<string>>(new Set());
 
-  // Framework app runner (Next.js/Vite/Flask… on this machine in dev, in a
-  // cloud VM with a public preview URL on the hosted site)
-  interface RunInfo {
-    status: "exporting" | "installing" | "starting" | "running" | "stopped" | "error";
-    framework: string;
-    url: string | null;
-    port: number | null;
-    reachable: boolean;
-    logs: string[];
-  }
-  const [run, setRun] = useState<RunInfo | null>(null);
-  const [runBusy, setRunBusy] = useState(false);
-  const logsEndRef = useRef<HTMLDivElement>(null);
-
-  // Diff tab: pending workspace changes vs the base branch.
-  interface DiffEntry {
-    path: string;
-    status: "added" | "modified" | "deleted";
-    base: string;
-    current: string;
-  }
-  const [diffEntries, setDiffEntries] = useState<DiffEntry[] | null>(null);
-  const [diffLoading, setDiffLoading] = useState(false);
-  const [diffError, setDiffError] = useState<string | null>(null);
-  const [diffSelected, setDiffSelected] = useState<string | null>(null);
-  const [review, setReview] = useState<string | null>(null);
-  const [reviewing, setReviewing] = useState(false);
-
   // A workspace with a package.json (or python entry) is a framework app —
   // the static compose can't represent it; the runner can.
   // A Godot game compiles on demand and plays in an iframe (no live srcDoc).
@@ -255,6 +227,28 @@ export function WorkspacePanel({
       files.some((f) => /^(app|main|server)\.py$/.test(f.path)),
     [files],
   );
+
+  // Runner + diff state live in focused hooks, called unconditionally here so
+  // their state persists across tab switches exactly as it did inline.
+  const { run, runBusy, startApp, stopApp, logsEndRef } = useAppRunner({
+    workspaceId: workspace.id,
+    isFrameworkApp,
+    tab,
+    onNote: setNote,
+  });
+  const {
+    diffEntries,
+    diffLoading,
+    diffError,
+    diffSelected,
+    setDiffSelected,
+    diffSelectedEntry,
+    review,
+    setReview,
+    reviewing,
+    loadDiff,
+    runReview,
+  } = useWorkspaceDiff({ workspaceId: workspace.id, tab, changesNonce: changes?.nonce });
 
   const dirtyCount = Object.keys(dirty).length;
   const dirtyPaths = useMemo(() => new Set(Object.keys(dirty)), [dirty]);
@@ -731,58 +725,6 @@ export function WorkspacePanel({
     setExporting(false);
   }
 
-  /* ------------------------------- diff ----------------------------- */
-
-  const loadDiff = useCallback(async () => {
-    setDiffLoading(true);
-    setDiffError(null);
-    try {
-      const res = await fetch(`/api/workspaces/${workspace.id}/diff`, { cache: "no-store" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) {
-        setDiffError(json?.error?.message ?? "Couldn't load the diff.");
-      } else {
-        const entries = (json.data.entries ?? []) as DiffEntry[];
-        setDiffEntries(entries);
-        setDiffSelected((sel) =>
-          sel && entries.some((e) => e.path === sel) ? sel : (entries[0]?.path ?? null),
-        );
-      }
-    } catch {
-      setDiffError("Couldn't load the diff.");
-    }
-    setDiffLoading(false);
-    // DiffEntry is a stable local type; workspace.id is the only real dep.
-     
-  }, [workspace.id]);
-
-  // Fetch the diff whenever the tab opens or AI/manual changes land while open.
-  useEffect(() => {
-    if (tab !== "diff") return;
-    void loadDiff();
-  }, [tab, loadDiff, changes?.nonce]);
-
-  async function runReview() {
-    if (reviewing) return;
-    setReviewing(true);
-    try {
-      const res = await fetch(`/api/workspaces/${workspace.id}/review`, { method: "POST" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) {
-        setReview(json?.error?.message ?? "Review failed.");
-      } else {
-        setReview(json.data.text);
-      }
-    } catch {
-      setReview("Review failed.");
-    }
-    setReviewing(false);
-  }
-
-  const diffSelectedEntry = useMemo(
-    () => diffEntries?.find((e) => e.path === diffSelected) ?? null,
-    [diffEntries, diffSelected],
-  );
 
   /* ----------------------------- preview ---------------------------- */
 
@@ -793,38 +735,15 @@ export function WorkspacePanel({
     [files, selected],
   );
 
-  // Compose the preview: take the entry HTML and inline its RELATIVE css/js
-  // references from workspace files, so multi-file static apps run in one
-  // sandboxed iframe.
-  useEffect(() => {
-    if (tab !== "preview") return;
-    if (!previewEntry) {
-      setPreviewHtml(null);
-      setPreviewInfo(null);
-      return;
-    }
-    const seq = ++composeSeq.current;
-    (async () => {
-      const getFile = async (path: string): Promise<string | null> => {
-        if (dirty[path] !== undefined) return dirty[path];
-        if (contents[path] !== undefined) return contents[path];
-        return fetchContent(path);
-      };
+  const { previewHtml, previewInfo } = useLivePreview({
+    tab,
+    previewEntry,
+    previewNonce,
+    dirty,
+    contents,
+    fetchContent,
+  });
 
-      const composed = await composePreviewHtml(previewEntry, getFile);
-      if (seq !== composeSeq.current) return;
-      if (!composed) {
-        setPreviewHtml(null);
-        setPreviewInfo("Couldn't load the page.");
-        return;
-      }
-
-      setPreviewHtml(composed.html);
-      setPreviewInfo(
-        `${previewEntry}${composed.inlined.length ? ` + ${composed.inlined.length} inlined asset(s)` : ""}`,
-      );
-    })();
-  }, [tab, previewEntry, previewNonce, dirty, contents, fetchContent]);
 
   // Esc exits fullscreen.
   useEffect(() => {
@@ -834,69 +753,6 @@ export function WorkspacePanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [fullscreen]);
 
-  /* --------------------------- app runner --------------------------- */
-
-  const refreshRun = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/workspaces/${workspace.id}/run`, { cache: "no-store" });
-      const json = await res.json().catch(() => null);
-      if (res.ok && json?.ok) setRun(json.data);
-    } catch {
-      // next poll will catch up
-    }
-  }, [workspace.id]);
-
-  async function startApp() {
-    if (runBusy) return;
-    setRunBusy(true);
-    try {
-      const res = await fetch(`/api/workspaces/${workspace.id}/run`, { method: "POST" });
-      const json = await res.json().catch(() => null);
-      if (res.ok && json?.ok) setRun(json.data);
-      else setNote(json?.error?.message ?? "Couldn't start the app.");
-    } catch {
-      setNote("Couldn't start the app.");
-    }
-    setRunBusy(false);
-  }
-
-  async function stopApp() {
-    if (runBusy) return;
-    setRunBusy(true);
-    try {
-      const res = await fetch(`/api/workspaces/${workspace.id}/run`, { method: "DELETE" });
-      // Only clear the run UI when the stop actually succeeded — otherwise the
-      // app keeps running (and billing the VM) while we'd falsely show "stopped".
-      if (res.ok) setRun(null);
-      else setNote("Couldn't stop the app — it may still be running.");
-    } catch {
-      setNote("Couldn't reach the server — the app may still be running.");
-    }
-    setRunBusy(false);
-  }
-
-  // Check for an existing run when entering the preview tab; poll while the
-  // app is coming up (install → start → reachable).
-  useEffect(() => {
-    if (tab !== "preview" || !isFrameworkApp) return;
-    void refreshRun();
-  }, [tab, isFrameworkApp, refreshRun]);
-
-  useEffect(() => {
-    if (tab !== "preview" || !run) return;
-    const busy =
-      run.status === "exporting" ||
-      run.status === "installing" ||
-      run.status === "starting" ||
-      (run.status === "running" && !run.reachable);
-    if (!busy) return;
-    const t = setInterval(() => void refreshRun(), 2500);
-    return () => clearInterval(t);
-  }, [tab, run, refreshRun]);
-
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [run?.logs?.length]);
 
   /* ------------------------------ render ----------------------------- */
 
