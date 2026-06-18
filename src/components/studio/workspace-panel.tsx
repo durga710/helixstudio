@@ -32,7 +32,6 @@ import {
   UploadCloud,
   X,
   Pencil,
-  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { pickPreviewEntry } from "@/lib/preview-html";
@@ -170,12 +169,10 @@ export function WorkspacePanel({
   const [pushing, setPushing] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
   const [envOpen, setEnvOpen] = useState(false);
-  // Project name (editable inline) + delete-project flow.
+  // Project name (editable inline). Deletion lives on the dashboard.
   const [name, setName] = useState(workspace.name);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(workspace.name);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deletingWs, setDeletingWs] = useState(false);
 
   const [previewNonce, setPreviewNonce] = useState(0);
   // Games need the iframe focused for keyboard input; a one-time "click to play"
@@ -201,6 +198,10 @@ export function WorkspacePanel({
   // new lines highlighted in the Code tab, with a hover/click provenance
   // card anchored next to them. Works without the Ledger toggle.
   const [recentPaths, setRecentPaths] = useState<string[]>([]);
+  // Just-changed files: highlighted + sorted to the top of the file tree, and
+  // summarized in a "what changed" banner — both fade a few seconds after a turn.
+  const [recentTreePaths, setRecentTreePaths] = useState<Set<string>>(new Set());
+  const [turnChanges, setTurnChanges] = useState<{ written: number; deleted: number } | null>(null);
   const [popover, setPopover] = useState<{
     line: number;
     /** First line of the highlighted block — the card's identity (prevents
@@ -351,7 +352,18 @@ export function WorkspacePanel({
     setPreviewNonce((n) => n + 1); // recompose the preview with fresh files
     setLedgerNonce((n) => n + 1); // refetch blame + the intents timeline
     setRecentPaths(written); // highlight the fresh lines in the Code tab
+    setRecentTreePaths(new Set(written)); // highlight + float them in the tree
+    setTurnChanges(written.length || deleted.length ? { written: written.length, deleted: deleted.length } : null);
     setPopover(null);
+    // Jump to the file that changed so the user SEES it instead of hunting — the
+    // page/entry first, else the first real (non-config) file the AI wrote.
+    if (written.length) {
+      const isConfig = (p: string) =>
+        /\.(json|lock|md|gitignore)$/i.test(p) ||
+        /(^|\/)(package|tsconfig|next\.config|postcss\.config|eslint\.config|tailwind\.config|vite\.config)/i.test(p);
+      const primary = pickPreviewEntry(written, null) ?? written.find((p) => !isConfig(p)) ?? written[0]!;
+      void openFile(primary, true);
+    }
   }, [openFile]);
 
   useEffect(() => {
@@ -366,6 +378,12 @@ export function WorkspacePanel({
         .filter(Boolean)
         .join(", "),
     );
+    // Fade the tree highlight + the "what changed" banner a few seconds later.
+    const t = setTimeout(() => {
+      setRecentTreePaths(new Set());
+      setTurnChanges(null);
+    }, 12000);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [changes?.nonce]);
 
@@ -678,26 +696,6 @@ export function WorkspacePanel({
     }
   }
 
-  // Delete the whole project (owner only) and leave the editor.
-  async function deleteProject() {
-    if (deletingWs) return;
-    setDeletingWs(true);
-    try {
-      const res = await fetch(`/api/workspaces/${workspace.id}`, { method: "DELETE" });
-      if (res.ok) {
-        router.push("/editor");
-      } else {
-        toast("Couldn't delete the project.");
-        setDeletingWs(false);
-        setConfirmDelete(false);
-      }
-    } catch {
-      toast("Couldn't delete the project.");
-      setDeletingWs(false);
-      setConfirmDelete(false);
-    }
-  }
-
   // Premium: download the project as a zip with a one-command local setup.
   async function exportProject() {
     if (exporting) return;
@@ -954,15 +952,8 @@ export function WorkspacePanel({
                 {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                 Export
               </Button>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                title="Delete this project"
-                aria-label="Delete project"
-                className="rounded-lg border border-border p-1.5 text-txt2 transition-colors hover:border-bad hover:text-bad"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              {/* Project deletion lives on the dashboard, not here — the editor
+                  is for working on the project, not removing it. */}
             </>
           ) : (
             <Button onClick={() => void forkWorkspace()} disabled={forking} className="px-3.5 py-1.5">
@@ -980,6 +971,38 @@ export function WorkspacePanel({
           <span className="min-w-0 truncate">
             Viewing {ownerName ? `${ownerName}'s` : "a shared"} workspace — read only. Copy it to edit.
           </span>
+        </div>
+      )}
+
+      {/* "What changed" banner — appears after an AI turn, fades after a few
+          seconds, and lets the user jump straight to the diff. */}
+      {turnChanges && (turnChanges.written > 0 || turnChanges.deleted > 0) && (
+        <div className="flex items-center gap-2 border-b border-ok/30 bg-ok/10 px-3 py-2 text-[12px] text-txt2">
+          <GitCompare className="h-3.5 w-3.5 shrink-0 text-ok" />
+          <span className="min-w-0 truncate">
+            <span className="font-medium text-txt">
+              {turnChanges.written + turnChanges.deleted} file{turnChanges.written + turnChanges.deleted === 1 ? "" : "s"} changed
+            </span>{" "}
+            — opened the latest one; highlighted in the tree.
+          </span>
+          <button
+            type="button"
+            onClick={() => setTab("diff")}
+            className="ml-auto shrink-0 rounded-md border border-ok/40 px-2 py-0.5 text-[11px] font-medium text-ok transition-colors hover:bg-ok/15"
+          >
+            Review changes
+          </button>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => {
+              setTurnChanges(null);
+              setRecentTreePaths(new Set());
+            }}
+            className="shrink-0 text-txt3 transition-colors hover:text-txt"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
 
@@ -1020,6 +1043,7 @@ export function WorkspacePanel({
                 files={files}
                 selected={selected}
                 dirtyPaths={dirtyPaths}
+                recentPaths={recentTreePaths}
                 importMode={workspace.mode === "IMPORT"}
                 onOpen={(p) => void openFile(p)}
                 onDelete={(p) => isOwner && void deleteFile(p)}
@@ -1299,14 +1323,25 @@ export function WorkspacePanel({
                 </span>
                 <div className="ml-auto flex items-center gap-2">
                   {run?.url && run.reachable && (
-                    <a
-                      href={run.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 font-mono text-[11px] text-ok transition-colors hover:brightness-110"
-                    >
-                      {run.port ? `:${run.port}` : "open preview"} <ExternalLink className="h-3 w-3" />
-                    </a>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setFullscreen((v) => !v)}
+                        aria-label={fullscreen ? "Exit full screen" : "Full screen preview"}
+                        title={fullscreen ? "Exit full screen (Esc)" : "Full screen preview"}
+                        className="inline-flex items-center gap-1 text-txt3 transition-colors hover:text-txt"
+                      >
+                        {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                      </button>
+                      <a
+                        href={run.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 font-mono text-[11px] text-ok transition-colors hover:brightness-110"
+                      >
+                        {run.port ? `:${run.port}` : "open preview"} <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </>
                   )}
                   {run && run.status !== "stopped" && run.status !== "error" ? (
                     <button
@@ -1403,6 +1438,15 @@ export function WorkspacePanel({
                   className="ml-auto text-txt3 transition-colors hover:text-ok"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFullscreen((v) => !v)}
+                  aria-label={fullscreen ? "Exit full screen" : "Full screen preview"}
+                  title={fullscreen ? "Exit full screen (Esc)" : "Full screen preview"}
+                  className="text-txt3 transition-colors hover:text-txt"
+                >
+                  {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
                 </button>
               </div>
               <div className="relative min-h-0 flex-1 bg-white">
@@ -1551,42 +1595,6 @@ export function WorkspacePanel({
           hasRepo={Boolean(workspace.repo)}
           onClose={() => setDeployOpen(false)}
         />
-      )}
-      {confirmDelete && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
-          onClick={() => !deletingWs && setConfirmDelete(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl border border-border2 bg-panel p-5 shadow-pop"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-[15px] font-semibold text-txt">Delete this project?</h2>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-txt2">
-              <span className="font-medium text-txt">{name || "This project"}</span> and all its files will be
-              permanently deleted. This can&apos;t be undone.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(false)}
-                disabled={deletingWs}
-                className="rounded-lg border border-border px-3.5 py-1.5 text-sm text-txt2 transition-colors hover:text-txt disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void deleteProject()}
-                disabled={deletingWs}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-bad px-3.5 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {deletingWs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                Delete project
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

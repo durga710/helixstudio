@@ -116,5 +116,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const note = $("#saved-note"); show(note, true); setTimeout(() => show(note, false), 1500);
   });
 
-  if (store.auth) enterApp();
+  // Open straight to the app — no forced login. (The #view-auth screen stays in
+  // the markup as an optional feature; it's hidden until something shows it.)
+  enterApp();
 });

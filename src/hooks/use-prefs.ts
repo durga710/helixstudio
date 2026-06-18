@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ModelTier, ReasoningDepth } from "@/lib/ai/provider";
 
-/* Workspace preferences (Phase 5 — user memory). Persisted in localStorage so
- * they survive sessions; mirrored by the MemoryEntry models in Prisma for
- * server-side persistence when a database is connected. */
+/* Workspace preferences. Persisted in localStorage so they survive sessions on
+ * THIS browser/device — there is no server-side sync, so they don't follow the
+ * user across devices. (Deliberately kept simple; if cross-device prefs are
+ * needed later, mirror this through /api/preferences like the editor AI/git
+ * prefs already do.) */
 
 export interface Prefs {
   model: ModelTier;

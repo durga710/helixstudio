@@ -1,7 +1,6 @@
-/* eslint-disable react-hooks/set-state-in-effect -- ported GCODE studio code; its fetch-on-mount/poll effects predate this rule and behave correctly */
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Send,
   Loader2,
@@ -32,12 +31,16 @@ import {
   ClipboardList,
   Gamepad2,
   Lightbulb,
+  Coins,
   type LucideIcon,
 } from "lucide-react";
 import { GAME_CATEGORIES } from "@/lib/templates/engines";
 import { cn } from "@/lib/utils";
 import { warmupSteps } from "@/lib/warmup-steps";
-import { buildNarration, friendlyActivity, paraphraseRequest, holdingLines, seededRng } from "@/lib/build-feed";
+import { buildNarration, continuousBuildLines, friendlyActivity, paraphraseRequest, holdingLines, seededRng } from "@/lib/build-feed";
+import { looksLikeBigJob } from "@/lib/jobs/detect";
+import { formatEstimate, type JobEstimate } from "@/lib/jobs/estimate";
+import { JobBoard } from "@/components/studio/job-board";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
@@ -58,6 +61,14 @@ interface Msg {
   /** The model's own raw reply, kept behind a "details" toggle when we showed
    * our own synthesized summary as the message content (hybrid). */
   aiText?: string;
+  /** The turn's live step feed, kept ON the message so it doesn't vanish when
+   * the turn ends (the editor used to clear it and show only the summary). */
+  worklog?: string[];
+  /** A durable multi-agent job started from this message → renders a JobBoard. */
+  jobId?: string;
+  /** Tokens this turn billed (input+output, cache-weighted) — shown as a small
+   * badge under the reply so the cost of each transaction is visible. */
+  tokensUsed?: number;
 }
 
 interface TaskChanges {
@@ -106,6 +117,36 @@ const STARTERS = [
   { icon: Utensils, title: "Recipe site", prompt: "A recipe site with cards, a detail page, and a search bar" },
 ] as const;
 
+// Once a project EXISTS, "ideas" should be about improving what's there — not
+// starting over. These are generic, work-on-anything next steps (seeded variety
+// like the starters), kept zero-token/instant so the Ideas panel never lags.
+const APP_IMPROVEMENTS = [
+  { title: "Add a dark mode toggle", prompt: "Add a dark mode toggle that styles the whole app" },
+  { title: "Make it mobile-friendly", prompt: "Make the whole layout look great on phones and tablets" },
+  { title: "Add a contact form", prompt: "Add a contact form with name, email, and message" },
+  { title: "Polish the hero", prompt: "Make the hero section bolder and more polished" },
+  { title: "Add an about page", prompt: "Add an about page with a short story and the team" },
+  { title: "Add testimonials", prompt: "Add a testimonials section with a few quotes" },
+  { title: "Add an FAQ", prompt: "Add an FAQ section with a few common questions" },
+  { title: "Refresh the look", prompt: "Refresh the color scheme and spacing for a cleaner, modern look" },
+  { title: "Add a footer", prompt: "Add a footer with links and a copyright line" },
+  { title: "Add subtle animations", prompt: "Add smooth, subtle animations on scroll and hover" },
+  { title: "Add a nav bar", prompt: "Add a sticky navigation bar with links to each section" },
+  { title: "Add a call-to-action", prompt: "Add a strong call-to-action section near the bottom" },
+] as const;
+
+const GAME_IMPROVEMENTS = [
+  "Add a scoreboard",
+  "Add sound effects",
+  "Add a new level",
+  "Add power-ups",
+  "Add a start screen",
+  "Add a game-over screen",
+  "Make it get harder over time",
+  "Add enemies to dodge",
+  "Save the high score",
+] as const;
+
 /** Deterministically shuffle then take `n` from a pool, using a seeded PRNG so
  * the choice is stable for one project but varies across projects. */
 function pickN<T>(pool: readonly T[], n: number, seed: string): T[] {
@@ -113,20 +154,25 @@ function pickN<T>(pool: readonly T[], n: number, seed: string): T[] {
   return [...pool].sort(() => rng() - 0.5).slice(0, n);
 }
 
-/** Mode-specific starter suggestions — NEVER cross-mode, and DYNAMIC: a different
- * varied set per project (seeded by the workspace id) so the same four ideas
- * never show every time. A game editor shows its category's game ideas. */
-function starterSuggestions(ws: WorkspaceMeta): { icon: LucideIcon; title: string; prompt: string }[] {
+/** Mode-specific suggestions — NEVER cross-mode, and project-state-aware: a
+ * NEW project gets "what to build" starters; once a project EXISTS
+ * (`hasProject`), the ideas become "what to improve next" so the panel reflects
+ * the actual project instead of pitching a fresh app. Seeded by workspace id so
+ * the set is varied but stable, and fully instant (no AI call). */
+function starterSuggestions(ws: WorkspaceMeta, hasProject = false): { icon: LucideIcon; title: string; prompt: string }[] {
   if (ws.kind === "game") {
+    if (hasProject) return pickN(GAME_IMPROVEMENTS, 4, `${ws.id}:imp`).map((s) => ({ icon: Gamepad2, title: s, prompt: s }));
     const cat = ws.gameCategory ? GAME_CATEGORIES.find((c) => c.id === ws.gameCategory) : undefined;
     const sugg = cat?.suggestions ?? GAME_CATEGORIES[0].suggestions;
     return pickN(sugg, 4, ws.id).map((s) => ({ icon: Gamepad2, title: s, prompt: s }));
   }
+  if (hasProject) return pickN(APP_IMPROVEMENTS, 4, `${ws.id}:imp`).map((s) => ({ icon: Wrench, title: s.title, prompt: s.prompt }));
   return pickN(STARTERS, 4, ws.id).map((s) => ({ icon: s.icon, title: s.title, prompt: s.prompt }));
 }
 
-/** Inviting, mode-specific greeting + a graceful hint at what you can ask for. */
-function modeGreeting(ws: WorkspaceMeta): { title: string; body: string } {
+/** Inviting, mode-specific greeting. Once a project exists it shifts from
+ * "what are we building?" to "what should we improve?" — matching the ideas. */
+function modeGreeting(ws: WorkspaceMeta, hasProject = false): { title: string; body: string } {
   if (ws.mode === "IMPORT") {
     return {
       title: ws.repo ?? "Your repo",
@@ -134,6 +180,12 @@ function modeGreeting(ws: WorkspaceMeta): { title: string; body: string } {
     };
   }
   if (ws.kind === "game") {
+    if (hasProject) {
+      return {
+        title: "What should we add next?",
+        body: "Your game's running — ask for levels, enemies, a scoreboard, sounds, power-ups, or a new look, then hit Play to try it.",
+      };
+    }
     const cat = ws.gameCategory ? GAME_CATEGORIES.find((c) => c.id === ws.gameCategory) : undefined;
     const is3d = (cat?.templateId ?? "").includes("3d");
     return {
@@ -141,6 +193,12 @@ function modeGreeting(ws: WorkspaceMeta): { title: string; body: string } {
       body: is3d
         ? "Describe the game and Helix builds it — hit Play to try it. You can ask to change the environment or background, add objects to the world, move the camera, or drop in obstacles and pickups."
         : "Describe the game and Helix builds it — hit Play to try it. You can ask to add levels, enemies, a scoreboard, power-ups, sounds, or change how it looks.",
+    };
+  }
+  if (hasProject) {
+    return {
+      title: "What should we improve?",
+      body: "Your app's taking shape — ask for any change: a new page or section, a form, a fresh look, or a fix. Push to GitHub when you like it.",
     };
   }
   return {
@@ -169,11 +227,30 @@ function stripBrief(content: string): string {
  * (our synthesized prose) shows the summary, with the model's raw reply kept
  * behind the "details" toggle — so a reload matches exactly what was shown live. */
 type HistoryMsg = { role: "user" | "assistant"; content: string; summary?: string | null; actions?: Action[] | null };
+// Markers that have their own UI (the plan card / the verify badge) — kept out
+// of the reconstructed step list so they aren't shown twice.
+const NON_STEP_TOOLS = new Set(["plan", "verified", "verify_failed", "verify_skipped"]);
+/** The turn's worklog = its REAL ordered tool work ("read X", "wrote 3 files",
+ * "edited Y"), de-duped. This is the single source for what "N steps" shows —
+ * both live-completed and after a reload — so the checklist always reflects
+ * actual work, never the warm "building…" filler that paces the live spinner. */
+function stepsFromActions(actions?: Action[] | null): string[] | undefined {
+  if (!Array.isArray(actions)) return undefined;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const a of actions) {
+    if (NON_STEP_TOOLS.has(a.tool) || !a.label || seen.has(a.label)) continue;
+    seen.add(a.label);
+    out.push(a.label);
+  }
+  return out.length ? out : undefined;
+}
 function hydrateMessage(m: HistoryMsg): Msg {
   if (m.role === "user") return { role: "user", content: stripBrief(m.content), actions: m.actions ?? undefined };
+  const worklog = stepsFromActions(m.actions);
   return m.summary
-    ? { role: "assistant", content: m.summary, actions: m.actions ?? undefined, aiText: m.content || undefined }
-    : { role: "assistant", content: m.content, actions: m.actions ?? undefined };
+    ? { role: "assistant", content: m.summary, actions: m.actions ?? undefined, aiText: m.content || undefined, worklog }
+    : { role: "assistant", content: m.content, actions: m.actions ?? undefined, worklog };
 }
 
 
@@ -187,15 +264,22 @@ export function ChatPanel({
   onChanges,
   isGuest,
   isOwner = true,
+  isAdmin = false,
 }: {
   workspace: WorkspaceMeta;
   onChanges: (written: string[], deleted: string[]) => void;
   isGuest?: boolean;
   isOwner?: boolean;
+  /** Admin preview: offer a durable multi-agent refactor job for big requests. */
+  isAdmin?: boolean;
 }) {
   const [messages, setMessages] = useState<Msg[] | null>(null); // null = loading history
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<"plan" | "build">("build");
+  // Admin job offer: a big request waiting for "run as a multi-step job?" confirm.
+  const [jobOffer, setJobOffer] = useState<string | null>(null);
+  const [startingJob, setStartingJob] = useState(false);
+  const [offerEstimate, setOfferEstimate] = useState<string | null>(null);
   // Auto-verify build turns in the sandbox. ON by default (Plan→Build→Verify
   // is the standard flow now); the toggle lets you turn it off, and the
   // per-message "Verify" button works regardless.
@@ -209,6 +293,39 @@ export function ChatPanel({
   // reading, writing, verifying), so a big "create infrastructure" task reads
   // as genuine progress instead of one cycling loader line.
   const [worklog, setWorklog] = useState<string[]>([]);
+  // Mirror of worklog so the final-event handler can snapshot the steps onto the
+  // message synchronously (state isn't readable in the handler closure).
+  const worklogRef = useRef<string[]>([]);
+  useEffect(() => {
+    worklogRef.current = worklog;
+  }, [worklog]);
+  // Append a step, collapsing back-to-back duplicates so a stalled turn never
+  // shows the same line ("thinking…", a repeated file) stacked over and over.
+  const pushStep = useCallback((line: string) => {
+    if (!line) return;
+    // De-dupe against the WHOLE list, not just the last line: a long turn loops
+    // the varied "building…" pool, and without this the same handful of lines
+    // would stack up over and over (the "12 steps" of repeating filler bug).
+    setWorklog((w) => (turnDone.current || w.includes(line) ? w : [...w, line]));
+  }, []);
+
+  // Fetch the cost/scope estimate when a job offer appears (admin preview).
+  useEffect(() => {
+    if (!jobOffer) {
+      setOfferEstimate(null);
+      return;
+    }
+    let alive = true;
+    fetch(`/api/workspaces/${workspace.id}/refactor?message=${encodeURIComponent(jobOffer)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (alive && j?.data) setOfferEstimate(formatEstimate(j.data as JobEstimate));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [jobOffer, workspace.id]);
   // Live assistant reply, streamed token-by-token (replaced by the real message
   // on the final event).
   const [streaming, setStreaming] = useState("");
@@ -253,13 +370,15 @@ export function ChatPanel({
     modeToastTimer.current = setTimeout(() => setModeToast(null), 2000);
   }
 
-  // Auto-grow the composer with its content (capped), and shrink back to one
-  // line after a send clears it — so long prompts aren't cramped on one line.
+  // Auto-grow the composer with its content up to ~40% of the viewport, then it
+  // scrolls — so writing several paragraphs is comfortable (like Claude/ChatGPT),
+  // not trapped on one line. Shrinks back after a send clears the input.
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 168)}px`;
+    const max = Math.max(160, Math.round(window.innerHeight * 0.4));
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
   }, [input]);
 
   useEffect(() => {
@@ -413,18 +532,22 @@ export function ChatPanel({
     // Seeded by the workspace id → varied wording/order per project (never reads
     // as canned), but stable within this project. The estimate paces it so a
     // fast build shows calmer lines and a big one shows more.
-    const { steps, holding, estimateMs } = buildNarration(files, { idea, kind, seed: workspace.id });
+    const { steps, estimateMs } = buildNarration(files, { idea, kind, seed: workspace.id });
     const perStep = Math.max(700, Math.min(2600, Math.round(estimateMs / Math.max(4, steps.length))));
-    const sequence = [...steps, ...holding];
+    // After the structured intro, keep narrating REAL files (looping the varied
+    // pool) until the turn actually finishes — so the feed never dries up into a
+    // repeating "thinking…" and the model's latency stays hidden behind concrete
+    // filenames the user can recognize.
+    const loop = continuousBuildLines(files, workspace.id);
     void (async () => {
-      for (let i = 0; i < sequence.length; i++) {
+      for (const s of steps) {
         if (turnDone.current) return;
-        setWorklog((w) => (turnDone.current ? w : [...w, sequence[i]]));
-        // Concrete file lines pace to the estimate; the generic tail breathes
-        // slower, and the LAST item always spins so it reads live until the
-        // real reply lands.
-        const concrete = i < steps.length;
-        await new Promise((r) => setTimeout(r, (concrete ? perStep : 2600) + Math.random() * (concrete ? 300 : 1400)));
+        pushStep(s);
+        await new Promise((r) => setTimeout(r, perStep + Math.random() * 300));
+      }
+      for (let i = 0; !turnDone.current; i++) {
+        pushStep(loop[i % loop.length]);
+        await new Promise((r) => setTimeout(r, 2200 + Math.random() * 1300));
       }
     })();
   }
@@ -437,12 +560,18 @@ export function ChatPanel({
     feedActive.current = true;
     realActivityStarted.current = true;
     const seed = `${workspace.id}:${message}`;
-    const seq = [`${paraphraseRequest(message, seed)}…`, ...holdingLines(seed)];
+    const opener = `${paraphraseRequest(message, seed)}…`;
+    // Cycle varied "still working" lines on the single live spinner LINE (not the
+    // step checklist) until the turn ends — so a follow-up keeps breathing
+    // without padding the worklog with looping filler. The real steps come from
+    // the turn's actual tool actions when it finishes (see handleFinal).
+    const hold = holdingLines(seed);
     void (async () => {
-      for (let i = 0; i < seq.length; i++) {
-        if (turnDone.current) return;
-        setWorklog((w) => (turnDone.current ? w : [...w, seq[i]]));
-        await new Promise((r) => setTimeout(r, 1100 + Math.random() * 900));
+      setActivity(opener);
+      await new Promise((r) => setTimeout(r, 1100 + Math.random() * 900));
+      for (let i = 0; !turnDone.current; i++) {
+        setActivity(hold[i % hold.length]);
+        await new Promise((r) => setTimeout(r, 1600 + Math.random() * 1200));
       }
     })();
   }
@@ -494,16 +623,22 @@ export function ChatPanel({
       actions?: Action[];
       changes?: TaskChanges;
       guestRemaining?: number;
+      tokensUsed?: number;
     }) => {
       // Hybrid: the SERVER computed our user-facing summary (varied, truthful,
       // and PERSISTED, so a reload matches this exactly). When present we show it
       // and tuck the model's own reply behind a "details" toggle; Q&A/plan turns
       // (no summary) keep the model's text.
+      // The worklog is the turn's REAL tool work (from data.actions) — NOT the
+      // warm "building…" filler that paced the live spinner — so a finished turn
+      // shows honest steps ("edited game.js", "ran the build") and matches the
+      // reload view exactly, instead of a padded, looping list of filler lines.
+      const steps = stepsFromActions(data.actions);
       setMessages((m) => [
         ...(m ?? []),
         data.summary
-          ? { role: "assistant", content: data.summary, actions: data.actions, aiText: data.text || undefined }
-          : { role: "assistant", content: data.text ?? "", actions: data.actions },
+          ? { role: "assistant", content: data.summary, actions: data.actions, aiText: data.text || undefined, worklog: steps, tokensUsed: data.tokensUsed }
+          : { role: "assistant", content: data.text ?? "", actions: data.actions, worklog: steps, tokensUsed: data.tokensUsed },
       ]);
       if (typeof data.guestRemaining === "number") setGuestRemaining(data.guestRemaining);
       const ch = data.changes;
@@ -551,18 +686,25 @@ export function ChatPanel({
             const label = (evt.label as string) ?? "";
             // Real work has begun — let the warm-up prelude bow out.
             realActivityStarted.current = true;
+            // Rephrase real labels into the warm, varied voice (verify → "Running
+            // a quick test…"); null = a noisy file-write label the feed owns.
+            const shown = friendlyActivity(label, workspace.id);
+            // "thinking…" is contentless — keep it as the live spinner only,
+            // never a logged step (it's what made the worklog repeat endlessly).
+            const isNoise = /^thinking…?$/i.test(label) || (!!shown && /^thinking…?$/i.test(shown));
             if (feedActive.current) {
-              // During the construction feed, rephrase real labels into the same
-              // warm, varied voice (verify → "Running a quick test…") and drop
-              // the noisy file-write labels — the stored feed owns the narrative.
-              const shown = friendlyActivity(label, workspace.id);
-              if (shown) {
+              // The construction/fix feed owns the narrative; only fold in
+              // meaningful rephrased lines (verify/fix), never noise.
+              if (shown && !isNoise) {
                 setActivity(shown);
-                setWorklog((w) => [...w, shown]);
+                pushStep(shown);
+              } else {
+                setActivity(shown || label || null);
               }
             } else {
-              setActivity(label || null);
-              if (label) setWorklog((w) => [...w, label]);
+              // No feed (Q&A / plan): show cleaned activity; never log bare noise.
+              setActivity(shown ?? label ?? null);
+              if (shown && !isNoise) pushStep(shown);
             }
           } else if (evt.type === "delta") {
             realActivityStarted.current = true; // the reply is streaming — stop warm-up
@@ -813,6 +955,65 @@ export function ChatPanel({
   const uniqueLabels = (actions?: Action[]) =>
     actions?.length ? Array.from(new Set(actions.map((a) => a.label))) : [];
 
+  // Composer submit: admins get the "run as a multi-step job?" offer for big,
+  // structural requests; everyone else (and "just build") goes through send().
+  const onComposerSubmit = (text: string) => {
+    const t = text.trim();
+    if (!t || busy) return;
+    if (intakeActive) {
+      intakeSubmit(t);
+      return;
+    }
+    // Only offer the heavy multi-agent JOB when the request is structural AND the
+    // project is big enough to justify it (the server `recommend` flag checks
+    // both). A small project → just build it in one cheap turn.
+    if (isAdmin && mode === "build" && looksLikeBigJob(t)) {
+      setInput("");
+      void (async () => {
+        try {
+          const r = await fetch(`/api/workspaces/${workspace.id}/refactor?message=${encodeURIComponent(t)}`);
+          const j = r.ok ? await r.json() : null;
+          if (j?.data?.recommend) {
+            setJobOffer(t);
+            return;
+          }
+        } catch {
+          /* fall through to a normal build */
+        }
+        void send(t);
+      })();
+      return;
+    }
+    void send(t);
+  };
+
+  const startJob = async (text: string) => {
+    setStartingJob(true);
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}/refactor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+      const body = (await res.json().catch(() => null)) as { data?: { id?: string }; error?: string } | null;
+      const newJobId = body?.data?.id;
+      if (!res.ok || !newJobId) throw new Error(body?.error ?? "Couldn't start the job.");
+      setMessages((m) => [
+        ...(m ?? []),
+        { role: "user", content: text },
+        { role: "assistant", content: "Running this as a multi-step job:", jobId: newJobId },
+      ]);
+    } catch (e) {
+      setMessages((m) => [
+        ...(m ?? []),
+        { role: "assistant", content: e instanceof Error ? e.message : "Couldn't start the job." },
+      ]);
+    } finally {
+      setStartingJob(false);
+      setJobOffer(null);
+    }
+  };
+
   return (
     <div className="glass-panel-strong relative flex h-full min-h-0 flex-col overflow-hidden">
       {/* Chat header: identity + model switcher */}
@@ -842,10 +1043,10 @@ export function ChatPanel({
           <>
             <div className="fixed inset-0 z-40" onClick={() => setIdeasOpen(false)} />
             <div className="absolute right-3 top-[calc(100%+4px)] z-50 w-[min(340px,90vw)] rounded-xl border border-border2 bg-panel p-3 shadow-pop">
-              <p className="mb-1 text-[13px] font-semibold text-txt">{modeGreeting(workspace).title}</p>
-              <p className="mb-2.5 text-[11.5px] leading-relaxed text-txt3">{modeGreeting(workspace).body}</p>
+              <p className="mb-1 text-[13px] font-semibold text-txt">{modeGreeting(workspace, true).title}</p>
+              <p className="mb-2.5 text-[11.5px] leading-relaxed text-txt3">{modeGreeting(workspace, true).body}</p>
               <div className="flex flex-col gap-1.5">
-                {starterSuggestions(workspace).map((sx) => (
+                {starterSuggestions(workspace, true).map((sx) => (
                   <button
                     key={sx.title}
                     type="button"
@@ -1140,6 +1341,35 @@ export function ChatPanel({
                         </div>
                       )}
                     </div>
+                    {/* The turn's step feed, kept on the message (collapsible,
+                        open by default) so the detail doesn't vanish when the
+                        turn ends. */}
+                    {m.role === "assistant" && m.worklog && m.worklog.length > 0 && (
+                      <details className="group mt-2 pl-1" open>
+                        <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-[11px] text-txt3 transition-colors hover:text-txt2">
+                          <ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
+                          {m.worklog.length} steps
+                        </summary>
+                        <div className="scroll-area mt-1 max-h-44 overflow-y-auto rounded-lg border border-border/60 bg-panel2/40 px-3 py-1.5">
+                          {m.worklog.map((step, k) => (
+                            <div key={k} className="flex items-center gap-1.5 py-0.5 text-[11px] text-txt3">
+                              <Check className="h-3 w-3 shrink-0 text-ok/70" strokeWidth={2.4} />
+                              <span className="font-mono">{step}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                    {m.role === "assistant" && typeof m.tokensUsed === "number" && m.tokensUsed > 0 && (
+                      <div
+                        className="mt-1.5 inline-flex items-center gap-1 pl-1 text-[10.5px] text-txt3"
+                        title="Tokens this request used (input + output)"
+                      >
+                        <Coins className="h-3 w-3" strokeWidth={2} />
+                        <span className="font-mono tabular-nums">{m.tokensUsed.toLocaleString()} tokens</span>
+                      </div>
+                    )}
+                    {m.jobId && <JobBoard workspaceId={workspace.id} jobId={m.jobId} />}
                     {showPlanButtons && (
                       <div className="mt-2 flex flex-wrap gap-2 pl-1">
                         <Button
@@ -1221,7 +1451,7 @@ export function ChatPanel({
                         </Button>
                       </div>
                     )}
-                    {labels.length > 0 && (
+                    {labels.length > 0 && !(m.worklog && m.worklog.length > 0) && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-1">
                         <Wrench className="h-3 w-3 text-txt3" />
                         {labels.map((l, j) => (
@@ -1339,6 +1569,47 @@ export function ChatPanel({
         </div>
       )}
 
+      {/* Admin job offer: a big/structural request → run it as a durable
+          multi-agent job (planner → scoped workers → reviewer) or just build it. */}
+      {jobOffer && (
+        <div className="border-t border-accent/30 bg-accent/5 px-4 py-3">
+          <p className="text-[12.5px] text-txt2">
+            This looks like a big, structural change. Run it as a{" "}
+            <span className="font-medium text-txt">multi-step job</span> — it plans, splits the work
+            across scoped workers, reviews, and survives long runs.
+          </p>
+          {offerEstimate && (
+            <p className="mt-1 font-mono text-[11px] text-txt3">Estimate: {offerEstimate}</p>
+          )}
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            <Button onClick={() => void startJob(jobOffer)} disabled={startingJob} className="px-3 py-1.5 text-[12px]">
+              {startingJob ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              Run as a job
+            </Button>
+            <button
+              type="button"
+              onClick={() => {
+                const t = jobOffer;
+                setJobOffer(null);
+                void send(t);
+              }}
+              disabled={startingJob}
+              className="rounded-lg border border-border px-3 py-1.5 text-[12px] text-txt2 transition-colors hover:border-accent hover:text-txt disabled:opacity-50"
+            >
+              Just build it
+            </button>
+            <button
+              type="button"
+              onClick={() => setJobOffer(null)}
+              disabled={startingJob}
+              className="px-2 py-1.5 text-[12px] text-txt3 transition-colors hover:text-txt2"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {!isOwner ? (
         <div className="flex items-center gap-2 border-t border-border bg-panel2/40 px-4 py-3 text-[12.5px] text-txt3">
           <Lock className="h-3.5 w-3.5 shrink-0" />
@@ -1348,11 +1619,13 @@ export function ChatPanel({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (intakeActive) intakeSubmit(input);
-            else void send(input);
+            onComposerSubmit(input);
           }}
-          className="flex items-end gap-2 border-t border-border p-3"
+          className="border-t border-border p-3"
         >
+          {/* Controls on top; the chat input sits full-width underneath so it
+              has room to grow into a multi-line composer. */}
+          <div className="mb-2 flex items-center gap-2">
           <Segmented
             options={[
               { value: "build", label: "Build" },
@@ -1384,6 +1657,8 @@ export function ChatPanel({
               <span className="hidden sm:inline">Verify</span>
             </button>
           )}
+          </div>
+          <div className="flex items-end gap-2">
           <textarea
             ref={inputRef}
             value={input}
@@ -1395,7 +1670,7 @@ export function ChatPanel({
                 e.currentTarget.form?.requestSubmit();
               }
             }}
-            rows={1}
+            rows={2}
             disabled={guestBlocked}
             placeholder={
               guestBlocked
@@ -1414,7 +1689,7 @@ export function ChatPanel({
                         ? "Describe the game you want built…"
                         : "Describe the app you want built…"
             }
-            className="scroll-area max-h-44 min-h-[44px] flex-1 resize-none rounded-xl border border-border bg-bg2 px-4 py-2.5 text-sm leading-relaxed text-txt placeholder:text-txt3 focus:border-accent focus:outline-none disabled:opacity-60"
+            className="scroll-area max-h-[40vh] min-h-[60px] flex-1 resize-none rounded-xl border border-border bg-bg2 px-4 py-2.5 text-sm leading-relaxed text-txt placeholder:text-txt3 focus:border-accent focus:outline-none disabled:opacity-60"
           />
           {!isGuest && mode === "build" && (
             <Button
@@ -1436,6 +1711,7 @@ export function ChatPanel({
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
+          </div>
         </form>
       )}
 

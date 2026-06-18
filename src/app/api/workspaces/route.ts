@@ -7,12 +7,14 @@
  *          token and pins the base branch.
  */
 
+import { after } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { ok, apiErrors } from "@/lib/api-response";
 import { getProvider, getGitAuth, withGitAuth, isValidRepoId, PROVIDER_META } from "@/lib/git";
 import { isValidBranchName } from "@/lib/repo-files";
 import { guard } from "@/lib/route-helpers";
+import { prewarmWorkspaceEmbeddings } from "@/lib/embeddings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -135,5 +137,9 @@ export async function POST(req: Request) {
       baseBranch: tree.branch,
     },
   });
+  // Index the whole repo for semantic search in the background — "every file
+  // embedded the moment you connect." Best-effort + key-gated; if it can't run,
+  // search falls back to lazy on-demand embedding (then BM25 with no key).
+  after(prewarmWorkspaceEmbeddings(ws, g.user.id).then(() => {}, () => {}));
   return ok({ id: ws.id });
 }

@@ -22,9 +22,34 @@ import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
 import { isGodotProject } from "@/lib/templates/engines";
 import { scaffoldSteps } from "@/lib/scaffold-steps";
 import { buildTasks } from "@/lib/build-tasks";
-import { buildNarration, friendlyActivity, paraphraseRequest, holdingLines } from "@/lib/build-feed";
+import { buildNarration, continuousBuildLines, friendlyActivity, paraphraseRequest, holdingLines } from "@/lib/build-feed";
 import { BuildBoard } from "@/components/build/build-board";
+import {
+  AgentPipelinePanel,
+  PIPELINE_AGENT_IDS,
+  type PipelinePhaseId,
+  type PhaseState,
+  type PhaseView,
+} from "@/components/build/agent-pipeline-panel";
 import { cn } from "@/lib/utils";
+
+/** Display name per agent — for the progress label while a phase is working. */
+const AGENT_NAMES: Record<PipelinePhaseId, string> = {
+  planner: "Planner",
+  analyzer: "Repository Analyzer",
+  architect: "Architect",
+  engineer: "Engineer",
+  reviewer: "Reviewer",
+  security: "Security Auditor",
+  performance: "Performance Auditor",
+};
+
+function initPhases(): Record<PipelinePhaseId, PhaseView> {
+  return Object.fromEntries(PIPELINE_AGENT_IDS.map((id) => [id, { state: "waiting" as PhaseState }])) as Record<
+    PipelinePhaseId,
+    PhaseView
+  >;
+}
 
 /* The Lovable-style builder: the agent writes the app while the right pane
  * previews it live. Rides entirely on the existing workspace machinery —
@@ -119,12 +144,20 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   const [limitHit, setLimitHit] = useState(false);
   const [openDetails, setOpenDetails] = useState<number | null>(null); // message id with expanded "what the model said"
 
+  // Live seven-agent pipeline (the real counterpart to the welcome Watch Demo):
+  // state per agent + overall progress, driven by `phase` stream events.
+  const [phases, setPhases] = useState<Record<PipelinePhaseId, PhaseView>>(initPhases);
+  const [progress, setProgress] = useState(0);
+  const [progressLabel, setProgressLabel] = useState("Ready");
+
   const [filePaths, setFilePaths] = useState<string[]>([]);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewNonce, setPreviewNonce] = useState(0);
+  const [previewRefreshing, setPreviewRefreshing] = useState(false);
   const [tab, setTab] = useState<"preview" | "code">("preview");
-  // Left column switches between the conversation and the live build board.
-  const [chatTab, setChatTab] = useState<"chat" | "board">("chat");
+  // Left column switches between the conversation, the agent pipeline, and the
+  // build board.
+  const [chatTab, setChatTab] = useState<"chat" | "agents" | "board">("chat");
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedContent, setSelectedContent] = useState<string | null>(null);
@@ -137,6 +170,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
   const [godotError, setGodotError] = useState<string | null>(null);
 
   const bodyRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const nextId = useRef(1);
   const kicked = useRef(false);
   const composeSeq = useRef(0);
@@ -268,16 +302,22 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       feedActive.current = true;
       realActivityStarted.current = true; // the scaffold checklist bows out
       // Stored, seeded narration (varied per project, paced to the estimate).
-      const { steps, holding, estimateMs } = buildNarration(files, { idea, kind, seed: workspace.id });
+      const { steps, estimateMs } = buildNarration(files, { idea, kind, seed: workspace.id });
       const perStep = Math.max(700, Math.min(2600, Math.round(estimateMs / Math.max(4, steps.length))));
-      const seq = [...steps, ...holding];
+      // After the structured intro, loop varied concrete file lines until the
+      // turn ends — the feed never dries up into a repeating "thinking…".
+      const loop = continuousBuildLines(files, workspace.id);
+      const push = (line: string) =>
+        setActivities((a) => (turnDone.current || (a.length && a[a.length - 1] === line) ? a : [...a, line]));
       void (async () => {
-        for (let i = 0; i < seq.length; i++) {
+        for (const s of steps) {
           if (turnDone.current) return;
-          // Append (so real verify/test lines can interleave via friendlyActivity).
-          setActivities((a) => (turnDone.current ? a : [...a, seq[i]]));
-          const concrete = i < steps.length;
-          await new Promise((r) => setTimeout(r, (concrete ? perStep : 2600) + Math.random() * (concrete ? 300 : 1400)));
+          push(s);
+          await new Promise((r) => setTimeout(r, perStep + Math.random() * 300));
+        }
+        for (let i = 0; !turnDone.current; i++) {
+          push(loop[i % loop.length]);
+          await new Promise((r) => setTimeout(r, 2200 + Math.random() * 1300));
         }
       })();
     },
@@ -292,12 +332,16 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       feedActive.current = true;
       realActivityStarted.current = true;
       const seed = `${workspace.id}:${message}`;
-      const seq = [`${paraphraseRequest(message, seed)}…`, ...holdingLines(seed)];
+      const opener = `${paraphraseRequest(message, seed)}…`;
+      const hold = holdingLines(seed);
+      const push = (line: string) =>
+        setActivities((a) => (turnDone.current || (a.length && a[a.length - 1] === line) ? a : [...a, line]));
       void (async () => {
-        for (let i = 0; i < seq.length; i++) {
-          if (turnDone.current) return;
-          setActivities((a) => (turnDone.current ? a : [...a, seq[i]]));
-          await new Promise((r) => setTimeout(r, 1100 + Math.random() * 900));
+        push(opener);
+        await new Promise((r) => setTimeout(r, 1100 + Math.random() * 900));
+        for (let i = 0; !turnDone.current; i++) {
+          push(hold[i % hold.length]);
+          await new Promise((r) => setTimeout(r, 1600 + Math.random() * 1200));
         }
       })();
     },
@@ -317,6 +361,12 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
       setSetupSteps([]); // scaffold checklist is first-turn only
       setError(null);
       setBuilding(true);
+      // Reset the live pipeline and surface it (matches the welcome demo: watch
+      // the seven agents work, then flip back to chat for the result).
+      setPhases(initPhases());
+      setProgress(0);
+      setProgressLabel("Starting…");
+      setChatTab("agents");
 
       // The build board tracks the INITIAL build only (brief !== "none").
       const isInitialBuild = brief !== "none";
@@ -355,7 +405,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
         const res = await fetch(`/api/workspaces/${workspace.id}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: trimmed, brief: prefix || undefined, mode: "build" }),
+          body: JSON.stringify({ message: trimmed, brief: prefix || undefined, mode: "build", pipeline: true }),
           signal: ctl.signal,
         });
 
@@ -379,13 +429,25 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             files?: string[];
             changes?: { written: string[]; deleted: string[] };
             verify?: { status: "passed" | "failed" | "skipped"; command?: string };
+            id?: PipelinePhaseId;
+            state?: PhaseState;
+            result?: string;
+            progress?: number;
+            phases?: { id: PipelinePhaseId; result: string }[];
           };
           try {
             evt = JSON.parse(line);
           } catch {
             return;
           }
-          if (evt.type === "scaffold") {
+          if (evt.type === "phase" && evt.id) {
+            // Live seven-agent pipeline: update the agent's lane + the bar.
+            const id = evt.id;
+            const state = (evt.state ?? "working") as PhaseState;
+            setPhases((p) => ({ ...p, [id]: { state, result: evt.result ?? p[id]?.result } }));
+            if (typeof evt.progress === "number") setProgress(evt.progress);
+            if (state === "working") setProgressLabel(AGENT_NAMES[id]);
+          } else if (evt.type === "scaffold") {
             // New project: the starter template landed — play the live feed from
             // its real files (the board + preview still react to writes below).
             const files = (evt as unknown as { files?: string[] }).files ?? [];
@@ -393,14 +455,19 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
           } else if (evt.type === "activity" && evt.label) {
             // Real agent work has begun — let the scaffold checklist stop.
             realActivityStarted.current = true;
-            turnLog = [...turnLog, evt.label]; // raw labels feed the final worklog
+            const isNoise = /^thinking…?$/i.test(evt.label);
+            // Raw labels feed the final worklog — but never the contentless
+            // "thinking…", and never stacked duplicates (that's what made the
+            // worklog repeat the same line over and over).
+            if (!isNoise && turnLog[turnLog.length - 1] !== evt.label) turnLog = [...turnLog, evt.label];
             // While the stored feed plays it owns the chat display: rephrase real
             // labels into the same voice (verify → "Running a quick test…") and
-            // append; drop the noisy file-write labels. The board + preview still
-            // advance off the raw labels below.
+            // append; drop noisy file-write labels and "thinking…". The board +
+            // preview still advance off the raw labels below.
             if (feedActive.current) {
               const friendly = friendlyActivity(evt.label, workspace.id);
-              if (friendly) setActivities((a) => [...a, friendly]);
+              if (friendly && !/^thinking…?$/i.test(friendly))
+                setActivities((a) => (a.length && a[a.length - 1] === friendly ? a : [...a, friendly]));
             } else {
               setActivities(turnLog);
             }
@@ -425,7 +492,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             }
             // The app takes shape live: refresh the preview as files land, and
             // feed the board a real write signal so cards advance for real.
-            if (/^(wrote|deleted)/.test(evt.label)) {
+            if (/^(wrote|edited|updated|deleted)/.test(evt.label)) {
               if (isInitialBuild) setBoardWrites((w) => w + 1);
               if (refreshTimer.current) clearTimeout(refreshTimer.current);
               refreshTimer.current = setTimeout(() => void refreshPreview(), 400);
@@ -437,6 +504,16 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             resolved = true;
             turnDone.current = true;
             feedActive.current = false;
+            // Mark the pipeline complete and fold in any final phase results.
+            setProgress(100);
+            setProgressLabel("Complete");
+            if (evt.phases) {
+              setPhases((p) => {
+                const next = { ...p };
+                for (const ph of evt.phases!) next[ph.id] = { state: "complete", result: ph.result };
+                return next;
+              });
+            }
             // Hybrid: the server computed our varied, truthful, PERSISTED summary
             // — show it and keep the model's reply behind a "details" toggle.
             setMessages((prev) => [
@@ -450,6 +527,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
               },
             ]);
             setActivities([]);
+            setChatTab("chat"); // pipeline done → show the reply
             void refreshPreview();
           } else if (evt.type === "error") {
             resolved = true;
@@ -458,6 +536,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             if (evt.code === "GUEST_LIMIT") setLimitHit(true);
             setError(evt.message ?? "The agent hit an error — try again.");
             setActivities([]);
+            setChatTab("chat"); // surface the error in the conversation
             if (isInitialBuild) setBoardErrored(true);
           }
         };
@@ -615,6 +694,16 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, activities]);
 
+  // Auto-grow the composer with its content up to ~40% of the viewport, then it
+  // scrolls — so multi-paragraph prompts aren't cramped on two lines.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const max = Math.max(160, Math.round(window.innerHeight * 0.4));
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+  }, [input]);
+
   // Guests don't get background builds (premium only), so warn before a
   // tab-close/refresh while a build is running — their work would stop.
   useEffect(() => {
@@ -728,10 +817,15 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
                 </button>
                 <button
                   title="Refresh preview"
-                  onClick={() => void refreshPreview()}
-                  className="grid h-7 w-7 cursor-pointer place-items-center rounded-md border-none bg-transparent text-txt3 hover:text-txt"
+                  aria-label="Refresh preview"
+                  disabled={previewRefreshing}
+                  onClick={() => {
+                    setPreviewRefreshing(true);
+                    void refreshPreview().finally(() => setPreviewRefreshing(false));
+                  }}
+                  className="grid h-7 w-7 cursor-pointer place-items-center rounded-md border-none bg-transparent text-txt3 hover:text-txt disabled:opacity-50"
                 >
-                  <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.8} />
+                  <RefreshCw className={`h-3.5 w-3.5 ${previewRefreshing ? "animate-spin" : ""}`} strokeWidth={1.8} />
                 </button>
                 <span className="mx-1 h-4 w-px bg-border" />
                 <button
@@ -877,9 +971,10 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
 
         {/* Chat / build timeline */}
         <section className="flex min-h-0 flex-col border-t border-border bg-bg2 lg:border-r lg:border-t-0">
-          {/* Left-column tabs: the conversation, or the live build board. */}
+          {/* Left-column tabs: the conversation, the live agent pipeline, or the
+              build board. */}
           <div className="flex shrink-0 items-center gap-1 border-b border-border bg-bg2 px-2 py-1.5">
-            {(["chat", "board"] as const).map((t) => (
+            {(["chat", "agents", "board"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setChatTab(t)}
@@ -888,7 +983,10 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
                   chatTab === t ? "bg-panel2 text-txt" : "text-txt3 hover:text-txt",
                 )}
               >
-                {t === "chat" ? "Chat" : "Build plan"}
+                {t === "chat" ? "Chat" : t === "agents" ? "Agents" : "Build plan"}
+                {t === "agents" && building && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-label="building" />
+                )}
                 {t === "board" && boardTasks.length > 0 && (
                   <span className="rounded-full bg-panel px-1.5 text-[10px] text-txt3">{boardTasks.length}</span>
                 )}
@@ -899,7 +997,11 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             ))}
           </div>
 
-          {chatTab === "board" ? (
+          {chatTab === "agents" ? (
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <AgentPipelinePanel phases={phases} progress={progress} progressLabel={progressLabel} />
+            </div>
+          ) : chatTab === "board" ? (
             <div className="min-h-0 flex-1 overflow-hidden">
               <BuildBoard
                 tasks={boardTasks}
@@ -1045,6 +1147,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
             )}
             <div className="flex items-end gap-2 rounded-[11px] border border-border2 bg-panel px-3 py-2.5 focus-within:border-accent">
               <textarea
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -1066,7 +1169,7 @@ export function BuildStudio({ workspace, isGuest, scaffolded = false }: BuildStu
                 }
                 aria-label="Message Helix"
                 disabled={building || limitHit}
-                className="max-h-32 w-full resize-none border-none bg-transparent font-sans text-[13px] text-txt outline-none placeholder:text-txt3 disabled:opacity-60"
+                className="scroll-area max-h-[40vh] min-h-[52px] w-full resize-none border-none bg-transparent font-sans text-[13px] text-txt outline-none placeholder:text-txt3 disabled:opacity-60"
               />
               <button
                 onClick={() => {

@@ -212,6 +212,48 @@ export function buildNarration(
   return { steps, holding, estimateMs };
 }
 
+const BUILD_VERBS = ["Building", "Setting up", "Wiring up", "Putting together", "Adding", "Crafting", "Shaping", "Assembling"];
+const POLISH_VERBS = ["Polishing", "Refining", "Tidying up", "Finishing off", "Tightening up"];
+
+/** A concrete, human label for a single file — its page/component name when we
+ * can detect one, else a prettified file name. */
+function fileConcept(path: string): string {
+  const pg = pageName(path);
+  if (pg) return `the ${pg.toLowerCase()} page`;
+  const cp = componentName(path);
+  if (cp) return `the ${cp} component`;
+  return pretty(path.split("/").pop() || path);
+}
+
+/**
+ * An endless-feeling, varied stream of concrete "Building <file>" lines drawn
+ * from the REAL project files — so a long build never dries up into a repeating
+ * "thinking…" loader. The user always sees a real filename being worked on,
+ * which masks the model's background latency. Shuffled + seeded so no two
+ * projects read identically; the client cycles through it (looping) until the
+ * turn actually finishes.
+ */
+export function continuousBuildLines(files: string[], seed: string): string[] {
+  const rng = seededRng(seed + "|stream");
+  const concepts = Array.from(
+    new Set(
+      files
+        .filter((f) => !/\.(png|jpe?g|svg|ico|gif|webp|avif|woff2?|ttf|otf|map|lock)$/i.test(f))
+        .map(fileConcept),
+    ),
+  );
+  if (concepts.length === 0) return [...HOLDING];
+  const lines: string[] = [];
+  for (const c of concepts) lines.push(`${pickWith(rng, [...BUILD_VERBS])} ${c}`);
+  for (const c of concepts) lines.push(`${pickWith(rng, [...POLISH_VERBS])} ${c}`);
+  // Fisher–Yates with the seeded rng so the order is varied but stable per project.
+  for (let i = lines.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [lines[i], lines[j]] = [lines[j], lines[i]];
+  }
+  return lines.length ? lines : [...HOLDING];
+}
+
 /**
  * Rephrase a RAW agent activity label (e.g. the verify phase) into a friendly,
  * varied line — so the "testing/fixing" tail reads in the same warm voice as the
@@ -268,9 +310,17 @@ export function synthesizeReply(opts: {
   const rng = seededRng(`${opts.seed ?? ""}|${opts.userMessage ?? ""}|${written.length}|${deleted.length}`);
   const pick = (arr: readonly string[]) => pickWith(rng, arr as string[]);
 
+  // The verify clause says ONLY what we actually know: the project BUILDS/runs
+  // without errors. It must never imply "this is what you asked for" — that's for
+  // the user to judge — so it invites a look instead of declaring success.
   let verifyClause = "";
   if (opts.verify?.status === "passed")
-    verifyClause = " " + pick(["The build checks out. ✓", "Tested it and it runs. ✓", "Verified it builds. ✓", "Ran it — all good. ✓"]);
+    verifyClause = " " + pick([
+      "It builds and runs — take a look and tell me if it's what you pictured.",
+      "Compiles and runs cleanly. ✓ Check the preview and say what to tweak.",
+      "Runs with no errors. ✓ See if it matches what you had in mind.",
+      "The build's green. ✓ Have a look and tell me what's off.",
+    ]);
   else if (opts.verify?.status === "failed")
     verifyClause = " " + pick(["One check didn't pass yet — want me to dig in?", "A check flagged something; say the word and I'll fix it.", "The build needs another pass — should I take a look?"]);
 
@@ -284,9 +334,42 @@ export function synthesizeReply(opts: {
     return `${what} — ${filePart}.${verifyClause} ${look}`.replace(/\s+/g, " ").trim();
   }
 
-  const lead = pick(["Done", "All set", "Sorted", "Updated"]);
-  const verb = pick(["updated", "changed", "reworked", "touched up"]);
-  return `${lead} — ${verb} ${summarizeFiles(written, deleted)}.${verifyClause}`.replace(/\s+/g, " ").trim();
+  // Pushback ("this isn't right / still wrong / not what I meant / not temple
+  // run") — DON'T claim success again. Acknowledge another pass and ask for the
+  // specifics, instead of "All set ✓" on something the user just rejected.
+  const msg = (opts.userMessage ?? "").toLowerCase();
+  const isRejection =
+    /\b(not|isn'?t|aren'?t|still|nope|nah|wrong|terrible|awful|ugly|hate|doesn'?t|didn'?t|won'?t|broken|again|no good)\b/.test(msg) &&
+    !/\b(add|create|make|build|change|update|remove|delete|put|set|turn|move|rename|give|use|show)\b/.test(msg);
+  if (isRejection) {
+    const again = pick(["Took another pass at", "Had another go at", "Reworked"]);
+    const ask = pick([
+      "is it closer? Tell me exactly what's still off.",
+      "closer now? Tell me what to change and I'll nail it.",
+      "how's this? Point me at what's still wrong and I'll fix it.",
+    ]);
+    return `${again} ${summarizeFiles(written, deleted)} — ${ask}`.replace(/\s+/g, " ").trim();
+  }
+
+  // Otherwise lead with WHAT they asked for (paraphrased), so two follow-ups
+  // never read identically and the reply reflects intent, not just a filename.
+  const intent = summaryIntent(msg, rng);
+  return `${intent} — ${summarizeFiles(written, deleted)}.${verifyClause}`.replace(/\s+/g, " ").trim();
+}
+
+/** Past-tense paraphrase of a follow-up request by category, for the summary
+ * lead (the present-tense twin is `paraphraseRequest`, used for the live feed). */
+function summaryIntent(message: string, rng: () => number): string {
+  const pick = (arr: readonly string[]) => pickWith(rng, arr as string[]);
+  const m = message;
+  if (/colou?r|styl|theme|css|font|look|design|palette|background/.test(m)) return pick(["Reworked the look", "Updated the styling", "Adjusted the design"]);
+  if (/\bfix|bug|broke|broken|error|issue|crash|not work|doesn'?t work|isn'?t work/.test(m)) return pick(["Fixed that", "Sorted that out", "Patched it up"]);
+  if (/\badd|create|new |another|include|put a/.test(m)) return pick(["Added that in", "Built that out", "Put that together"]);
+  if (/\bremove|delete|get rid|take out|hide/.test(m)) return pick(["Removed that", "Took that out", "Cleared that out"]);
+  if (/text|copy|word|content|label|title|heading|message/.test(m)) return pick(["Updated the content", "Reworked the copy", "Adjusted the text"]);
+  if (/layout|move|position|align|spacing|bigger|smaller|resize|center/.test(m)) return pick(["Adjusted the layout", "Repositioned things", "Tidied the layout"]);
+  if (/nav|menu|sidebar|header|footer|\blink/.test(m)) return pick(["Updated the navigation", "Reworked the nav", "Adjusted the menu"]);
+  return pick(["Made that change", "Updated it", "Got that done"]);
 }
 
 /**

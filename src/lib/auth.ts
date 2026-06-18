@@ -1,10 +1,24 @@
 import { cache } from "react";
+import { createHash } from "node:crypto";
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import { db, dbEnabled, schemaReady } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
+import { emailConfigured } from "@/lib/email";
+
+/** Email verification is enforced only for accounts created on/after this date —
+ * so turning it on (by configuring email) never locks out existing users, who
+ * predate the feature. */
+const VERIFY_ENFORCED_SINCE = new Date("2026-06-16T00:00:00Z");
+
+/** A short, non-reversible fingerprint of the password hash, embedded in the JWT
+ * so a password reset (the hash changes) invalidates existing sessions on the
+ * next revalidation. Never stores the hash itself in the (readable) token. */
+function pwFingerprint(passwordHash: string | null | undefined): string {
+  return createHash("sha256").update(passwordHash ?? "no-password").digest("base64url").slice(0, 22);
+}
 
 /** Demo workspace account — available until a database is connected. */
 export const DEMO_USER = {
@@ -52,6 +66,11 @@ const providers: NextAuthConfig["providers"] = [
         await schemaReady();
         const user = await db().user.findUnique({ where: { email } });
         if (user?.passwordHash && verifyPassword(password, user.passwordHash)) {
+          // Email-verification gate: only once email is configured, and only for
+          // accounts created after the feature shipped (older users grandfathered).
+          if (emailConfigured() && !user.emailVerified && user.createdAt > VERIFY_ENFORCED_SINCE) {
+            return null; // unverified → sign-in blocked until they confirm the email
+          }
           return { id: user.id, name: user.name, email: user.email };
         }
       }
@@ -184,6 +203,17 @@ const config: NextAuthConfig = {
           token.guest = Boolean((user as { isGuest?: boolean }).isGuest);
           token.picture = (user as { image?: string | null }).image ?? null;
         }
+        // Pin the session to the current password (fingerprint) so a later reset
+        // invalidates it. Best-effort: a read failure just leaves pwc unset.
+        if (dbEnabled() && token.sub && !token.guest) {
+          try {
+            await schemaReady();
+            const u = await db().user.findUnique({ where: { id: token.sub }, select: { passwordHash: true } });
+            token.pwc = pwFingerprint(u?.passwordHash);
+          } catch {
+            /* non-fatal */
+          }
+        }
         token.checkedAt = Date.now();
         return token;
       }
@@ -196,9 +226,14 @@ const config: NextAuthConfig = {
         await schemaReady();
         const dbUser = await db().user.findUnique({
           where: { id: token.sub },
-          select: { isGuest: true, image: true },
+          select: { isGuest: true, image: true, passwordHash: true },
         });
         if (!dbUser) return null; // user no longer exists → invalidate session
+        // Password was reset since this session was issued → kill it. (Older
+        // tokens with no pwc are grandfathered: record the fingerprint instead.)
+        const fp = pwFingerprint(dbUser.passwordHash);
+        if (typeof token.pwc === "string" && token.pwc !== fp) return null;
+        token.pwc = fp;
         token.guest = dbUser.isGuest;
         token.picture = dbUser.image ?? null; // pick up avatar changes within 60s
         token.checkedAt = Date.now();

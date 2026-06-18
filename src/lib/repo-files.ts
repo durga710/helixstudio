@@ -34,10 +34,15 @@ export function isValidBranchName(branch: string): boolean {
   );
 }
 
-/** Repo-relative file path: no traversal, no .git, no absolute paths. */
+/** Repo-relative file path: no traversal, no .git, no absolute paths.
+ * Allows parentheses and square brackets so Next.js App Router paths work —
+ * route groups `(group)`, dynamic `[id]`, and catch-all `[...slug]` segments.
+ * Traversal is still blocked by the explicit `..` segment check below (a `..`
+ * inside brackets, e.g. an intercepting route, is a literal folder name, not a
+ * traversal), and backslashes / other shell-dangerous chars remain disallowed. */
 export function isSafeRepoPath(path: string): boolean {
   if (!path || path.length > 200) return false;
-  if (!/^[\w./ -]+$/.test(path)) return false;
+  if (!/^[A-Za-z0-9_./()[\] -]+$/.test(path)) return false;
   const segments = path.split("/");
   if (segments.some((seg) => !seg || seg === "." || seg === "..")) return false;
   if (segments[0] === ".git") return false;

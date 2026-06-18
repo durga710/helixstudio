@@ -10,23 +10,58 @@ import "server-only";
  * searches and turns). Works for SCRATCH and IMPORT workspaces because it embeds
  * at search time over whatever chunks the tool already read.
  *
- * Gated by SEMANTIC_EMBEDDINGS=1 AND an available OpenAI key (the user's own,
- * else the admin platform key). Returns null when unavailable so the caller
- * falls back to the zero-cost BM25 prefilter.
+ * Semantic search is ON BY DEFAULT — it's the product's default retrieval.
+ * It still needs an available OpenAI key (the user's own, else the admin
+ * platform key); with no key, the caller falls back to the zero-cost BM25
+ * prefilter. Set SEMANTIC_EMBEDDINGS=0 to force BM25 everywhere.
  */
+
+import "server-only";
 
 import OpenAI from "openai";
 import { createHash } from "node:crypto";
+import type { Workspace } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { resolveAiKey } from "@/lib/ai/keys";
 import { isAdminEmail } from "@/lib/admin";
 import { recordAiUsage } from "@/lib/ai-usage";
+import { getGitAuth, withGitAuth } from "@/lib/git";
+import { listWorkspaceFiles, readWorkspaceFile } from "@/lib/workspace";
 
 const MODEL = "text-embedding-3-small";
 const EMBED_BATCH = 96;
+const CHUNK_LINES = 14;
+const PREWARM_MAX_CHUNKS = 600; // cap a connect-time index so a huge repo can't run away
+const PREWARM_MAX_FILE_BYTES = 120_000;
 
+/**
+ * Semantic embeddings default ON. Returns false only when explicitly disabled
+ * (SEMANTIC_EMBEDDINGS=0). Even when "on", embedRankChunks still no-ops to BM25
+ * when no OpenAI key is resolvable — so this is safe to leave on by default.
+ */
 export function embeddingsEnabled(): boolean {
-  return process.env.SEMANTIC_EMBEDDINGS === "1";
+  return process.env.SEMANTIC_EMBEDDINGS !== "0";
+}
+
+/** Text files worth embedding (skip binaries, lockfiles, vendored, media). */
+function isEmbeddable(path: string): boolean {
+  if (/node_modules\/|\/\.git\//.test(path)) return false;
+  if (/(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|\.min\.(js|css)$)/.test(path)) return false;
+  return /\.(jsx?|tsx?|mjs|cjs|py|rb|go|rs|java|php|css|scss|html|vue|svelte|md|mdx|json|ya?ml|sql|sh|toml)$/i.test(path);
+}
+
+/** 14-line windows, matching the search chunker (rerank.ts). */
+function chunkFiles(files: { path: string; content: string }[]): EmbedChunk[] {
+  const chunks: EmbedChunk[] = [];
+  for (const f of files) {
+    const lines = f.content.split("\n");
+    if (lines.length === 1 && lines[0] === "") continue;
+    for (let i = 0; i < lines.length; i += CHUNK_LINES) {
+      const text = lines.slice(i, i + CHUNK_LINES).join("\n");
+      if (text.trim()) chunks.push({ path: f.path, startLine: i + 1, text });
+    }
+  }
+  return chunks;
 }
 
 /** Embeddings are OpenAI-specific: the user's openai key, else the admin env key. */
@@ -129,5 +164,75 @@ export async function embedRankChunks(opts: {
     return scored.slice(0, opts.topK);
   } catch {
     return null; // any failure → BM25 fallback
+  }
+}
+
+/**
+ * Embed an entire workspace's files up front — the real "every file indexed the
+ * moment you connect" pass. Runs in the background (after()) on IMPORT-workspace
+ * creation, so by the time the user searches, the FileEmbedding cache is warm and
+ * semantic search works without setup. Capped + key-gated + best-effort: no key
+ * → no-op (search lazily embeds on demand instead); any error is swallowed.
+ *
+ * Returns the number of NEW chunks embedded, or null when disabled / no key.
+ */
+export async function prewarmWorkspaceEmbeddings(
+  ws: Workspace,
+  userId: string,
+): Promise<{ embedded: number; chunks: number } | null> {
+  if (!embeddingsEnabled()) return null;
+  const key = await resolveOpenAiKey(userId);
+  if (!key) return null;
+
+  try {
+    const gitAuth = await getGitAuth(userId, ws.provider);
+    const tree = await withGitAuth(gitAuth, () => listWorkspaceFiles(ws)).catch(() => [] as { path: string }[]);
+    const paths = tree.map((f) => f.path).filter(isEmbeddable);
+
+    const files: { path: string; content: string }[] = [];
+    for (const p of paths) {
+      const content = await withGitAuth(gitAuth, () => readWorkspaceFile(ws, p)).catch(() => null);
+      if (content != null && content.length <= PREWARM_MAX_FILE_BYTES) files.push({ path: p, content });
+    }
+
+    let chunks = chunkFiles(files);
+    if (chunks.length > PREWARM_MAX_CHUNKS) chunks = chunks.slice(0, PREWARM_MAX_CHUNKS);
+    if (chunks.length === 0) return { embedded: 0, chunks: 0 };
+
+    const client = new OpenAI({ apiKey: key });
+    const hashed = chunks.map((c) => ({ ...c, hash: hashOf(c.text) }));
+    const uniqueHashes = Array.from(new Set(hashed.map((h) => h.hash)));
+
+    // Skip chunks already cached (content-addressed) so a re-run is cheap.
+    const cached = await db().fileEmbedding.findMany({
+      where: { workspaceId: ws.id, chunkHash: { in: uniqueHashes } },
+      select: { chunkHash: true },
+    });
+    const have = new Set(cached.map((r) => r.chunkHash));
+    const missing = uniqueHashes.filter((h) => !have.has(h)).map((h) => hashed.find((x) => x.hash === h)!);
+
+    let tokens = 0;
+    let embedded = 0;
+    for (let i = 0; i < missing.length; i += EMBED_BATCH) {
+      const batch = missing.slice(i, i + EMBED_BATCH);
+      const res = await client.embeddings.create({ model: MODEL, input: batch.map((b) => b.text) });
+      tokens += res.usage?.total_tokens ?? 0;
+      const rows = batch.map((b, j) => ({
+        workspaceId: ws.id,
+        path: b.path,
+        chunkHash: b.hash,
+        startLine: b.startLine,
+        vector: JSON.stringify(res.data[j].embedding),
+      }));
+      await db().fileEmbedding.createMany({ data: rows, skipDuplicates: true }).catch(() => {});
+      embedded += rows.length;
+    }
+
+    if (tokens > 0) {
+      void recordAiUsage({ userId, tokens, kind: "embed", provider: "openai", model: MODEL, workspaceId: ws.id });
+    }
+    return { embedded, chunks: chunks.length };
+  } catch {
+    return null; // best-effort — search still embeds lazily on demand
   }
 }

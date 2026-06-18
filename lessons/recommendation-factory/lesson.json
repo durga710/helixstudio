@@ -1,0 +1,84 @@
+{
+  "id": "recommendation-factory",
+  "title": "Recommendation Factory",
+  "blurb": "Run a streaming service. Learn a viewer's taste and recommend what they'll actually love.",
+  "level": "beginner",
+  "estMinutes": 8,
+  "icon": "ThumbsUp",
+  "concept": "recommendation systems",
+  "order": 12,
+  "objectives": [
+    "What a recommendation system does",
+    "How it learns your patterns from feedback",
+    "Why random recommendations drive people away"
+  ],
+  "glossary": [
+    { "term": "Recommendation system", "def": "An AI that suggests things you might like, based on what you've liked before." },
+    { "term": "Preference", "def": "What someone tends to enjoy — their taste." },
+    { "term": "Hit rate", "def": "How often your recommendations actually land (they watch / enjoy it)." },
+    { "term": "Feedback", "def": "Signals like thumbs up/down or watch time that teach the system your taste." }
+  ],
+  "steps": [
+    {
+      "kind": "explain",
+      "title": "Your streaming service",
+      "body": "You just launched a streaming app. Thousands of titles, and every viewer wants the app to *just know* what to play next.\n\nThat's a **recommendation system** — and you're about to be one. Your job: figure out a viewer's taste and suggest things they'll love."
+    },
+    {
+      "kind": "predict",
+      "title": "What keeps viewers around?",
+      "prompt": "Which app keeps people watching longer?",
+      "choices": [
+        "One that recommends random titles",
+        "One that learns your taste and matches it"
+      ],
+      "afterPick": "Matching taste wins — that's why your feed feels personal. Let's see it in action. →"
+    },
+    {
+      "kind": "widget",
+      "widget": "recommender",
+      "title": "Recommend to this viewer",
+      "youWillDo": "recommend titles that match the viewer's taste",
+      "body": "Check the viewer's **likes and dislikes** at the top. For each title, **Recommend** it or **Skip** it. Matches get watched (a hit!); mismatches make them bounce. Try to keep your **hit rate** high — then hit **Recommend at random** to see what a clueless feed does."
+    },
+    {
+      "kind": "explain",
+      "title": "You learned their patterns",
+      "body": "Good recommendations weren't luck — you used the viewer's **patterns** (loves space + action, hates romance) to predict what they'd enjoy.\n\nWhen you recommended at random, the hit rate cratered and they bounced. Real apps learn from your **feedback** — thumbs, watch time, skips — to keep improving."
+    },
+    {
+      "kind": "quiz",
+      "title": "How does it work?",
+      "question": "How does a recommendation system decide what to suggest?",
+      "choices": [
+        "It guesses completely at random",
+        "It finds patterns in what you've liked and predicts more like it",
+        "It shows everyone the exact same thing",
+        "It asks you to type what you want every time"
+      ],
+      "answer": 1,
+      "explain": "Patterns in your past behavior → predictions about what you'll enjoy next. The more feedback, the sharper it gets."
+    },
+    {
+      "kind": "reflect",
+      "title": "Say it your way",
+      "prompt": "How does an app like a music or video service seem to 'know' what you like?",
+      "placeholder": "It watches what I…",
+      "recall": {
+        "question": "A recommender gets better mainly by…",
+        "choices": [
+          "Learning from your feedback and patterns",
+          "Recommending random things",
+          "Showing everyone identical picks"
+        ],
+        "answer": 0,
+        "explain": "Your likes, skips, and watch time teach it your taste."
+      }
+    },
+    {
+      "kind": "explain",
+      "title": "It's everywhere 🎉",
+      "body": "You just built the idea behind the feeds you use every day — video apps, music, shopping, and social media all run **recommendation systems**.\n\nThey learn your patterns to predict what you'll enjoy. **Next up:** discover what all this AI actually *costs* to run."
+    }
+  ]
+}

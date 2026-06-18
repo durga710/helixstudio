@@ -7,10 +7,12 @@
 export const MODEL_PRESETS: Record<string, { label: string; models: string[]; hint: string }> = {
   openai: {
     label: "OpenAI",
-    // Fast chat models first — gpt-5 (deep reasoning) deliberates for a long
-    // time per tool hop, which feels broken in an interactive builder.
-    models: ["gpt-5-chat-latest", "gpt-5-mini", "gpt-4.1", "gpt-5"],
-    hint: "Includes built-in web search. Any OpenAI model id works. Tip: gpt-5 is a slow deep-reasoning model — gpt-5-chat-latest or gpt-5-mini feel much snappier here.",
+    // Only reasoning models that reliably emit tool calls (so builds actually
+    // write files). Chat-tuned snapshots (gpt-5-chat-latest, chatgpt-*) are
+    // excluded — they narrate edits instead of calling the tools. gpt-5-mini is
+    // the snappy default; full gpt-5 is strongest but deliberates per tool hop.
+    models: ["gpt-5-mini", "gpt-5", "gpt-4.1"],
+    hint: "Default is gpt-5-mini — a reasoning model that reliably calls the build tools and stays snappy. gpt-5 is strongest but slower. Includes built-in web search; any OpenAI model id that supports tool calling works.",
   },
   anthropic: {
     label: "Anthropic (Claude)",

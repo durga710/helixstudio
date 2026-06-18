@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick, Bot, ArrowLeft, ArrowRight, Clock, Check, GraduationCap } from "lucide-react";
+import { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick, Bot, Map, Wrench, Wand2, Scale, ThumbsUp, Gauge, Factory, ArrowLeft, ArrowRight, Clock, Check, GraduationCap } from "lucide-react";
 import type { LessonManifest } from "@/lib/lessons/types";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
@@ -10,7 +10,7 @@ import { Pill } from "@/components/ui/pill";
 /* The Lessons gallery: pick a guided lesson and learn AI by training a real
  * model, one small step at a time. Reached from the AI Lab hub (/lab). */
 
-const ICONS: Record<string, typeof Sparkles> = { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick, Bot };
+const ICONS: Record<string, typeof Sparkles> = { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick, Bot, Map, Wrench, Wand2, Scale, ThumbsUp, Gauge, Factory };
 
 export function LessonsScreen({ lessons }: { lessons: LessonManifest[] }) {
   const [status, setStatus] = useState<Record<string, string>>({});
@@ -32,17 +32,17 @@ export function LessonsScreen({ lessons }: { lessons: LessonManifest[] }) {
   return (
     <div className="pad-screen">
       <div className="mx-auto max-w-[1000px]">
-        <Link href="/lab" className="mb-3 inline-flex items-center gap-1.5 text-[12px] text-txt3 transition-colors hover:text-txt">
-          <ArrowLeft className="h-3.5 w-3.5" /> AI Lab
+        <Link href="/academy" className="mb-3 inline-flex items-center gap-1.5 text-[12px] text-txt3 transition-colors hover:text-txt">
+          <ArrowLeft className="h-3.5 w-3.5" /> AI Academy
         </Link>
         <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Learn</div>
         <div className="flex items-center gap-2">
-          <h1 className="text-[22px] font-bold tracking-tight">Lessons</h1>
+          <h1 className="text-[22px] font-bold tracking-tight">Modules</h1>
           <GraduationCap className="h-5 w-5 text-txt3" strokeWidth={1.7} />
         </div>
         <p className="mt-1 max-w-[640px] text-[13px] text-txt2">
-          Start from zero and learn how AI really works — <span className="text-txt">hands-on, one small step
-          at a time</span>, no code. Each lesson ends with you having trained a real model.
+          Start from zero and learn how AI really works — <span className="text-txt">play-to-learn, one small step
+          at a time</span>, no code. Each module is a little game, with an AI coach beside you.
         </p>
 
         {lessons.length === 0 ? (
@@ -55,7 +55,7 @@ export function LessonsScreen({ lessons }: { lessons: LessonManifest[] }) {
               return (
                 <li key={l.id}>
                   <Link
-                    href={`/lab/${l.id}`}
+                    href={`/academy/${l.id}`}
                     className="block h-full rounded-card border border-border bg-panel p-5 shadow-card transition-all duration-150 hover:-translate-y-px hover:border-accent"
                   >
                     <div className="mb-3 flex items-center gap-2.5">

@@ -31,8 +31,10 @@
     <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   </head>
   <body class="min-h-screen bg-bg font-sans text-ink antialiased">
-    <!-- ============================ LOGIN / SIGNUP ============================ -->
-    <section id="view-auth" class="grid min-h-screen place-items-center px-4">
+    <!-- ===================== LOGIN / SIGNUP (optional) ====================== -->
+    <!-- Hidden by default — the app opens directly. This is kept so "add login"
+         is a small step later; it is NOT the entry gate. -->
+    <section id="view-auth" class="hidden min-h-screen place-items-center px-4 grid">
       <div class="w-full max-w-sm">
         <div class="mb-6 flex items-center justify-center gap-2">
           <span class="grid h-9 w-9 place-items-center rounded-xl bg-brand text-brand-fg font-bold">H</span>
@@ -70,7 +72,8 @@
     </section>
 
     <!-- ================================ APP SHELL ============================== -->
-    <div id="view-app" class="hidden min-h-screen lg:grid lg:grid-cols-[240px_1fr]">
+    <!-- Shown by default — the project opens straight to the app. -->
+    <div id="view-app" class="min-h-screen lg:grid lg:grid-cols-[240px_1fr]">
       <!-- Sidebar -->
       <aside class="hidden border-r border-line bg-surface lg:flex lg:flex-col">
         <div class="flex items-center gap-2 px-5 py-4">

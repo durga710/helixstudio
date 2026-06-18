@@ -86,6 +86,7 @@ export function PrReviewSection() {
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter repos…"
+              aria-label="Filter repositories"
               className="mb-2 w-full rounded-lg border border-border2 bg-panel2 px-3 py-1.5 text-xs text-txt outline-none focus:border-accent"
             />
             <div className="scroll-area max-h-64 divide-y divide-border overflow-y-auto">

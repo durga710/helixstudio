@@ -8,12 +8,20 @@ import { Button } from "@/components/ui/button";
 import { MODEL_PRESETS } from "@/lib/model-presets";
 import { KeyStatusDot, validateAiKey, type KeyState } from "@/components/studio/key-status";
 
+interface BedrockModelOption {
+  modelId: string;
+  label: string;
+  contextLabel: string;
+  protocol: string;
+}
+
 interface Prefs {
   aiProvider: string;
   aiModel: string;
   aiBaseUrl: string;
   keySet: { openai: boolean; anthropic: boolean; local: boolean; gemini: boolean };
   serverKeys: { openai: boolean; anthropic: boolean; gemini: boolean };
+  bedrockModels?: BedrockModelOption[];
 }
 
 type CloudProvider = "openai" | "anthropic" | "gemini";
@@ -36,6 +44,9 @@ export function ModelPicker() {
 
   const [provider, setProvider] = useState("openai");
   const [model, setModel] = useState("");
+  // Bedrock-served default models (no key) + the currently-selected one.
+  const [bedrockModels, setBedrockModels] = useState<BedrockModelOption[]>([]);
+  const [selectedBedrock, setSelectedBedrock] = useState<string | null>(null);
   const [baseUrl, setBaseUrl] = useState("http://localhost:1234/v1");
   const [apiKey, setApiKey] = useState("");
   // "shared" = the app's own env key (owner-funded, available to everyone);
@@ -75,6 +86,8 @@ export function ModelPicker() {
         const json = await res.json().catch(() => null);
         if (cancelled || !res.ok || !json?.ok) return;
         setPrefs(json.data);
+        setBedrockModels(json.data.bedrockModels ?? []);
+        if (json.data.aiProvider === "bedrock") setSelectedBedrock(json.data.aiModel);
         setProvider(json.data.aiProvider);
         setModel(json.data.aiModel);
         if (json.data.aiBaseUrl) setBaseUrl(json.data.aiBaseUrl);
@@ -174,8 +187,41 @@ export function ModelPicker() {
   const modelOptions = liveModels?.length ? liveModels : preset.models;
   const keySaved = prefs?.keySet?.[provider as keyof Prefs["keySet"]] ?? false;
 
-  const chipModel = prefs ? prefs.aiModel || "default" : "…";
-  const chipProvider = prefs ? (MODEL_PRESETS[prefs.aiProvider]?.label ?? prefs.aiProvider) : "";
+  // A Bedrock ("Helix") model shows its friendly label instead of the raw id.
+  const activeBedrock =
+    prefs?.aiProvider === "bedrock" ? bedrockModels.find((m) => m.modelId === prefs.aiModel) : undefined;
+  const chipModel = prefs ? (activeBedrock ? activeBedrock.label : prefs.aiModel || "default") : "…";
+  const chipProvider = prefs
+    ? activeBedrock
+      ? "Helix"
+      : (MODEL_PRESETS[prefs.aiProvider]?.label ?? prefs.aiProvider)
+    : "";
+
+  // One-click switch to a Helix-hosted (Bedrock) model — no key, no other config.
+  async function selectBedrock(modelId: string) {
+    setSaving(true);
+    setNote(null);
+    try {
+      const res = await fetch("/api/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aiProvider: "bedrock", aiModel: modelId }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        setNote(json?.error?.message ?? "Couldn't save.");
+      } else {
+        setPrefs((p) => (p ? { ...p, aiProvider: "bedrock", aiModel: modelId } : p));
+        setSelectedBedrock(modelId);
+        setKeyState("idle");
+        setKeyMsg(null);
+        setOpen(false);
+      }
+    } catch {
+      setNote("Network error.");
+    }
+    setSaving(false);
+  }
 
   async function save() {
     setSaving(true);
@@ -245,6 +291,7 @@ export function ModelPicker() {
           };
         });
         setApiKey("");
+        setSelectedBedrock(null); // switched to a BYO provider
         void checkKey(provider); // verify the just-saved key
         setOpen(false);
       }
@@ -286,6 +333,41 @@ export function ModelPicker() {
             className="fade-up absolute right-0 top-full z-50 mt-2 w-[22rem] space-y-3 rounded-card-lg border
                        border-border2 bg-panel p-4 shadow-pop"
           >
+            {/* Helix-hosted models — one click, no key needed. */}
+            {bedrockModels.length > 0 && (
+              <div>
+                <label className="label-tactical mb-1.5 block">
+                  Helix models · no key
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {bedrockModels.map((m) => {
+                    const active = selectedBedrock === m.modelId;
+                    return (
+                      <button
+                        key={m.modelId}
+                        type="button"
+                        onClick={() => void selectBedrock(m.modelId)}
+                        disabled={saving}
+                        title={m.contextLabel}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] transition-colors disabled:opacity-50",
+                          active
+                            ? "border-accent bg-hl text-accent"
+                            : "border-border2 text-txt2 hover:border-accent hover:text-txt",
+                        )}
+                      >
+                        {active && <Check className="h-3 w-3 shrink-0" strokeWidth={2.6} />}
+                        {m.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1.5 text-[10px] leading-relaxed text-txt3">
+                  Hosted by Helix — billed against your token quota. Or bring your own model below.
+                </p>
+              </div>
+            )}
+
             <div>
               <label className="label-tactical mb-1.5 block">
                 Provider

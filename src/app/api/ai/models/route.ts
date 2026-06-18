@@ -39,12 +39,15 @@ function listEndpoint(provider: string, key: string): { url: string; headers: Re
 function chatModels(provider: string, ids: string[]): string[] {
   const NON_CHAT =
     /embed|whisper|tts|dall-?e|audio|image|imagen|veo|lyria|banana|robotics|computer-use|moderation|realtime|transcribe|search|similarity|aqa|learnlm|\bedit\b/i;
+  // Chat-tuned snapshots (gpt-5-chat-latest, chatgpt-*) reliably NARRATE edits
+  // instead of emitting tool calls, so they can't build — exclude them too.
+  const CHAT_TUNED = /chat-latest|^chatgpt/i;
   const out = ids
     // Gemini ids come back as "models/gemini-2.0-flash" — strip the prefix.
     .map((id) => (provider === "gemini" ? id.replace(/^models\//, "") : id))
-    .filter((id) => id && !NON_CHAT.test(id));
-  // OpenAI lists dozens of non-chat ids; keep the gpt/o-series chat families.
-  const filtered = provider === "openai" ? out.filter((id) => /^(gpt-|o[1-9]|chatgpt)/i.test(id)) : out;
+    .filter((id) => id && !NON_CHAT.test(id) && !CHAT_TUNED.test(id));
+  // OpenAI lists dozens of non-chat ids; keep the gpt/o-series families.
+  const filtered = provider === "openai" ? out.filter((id) => /^(gpt-|o[1-9])/i.test(id)) : out;
   return Array.from(new Set(filtered)).slice(0, 60);
 }
 

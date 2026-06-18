@@ -40,19 +40,22 @@ export function StudioCoach({
 
       <p className="text-[13px] leading-relaxed text-txt">{text}</p>
 
-      {/* progress dots */}
+      {/* progress dots — decorative; the "Step X of Y" text above is the
+          accessible progress label, so hide the dots from screen readers. */}
       {total > 0 && (
         <div className="mt-2.5 flex items-center gap-1.5">
-          {Array.from({ length: total }).map((_, i) => (
-            <span
-              key={i}
-              className="h-1.5 rounded-full transition-all"
-              style={{
-                width: i === index && !done ? 16 : 6,
-                background: i < index || done ? "var(--ok)" : i === index ? "var(--accent)" : "var(--border2)",
-              }}
-            />
-          ))}
+          <span className="flex items-center gap-1.5" aria-hidden="true">
+            {Array.from({ length: total }).map((_, i) => (
+              <span
+                key={i}
+                className="h-1.5 rounded-full transition-all"
+                style={{
+                  width: i === index && !done ? 16 : 6,
+                  background: i < index || done ? "var(--ok)" : i === index ? "var(--accent)" : "var(--border2)",
+                }}
+              />
+            ))}
+          </span>
           {cta && onNext && !done && (
             <button
               onClick={onNext}

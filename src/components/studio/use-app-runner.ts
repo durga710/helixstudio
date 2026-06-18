@@ -19,6 +19,8 @@ export interface RunInfo {
  * unconditionally from WorkspacePanel, so `run` persists across tab switches
  * exactly as it did when this lived inline.
  */
+const START_GRACE_MS = 90_000;
+
 export function useAppRunner({
   workspaceId,
   isFrameworkApp,
@@ -33,12 +35,27 @@ export function useAppRunner({
   const [run, setRun] = useState<RunInfo | null>(null);
   const [runBusy, setRunBusy] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  // When the user last hit "Run app". A cold serverless instance's first status
+  // lookup can momentarily miss the brand-new VM and report "stopped"; for a
+  // grace window after a start we ignore that and keep polling.
+  const runStartedAt = useRef<number | null>(null);
 
   const refreshRun = useCallback(async () => {
     try {
       const res = await fetch(`/api/workspaces/${workspaceId}/run`, { cache: "no-store" });
       const json = await res.json().catch(() => null);
-      if (res.ok && json?.ok) setRun(json.data);
+      if (!res.ok || !json?.ok) return;
+      const next = json.data as RunInfo;
+      // Within the grace window after a start, a "stopped" almost always means
+      // the new VM just isn't queryable yet — keep the coming-up state.
+      if (
+        next.status === "stopped" &&
+        runStartedAt.current !== null &&
+        Date.now() - runStartedAt.current < START_GRACE_MS
+      ) {
+        return;
+      }
+      setRun(next);
     } catch {
       // next poll will catch up
     }
@@ -50,8 +67,10 @@ export function useAppRunner({
     try {
       const res = await fetch(`/api/workspaces/${workspaceId}/run`, { method: "POST" });
       const json = await res.json().catch(() => null);
-      if (res.ok && json?.ok) setRun(json.data);
-      else onNote(json?.error?.message ?? "Couldn't start the app.");
+      if (res.ok && json?.ok) {
+        runStartedAt.current = Date.now();
+        setRun(json.data);
+      } else onNote(json?.error?.message ?? "Couldn't start the app.");
     } catch {
       onNote("Couldn't start the app.");
     }
@@ -65,8 +84,10 @@ export function useAppRunner({
       const res = await fetch(`/api/workspaces/${workspaceId}/run`, { method: "DELETE" });
       // Only clear the run UI when the stop actually succeeded — otherwise the
       // app keeps running (and billing the VM) while we'd falsely show "stopped".
-      if (res.ok) setRun(null);
-      else onNote("Couldn't stop the app — it may still be running.");
+      if (res.ok) {
+        runStartedAt.current = null; // a deliberate stop ends the grace window
+        setRun(null);
+      } else onNote("Couldn't stop the app — it may still be running.");
     } catch {
       onNote("Couldn't reach the server — the app may still be running.");
     }

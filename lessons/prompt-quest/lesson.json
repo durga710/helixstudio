@@ -1,0 +1,84 @@
+{
+  "id": "prompt-quest",
+  "title": "Prompt Quest",
+  "blurb": "Spells only work if your instructions are clear. Learn to talk to an AI so it does exactly what you want.",
+  "level": "beginner",
+  "estMinutes": 9,
+  "icon": "Wand2",
+  "concept": "prompt engineering",
+  "order": 10,
+  "objectives": [
+    "Why clear instructions get better AI results",
+    "How to add a target, constraints, and a role",
+    "Why vague prompts go wrong"
+  ],
+  "glossary": [
+    { "term": "Prompt", "def": "The instructions you give an AI — your 'spell'." },
+    { "term": "Constraint", "def": "A limit you add, like 'avoid allies' or 'keep it short'." },
+    { "term": "Role", "def": "Who you ask the AI to act as, like 'a kind science teacher'." },
+    { "term": "Prompt engineering", "def": "The skill of writing clear instructions so an AI gives you what you actually want." }
+  ],
+  "steps": [
+    {
+      "kind": "explain",
+      "title": "Welcome to Wizard Academy",
+      "body": "Spells here are powered by **prompts** — instructions for the AI wizard. And the wizard is very literal: it does *exactly* what you say, not what you *meant*.\n\nSay “Attack!” and it might blast your own teammate. The fix isn't a better wizard — it's a **clearer spell**."
+    },
+    {
+      "kind": "predict",
+      "title": "Which spell works?",
+      "prompt": "Which instruction will the wizard follow more reliably?",
+      "choices": [
+        "\"Attack.\"",
+        "\"Attack the nearest enemy with fire, and avoid allies.\""
+      ],
+      "afterPick": "The detailed one, every time. Vague leaves the AI guessing; specific leaves no room for mistakes. Let's prove it. →"
+    },
+    {
+      "kind": "widget",
+      "widget": "promptQuest",
+      "title": "Build your spells",
+      "youWillDo": "build a clear spell from the parts and cast it",
+      "body": "Pick the **parts** that make each spell clear — the action, the target, the limits, and (later) a role. Skip the nonsense. Watch the **clarity meter**, then **Cast** and see what happens."
+    },
+    {
+      "kind": "explain",
+      "title": "What made spells work",
+      "body": "The winning spells all had the same things:\n\n- a clear **action** (what to do)\n- a specific **target** (to whom/what)\n- **constraints** (what to avoid)\n- sometimes a **role** (“act as a teacher”)\n\nVague spells left gaps, and the AI filled them however it liked — usually wrong."
+    },
+    {
+      "kind": "quiz",
+      "title": "Why be specific?",
+      "question": "Why does “Summon a friendly blue dragon that protects the villagers” beat “Summon a dragon”?",
+      "choices": [
+        "It's a longer sentence",
+        "It removes the AI's guesswork by saying exactly what you want",
+        "Dragons prefer blue",
+        "It uses fancier words"
+      ],
+      "answer": 1,
+      "explain": "Clear details = fewer guesses = the result you actually wanted. That's the whole game of prompting."
+    },
+    {
+      "kind": "reflect",
+      "title": "Say it your way",
+      "prompt": "What's one tip you'd give a friend for writing a prompt that gets good results?",
+      "placeholder": "I'd tell them to…",
+      "recall": {
+        "question": "The best way to get what you want from an AI is to…",
+        "choices": [
+          "Keep it short and vague",
+          "Be clear and specific about what you want",
+          "Use as many big words as possible"
+        ],
+        "answer": 1,
+        "explain": "Clear and specific wins. Say the goal, the limits, and the role."
+      }
+    },
+    {
+      "kind": "explain",
+      "title": "You're a prompt engineer now 🎉",
+      "body": "This is exactly how people get great results from real AI tools like chatbots: **clear instructions, constraints, and a role**.\n\nIt even has a job title — *prompt engineering*. **Next up:** make sure the AI is fair to everyone, not just the group it saw most."
+    }
+  ]
+}

@@ -11,13 +11,17 @@
  */
 
 import { z } from "zod";
-import { after } from "next/server";
 import { db } from "@/lib/db";
 import { ok, err, apiErrors } from "@/lib/api-response";
 import { auth } from "@/lib/auth";
-import { runAgentTurn } from "@/lib/agent-turn";
+import { enqueueJob } from "@/lib/jobs/driver";
 import { guardWorkspace } from "@/lib/route-helpers";
-import { reportError } from "@/lib/observability";
+
+function reqOrigin(req: Request): string {
+  const proto = req.headers.get("x-forwarded-proto") ?? "http";
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  return host ? `${proto}://${host}` : new URL(req.url).origin;
+}
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -58,43 +62,20 @@ export async function POST(req: Request, { params }: Params) {
     return apiErrors.badRequest("This workspace already has 3 tasks in flight — let one finish first.");
   }
 
-  const task = await db().workspaceTask.create({
-    data: { workspaceId: ws.id, prompt: message },
+  // A background task is now a one-step durable job — same agent turn, but it
+  // runs on the resumable job rails (checkpoint + cron/QStash backstop) instead
+  // of a fire-and-forget after(), so it survives instance churn. Multi-step jobs
+  // (planner→workers→reviewer) will reuse the exact same machinery.
+  const taskId = await enqueueJob({
+    workspaceId: ws.id,
+    userId: user.id,
+    prompt: message,
+    kind: "task",
+    steps: [{ kind: "agentTurn", message, mode: "build", verify: false, persist: true }],
+    devOrigin: reqOrigin(req),
   });
 
-  after(async () => {
-    try {
-      await db().workspaceTask.update({ where: { id: task.id }, data: { status: "running" } });
-      const result = await runAgentTurn({ ws, userId: user.id, message });
-      if ("error" in result) {
-        await db().workspaceTask.update({
-          where: { id: task.id },
-          data: { status: "error", error: result.error, finishedAt: new Date() },
-        });
-      } else {
-        await db().workspaceTask.update({
-          where: { id: task.id },
-          data: {
-            status: "done",
-            resultText: result.text,
-            actions: result.actions,
-            changes: { written: result.changes.written, deleted: result.changes.deleted },
-            finishedAt: new Date(),
-          },
-        });
-      }
-    } catch (e) {
-      reportError(e, { at: "task.run", taskId: task.id, workspaceId: ws.id });
-      await db()
-        .workspaceTask.update({
-          where: { id: task.id },
-          data: { status: "error", error: "Task crashed — try again.", finishedAt: new Date() },
-        })
-        .catch(() => {});
-    }
-  });
-
-  return ok({ id: task.id, status: "queued" });
+  return ok({ id: taskId, status: "queued" });
 }
 
 export async function GET(_req: Request, { params }: Params) {
@@ -102,17 +83,33 @@ export async function GET(_req: Request, { params }: Params) {
   const g = await guardWorkspace("tasks.read", id, { limit: 1200, windowMs: 60 * 60 * 1000 });
   if ("response" in g) return g.response;
 
-  // Sweep zombies (platform killed the function mid-task).
-  await db()
-    .workspaceTask.updateMany({
+  // Sweep zombies (platform killed the function mid-task). Heartbeat-aware: a
+  // durable job that's still checkpointing recently is NOT a zombie even if it's
+  // been running a while (multi-step refactors legitimately run minutes).
+  try {
+    const old = await db().workspaceTask.findMany({
       where: {
         workspaceId: g.ws.id,
         status: { in: ["queued", "running"] },
         createdAt: { lt: new Date(Date.now() - TASK_TIMEOUT_MS) },
       },
-      data: { status: "error", error: "Timed out.", finishedAt: new Date() },
-    })
-    .catch(() => {});
+      select: { id: true, job: true },
+    });
+    const dead = old
+      .filter((r) => {
+        const hb = (r.job as { heartbeatAt?: string } | null)?.heartbeatAt;
+        return !hb || Date.now() - Date.parse(hb) > TASK_TIMEOUT_MS;
+      })
+      .map((r) => r.id);
+    if (dead.length) {
+      await db().workspaceTask.updateMany({
+        where: { id: { in: dead } },
+        data: { status: "error", error: "Timed out.", finishedAt: new Date() },
+      });
+    }
+  } catch {
+    /* sweep is best-effort */
+  }
 
   const tasks = await db().workspaceTask.findMany({
     where: { workspaceId: g.ws.id },

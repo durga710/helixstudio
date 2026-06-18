@@ -1,0 +1,85 @@
+{
+  "id": "data-cleaning-hero",
+  "title": "Data Cleaning Hero",
+  "blurb": "The AI lab's data is a mess. Fix it, retrain, and watch a junk model turn into a smart one.",
+  "level": "beginner",
+  "estMinutes": 9,
+  "icon": "Wrench",
+  "concept": "data quality",
+  "order": 9,
+  "objectives": [
+    "Why messy data wrecks an AI",
+    "How to spot and fix bad data",
+    "Why clean data can beat a fancier model"
+  ],
+  "glossary": [
+    { "term": "Missing value", "def": "A blank where a number should be — the AI doesn't know what goes there." },
+    { "term": "Outlier", "def": "A value that's way off, like an age of 500. Usually a mistake." },
+    { "term": "Duplicate", "def": "The same record copied twice — it double-counts and skews things." },
+    { "term": "Garbage in, garbage out", "def": "If you train on bad data, you get a bad model — no matter how clever it is." }
+  ],
+  "steps": [
+    {
+      "kind": "explain",
+      "title": "The lab is failing",
+      "body": "Alarm bells! The lab's AI keeps making terrible guesses, and the scientists are stumped.\n\nYou take one look at the training data and spot the problem instantly: it's a **mess**. Ages like `500`, blanks, `???`, and rows copied twice. Your mission: clean it up."
+    },
+    {
+      "kind": "predict",
+      "title": "Will cleaning help?",
+      "prompt": "If you fix the messy data and train the *exact same* model, what happens to its accuracy?",
+      "choices": [
+        "Goes up a lot",
+        "Stays exactly the same",
+        "Gets worse"
+      ],
+      "afterPick": "Hold that thought — you're about to see the difference with your own eyes. →"
+    },
+    {
+      "kind": "widget",
+      "widget": "dataCleaner",
+      "title": "Clean the data, then train",
+      "youWillDo": "fix every flagged row, then train",
+      "body": "Each **flagged** row is broken in some way. For each one, choose to **Remove** it or **Estimate** a sensible value. When the table is clean, press **Train model** and compare the two scores."
+    },
+    {
+      "kind": "explain",
+      "title": "Same model, way smarter",
+      "body": "Look at that gap. The **algorithm never changed** — only the data did. Clean data took the model from clueless to sharp.\n\nThat's the rule pros live by: **garbage in, garbage out.** A simple model on clean data usually beats a fancy model on junk."
+    },
+    {
+      "kind": "quiz",
+      "title": "Why did it matter?",
+      "question": "An age value of `500` showed up in the data. Why is that a problem for training?",
+      "choices": [
+        "It makes the file bigger",
+        "It's impossible, so it teaches the model a wrong pattern",
+        "Computers can't read the number 500",
+        "It isn't a problem at all"
+      ],
+      "answer": 1,
+      "explain": "The model treats every example as truth. Feed it impossible values and it learns impossible patterns."
+    },
+    {
+      "kind": "reflect",
+      "title": "Say it your way",
+      "prompt": "Explain to a friend why cleaning data made the AI better, even though the model stayed the same.",
+      "placeholder": "Because the AI learns from…",
+      "recall": {
+        "choices": [
+          "A fancier algorithm",
+          "Cleaner, more correct data",
+          "A bigger computer"
+        ],
+        "question": "The cleaned model scored higher mainly because of…",
+        "answer": 1,
+        "explain": "Better data, same model. Data quality is doing the heavy lifting."
+      }
+    },
+    {
+      "kind": "explain",
+      "title": "The unglamorous superpower 🎉",
+      "body": "You just did the job real data scientists spend **most of their time** on: cleaning data.\n\nIt's not flashy, but it's one of the highest-impact things in all of AI. Missing values, outliers, duplicates — hunt them down and your models get better for free. **Next up:** build a clear prompt that gets an AI to do exactly what you want."
+    }
+  ]
+}

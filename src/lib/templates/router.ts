@@ -12,71 +12,16 @@ import "server-only";
 
 import { getAllTemplates } from "./store";
 import type { Template } from "./types";
+import { intentRoute, tokenize, DEFAULT_ID } from "./route-intent";
 import { runOneShot, resolveAiPrefs } from "@/lib/ai-agent";
 import { recordAiUsage } from "@/lib/ai-usage";
 import { checkTokenBudget } from "@/lib/token-budget";
 
-const DEFAULT_ID = "static-web";
-
 // ── Intent routing (the smart split) ────────────────────────────────────────
-// Keyword *scoring* alone sent most app requests to the static default (an "app"
-// word scores 1, below the confidence floor of 2). So before scoring we read the
-// prompt's INTENT: an explicit framework wins; a dynamic/app request gets a real
-// framework; only a genuinely static site type (portfolio, landing…) stays static.
-
-/** Explicit framework mention → that framework's starter (strongest signal). */
-const FRAMEWORK_HINTS: { re: RegExp; id: string }[] = [
-  { re: /\b(next\.?js|nextjs)\b/, id: "nextjs-app" },
-  { re: /\breact\b/, id: "nextjs-app" },
-  { re: /\bdjango\b/, id: "django-app" },
-  { re: /\bflask\b/, id: "flask-api" },
-  { re: /\b(express|node\.?js|nodejs)\b/, id: "express-api" },
-];
-
-/** Words that imply a dynamic, stateful application → a framework (nextjs-app). */
-const APP_INTENT = [
-  "app", "application", "web app", "webapp", "dashboard", "saas", "platform", "tool",
-  "login", "signup", "sign up", "sign in", "auth", "account", "accounts", "user", "users",
-  "admin", "crud", "database", "backend", "api", "portal", "tracker", "manager", "management",
-  "booking", "reservation", "marketplace", "social", "chat", "messaging", "messenger",
-  "todo", "to-do", "inventory", "cms", "ecommerce", "e-commerce", "commerce", "store", "shop",
-  "checkout", "crm", "scheduler", "calendar", "forum", "wiki", "directory", "analytics",
-];
-
-/** Words that imply a simple, content-only site → the instant static starter. */
-const STATIC_INTENT = [
-  "portfolio", "landing", "landing page", "brochure", "one-page", "one page",
-  "coming soon", "promo", "flyer", "resume", "cv", "business card",
-  "personal site", "personal website",
-];
-
-function countIntent(lower: string, words: Set<string>, list: string[]): number {
-  let n = 0;
-  for (const kw of list) {
-    if (kw.includes(" ") || kw.includes("-")) {
-      if (lower.includes(kw)) n++;
-    } else if (words.has(kw)) {
-      n++;
-    }
-  }
-  return n;
-}
-
-/** Resolve a starter from intent, or null to fall through to keyword scoring. */
-function intentRoute(prompt: string, templates: Templates): string | null {
-  const lower = prompt.toLowerCase();
-  for (const h of FRAMEWORK_HINTS) {
-    if (h.re.test(lower) && templates[h.id]) return h.id;
-  }
-  const words = new Set(tokenize(prompt));
-  const appHits = countIntent(lower, words, APP_INTENT);
-  const staticHits = countIntent(lower, words, STATIC_INTENT);
-  // A clearly-static site type with no app signal stays static…
-  if (staticHits > 0 && appHits === 0 && templates[DEFAULT_ID]) return DEFAULT_ID;
-  // …otherwise any app signal earns a real framework.
-  if (appHits > 0 && templates["nextjs-app"]) return "nextjs-app";
-  return null;
-}
+// Before keyword scoring we read the prompt's INTENT (route-intent.ts, pure +
+// unit-tested): an explicit framework wins; a genuinely dynamic need (accounts,
+// data, payments…) gets a framework; everything else — incl. a generic "app",
+// calendar, todo, dashboard — builds as an INSTANT static app.
 
 export interface Classification {
   templateId: string;
@@ -86,13 +31,6 @@ export interface Classification {
 }
 
 type Templates = Record<string, Template>;
-
-function tokenize(s: string): string[] {
-  return s
-    .toLowerCase()
-    .split(/[^a-z0-9+]+/)
-    .filter((t) => t.length > 1);
-}
 
 /** Pure, zero-token scoring over the given templates (highest = best). */
 function scoreByKeywords(prompt: string, templates: Templates): { id: string; score: number }[] {
@@ -142,7 +80,7 @@ export async function classifyPrompt(prompt: string, userId: string): Promise<Cl
 
   // Intent first: an explicit framework, an app request, or a clearly-static site
   // type resolves here with no model call (and fixes "every app became static").
-  const intent = intentRoute(prompt, templates);
+  const intent = intentRoute(prompt, (id) => Boolean(templates[id]));
   if (intent) {
     return {
       templateId: intent,

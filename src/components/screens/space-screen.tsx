@@ -251,25 +251,34 @@ export function SpaceScreen({ youName, filter }: { youName?: string | null; filt
         </div>
         <p className="mt-1 text-[13px] text-txt2">
           {isClass
-            ? "A classroom is your students in one place. Invite them with a link, hand out assignments and AI lessons, and track their progress in the gradebook."
+            ? "A classroom is your students in one place. Invite them with a link, hand out assignments and AI Academy modules, and track their progress in the gradebook."
             : "A Space is a group of people. Invite friends with a link, then see and open each other's projects — read-only, copy any to make it yours."}
         </p>
 
         {isClass && (
           <Link
-            href="/lab"
-            className="group mt-4 flex items-center gap-3.5 rounded-card border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] px-5 py-4 transition-colors hover:border-accent"
+            href="/academy"
+            className="group relative mt-4 flex items-center gap-4 overflow-hidden rounded-card-lg border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-gradient-to-br from-[color-mix(in_srgb,var(--accent)_14%,transparent)] via-[color-mix(in_srgb,var(--accent)_7%,transparent)] to-transparent px-5 py-5 transition-all hover:border-accent hover:shadow-card"
           >
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl">
-              <GraduationCap className="h-5 w-5 text-accent" strokeWidth={1.8} />
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-hl">
+              <GraduationCap className="h-6 w-6 text-accent" strokeWidth={1.8} />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[14px] font-semibold text-txt">Learn AI — lessons &amp; studios</span>
+              <span className="mb-1 flex items-center gap-2">
+                <span className="text-[15px] font-bold tracking-tight text-txt">AI Academy</span>
+                <span className="rounded-full bg-accent px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wide text-accent-ink">
+                  New
+                </span>
+              </span>
               <span className="block text-[12.5px] leading-relaxed text-txt2">
-                Hands-on AI lessons your students can take — and that you can build, edit, and assign.
+                Learn AI by <span className="text-txt">playing</span> — game modules (train a puppy, escape a maze,
+                bust bias, engineer prompts) with an AI coach beside every student. Take them yourself, or build,
+                edit, and assign them to your class.
               </span>
             </span>
-            <ArrowRight className="h-4 w-4 shrink-0 text-accent transition-transform group-hover:translate-x-0.5" />
+            <span className="hidden shrink-0 items-center gap-1.5 self-center rounded-[10px] border border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-panel px-3 py-2 text-[12.5px] font-semibold text-accent transition group-hover:bg-accent group-hover:text-accent-ink sm:inline-flex">
+              Enter <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </span>
           </Link>
         )}
 
@@ -402,7 +411,7 @@ function EmptyState({
         <h2 className="mb-1 text-base font-medium text-txt">{isClass ? "Create a classroom" : "Create a Space"}</h2>
         <p className="mb-4 text-xs leading-relaxed text-txt3">
           {isClass
-            ? "Start a classroom, then share an invite link with your students. Hand out assignments and AI lessons, and review their work."
+            ? "Start a classroom, then share an invite link with your students. Hand out assignments and AI Academy modules, and review their work."
             : "Start a group, then share an invite link to see and open each other's projects."}
         </p>
         <form

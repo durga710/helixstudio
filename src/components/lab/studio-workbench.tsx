@@ -105,7 +105,7 @@ export function StudioWorkbench({
         {/* Header */}
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
           {!embedded && (
-            <Link href="/lab/studio" className="text-txt3 transition-colors hover:text-txt" title="Back to Studios">
+            <Link href="/academy/studio" className="text-txt3 transition-colors hover:text-txt" title="Back to Studios">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           )}
@@ -202,7 +202,7 @@ export function StudioWorkbench({
       {/* Standalone: the floating tutor is the mentor. Embedded: the AI-workspace
           guide chat is the mentor instead, fed live state via onState. */}
       {!embedded && (
-        <TutorPanel lessonId={progressId} stepIndex={0} state={{ ...labState, concept: meta.concept, goal: meta.goal }} />
+        <TutorPanel lessonId={progressId} stepIndex={0} state={{ ...labState, concept: meta.concept, goal: meta.goal }} concept={meta.concept} />
       )}
 
       {showIntro && <IntroOverlay meta={meta} onStart={closeIntro} />}

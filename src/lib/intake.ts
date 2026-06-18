@@ -54,6 +54,34 @@ export function extractFeatures(idea: string): string[] {
   return out;
 }
 
+// Named games / clear genres → a concrete spec the builder can act on. When the
+// idea references one of these, we already KNOW the kind of game — so we skip the
+// "what kind of game?" question and fold the genre (with its core mechanics) into
+// the brief, instead of asking something the user already answered.
+const GAME_GENRES: [RegExp, string][] = [
+  [/temple run|subway surf|endless runner|infinite runner|auto[\s-]?runner/, "an endless runner: the player auto-runs forward, swipe/keys to switch lanes, jump and slide past obstacles, collect coins, and the speed ramps up over time"],
+  [/flappy bird|flappy/, "a Flappy Bird-style game: tap/press to flap upward against gravity, weave through gaps in pipes, score per gap"],
+  [/tetris/, "a Tetris-style puzzle: falling tetromino blocks the player rotates and slots to clear full rows"],
+  [/\bsnake\b/, "a classic Snake game: a growing snake the player steers to eat food without hitting walls or itself"],
+  [/\bpong\b/, "a Pong-style game: two paddles bounce a ball back and forth, score when it passes a paddle"],
+  [/breakout|arkanoid|brick[\s-]?break/, "a brick-breaker: a paddle bounces a ball to smash a wall of bricks"],
+  [/space invaders|galaga|\bshooter\b/, "a space shooter: the player moves and fires at descending waves of enemies"],
+  [/\b2048\b/, "a 2048 puzzle: slide numbered tiles on a grid to merge matching pairs toward 2048"],
+  [/mario|platformer|side[\s-]?scroll/, "a side-scrolling platformer: run and jump across platforms, avoid hazards, collect items, reach the goal"],
+  [/asteroids/, "an Asteroids-style shooter: a ship thrusts and rotates in space, shooting splitting asteroids"],
+  [/doodle jump|vertical jump/, "a vertical jumper: auto-bounce upward platform to platform, don't fall"],
+  [/match[\s-]?3|candy crush|bejeweled/, "a match-3 puzzle: swap adjacent gems to line up 3+ and clear them"],
+  [/tower defense/, "a tower-defense game: place towers along a path to stop waves of enemies"],
+];
+
+/** If the idea names a known game or genre, return a concrete one-line spec of
+ * that genre's core mechanics — else null. Free, keyword-based. */
+export function recognizeGameGenre(idea: string): string | null {
+  const lower = idea.toLowerCase();
+  for (const [re, spec] of GAME_GENRES) if (re.test(lower)) return spec;
+  return null;
+}
+
 /** How specific is the request? 0 (vague) … 4 (detailed). */
 export function clarityScore(idea: string, features: string[]): number {
   const words = idea.trim().split(/\s+/).filter(Boolean).length;
@@ -150,7 +178,13 @@ export async function curate(opts: {
   // auto-complete the feature list (e.g. payments → auth + a database).
   const archetype = matchArchetype(idea);
   const ideaFeatures = extractFeatures(idea);
-  const features = applyImplications(Array.from(new Set([...ideaFeatures, ...(archetype?.features ?? [])])));
+  // A named game / clear genre ("temple run", "flappy bird", "platformer") is a
+  // concrete spec — fold its mechanics into the brief so the builder makes THAT
+  // game, and below we skip the generic "what kind of game?" question.
+  const gameGenre = recognizeGameGenre(idea);
+  const features = applyImplications(
+    Array.from(new Set([...ideaFeatures, ...(archetype?.features ?? []), ...(gameGenre ? [gameGenre] : [])])),
+  );
   // Prefer the classifier's stack when it's confident; otherwise the archetype's.
   const stack = classification.confident ? classification.label : archetype?.stack ?? classification.label;
 
@@ -168,8 +202,9 @@ export async function curate(opts: {
   // below are only about WHAT to build, never HOW to build it.
 
   // Vague idea → a clarifying question. Prefer the archetype's curated one
-  // (free); only fall back to a tiny AI call when we have no archetype.
-  if (clarityScore(idea, ideaFeatures) <= 1) {
+  // (free); only fall back to a tiny AI call when we have no archetype. BUT if
+  // the user already named the game/genre, we know the kind — don't ask.
+  if (!gameGenre && clarityScore(idea, ideaFeatures) <= 1) {
     if (archetype?.question) questions.push(archetype.question);
     else {
       const scope = await aiScopeQuestions({ idea, userId, stackLabel: stack, features });

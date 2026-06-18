@@ -47,4 +47,8 @@ export const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
   anthropic: "claude-sonnet-4-6",
   local: "llama3.1",
   gemini: "gemini-2.0-flash",
+  // Bedrock platform default: Sonnet 4.6 balances frontier quality against cost
+  // since every signed-in user's build is metered on the platform's AWS bill.
+  // Opus 4.6 and Haiku 4.5 remain selectable in Settings → AI model.
+  bedrock: "anthropic.claude-sonnet-4-6",
 };

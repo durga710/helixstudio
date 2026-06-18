@@ -22,7 +22,7 @@ import {
   type ChangeManifest,
   type ToolContext,
 } from "@/lib/workspace-tools";
-import { AGENT_LIMITS, ANTHROPIC_MAX_OUTPUT, READONLY_TOOLS, toolResultCapFor } from "@/lib/agent-config";
+import { AGENT_LIMITS, type AgentLimits, ANTHROPIC_MAX_OUTPUT, READONLY_TOOLS, toolResultCapFor } from "@/lib/agent-config";
 import { withRetry } from "@/lib/ai/retry";
 import { resolveAiKey, GEMINI_BASE_URL, PROVIDER_DEFAULT_MODEL } from "@/lib/ai/keys";
 import { isAdminEmail } from "@/lib/admin";
@@ -43,11 +43,10 @@ export interface AgentResult {
   tokensUsed: number;
 }
 
-const MAX_HOPS = AGENT_LIMITS.maxHops;
 
 /** True once a turn has spent its token budget — stop calling tools, wrap up. */
-function outOfBudget(tokensUsed: number): boolean {
-  return tokensUsed >= AGENT_LIMITS.maxTurnTokens;
+function outOfBudget(tokensUsed: number, lim: AgentLimits = AGENT_LIMITS): boolean {
+  return tokensUsed >= lim.maxTurnTokens;
 }
 
 type FunctionTool = {
@@ -57,8 +56,8 @@ type FunctionTool = {
   parameters: Record<string, unknown>;
 };
 
-function functionTools(mode: "plan" | "build" = "build"): FunctionTool[] {
-  return (workspaceTools(mode) as ReadonlyArray<Record<string, unknown>>)
+function functionTools(mode: "plan" | "build" = "build", isAdmin = false): FunctionTool[] {
+  return (workspaceTools(mode, isAdmin) as ReadonlyArray<Record<string, unknown>>)
     .filter((t) => t.type === "function")
     .map((t) => ({
       type: "function" as const,
@@ -93,6 +92,10 @@ export async function runAnthropicAgent(opts: {
   messages: AgentMessage[];
   ctx: ToolContext;
   apiKey?: string;
+  /** Override the API host (e.g. the Bedrock Anthropic-compatible endpoint). */
+  baseUrl?: string;
+  /** Extra request headers (e.g. Bedrock's anthropic-workspace-id). */
+  extraHeaders?: Record<string, string>;
   /** Live token deltas of the assistant's reply (streaming). */
   onText?: (delta: string) => void;
 }): Promise<AgentResult | { error: string }> {
@@ -100,10 +103,17 @@ export async function runAnthropicAgent(opts: {
   if (!apiKey) return { error: "Anthropic is not configured — add your API key in Settings → AI model." };
 
   // The SDK handles SSE parsing + tool-use reconstruction (.finalMessage) and
-  // transient-error retries (maxRetries), so the runner stays simple.
-  const client = new Anthropic({ apiKey, maxRetries: 2 });
+  // transient-error retries (maxRetries), so the runner stays simple. baseURL +
+  // defaultHeaders let the same runner drive Claude on Bedrock (mantle endpoint).
+  const client = new Anthropic({
+    apiKey,
+    maxRetries: 2,
+    ...(opts.baseUrl ? { baseURL: opts.baseUrl } : {}),
+    ...(opts.extraHeaders ? { defaultHeaders: opts.extraHeaders } : {}),
+  });
 
-  const tools: Anthropic.Tool[] = functionTools(opts.ctx.mode).map((t) => ({
+  const lim = opts.ctx.limits ?? AGENT_LIMITS;
+  const tools: Anthropic.Tool[] = functionTools(opts.ctx.mode, opts.ctx.isAdmin).map((t) => ({
     name: t.name,
     description: t.description,
     input_schema: t.parameters as Anthropic.Tool.InputSchema,
@@ -123,7 +133,7 @@ export async function runAnthropicAgent(opts: {
   const changes: ChangeManifest = { written: [], deleted: [] };
   let tokensUsed = 0;
 
-  for (let hop = 0; hop <= MAX_HOPS; hop++) {
+  for (let hop = 0; hop <= lim.maxHops; hop++) {
     let msg: Anthropic.Message;
     try {
       const stream = client.messages.stream({
@@ -142,7 +152,7 @@ export async function runAnthropicAgent(opts: {
     tokensUsed += (msg.usage?.input_tokens ?? 0) + (msg.usage?.output_tokens ?? 0);
     const toolUses = msg.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
 
-    if (msg.stop_reason !== "tool_use" || toolUses.length === 0 || hop === MAX_HOPS || outOfBudget(tokensUsed)) {
+    if (msg.stop_reason !== "tool_use" || toolUses.length === 0 || hop === lim.maxHops || outOfBudget(tokensUsed, lim)) {
       const text = msg.content
         .filter((b): b is Anthropic.TextBlock => b.type === "text")
         .map((b) => b.text)
@@ -173,7 +183,7 @@ export async function runAnthropicAgent(opts: {
       results.push({
         type: "tool_result",
         tool_use_id: call.id,
-        content: JSON.stringify(result).slice(0, toolResultCapFor(call.name ?? "")),
+        content: JSON.stringify(result).slice(0, toolResultCapFor(call.name ?? "", lim)),
       });
     }
     messages.push({ role: "user", content: results });
@@ -191,15 +201,22 @@ export async function runLocalAgent(opts: {
   messages: AgentMessage[];
   ctx: ToolContext;
   apiKey?: string;
+  /** Extra request headers (e.g. Bedrock's openai-project). */
+  extraHeaders?: Record<string, string>;
   /** What to call the endpoint in error messages (e.g. "Gemini"). */
   label?: string;
 }): Promise<AgentResult | { error: string }> {
   const label = opts.label ?? "the local model";
   // Many local/custom endpoints need no auth; cloud OpenAI-compatible ones
-  // (e.g. Gemini) get their key resolved upstream and passed in here.
-  const client = new OpenAI({ apiKey: opts.apiKey || "not-needed", baseURL: opts.baseUrl });
+  // (e.g. Gemini, Bedrock) get their key resolved upstream and passed in here.
+  const client = new OpenAI({
+    apiKey: opts.apiKey || "not-needed",
+    baseURL: opts.baseUrl,
+    ...(opts.extraHeaders ? { defaultHeaders: opts.extraHeaders } : {}),
+  });
 
-  const tools = functionTools(opts.ctx.mode).map((t) => ({
+  const lim = opts.ctx.limits ?? AGENT_LIMITS;
+  const tools = functionTools(opts.ctx.mode, opts.ctx.isAdmin).map((t) => ({
     type: "function" as const,
     function: { name: t.name, description: t.description, parameters: t.parameters },
   }));
@@ -214,14 +231,22 @@ export async function runLocalAgent(opts: {
   let tokensUsed = 0;
 
   try {
-    for (let hop = 0; hop <= MAX_HOPS; hop++) {
+    for (let hop = 0; hop <= lim.maxHops; hop++) {
       const resp = await withRetry(() => client.chat.completions.create({ model: opts.model, messages, tools }));
-      tokensUsed += resp.usage?.total_tokens ?? 0;
+      // Count cached (re-sent) input tokens at their ~25% billed rate — a multi-hop
+      // loop re-sends the same prompt prefix every hop; metering it at 100% would
+      // overstate cost and burn quota for near-free tokens. Mirrors billedTokens()
+      // in agent-turn.ts (kept inline to avoid a circular import).
+      {
+        const u = resp.usage;
+        const cached = u?.prompt_tokens_details?.cached_tokens ?? 0;
+        tokensUsed += Math.max(0, (u?.total_tokens ?? 0) - cached * 0.75);
+      }
       const msg = resp.choices[0]?.message;
       if (!msg) return { error: "empty response from the local model" };
 
       const calls = (msg.tool_calls ?? []).filter((c) => c.type === "function");
-      if (calls.length === 0 || hop === MAX_HOPS || outOfBudget(tokensUsed)) {
+      if (calls.length === 0 || hop === lim.maxHops || outOfBudget(tokensUsed, lim)) {
         return { text: (msg.content ?? "").trim() || "(no reply)", actions, changes, tokensUsed };
       }
 
@@ -246,7 +271,7 @@ export async function runLocalAgent(opts: {
         messages.push({
           role: "tool",
           tool_call_id: call.id,
-          content: JSON.stringify(result).slice(0, toolResultCapFor(call.function.name)),
+          content: JSON.stringify(result).slice(0, toolResultCapFor(call.function.name, lim)),
         });
       }
     }
@@ -287,9 +312,11 @@ export async function resolveAiPrefs(userId: string): Promise<{
   model: string;
   apiKey?: string;
   baseUrl: string;
+  extraHeaders?: Record<string, string>;
 }> {
   const { db } = await import("@/lib/db");
   const { OPENAI_MODEL } = await import("@/lib/openai");
+  const { resolveBedrockModel, bedrockEnabled } = await import("@/lib/ai/bedrock");
   const prefs = await db().userPreferences.findUnique({
     where: { userId },
     select: {
@@ -303,8 +330,24 @@ export async function resolveAiPrefs(userId: string): Promise<{
       user: { select: { email: true } },
     },
   });
-  const provider = prefs?.aiProvider ?? "openai";
+  const provider = prefs?.aiProvider ?? (bedrockEnabled() ? "bedrock" : "openai");
   const prefModel = prefs?.aiModel === "default" ? "" : (prefs?.aiModel ?? "");
+
+  // Bedrock-served models (platform default, no BYO key). Map to the matching
+  // transport: openai-protocol → the OpenAI-compatible path; claude → anthropic.
+  if (provider === "bedrock") {
+    const r = (prefModel ? resolveBedrockModel(prefModel) : null) ?? resolveBedrockModel(PROVIDER_DEFAULT_MODEL.bedrock!);
+    if (r) {
+      return {
+        provider: r.protocol === "anthropic" ? "anthropic" : "local",
+        model: r.modelId,
+        apiKey: r.apiKey,
+        baseUrl: r.baseUrl,
+        extraHeaders: r.headers,
+      };
+    }
+  }
+
   const model = prefModel || PROVIDER_DEFAULT_MODEL[provider] || OPENAI_MODEL;
   const apiKey = resolveAiKey({
     provider,
@@ -329,6 +372,8 @@ export async function runOneShot(opts: {
   user: string;
   /** Anthropic output budget (its API requires one). Default 2048. */
   maxTokens?: number;
+  /** Extra request headers (e.g. Bedrock's openai-project) for the OpenAI path. */
+  extraHeaders?: Record<string, string>;
 }): Promise<{ text: string; tokensUsed: number } | { error: string }> {
   try {
     if (opts.provider === "anthropic") {
@@ -364,7 +409,11 @@ export async function runOneShot(opts: {
     // openai, gemini, and local all speak the OpenAI-compatible chat surface.
     // Gemini has a fixed base URL; local is a user-supplied endpoint.
     const baseURL = opts.provider === "gemini" ? GEMINI_BASE_URL : opts.provider === "local" ? opts.baseUrl : undefined;
-    const client = new OpenAI({ baseURL, apiKey: opts.apiKey || "not-needed" });
+    const client = new OpenAI({
+      baseURL,
+      apiKey: opts.apiKey || "not-needed",
+      ...(opts.extraHeaders ? { defaultHeaders: opts.extraHeaders } : {}),
+    });
     if (opts.provider !== "local" && !opts.apiKey) {
       const label = opts.provider === "gemini" ? "Gemini" : "OpenAI";
       return { error: `No ${label} API key — add one in Settings → AI model.` };
@@ -400,6 +449,8 @@ export async function runReviewer(opts: {
   diffText: string;
   /** Override the default code-review framing (e.g. assignment grading). */
   system?: string;
+  /** Extra request headers (e.g. Bedrock's openai-project). */
+  extraHeaders?: Record<string, string>;
 }): Promise<{ text: string; tokensUsed: number } | { error: string }> {
   const system =
     opts.system ??
@@ -414,6 +465,7 @@ export async function runReviewer(opts: {
     baseUrl: opts.baseUrl,
     system,
     user: `PENDING CHANGES:\n\n${opts.diffText}`,
+    extraHeaders: opts.extraHeaders,
   });
   if ("error" in result) return result;
   return { text: result.text || "(no review produced)", tokensUsed: result.tokensUsed };

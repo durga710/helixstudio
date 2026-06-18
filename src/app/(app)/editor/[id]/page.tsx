@@ -1,5 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { isAdminEmail } from "@/lib/admin";
 import { db, dbEnabled, schemaReady } from "@/lib/db";
 import { Studio } from "@/components/studio/studio";
 
@@ -56,6 +57,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
         }}
         isGuest={Boolean(session.user.isGuest)}
         isOwner={isOwner}
+        isAdmin={isAdminEmail(session.user.email)}
         ownerName={ownerName}
       />
     </div>

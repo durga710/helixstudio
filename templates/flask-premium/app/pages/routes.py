@@ -7,7 +7,14 @@ from app.models.item import all_items
 bp = Blueprint("pages", __name__)
 
 
+# Open straight to the app — no forced login. The landing + login pages stay as
+# OPTIONAL routes (wire login as a gate only if the user asks).
 @bp.get("/")
+def home():
+    return render_template("dashboard.html", page="dashboard", items=all_items())
+
+
+@bp.get("/landing")
 def landing():
     return render_template("landing.html", page="landing")
 

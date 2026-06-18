@@ -31,7 +31,67 @@ export const AGENT_LIMITS = {
   /** Files scanned / matches returned per search_files call. */
   searchFileCap: 40,
   searchMatchCap: 30,
-} as const;
+  /** Files chunked / ranked hits returned per semantic_search call. */
+  semanticFileCap: 60,
+  semanticTopN: 8,
+  /** Hard input-context budget (chars) and the tree-outline slice within it. */
+  contextChars: 24_000,
+  treeChars: 1_200,
+  /** Whether the model may restructure the locked skeleton files (transform). */
+  unlockSkeleton: false,
+};
+
+/**
+ * Phase-2 "transform mode" ceilings — bigger context, more hops/tokens, wider
+ * search, and skeleton-unlock so LARGE refactors ("change the routes", "turn it
+ * into X") fit in one turn. ADMIN-ONLY for now (cost + blast radius); everyone
+ * else uses AGENT_LIMITS. Resolve per-turn with agentLimitsFor(isAdmin).
+ */
+export const ADMIN_AGENT_LIMITS: typeof AGENT_LIMITS = {
+  ...AGENT_LIMITS,
+  maxHops: 48,
+  maxTurnTokens: 500_000,
+  searchFileCap: 120,
+  searchMatchCap: 60,
+  semanticFileCap: 150,
+  semanticTopN: 16,
+  contextChars: 60_000,
+  treeChars: 6_000,
+  unlockSkeleton: true,
+};
+
+export type AgentLimits = typeof AGENT_LIMITS;
+
+/** The per-turn limits: bumped "transform mode" for admins, base for everyone. */
+export function agentLimitsFor(isAdmin: boolean): AgentLimits {
+  return isAdmin ? ADMIN_AGENT_LIMITS : AGENT_LIMITS;
+}
+
+/**
+ * Scale the context/tree/hop ceilings DOWN to the project's size, so we don't
+ * over-send tokens on a small project (the whole point of the engine is low
+ * token cost). A 3-file app gets a lean context; only a big codebase unlocks the
+ * full budget. Token/search caps stay as safety nets. Never goes below the base
+ * limits — so a non-admin (already at base) is unchanged; an admin on a small
+ * project drops from the 60K transform-mode context back toward base.
+ */
+export function scaleLimitsForProject(limits: AgentLimits, fileCount: number): AgentLimits {
+  const t = Math.max(0, Math.min(1, fileCount / 60)); // 0 → tiny, 1 → 60+ files
+  const lerp = (lo: number, hi: number) => Math.round(lo + (hi - lo) * t);
+  return {
+    ...limits,
+    contextChars: Math.min(limits.contextChars, lerp(AGENT_LIMITS.contextChars, limits.contextChars)),
+    treeChars: Math.min(limits.treeChars, lerp(AGENT_LIMITS.treeChars, limits.treeChars)),
+    maxHops: Math.min(limits.maxHops, lerp(AGENT_LIMITS.maxHops, limits.maxHops)),
+  };
+}
+
+/** Appended to BUILD_RULES for admin "transform mode" turns — lifts the
+ * build-on-the-skeleton restrictions so LARGE refactors actually work. */
+export const TRANSFORM_RULES =
+  "\n## TRANSFORM MODE (elevated session — you can make large, structural changes)\n" +
+  "- You have a bigger budget, wider search, and a `move_file` tool (rename/move; then fix the imports/links that pointed at the old path). Use list_files / search_files to map the FULL file set before a big refactor — change every affected file, not a subset.\n" +
+  "- For large changes (restructure routes/pages, convert the app into something else) you MAY edit or restructure the skeleton — including the normally-locked auth/layout/nav/theme files. Still reuse the existing theme tokens + component kit so it stays on-brand, and keep it building/runnable at every step.\n";
 
 /** Tools that only read state — safe to execute in parallel within one hop. */
 export const READONLY_TOOLS = new Set(["list_files", "read_file", "search_files", "semantic_search"]);
@@ -42,8 +102,8 @@ export const READONLY_TOOLS = new Set(["list_files", "read_file", "search_files"
  * the model would only see the first third of a file it's about to edit. Give
  * read_file the larger budget; everything else stays at the lean default.
  */
-export function toolResultCapFor(toolName: string): number {
-  return toolName === "read_file" ? AGENT_LIMITS.readCap + 2_000 : AGENT_LIMITS.toolResultCap;
+export function toolResultCapFor(toolName: string, limits: AgentLimits = AGENT_LIMITS): number {
+  return toolName === "read_file" ? limits.readCap + 2_000 : limits.toolResultCap;
 }
 
 /**
@@ -129,6 +189,12 @@ export const BUILD_RULES =
   "entry point keeps working), and the live preview must render without the user doing anything. Only collapse to a " +
   "bare single `index.html` if the user EXPLICITLY asks for one static page — otherwise build the full app on the " +
   "skeleton you were given.\n" +
+  "- STATIC projects (no package.json — index.html + css/js, the default for simple apps): the live preview inlines " +
+  "your files into ONE sandboxed page and runs them in the browser as-is. So: write browser-runnable JS — classic " +
+  "scripts, or ES modules loaded from a CDN like esm.sh (e.g. `import confetti from 'https://esm.sh/canvas-confetti'`). " +
+  "Do NOT use bare npm imports ('import x from \"react\"'), a bundler/build step, JSX/TSX, or cross-file relative ESM " +
+  "imports that need a dev server — none of those run in the inlined preview and the page will render blank. Persisting " +
+  "to localStorage is fine (it's shimmed). Keep it a single self-contained script when you can.\n" +
   "- If PROJECT NOTES say a template is already scaffolded, BUILD ON IT — the stack and config already exist. " +
   "read_file the key files first, then CUSTOMIZE them to the request. Do NOT recreate package.json/config or " +
   "re-scaffold the project from scratch.\n" +
@@ -138,6 +204,12 @@ export const BUILD_RULES =
   "existing component kit and COLOR TOKENS (e.g. bg-surface / border-line / bg-brand text-brand-fg / .nav-item, or " +
   "the framework's equivalent) so everything stays on-theme. NEVER hard-code hex colors, restyle from scratch, swap " +
   "the CSS framework, rebuild the auth/layout, or touch the palette/theme files — the theme picker depends on them.\n" +
+  "- WIRE IT IN (CRITICAL): a feature is NOT built until the user can SEE it on the page they land on. In the premium " +
+  "Next.js skeleton the landing route is `app/(app)/dashboard/page.tsx` — the root `app/page.tsx` only REDIRECTS there, " +
+  "so editing `app/page.tsx` shows the user NOTHING. After you create a feature component (e.g. components/<feature>/...), " +
+  "you MUST import and render it on the landing page, replacing the marked 'AI: BUILD ... HERE' region. Standalone files " +
+  "that no page imports are dead code — the app opens to the leftover placeholder and looks broken. read_file the landing " +
+  "page, mount your component there, and make sure it's what renders first.\n" +
   "- REPLACE EVERY PLACEHOLDER before you finish — this is mandatory, not optional. The skeleton ships with filler " +
   "(a generic product name, sample stat numbers AND their labels, demo rows, 'your app/feature goes here' copy) " +
   "ONLY so it renders before you build. The user must NEVER see any of it: leftover sample data, lorem, demo rows, " +
@@ -154,7 +226,12 @@ export const BUILD_RULES =
   "time you run, the user has ALREADY told you what they want. Do not stall, do not ask them to confirm the idea, " +
   "and do not ask which stack/framework to use (that's already decided). Make reasonable assumptions, BUILD the " +
   "app this turn, and state any assumptions in your closing 2-4 lines. Ask a clarifying question ONLY if the " +
-  "request is so contradictory it cannot be built at all — and even then, build your best interpretation first.\n";
+  "request is so contradictory it cannot be built at all — and even then, build your best interpretation first.\n" +
+  "- BE TOKEN-EFFICIENT (the user pays per token, and saving tokens is this product's whole promise). Take the " +
+  "FEWEST steps that do the job: for a small or targeted change, read ONLY the one or two files you must change " +
+  "(use the tree, don't re-scan), edit them directly, and stop. Don't re-read a file you just wrote, don't open " +
+  "files you won't touch, don't search when you already know the path, and prefer a small `edit_file` over " +
+  "rewriting a whole file with `write_files`. Match your effort to the request's size.\n";
 
 /** Appended to BUILD_RULES for game projects (ws.kind === "game"). A game must be
  * PLAYABLE, not a demo — even from a one-line prompt. */

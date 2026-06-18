@@ -376,7 +376,7 @@ function StudentPanel({
         )}
         <div className="ml-auto flex flex-wrap gap-2">
           {detail.lessonId ? (
-            <Button onClick={() => router.push(`/lab/${detail.lessonId}`)}>
+            <Button onClick={() => router.push(`/academy/${detail.lessonId}`)}>
               <ArrowRight className="h-3.5 w-3.5" />
               {mine?.status === "reviewed" ? "Review lesson" : mine ? "Continue lesson" : "Open lesson"}
             </Button>
@@ -606,7 +606,7 @@ function GradeRow({
               )}
               <Button variant="ghost" onClick={() => void runAiReview()} disabled={reviewing}>
                 {reviewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bot className="h-3.5 w-3.5" />}
-                AI review
+                {reviewing ? "Reviewing…" : aiReview ? "Refresh AI review" : "AI review"}
               </Button>
             </div>
 

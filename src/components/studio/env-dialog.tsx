@@ -20,6 +20,7 @@ export function EnvDialog({ workspaceId, onClose }: { workspaceId: string; onClo
   const [readyAt, setReadyAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [rebuilding, setRebuilding] = useState(false);
 
   useEffect(() => {
     fetch(`/api/workspaces/${workspaceId}/env`)
@@ -54,6 +55,8 @@ export function EnvDialog({ workspaceId, onClose }: { workspaceId: string; onClo
   }
 
   async function rebuild() {
+    if (rebuilding) return; // guard against a double-click firing two rebuilds
+    setRebuilding(true);
     try {
       const res = await fetch(`/api/workspaces/${workspaceId}/env`, {
         method: "POST",
@@ -70,6 +73,7 @@ export function EnvDialog({ workspaceId, onClose }: { workspaceId: string; onClo
     } catch {
       toast("Network error — try again.");
     }
+    setRebuilding(false);
   }
 
   return (
@@ -116,7 +120,8 @@ export function EnvDialog({ workspaceId, onClose }: { workspaceId: string; onClo
         </div>
 
         <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-3.5">
-          <Button variant="ghost" onClick={rebuild} disabled={loading}>
+          <Button variant="ghost" onClick={rebuild} disabled={loading || rebuilding}>
+            {rebuilding && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Rebuild environment
           </Button>
           <div className="flex gap-2">
