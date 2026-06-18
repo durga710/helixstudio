@@ -218,11 +218,20 @@ export async function runAgentTurn(opts: {
   // Bedrock-served models are the platform default: the bearer key resolves for
   // EVERY signed-in user (no BYO, no admin gate), metered by the normal token
   // quota. The transport (OpenAI- or Anthropic-compatible) is chosen per model.
-  const bedrock: BedrockResolved | null = aiProvider === "bedrock" ? resolveBedrockModel(aiModel) : null;
+  // A stored aiModel can predate Bedrock (e.g. a bare "claude-sonnet-4-6" left
+  // over from the Anthropic provider) and miss the Bedrock registry, which keys
+  // on "anthropic.claude-sonnet-4-6". Rather than failing the turn, fall back to
+  // the platform default Bedrock model — mirrors resolveAiPrefs() in ai-agent.ts.
+  const bedrock: BedrockResolved | null =
+    aiProvider === "bedrock"
+      ? (resolveBedrockModel(aiModel) ?? resolveBedrockModel(PROVIDER_DEFAULT_MODEL.bedrock!))
+      : null;
   if (aiProvider === "bedrock") {
     if (!bedrock) {
-      return { error: "That model isn't available right now — pick another in Settings → AI model." };
+      // Only reachable when the platform key itself is missing.
+      return { error: "Bedrock isn't configured — set AWS_BEARER_TOKEN_BEDROCK to use these models." };
     }
+    aiModel = bedrock.modelId; // reflect the model actually used (after any fallback)
     memberKey = bedrock.apiKey;
   }
 
