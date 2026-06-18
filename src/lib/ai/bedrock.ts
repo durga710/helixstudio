@@ -64,17 +64,19 @@ const DEFAULT_REGION = "us-east-1";
 export const BEDROCK_SMOKE_TEST_MODEL = "openai.gpt-oss-20b-1:0";
 
 export function bedrockRegion(): string {
-  return process.env.BEDROCK_REGION || DEFAULT_REGION;
+  return process.env.BEDROCK_REGION?.trim() || DEFAULT_REGION;
 }
 
-/** The platform bearer token (AWS Bedrock API key). Empty when not configured. */
+/** The platform bearer token (AWS Bedrock API key). Empty when not configured.
+ * Trimmed: a trailing newline/space from a dashboard paste makes AWS reject the
+ * credential with "security token invalid", which is maddening to diagnose. */
 export function bedrockBearerToken(): string | undefined {
-  return process.env.AWS_BEARER_TOKEN_BEDROCK || undefined;
+  return process.env.AWS_BEARER_TOKEN_BEDROCK?.trim() || undefined;
 }
 
 /** The Bedrock project/workspace the key is scoped to. */
 export function bedrockWorkspaceId(): string | undefined {
-  return process.env.BEDROCK_WORKSPACE_ID || undefined;
+  return process.env.BEDROCK_WORKSPACE_ID?.trim() || undefined;
 }
 
 /** Bedrock is wired when a bearer token is present. */
