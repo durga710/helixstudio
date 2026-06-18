@@ -35,3 +35,9 @@ dev-server-err.log
 /src/generated/
 desktop/node_modules/
 desktop/dist/
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/.playwright/
