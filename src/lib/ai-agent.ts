@@ -105,10 +105,12 @@ export async function runAnthropicAgent(opts: {
   // The SDK handles SSE parsing + tool-use reconstruction (.finalMessage) and
   // transient-error retries (maxRetries), so the runner stays simple. baseURL +
   // defaultHeaders let the same runner drive Claude on Bedrock (mantle endpoint).
+  // A baseURL override means we're talking to Bedrock's mantle gateway, which
+  // authenticates with `Authorization: Bearer` (authToken) — NOT Anthropic's
+  // native `x-api-key` (apiKey). Native Anthropic (no baseURL) keeps x-api-key.
   const client = new Anthropic({
-    apiKey,
+    ...(opts.baseUrl ? { authToken: apiKey, baseURL: opts.baseUrl } : { apiKey }),
     maxRetries: 2,
-    ...(opts.baseUrl ? { baseURL: opts.baseUrl } : {}),
     ...(opts.extraHeaders ? { defaultHeaders: opts.extraHeaders } : {}),
   });
 
@@ -379,9 +381,22 @@ export async function runOneShot(opts: {
     if (opts.provider === "anthropic") {
       const apiKey = opts.apiKey;
       if (!apiKey) return { error: "No Anthropic API key — add one in Settings → AI model." };
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      // A baseUrl override = Bedrock's mantle gateway: auth via Authorization:
+      // Bearer + project headers, at that host. Native Anthropic uses x-api-key
+      // at its own host. (The old code hardcoded api.anthropic.com, so Bedrock
+      // one-shots silently hit the wrong endpoint with the wrong auth.)
+      const base = (opts.baseUrl ?? "https://api.anthropic.com").replace(/\/+$/, "");
+      const authHeaders: Record<string, string> = opts.baseUrl
+        ? { authorization: `Bearer ${apiKey}` }
+        : { "x-api-key": apiKey };
+      const res = await fetch(`${base}/v1/messages`, {
         method: "POST",
-        headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        headers: {
+          ...authHeaders,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+          ...(opts.extraHeaders ?? {}),
+        },
         body: JSON.stringify({
           model: opts.model,
           max_tokens: opts.maxTokens ?? 2048,
