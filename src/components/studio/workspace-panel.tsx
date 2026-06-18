@@ -32,6 +32,7 @@ import {
   UploadCloud,
   X,
   Pencil,
+  Terminal as TerminalIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
@@ -74,6 +75,12 @@ const MonacoDiff = dynamic(
     ssr: false,
     loading: () => editorLoading,
   },
+);
+
+// xterm touches the DOM, so load the terminal client-side only.
+const TerminalPanel = dynamic(
+  () => import("@/components/studio/terminal-panel").then((m) => m.TerminalPanel),
+  { ssr: false },
 );
 
 const LANGUAGES: Record<string, string> = {
@@ -166,6 +173,7 @@ export function WorkspacePanel({
   const [pushing, setPushing] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
   const [envOpen, setEnvOpen] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(false);
   // Project name (editable inline). Deletion lives on the dashboard.
   const [name, setName] = useState(workspace.name);
   const [editingName, setEditingName] = useState(false);
@@ -1069,6 +1077,26 @@ export function WorkspacePanel({
             </button>
           )}
 
+          {isOwner && (
+            <button
+              type="button"
+              aria-label="Terminal"
+              title="Terminal — run commands in your workspace"
+              onClick={() => {
+                setTab("code");
+                setShowTerminal((v) => !v);
+              }}
+              className={cn(
+                "rounded-lg border p-1.5 transition-colors",
+                showTerminal
+                  ? "border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl text-accent"
+                  : "border-border text-txt2 hover:border-accent hover:text-txt",
+              )}
+            >
+              <TerminalIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
+
           <button
             type="button"
             aria-label={fullscreen ? "Exit full screen" : "Full screen"}
@@ -1324,6 +1352,11 @@ export function WorkspacePanel({
                 />
               )}
             </div>
+            {showTerminal && (
+              <div className="h-56 shrink-0 overflow-hidden border-t border-border">
+                <TerminalPanel workspaceId={workspace.id} />
+              </div>
+            )}
           </div>
         </div>
       ) : tab === "diff" ? (
