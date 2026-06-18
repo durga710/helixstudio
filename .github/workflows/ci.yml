@@ -51,7 +51,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx prisma db push --skip-generate
+      - run: npx prisma db push --accept-data-loss
       - run: npm run build
       - name: Run terminal E2E against the built server
         run: |
