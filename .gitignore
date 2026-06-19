@@ -35,3 +35,7 @@ dev-server-err.log
 /src/generated/
 desktop/node_modules/
 desktop/dist/
+
+# local-only Bedrock diagnostic (reads the bearer token) + test-runner artifacts
+/scripts/probe-bedrock.mjs
+/test-results/

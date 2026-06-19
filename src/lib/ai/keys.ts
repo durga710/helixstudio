@@ -47,8 +47,10 @@ export const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
   anthropic: "claude-sonnet-4-6",
   local: "llama3.1",
   gemini: "gemini-2.0-flash",
-  // Bedrock platform default: Sonnet 4.6 balances frontier quality against cost
-  // since every signed-in user's build is metered on the platform's AWS bill.
-  // Opus 4.6 and Haiku 4.5 remain selectable in Settings → AI model.
-  bedrock: "anthropic.claude-sonnet-4-6",
+  // Bedrock platform default: GPT-OSS 120B — the strongest model this AWS
+  // account actually has access to (verified live 2026-06-19: 200 + clean
+  // tool_calls). Open-weight, so it's cheap on the platform's metered bill.
+  // Every Claude id is currently 403/404 on this account (no entitlement —
+  // see docs/BEDROCK-MODEL-ACCESS.md), so a Claude default would dead-end.
+  bedrock: "openai.gpt-oss-120b-1:0",
 };
