@@ -21,11 +21,12 @@ import "server-only";
  *
  * where {host} = https://bedrock-mantle.${BEDROCK_REGION}.api.aws
  *
- * STATUS: the transport is confirmed working (a real completion came back from
- * openai.gpt-oss-20b-1:0). The target models below are NOT yet invocable — they
- * return access_denied until model access is enabled for the project in the
- * Bedrock console (us-east-1). Each entry carries `confirmed`/`idNeedsConfirm`
- * so the dispatch + UI can gate on what's actually live.
+ * STATUS (live probe 2026-06-19): the account (932316879284) is entitled to
+ * EXACTLY two models — openai.gpt-oss-120b-1:0 and openai.gpt-oss-20b-1:0 (both
+ * 200 + tool_calls on the runtime endpoint). Every Claude id is 403/404 and the
+ * other OpenAI-protocol ids are 401/400 (no entitlement — see
+ * docs/BEDROCK-MODEL-ACCESS.md). Each entry carries `confirmed`/`idNeedsConfirm`
+ * so the dispatch + UI gate on what's actually live (`liveBedrockModels()`).
  */
 
 export type BedrockProtocol = "anthropic" | "openai";
@@ -74,9 +75,16 @@ export function bedrockBearerToken(): string | undefined {
   return process.env.AWS_BEARER_TOKEN_BEDROCK?.trim() || undefined;
 }
 
+/** The HelixReal project the mantle key is scoped to. Confirmed as the docs'
+ *  default `anthropic-workspace-id` (Live API docs, 2026-06-18). Claude on the
+ *  mantle host REJECTS unscoped requests with access_denied, so this header must
+ *  always be sent — we fall back to the known project id when the env is unset
+ *  rather than silently dropping the header. Override via BEDROCK_WORKSPACE_ID. */
+const DEFAULT_WORKSPACE_ID = "proj_7qtmr6yfbnkivl3eefoz";
+
 /** The Bedrock project/workspace the key is scoped to. */
 export function bedrockWorkspaceId(): string | undefined {
-  return process.env.BEDROCK_WORKSPACE_ID?.trim() || undefined;
+  return process.env.BEDROCK_WORKSPACE_ID?.trim() || DEFAULT_WORKSPACE_ID;
 }
 
 /** Bedrock is wired when a bearer token is present. */
@@ -101,43 +109,64 @@ export function bedrockOpenAiBaseUrl(): string {
 /**
  * The coding-capable model set the user picked. Each appears as its own option.
  *
- * Claude ids are the confirmed Bedrock format (`anthropic.<alias>`). The
- * non-Claude provider ids follow Bedrock's `provider.model[-version]` pattern
- * but the EXACT strings must be confirmed from the console Model catalog before
- * they'll resolve — flagged with `idNeedsConfirm`. All start `confirmed: false`
- * until a live probe returns a real completion (gated on model-access grants).
+ * Only the two GPT-OSS entries are `confirmed: true` (live access proven). Claude
+ * ids use the `anthropic.<alias>` format but are entitlement-blocked on this
+ * account; other non-Claude ids follow Bedrock's `provider.model[-version]`
+ * pattern and still need confirming against the console catalog (`idNeedsConfirm`).
+ * Anything not `confirmed` returns 4xx until a live probe returns a real completion.
  */
 export const BEDROCK_MODELS: BedrockModel[] = [
-  // ---- Transport smoke-test only — NOT user-facing (confirmed: false) ----
-  // gpt-oss-20b authenticates + emits a tool call in isolation, but in a real
-  // multi-tool build it NARRATES edits instead of calling the tools (verified
-  // live: 0 writes), so it can't reliably build. Kept as the transport probe
-  // (BEDROCK_SMOKE_TEST_MODEL) but excluded from the picker.
+  // ---- LIVE on this account — the only models with confirmed access ----
+  // Open-weight GPT-OSS on the OpenAI-compatible Bedrock RUNTIME endpoint. A
+  // live probe (2026-06-19) returns HTTP 200 + a clean `tool_calls` response
+  // for BOTH sizes — they're the only models account 932316879284 is entitled
+  // to (every Claude id is 403/404; GPT-5.x are 401; GLM/Qwen 400). The runtime
+  // route takes no project header (project:false). See docs/BEDROCK-MODEL-ACCESS.md.
+  // 120B is the platform default (strongest accessible); 20B is the faster/cheaper
+  // option — note it can degrade to narrating instead of calling tools on long
+  // multi-tool builds, so prefer 120B for real Engineer runs.
+  {
+    modelId: "openai.gpt-oss-120b-1:0",
+    label: "GPT-OSS 120B",
+    protocol: "openai",
+    contextLabel: "open weight",
+    confirmed: true,
+    endpoint: "runtime",
+    project: false,
+  },
   {
     modelId: BEDROCK_SMOKE_TEST_MODEL, // openai.gpt-oss-20b-1:0
     label: "GPT-OSS 20B",
     protocol: "openai",
     contextLabel: "open weight",
-    confirmed: false,
+    confirmed: true,
     endpoint: "runtime",
     region: "us-west-2",
     project: false,
   },
 
-  // ---- Anthropic protocol (Claude) — LIVE on the account's Bedrock project ----
-  // Confirmed available in the Bedrock console (2026-06-17): Opus 4.6 + Sonnet
-  // 4.6 (1M context, text+image), Haiku 4.5 (200K). All cross-region inference,
-  // served on the mantle /anthropic gateway with the `anthropic.<alias>` id form.
-  // If the console's "View model details" shows a different exact invocation id,
-  // substitute it here (some catalogs use a `us.` cross-region prefix / `-v1:0`
-  // suffix) — only `modelId` needs to change.
-  { modelId: "anthropic.claude-opus-4-6", label: "Claude Opus 4.6", protocol: "anthropic", contextLabel: "1M context", confirmed: true },
-  { modelId: "anthropic.claude-sonnet-4-6", label: "Claude Sonnet 4.6", protocol: "anthropic", contextLabel: "1M context", confirmed: true },
-  { modelId: "anthropic.claude-haiku-4-5", label: "Claude Haiku 4.5", protocol: "anthropic", contextLabel: "200K context", confirmed: true },
-
-  // ---- Anthropic protocol (Claude) — ids known, access not yet granted ----
+  // ---- Anthropic protocol (Claude) — served on the mantle /anthropic gateway ----
+  // The catalog + Live API docs (verified 2026-06-18) confirm the id form is
+  // `anthropic.claude-<family>-<major>-<minor>` (the docs' own example is
+  // `anthropic.claude-haiku-4-5`) and that requests MUST carry the
+  // `anthropic-workspace-id` project header or the host returns access_denied
+  // — that header is now always sent (see DEFAULT_WORKSPACE_ID above).
+  //
+  // The PROJECT catalog (HelixReal) LISTS Opus 4.8 + Opus 4.7 (1M context,
+  // text+image) and Haiku 4.5, but a workspace-scoped probe (2026-06-18) returns
+  // HTTP 403 "anthropic.<id> is not available for this account" for ALL of them
+  // — i.e. the ids are right and the request is well-formed, but account 932316879284
+  // holds no model entitlement (the console gates access behind "contact AWS Sales").
+  // So `confirmed` stays false: they're off the picker until the account is actually
+  // granted access and a live completion comes back. Opus 4.6 / Sonnet 4.6 are not
+  // in the current catalog at all.
   { modelId: "anthropic.claude-opus-4-8", label: "Claude Opus 4.8", protocol: "anthropic", contextLabel: "1M context", confirmed: false },
   { modelId: "anthropic.claude-opus-4-7", label: "Claude Opus 4.7", protocol: "anthropic", contextLabel: "1M context", confirmed: false },
+  { modelId: "anthropic.claude-haiku-4-5", label: "Claude Haiku 4.5", protocol: "anthropic", contextLabel: "200K context", confirmed: false },
+
+  // ---- Anthropic protocol (Claude) — not in the current catalog; reconfirm ----
+  { modelId: "anthropic.claude-opus-4-6", label: "Claude Opus 4.6", protocol: "anthropic", contextLabel: "1M context", confirmed: false, idNeedsConfirm: true },
+  { modelId: "anthropic.claude-sonnet-4-6", label: "Claude Sonnet 4.6", protocol: "anthropic", contextLabel: "1M context", confirmed: false, idNeedsConfirm: true },
 
   // ---- OpenAI protocol (GPT / GLM / Qwen) — ids best-known, confirm in console ----
   { modelId: "openai.gpt-5.5", label: "GPT-5.5", protocol: "openai", contextLabel: "272K context", confirmed: false, idNeedsConfirm: true },
