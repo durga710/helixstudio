@@ -667,7 +667,15 @@ export function ChatPanel({
       const res = await fetch(`/api/workspaces/${workspace.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content, mode: sendMode, verify: sendVerify, brief: brief || undefined }),
+        // Clamp to the server's caps so a giant direct paste never 400s ("Invalid
+        // input"). Ambitious new-project briefs are decomposed by /plan into
+        // compact milestone turns, so this only ever bites a raw oversized paste.
+        body: JSON.stringify({
+          message: content.slice(0, 24_000),
+          mode: sendMode,
+          verify: sendVerify,
+          brief: brief ? brief.slice(0, 8000) : undefined,
+        }),
         signal: ctl.signal,
       });
 

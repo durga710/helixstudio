@@ -29,10 +29,11 @@ const CreateSchema = z.discriminatedUnion("mode", [
     templateId: z.string().min(1).max(64).optional(),
     // The user's idea. When present (and no explicit templateId), the server
     // silently picks the best starter and injects it — the picker is invisible.
-    // Generous cap: the editor also stashes the full idea client-side, but an
-    // ambitious multi-feature spec (e.g. a whole app brief) must never be
-    // REJECTED at creation — that just strands the user with no workspace.
-    prompt: z.string().max(20_000).optional(),
+    // The editor also stashes the full idea client-side (sessionStorage), so an
+    // ambitious whole-app brief — however long — must NEVER be rejected at
+    // creation (that strands the user with no workspace). Very high ceiling; the
+    // client clamps what it sends and the full spec is persisted later by /plan.
+    prompt: z.string().max(100_000).optional(),
     // The Game Agent's hidden routing (all 0-token). buildKind splits app vs
     // game; gameCategory is the kid-facing card (forces its starter); the engine
     // is never shown — students pick a category, we pick the engine.

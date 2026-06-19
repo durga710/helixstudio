@@ -138,7 +138,7 @@ async function aiScopeQuestions(opts: {
         "Ask AT MOST 2 short, concrete, high-value questions to fill scope gaps (key entities, must-have features, " +
         "audience). Prefer questions with 2–4 quick-reply options. Return ONLY minified JSON: " +
         '{"questions":[{"key":"slug","text":"...","options":["..."]}]}. options is optional. No prose, no code fences.',
-      user: `Idea: ${opts.idea}\nStack: ${opts.stackLabel}\nDetected features: ${opts.features.join(", ") || "none"}`,
+      user: `Idea: ${opts.idea.slice(0, 4000)}\nStack: ${opts.stackLabel}\nDetected features: ${opts.features.join(", ") || "none"}`,
     });
     if ("error" in res) return [];
     if (res.tokensUsed > 0) {
@@ -171,7 +171,9 @@ export async function curate(opts: {
   answers?: Record<string, string>;
 }): Promise<IntakeResult> {
   const { idea, userId } = opts;
-  const classification = await classifyPrompt(idea, userId); // rules + (maybe) tiny B for stack
+  // Slice for the (cheap) stack-classification model call; the full idea is still
+  // used for the free rule scans (features/archetype/genre) below.
+  const classification = await classifyPrompt(idea.slice(0, 6000), userId); // rules + (maybe) tiny B for stack
 
   // KNOWLEDGE BASE: a matched archetype contributes a stack hint, default
   // features, and the best clarifying question — all free. Implications then

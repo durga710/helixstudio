@@ -27,7 +27,11 @@ export const maxDuration = 30;
 
 const BRIEF_PATH = ".helix/brief.md";
 
-const Schema = z.object({ idea: z.string().min(1).max(20_000) });
+// Very high ceiling — this is the endpoint that RECEIVES the full whole-app
+// brief, persists it to .helix/brief.md, and decomposes it. It must never 400
+// on length (planMilestones slices for the model call; the brief write is
+// capped to the per-file limit).
+const Schema = z.object({ idea: z.string().min(1).max(100_000) });
 
 type Params = { params: Promise<{ id: string }> };
 
