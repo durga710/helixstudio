@@ -17,7 +17,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 20;
 
 const Schema = z.object({
-  idea: z.string().min(1).max(2000),
+  // A long, detailed brief is exactly the kind of request we most want to
+  // curate well — never reject it at the door (the engine reads/decomposes it).
+  idea: z.string().min(1).max(20_000),
   answers: z.record(z.string(), z.string().max(500)).optional(),
 });
 

@@ -28,11 +28,14 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const ChatSchema = z.object({
-  message: z.string().min(1).max(8000),
-  // A model-only instruction prefix (e.g. the build studio's scaffold brief).
-  // The model sees it, but it's never persisted or shown — keeps internal
-  // prompts out of the chat UI / editor history.
-  brief: z.string().max(2000).optional(),
+  // Roomy enough for a detailed one-off request pasted straight into the chat.
+  // Truly large specs (a whole-app brief) are decomposed into milestones by the
+  // planner first, so each turn's message stays a compact, focused instruction.
+  message: z.string().min(1).max(24_000),
+  // A model-only instruction prefix (e.g. the build studio's scaffold brief, or
+  // a milestone detail from the planner). The model sees it, but it's never
+  // persisted or shown — keeps internal prompts out of the chat UI / history.
+  brief: z.string().max(8000).optional(),
   // "plan": read-only agent turn that replies with an implementation plan.
   mode: z.enum(["plan", "build"]).default("build"),
   // A build turn that writes files runs + verifies in the sandbox (auto-fixing

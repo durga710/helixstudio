@@ -359,6 +359,13 @@ export function ChatPanel({
   const [intakeAnswers, setIntakeAnswers] = useState<Record<string, string>>({});
   const [intakeQIndex, setIntakeQIndex] = useState(0);
 
+  // Milestone queue: an AMBITIOUS first build (a whole-app brief) is decomposed
+  // by the planner into ordered milestones, each run as its own bounded build
+  // turn. This renders the live checklist; `milestoneRun` guards re-entry.
+  const [milestones, setMilestones] = useState<{ title: string; detail: string; status: "pending" | "building" | "done" | "error" }[]>([]);
+  const milestoneRun = useRef(false);
+  const milestoneBriefPath = useRef<string | undefined>(undefined);
+
   // Plan/Build is easy to lose track of, so a user toggle pops a brief toast
   // (auto-dismisses) on top of the always-on plan-mode banner.
   const [modeToast, setModeToast] = useState<null | "plan" | "build">(null);
@@ -435,7 +442,9 @@ export function ChatPanel({
     const idea = takeAutoBuild(workspace.id);
     if (!idea) return;
     autoBuildFired.current = true;
-    void send(idea, "build");
+    // Ambitious briefs are decomposed into milestones; simple ideas fall through
+    // to a single build turn inside startPlannedBuild.
+    void startPlannedBuild(idea);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once is guarded by the ref; send is hoisted/stable
   }, [messages, busy, workspace.id]);
 
@@ -581,9 +590,9 @@ export function ChatPanel({
     sendMode: "plan" | "build" = mode,
     sendVerify: boolean = verifyOn,
     brief?: string,
-  ) {
+  ): Promise<boolean> {
     const content = text.trim();
-    if (!content || busy || messages === null) return;
+    if (!content || busy || messages === null) return false;
     // A from-scratch workspace with nothing built yet (no assistant turn) is a
     // NEW project — the warm-up must use new-project framing, never "reviewing
     // the existing code", because there isn't any yet.
@@ -652,6 +661,7 @@ export function ChatPanel({
     const ctl = new AbortController();
     const watchdog = setTimeout(() => ctl.abort(), 315_000);
     let resolved = false; // did we receive a final or error event?
+    let turnOk = false; // did the turn SUCCEED (a final, not an error/abort)?
 
     try {
       const res = await fetch(`/api/workspaces/${workspace.id}/chat`, {
@@ -713,6 +723,7 @@ export function ChatPanel({
             setStreaming((s) => s + ((evt.text as string) ?? ""));
           } else if (evt.type === "final") {
             resolved = true;
+            turnOk = true;
             turnDone.current = true;
             feedActive.current = false;
             setStreaming("");
@@ -764,6 +775,7 @@ export function ChatPanel({
             { role: "assistant", content: json?.error?.message ?? "Something went wrong." },
           ]);
         } else {
+          turnOk = true;
           handleFinal(json.data);
         }
       }
@@ -787,6 +799,107 @@ export function ChatPanel({
     setStreaming("");
     setBusy(false);
     localSend.current = false;
+    return turnOk;
+  }
+
+  /* --------------------- ambitious-build decomposition ------------------ */
+
+  // The full-app fix: an ambitious first build is decomposed by the planner
+  // into ordered milestones, each run as its own BOUNDED build turn. This is
+  // what lets the editor accept a whole-app brief and actually finish it —
+  // several achievable turns instead of one impossible 24-hop turn that stalls.
+  // A simple/standard idea skips all of this and runs the normal single turn.
+  async function startPlannedBuild(idea: string, brief?: string): Promise<void> {
+    if (milestoneRun.current) return;
+    let plan: { size: string; milestones: { title: string; detail: string }[]; existing?: { note?: string }; briefPath?: string } | null = null;
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}/plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idea }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) plan = json.data;
+    } catch {
+      /* planning is best-effort — fall back to a single build turn */
+    }
+
+    // Not ambitious (or planning failed / too few milestones) → the lean path.
+    if (!plan || plan.size !== "ambitious" || !Array.isArray(plan.milestones) || plan.milestones.length < 2) {
+      void send(idea, "build", verifyOn, brief);
+      return;
+    }
+
+    const items = plan.milestones.map((m) => ({ ...m, status: "pending" as const }));
+    setMilestones(items);
+    milestoneBriefPath.current = plan.briefPath;
+
+    // Show the idea as the opening user message + an honest "here's the plan"
+    // reply, so the thread reads like a real conversation, not a silent grind.
+    const planLines = items.map((m, i) => `${i + 1}. **${m.title}** — ${m.detail}`).join("\n");
+    const overlap = plan.existing?.note ? `\n\n${plan.existing.note}` : "";
+    setMessages((m) => [
+      ...(m ?? []),
+      { role: "user", content: idea },
+      {
+        role: "assistant",
+        content: `This is a big build, so I'll work through it in ${items.length} milestones:\n\n${planLines}${overlap}\n\nStarting now — each step builds on the last.`,
+      },
+    ]);
+
+    await runMilestoneChain(items, 0);
+  }
+
+  // Run milestones [startIndex … end] in sequence, each a bounded build turn on
+  // top of the last. Stops (and tells the user how to resume) if a turn fails.
+  async function runMilestoneChain(
+    items: { title: string; detail: string }[],
+    startIndex: number,
+  ): Promise<void> {
+    milestoneRun.current = true;
+    const briefRef = milestoneBriefPath.current
+      ? ` The full spec is saved at \`${milestoneBriefPath.current}\` — read it for complete context.`
+      : "";
+    for (let i = startIndex; i < items.length; i++) {
+      setMilestones((ms) => ms.map((m, j) => (j === i ? { ...m, status: "building" } : m)));
+      const m = items[i];
+      const milestoneBrief =
+        `You are building ONE milestone of a larger app, in order. ` +
+        `Build ONLY this milestone, on TOP of whatever already exists — reuse existing files and DO NOT duplicate features.${briefRef}\n\n` +
+        `THIS MILESTONE (${i + 1}/${items.length}): ${m.title} — ${m.detail}`;
+      const ok = await send(`Milestone ${i + 1}/${items.length}: ${m.title}`, "build", verifyOn, milestoneBrief);
+      setMilestones((ms) => ms.map((mm, j) => (j === i ? { ...mm, status: ok ? "done" : "error" } : mm)));
+      if (!ok) {
+        // A turn errored (e.g. quota, or a hang the watchdog aborted). Stop the
+        // chain and tell the user where it left off, instead of charging on.
+        setMessages((mm) => [
+          ...(mm ?? []),
+          {
+            role: "assistant",
+            content: `I paused after milestone ${i + 1} of ${items.length}. Send "continue" and I'll pick up from the next one.`,
+          },
+        ]);
+        milestoneRun.current = false;
+        return;
+      }
+    }
+    milestoneRun.current = false;
+    if (items.length > 0) {
+      setMessages((mm) => [
+        ...(mm ?? []),
+        { role: "assistant", content: `All ${items.length} milestones are done — your app is built. Want any changes?` },
+      ]);
+    }
+  }
+
+  // "continue" after a paused/partial milestone run → resume from the first
+  // milestone that isn't done. Returns true if it handled the message.
+  function resumeMilestones(): boolean {
+    if (milestoneRun.current || milestones.length === 0) return false;
+    const next = milestones.findIndex((m) => m.status !== "done");
+    if (next < 0) return false;
+    void runMilestoneChain(milestones.map(({ title, detail }) => ({ title, detail })), next);
+    return true;
   }
 
   /* --------------------- new-project intake ----------------------- */
@@ -805,7 +918,10 @@ export function ChatPanel({
   // engine's curated brief rides along as a MODEL-ONLY hint (never shown).
   function launchIntake(idea: string, brief: string) {
     setIntakePhase("done");
-    void send(idea, mode, verifyOn, brief || undefined);
+    // A real build runs through the planner (ambitious → milestones); a plan-mode
+    // request stays a single read-only turn.
+    if (mode === "build") void startPlannedBuild(idea, brief || undefined);
+    else void send(idea, mode, verifyOn, brief || undefined);
   }
 
   // Call the curation engine. Round 1 = just the idea; round 2 adds answers.
@@ -962,6 +1078,11 @@ export function ChatPanel({
     if (!t || busy) return;
     if (intakeActive) {
       intakeSubmit(t);
+      return;
+    }
+    // Resume a paused milestone chain when the user says "continue".
+    if (/^(continue|resume|keep going|next)\b/i.test(t) && resumeMilestones()) {
+      setInput("");
       return;
     }
     // Only offer the heavy multi-agent JOB when the request is structural AND the
@@ -1607,6 +1728,33 @@ export function ChatPanel({
               Cancel
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Milestone checklist: the live plan for an ambitious, decomposed build —
+          each step is a bounded build turn so a big app actually finishes. */}
+      {milestones.length > 0 && (
+        <div className="border-t border-border bg-panel2/40 px-4 py-3">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-txt3">
+            <Map className="h-3.5 w-3.5" />
+            Build plan · {milestones.filter((m) => m.status === "done").length}/{milestones.length}
+          </div>
+          <ul className="space-y-1">
+            {milestones.map((m, i) => (
+              <li key={i} className="flex items-center gap-2 text-[12.5px]">
+                {m.status === "done" ? (
+                  <CircleCheck className="h-3.5 w-3.5 shrink-0 text-accent" />
+                ) : m.status === "building" ? (
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent" />
+                ) : m.status === "error" ? (
+                  <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                ) : (
+                  <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-border2" />
+                )}
+                <span className={cn(m.status === "done" ? "text-txt3 line-through" : "text-txt2")}>{m.title}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
