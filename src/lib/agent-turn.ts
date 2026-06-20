@@ -31,10 +31,7 @@ import {
   type ToolContext,
 } from "@/lib/workspace-tools";
 import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFiles } from "@/lib/workspace";
-import { getTemplate } from "@/lib/templates/store";
-import { buildTemplateNote } from "@/lib/templates/router";
-import { personalizeTemplateFiles } from "@/lib/templates/personalize";
-import { resolveTemplateId } from "@/lib/templates/select";
+import { ensureScaffold } from "@/lib/scaffold";
 import { synthesizeReply } from "@/lib/build-feed";
 import { autoWireFeature } from "@/lib/auto-wire";
 import { setProgress, clearProgress } from "@/lib/progress";
@@ -257,59 +254,26 @@ export async function runAgentTurn(opts: {
   // starter from the user's idea BEFORE building, so the agent customizes a real
   // skeleton (cheap) and the preview renders instead of staying blank. Covers any
   // path that reaches the agent empty (e.g. "Create from scratch" → first chat).
-  let scaffolded = false;
   // The starter files written this turn (the whole framework) — folded into the
   // first build's change set so the summary + "files changed" card reflect the
   // entire project the user got, not just the handful the model then edited.
+  let scaffolded = false;
   let scaffoldPaths: string[] = [];
-  if (mode === "build" && ws.mode === "SCRATCH" && treePaths.length === 0 && !ws.notes && userMessage) {
-    try {
-      const templateId = await resolveTemplateId({
-        prompt: userMessage,
-        userId,
-        buildKind: ws.kind === "game" ? "game" : "app",
-        // Respect the sub-type the user picked at creation (e.g. a 3D game), so we
-        // inject the matching starter instead of guessing from the prompt alone.
-        gameCategory: ws.gameCategory ?? undefined,
-      });
-      const tpl = templateId ? await getTemplate(templateId) : undefined;
-      if (tpl) {
-        emit("scaffolding a starter…");
-        const tplFiles = personalizeTemplateFiles(tpl.files, { appName: ws.name });
-        // The premium skeletons ship an AGENTS.md/CLAUDE.md that is MODEL-FACING
-        // build guidance ("Premium app skeleton — fill the blanks"), NOT part of
-        // the user's app. Keep it OUT of the workspace so it never shows in the
-        // file tree or gets pushed to the user's repo — and feed its content to
-        // the model as PROJECT NOTES instead (model-only, never a file).
-        const isBrief = (p: string) => /(^|\/)(AGENTS|CLAUDE)\.md$/i.test(p);
-        const briefDoc = tplFiles
-          .filter((f) => isBrief(f.path))
-          .map((f) => f.content)
-          .join("\n\n")
-          .trim();
-        const projectFiles = tplFiles.filter((f) => !isBrief(f.path));
-        // The skeleton brief is the richer guidance; fall back to the manifest
-        // blurb for templates that don't ship one.
-        const note = (briefDoc || buildTemplateNote(tpl)).slice(0, 3000);
-        // Don't silently swallow a failed injection — a rejected file (e.g. an
-        // unsafe path) would otherwise leave the project with 0 scaffolded files
-        // while still emitting a "scaffold" event, so the agent builds on nothing.
-        const wrote = await writeWorkspaceFiles(ws, projectFiles.map((f) => ({ path: f.path, content: f.content })));
-        if ("error" in wrote) throw new Error(`template injection failed: ${wrote.error}`);
-        await db().workspace.update({ where: { id: ws.id }, data: { notes: note } });
-        ws.notes = note; // reflect it in this turn's context
-        tree = await withGitAuth(gitAuth, () => listWorkspaceFiles(ws)).catch(() => tree);
-        treePaths = tree.map((f) => f.path);
-        scaffoldPaths = [...treePaths]; // the framework we just created
-        // Hand the real scaffold file list to the client so it can play a live
-        // "building the home page…/wiring navigation…" feed while we customize.
-        onEvent?.({ type: "scaffold", files: treePaths, stack: tpl.manifest.label });
-        scaffolded = true; // this turn IS the first build → "your app is ready" phrasing
-      }
-    } catch (e) {
-      // best-effort — fall through to building from scratch, but log so a broken
-      // template (bad path, oversize file) is visible instead of silently empty.
-      console.error("[scaffold] template injection skipped:", e);
+  if (mode === "build") {
+    const sc = await ensureScaffold({
+      ws,
+      userId,
+      userMessage,
+      currentFiles: tree,
+      emit,
+      onScaffold: (files, stack) => onEvent?.({ type: "scaffold", files, stack }),
+      relist: () => withGitAuth(gitAuth, () => listWorkspaceFiles(ws)),
+    });
+    if (sc.scaffolded) {
+      scaffolded = true;
+      scaffoldPaths = sc.scaffoldPaths;
+      tree = sc.files;
+      treePaths = tree.map((f) => f.path);
     }
   }
 
