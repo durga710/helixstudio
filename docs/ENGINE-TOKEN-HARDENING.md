@@ -1,6 +1,6 @@
 # Engine Hardening — Kill the Token-Burning Fix Loops
 
-> Shipped 2026-06-20. PRs #56, #57, #58, #59, #60.
+> Shipped 2026-06-20. PRs #56, #57, #58, #59, #60, #62.
 
 ## The diagnosis
 
@@ -39,6 +39,7 @@ Because caching and strong-model routing are off the table, the levers are
 | — import casing | Rewrite a specifier that resolves case-insensitively to exactly one file but with the wrong case; ambiguous collisions are skipped | `fixImportCasing` |
 | — missing export | Add `export` to a top-level symbol a named import wants but the module defines unexported; for a default-only export, add a named export alongside it (the real `DataTable` bug) | `fixMissingExports`, `hasNamedExport`, `hasDefaultExportOf` |
 | — use client | Prepend `"use client"` to a component that calls a client-only hook (`useState`/`useRouter`/…) and lacks a directive; never touches a file that already has `use client`/`use server` | `fixMissingUseClient` |
+| — default export | A Next page/layout/etc. with no default export and exactly one top-level PascalCase component gets `export default <Name>;`; ambiguous cases are skipped | `fixMissingDefaultExport` |
 | Runs everywhere | The fix pass runs in the main build turn (alongside `autoWireFeature`), so it protects **every** build — including guests / demo / no-sandbox, where `verifyBuild` is skipped | `src/lib/agent-turn.ts`, `src/lib/verify.ts` (`applyDeterministicFixes`) |
 | Error distillation | Feed the model only the actionable error region (compile failure, `path:line:col` frames, tsc `TS####` lines), not the 8k log tail — a 5–15× cut on a typical Next failure | `src/lib/build-log.ts` (`extractBuildError`), used in `verifyBuild` |
 | Delete-storm guard | A turn may delete at most `max(12, ceil(0.5 × project size))` files; beyond that `delete_file` refuses with a message steering the model to fix the error instead | `src/lib/delete-guard.ts`, wired in `src/lib/workspace-tools.ts` + seeded in `src/lib/agent-turn.ts` |
@@ -61,8 +62,9 @@ Add a new pass in `src/lib/fixers/index.ts` as a pure `(files, …) => FixOutcom
 function, compose it in `runDeterministicFixes`, and add a `FixKind`. Keep each
 pass **conservative**: only act on an unambiguous, statically-decidable signal —
 a wrong "fix" is worse than none. Cover it with a test in `index.test.ts` (mirror
-a real failure where possible). Good candidates not yet built: a Next page/layout
-missing its default export, and duplicate-default-export detection.
+a real failure where possible). A good candidate not yet built: duplicate-default-export
+detection (two `export default` statements in one file — a build error, but the
+correct one to keep is ambiguous, so it likely wants detect-and-report).
 
 ## What's deliberately NOT done
 
