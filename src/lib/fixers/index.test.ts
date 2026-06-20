@@ -184,6 +184,65 @@ test("use-client: stacks with a missing-export fix on the same file", () => {
   assert.match(w, /export function Widget/); // and the named export
 });
 
+test("default-export: adds default to a page with a single named component", () => {
+  const files = {
+    "src/app/dashboard/page.tsx": `export function DashboardPage() { return <main>hi</main>; }\n`,
+  };
+  const out = runDeterministicFixes(files);
+  const fix = out.fixes.find((f) => f.kind === "default-export");
+  assert.ok(fix, "expected a default-export fix");
+  assert.match(out.changed["src/app/dashboard/page.tsx"], /export default DashboardPage;/);
+});
+
+test("default-export: handles an arrow-function component", () => {
+  const files = {
+    "src/app/layout.tsx": `const RootLayout = ({ children }) => <html><body>{children}</body></html>;\n`,
+  };
+  const out = runDeterministicFixes(files);
+  assert.match(out.changed["src/app/layout.tsx"], /export default RootLayout;/);
+});
+
+test("default-export: no-op when a default export already exists", () => {
+  const files = {
+    "src/app/page.tsx": `export default function Page() { return null; }\n`,
+  };
+  const out = runDeterministicFixes(files);
+  assert.equal(out.fixes.filter((f) => f.kind === "default-export").length, 0);
+});
+
+test("default-export: no-op for a default re-export", () => {
+  const files = {
+    "src/app/page.tsx": `export { default } from "@/components/RealPage";\n`,
+    "src/components/RealPage.tsx": `export default function RealPage() { return null; }\n`,
+  };
+  const out = runDeterministicFixes(files);
+  assert.equal(out.fixes.filter((f) => f.kind === "default-export").length, 0);
+});
+
+test("default-export: skips when there are multiple component candidates (ambiguous)", () => {
+  const files = {
+    "src/app/page.tsx": `export function Header() { return null; }\nexport function Page() { return null; }\n`,
+  };
+  const out = runDeterministicFixes(files);
+  assert.equal(out.fixes.filter((f) => f.kind === "default-export").length, 0);
+});
+
+test("default-export: only applies to Next special files, not arbitrary components", () => {
+  const files = {
+    "src/components/Widget.tsx": `export function Widget() { return null; }\n`, // not a page/layout
+  };
+  const out = runDeterministicFixes(files);
+  assert.equal(out.fixes.filter((f) => f.kind === "default-export").length, 0);
+});
+
+test("default-export: ignores a lone camelCase helper (not a component)", () => {
+  const files = {
+    "src/app/page.tsx": `function formatDate(d) { return String(d); }\n`,
+  };
+  const out = runDeterministicFixes(files);
+  assert.equal(out.fixes.filter((f) => f.kind === "default-export").length, 0);
+});
+
 test("aliasesFromTsconfig: parses compilerOptions.paths", () => {
   const a = aliasesFromTsconfig(`{ "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }`);
   assert.deepEqual(a, { "@/": ["src/"] });
