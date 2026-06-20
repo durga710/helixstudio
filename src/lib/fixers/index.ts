@@ -22,7 +22,7 @@
 
 export type FileMap = Readonly<Record<string, string>>;
 
-export type FixKind = "import-casing" | "missing-export" | "use-client";
+export type FixKind = "import-casing" | "missing-export" | "use-client" | "default-export";
 
 export interface DeterministicFix {
   /** Workspace-relative path of the file that was rewritten. */
@@ -353,6 +353,61 @@ function fixMissingUseClient(files: FileMap, working: Record<string, string>): F
   return { changed, fixes };
 }
 
+/** Next.js "special" files that MUST default-export a React component, by basename. */
+const NEXT_DEFAULT_EXPORT_FILE_RE =
+  /(^|\/)(page|layout|loading|error|not-found|template|default|global-error)\.(?:tsx|jsx|ts|js)$/;
+
+/** Does the module have ANY default export — inline, by reference, or re-export? */
+function hasAnyDefaultExport(content: string): boolean {
+  if (/\bexport\s+default\b/.test(content)) return true;
+  // export { default } from "…" / export { X as default }
+  const blocks = content.match(/\bexport\s*\{([^}]*)\}/g) ?? [];
+  for (const b of blocks) {
+    const inner = b.replace(/\bexport\s*\{/, "").replace(/\}$/, "");
+    for (const part of inner.split(",")) {
+      const as = part.includes(" as ") ? part.split(/\s+as\s+/)[1] : part;
+      if (as.trim() === "default") return true;
+    }
+  }
+  return false;
+}
+
+/** Top-level PascalCase function/const-arrow declarations — likely components. */
+function topLevelComponentNames(content: string): string[] {
+  const names = new Set<string>();
+  const fn = /^(?:export\s+)?(?:async\s+)?function\s+([A-Z][A-Za-z0-9_]*)\b/gm;
+  const arrow = /^(?:export\s+)?const\s+([A-Z][A-Za-z0-9_]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z0-9_]+)\s*=>/gm;
+  let m: RegExpExecArray | null;
+  while ((m = fn.exec(content))) names.add(m[1]);
+  while ((m = arrow.exec(content))) names.add(m[1]);
+  return [...names];
+}
+
+/**
+ * Pass 4 — a Next.js page/layout/etc. with no default export. Next fails the
+ * build ("The default export is not a React Component in page"). When the file
+ * defines exactly ONE top-level PascalCase component, add `export default <Name>;`.
+ * Conservative: skips when there's already a default export, or when 0 or >1
+ * component candidates exist (ambiguous → leave it to the model).
+ */
+function fixMissingDefaultExport(files: FileMap, working: Record<string, string>): FixOutcome {
+  const changed: Record<string, string> = {};
+  const fixes: DeterministicFix[] = [];
+  for (const [path] of Object.entries(files)) {
+    if (!isSourceFile(path) || files[path].length > MAX_SCAN_CHARS) continue;
+    if (!NEXT_DEFAULT_EXPORT_FILE_RE.test(path)) continue;
+    const content = working[path] ?? files[path];
+    if (hasAnyDefaultExport(content)) continue;
+    const candidates = topLevelComponentNames(content);
+    if (candidates.length !== 1) continue; // 0 or ambiguous → leave to the model
+    const name = candidates[0];
+    const sep = content.endsWith("\n") ? "" : "\n";
+    changed[path] = `${content}${sep}\nexport default ${name};\n`;
+    fixes.push({ path, kind: "default-export", detail: `added \`export default ${name}\` (Next requires a default export here)` });
+  }
+  return { changed, fixes };
+}
+
 /**
  * Run all deterministic fixers over a file map. Returns only the files whose
  * content changed, plus a list of what was fixed. Safe to call on any project;
@@ -367,7 +422,9 @@ export function runDeterministicFixes(files: FileMap, aliases: AliasMap = DEFAUL
   for (const [p, c] of Object.entries(exportsPass.changed)) changed[p] = c;
   const useClient = fixMissingUseClient(files, changed);
   for (const [p, c] of Object.entries(useClient.changed)) changed[p] = c;
-  return { changed, fixes: [...casing.fixes, ...exportsPass.fixes, ...useClient.fixes] };
+  const defaultExport = fixMissingDefaultExport(files, changed);
+  for (const [p, c] of Object.entries(defaultExport.changed)) changed[p] = c;
+  return { changed, fixes: [...casing.fixes, ...exportsPass.fixes, ...useClient.fixes, ...defaultExport.fixes] };
 }
 
 /** Parse `compilerOptions.paths` from a tsconfig string into an AliasMap. */
