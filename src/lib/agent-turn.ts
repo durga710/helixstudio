@@ -491,6 +491,9 @@ export async function runAgentTurn(opts: {
     limits,
     isAdmin,
     allowedPaths: opts.scope,
+    // Runaway-deletion backstop: this turn may not delete a large fraction of
+    // the project (see delete-guard). Seeded with the file count at turn start.
+    deleteGuard: { treeSizeAtStart: tree.length, deletedThisTurn: 0 },
   };
   setProgress(ws.id, "reading your message…");
   emit("thinking…");

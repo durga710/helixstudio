@@ -18,6 +18,7 @@ import { NOTES_MAX } from "@/lib/chat-context";
 import { AGENT_LIMITS, type AgentLimits } from "@/lib/agent-config";
 import { buildChunks, rerankSearch } from "@/lib/repo/rerank";
 import { pathInScope, outOfScopeError } from "@/lib/jobs/scope";
+import { checkDeleteStorm, type DeleteGuardState } from "@/lib/delete-guard";
 
 /** A skeleton file carrying this marker is locked — the engine refuses to edit
  * or overwrite it (premium templates put it on theme/palette + boot files, so
@@ -88,6 +89,10 @@ export interface ToolContext {
   /** Phase-B worker scope: globs this turn may WRITE. Empty/undefined = whole
    * project. Out-of-scope writes are rejected so workers stay in their lane. */
   allowedPaths?: string[];
+  /** Per-turn delete-storm guard state. When set, delete_file refuses once a
+   * turn would remove a large fraction of the project (a runaway "delete the
+   * app to fix one error" thrash). Undefined = guard disabled (e.g. undo). */
+  deleteGuard?: DeleteGuardState;
 }
 
 const READ_CAP = AGENT_LIMITS.readCap;
@@ -476,9 +481,16 @@ async function executeToolInner(
       const path = s(args.path);
       if (!path) return { error: "path is required" };
       if (scope && !pathInScope(path, scope)) return { error: outOfScopeError(path, scope) };
+      // Runaway-deletion guard: refuse once a turn would remove a large fraction
+      // of the project (the "delete the app to fix one error" failure mode).
+      if (ctx.deleteGuard) {
+        const verdict = checkDeleteStorm(ctx.deleteGuard, 1);
+        if (!verdict.allowed) return { error: verdict.reason };
+      }
       const intentId = ctx.getIntentId ? await ctx.getIntentId() : null;
       const result = await deleteWorkspaceFile(ws, path, intentId ? { intentId } : undefined);
       if ("error" in result) return result;
+      if (ctx.deleteGuard) ctx.deleteGuard.deletedThisTurn += result.deletedPaths.length;
       if (ctx.cache) ctx.cache.tree = undefined; // listing changed
       return { deleted: true, deletedPaths: result.deletedPaths };
     }
