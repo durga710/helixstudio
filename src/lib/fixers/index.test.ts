@@ -63,6 +63,39 @@ test("missing-export: adds `export` to a defined-but-unexported symbol", () => {
   assert.match(out.changed["src/components/ui/data-table.tsx"], /export function DataTable/);
 });
 
+test("missing-export: named import of an INLINE default export adds a named export", () => {
+  // The real DataTable bug in its most common form: `export default function X`.
+  const files = {
+    "src/components/ui/data-table.tsx": `"use client";\nexport default function DataTable() { return null; }\n`,
+    "src/app/dashboard/page.tsx": `import { DataTable } from "@/components/ui/data-table";\n`,
+  };
+  const out = runDeterministicFixes(files);
+  const fix = out.fixes.find((f) => f.kind === "missing-export");
+  assert.ok(fix, "expected a missing-export fix");
+  assert.match(out.changed["src/components/ui/data-table.tsx"], /export \{ DataTable \};/);
+  // the original default export is preserved
+  assert.match(out.changed["src/components/ui/data-table.tsx"], /export default function DataTable/);
+});
+
+test("missing-export: named import of a default-exported identifier adds a named export", () => {
+  const files = {
+    "src/lib/client.ts": `const apiClient = {};\nexport default apiClient;\n`,
+    "src/app/page.tsx": `import { apiClient } from "@/lib/client";\n`,
+  };
+  const out = runDeterministicFixes(files);
+  // `const apiClient` is unexported → Case 1 adds `export` to the declaration.
+  assert.match(out.changed["src/lib/client.ts"], /export const apiClient/);
+});
+
+test("missing-export: a default import is NOT treated as needing a named export", () => {
+  const files = {
+    "src/components/Chart.tsx": `export default function Chart() { return null; }\n`,
+    "src/app/page.tsx": `import Chart from "@/components/Chart";\n`, // default import — fine as-is
+  };
+  const out = runDeterministicFixes(files);
+  assert.equal(out.fixes.length, 0);
+});
+
 test("missing-export: no-op when the symbol is already exported", () => {
   const files = {
     "src/lib/api.ts": "export function getUser() {}\n",

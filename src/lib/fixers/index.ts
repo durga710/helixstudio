@@ -215,11 +215,18 @@ function parseNamedImports(clause: string): string[] {
     .filter((s) => /^[A-Za-z_$][\w$]*$/.test(s));
 }
 
-/** Does the module export `name` (named export, re-export, or `export default`)? */
-function exportsName(content: string, name: string): boolean {
+/**
+ * Does the module export `name` as a NAMED export (the only kind a named import
+ * `{ name }` can resolve)? Deliberately excludes `export default` — a default
+ * export does NOT satisfy a named import, and conflating them is the bug that
+ * lets the real "import { DataTable } from a default-only module" failure slip
+ * through. Covers declarations, `export { name }`, and `export { x as name }`.
+ */
+function hasNamedExport(content: string, name: string): boolean {
   const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  if (new RegExp(`\\bexport\\s+(?:default\\s+)?(?:async\\s+)?(?:function|class|const|let|var|type|interface|enum)\\s+${esc}\\b`).test(content)) return true;
-  // export { name } / export { x as name }
+  // `export function name` / `export const name` … — but NOT `export default …`.
+  if (new RegExp(`\\bexport\\s+(?:async\\s+)?(?:function|class|const|let|var|type|interface|enum)\\s+${esc}\\b`).test(content)) return true;
+  // export { name } / export { x as name } / export { name } from "…"
   const blocks = content.match(/\bexport\s*\{([^}]*)\}/g) ?? [];
   for (const b of blocks) {
     const inner = b.replace(/\bexport\s*\{/, "").replace(/\}$/, "");
@@ -228,6 +235,19 @@ function exportsName(content: string, name: string): boolean {
       if (exportedAs.trim() === name) return true;
     }
   }
+  return false;
+}
+
+/**
+ * Does the module export `name` as its DEFAULT export — either inline
+ * (`export default function name`/`export default class name`) or by reference
+ * (`export default name;`)? When a named import wants `name` and the module only
+ * default-exports it, the safe deterministic repair is to add a named export.
+ */
+function hasDefaultExportOf(content: string, name: string): boolean {
+  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (new RegExp(`\\bexport\\s+default\\s+(?:async\\s+)?(?:function|class)\\s+${esc}\\b`).test(content)) return true;
+  if (new RegExp(`\\bexport\\s+default\\s+${esc}\\s*;`).test(content)) return true;
   return false;
 }
 
@@ -276,15 +296,23 @@ function fixMissingExports(
       if (!realPath || !isSourceFile(realPath)) continue;
       for (const name of names) {
         const targetContent = changed[realPath] ?? read(realPath);
-        if (exportsName(targetContent, name)) continue;
-        const rewritten = addExportToDeclaration(targetContent, name);
-        if (!rewritten) continue; // symbol not defined here → genuine, leave to model
-        changed[realPath] = rewritten;
-        fixes.push({
-          path: realPath,
-          kind: "missing-export",
-          detail: `exported \`${name}\` (imported by ${path})`,
-        });
+        if (hasNamedExport(targetContent, name)) continue; // already importable by name
+        // Case 1: the symbol is defined here but not exported — add `export`.
+        const exported = addExportToDeclaration(targetContent, name);
+        if (exported) {
+          changed[realPath] = exported;
+          fixes.push({ path: realPath, kind: "missing-export", detail: `exported \`${name}\` (imported by ${path})` });
+          continue;
+        }
+        // Case 2: the module default-exports it, but the import wants it by name
+        // — add a named export alongside the default (the real DataTable bug).
+        if (hasDefaultExportOf(targetContent, name)) {
+          const sep = targetContent.endsWith("\n") ? "" : "\n";
+          changed[realPath] = `${targetContent}${sep}export { ${name} };\n`;
+          fixes.push({ path: realPath, kind: "missing-export", detail: `added named export \`${name}\` alongside its default export (imported by ${path})` });
+          continue;
+        }
+        // else: symbol not defined here → genuine missing import, leave to the model.
       }
     }
   }
