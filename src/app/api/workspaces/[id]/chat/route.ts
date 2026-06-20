@@ -16,6 +16,7 @@ import { z } from "zod";
 import { apiErrors } from "@/lib/api-response";
 import { runAgentTurn } from "@/lib/agent-turn";
 import { runBuildPipeline } from "@/lib/orchestrator";
+import { runTurboBuild, shouldUseTurbo } from "@/lib/turbo";
 import { maybeCompactConversation } from "@/lib/conversation-memory";
 import { db } from "@/lib/db";
 import { isAdminEmail } from "@/lib/admin";
@@ -46,6 +47,10 @@ const ChatSchema = z.object({
   // architect → engineer → reviewer → security → performance), streaming
   // per-agent `phase` events. The editor keeps its lean single turn.
   pipeline: z.boolean().optional(),
+  // Opt into the turbo path (plan → parallel one-shot generate → deterministic
+  // stitch). Only engages when HELIX_TURBO=1 and the workspace is SCRATCH; any
+  // miss falls back to the sequential turn. Off by default.
+  turbo: z.boolean().optional(),
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -86,10 +91,21 @@ export async function POST(req: Request, { params }: Params) {
 
       turnPromise = (async () => {
         try {
-          // /build runs the full seven-agent pipeline; everything else (the
-          // editor) runs the lean single turn. Both share the event channel.
+          // Turbo (plan → parallel one-shot generate → deterministic stitch) when
+          // opted in AND enabled AND the workspace qualifies; /build runs the full
+          // seven-agent pipeline; everything else (the editor) runs the lean single
+          // turn. All share the event channel; turbo falls back internally on a miss.
+          const wantTurbo =
+            parsed.data.turbo && parsed.data.mode === "build" && shouldUseTurbo(ws);
           const usePipeline = parsed.data.pipeline && parsed.data.mode === "build";
-          const result = usePipeline
+          const result = wantTurbo
+            ? await runTurboBuild({
+                ws,
+                userId: user.id,
+                message,
+                onEvent: (e) => write(e),
+              })
+            : usePipeline
             ? await runBuildPipeline({
                 ws,
                 userId: user.id,
