@@ -30,21 +30,71 @@ function fromRows(rows: { templateId: string; manifest: unknown; files: unknown 
   return out;
 }
 
-/** Insert any bundled templates the DB doesn't have yet (first-boot seed). */
-async function seedMissing(): Promise<void> {
-  const existing = await db().template.findMany({ select: { templateId: true } });
-  const have = new Set(existing.map((r) => r.templateId));
-  const missing = Object.values(BUNDLED).filter((t) => !have.has(t.manifest.id));
-  if (missing.length === 0) return;
-  await db().template.createMany({
-    data: missing.map((t) => ({
-      templateId: t.manifest.id,
-      manifest: t.manifest as unknown as object,
-      files: t.files as unknown as object,
-      source: "bundle",
-    })),
-    skipDuplicates: true,
+/**
+ * Reconcile the DB with the bundled registry and return the canonical templates:
+ *   - INSERT any bundled templates the DB doesn't have yet (first-boot seed);
+ *   - UPDATE rows still sourced from the bundle whose content has drifted from
+ *     the repo (so a template edit goes live on deploy) — rows the freshness job
+ *     has since updated (source !== "bundle") are left untouched.
+ */
+async function syncBundle(): Promise<Record<string, Template>> {
+  const rows = await db().template.findMany({
+    select: { templateId: true, manifest: true, files: true, source: true },
   });
+  const byId = new Map(rows.map((r) => [r.templateId, r]));
+
+  const pathSet = (files: unknown): string =>
+    Array.isArray(files) ? files.map((f) => (f as { path?: string }).path ?? "").sort().join("\n") : "";
+
+  const inserts: { templateId: string; manifest: object; files: object; source: string }[] = [];
+  const drifted = new Set<string>();
+  for (const t of Object.values(BUNDLED)) {
+    const row = byId.get(t.manifest.id);
+    if (!row) {
+      inserts.push({
+        templateId: t.manifest.id,
+        manifest: t.manifest as unknown as object,
+        files: t.files as unknown as object,
+        source: "bundle",
+      });
+      continue;
+    }
+    // Content drift: only for bundle-sourced rows (don't clobber the freshness
+    // job's dep bumps over a content tweak).
+    const contentDrift =
+      row.source === "bundle" &&
+      (JSON.stringify(row.files) !== JSON.stringify(t.files) ||
+        JSON.stringify(row.manifest) !== JSON.stringify(t.manifest));
+    // Structural drift: the FILE SET changed (files added/removed — a real
+    // restructure). Propagate even to freshness-managed rows, since the row is
+    // now wrong; deps re-bump on the next freshness run.
+    const structuralDrift = pathSet(row.files) !== pathSet(t.files);
+    if (contentDrift || structuralDrift) drifted.add(t.manifest.id);
+  }
+
+  if (inserts.length) await db().template.createMany({ data: inserts, skipDuplicates: true });
+  if (drifted.size) {
+    await Promise.all(
+      [...drifted].map((id) =>
+        db().template.update({
+          where: { templateId: id },
+          data: {
+            manifest: BUNDLED[id].manifest as unknown as object,
+            files: BUNDLED[id].files as unknown as object,
+          },
+        }),
+      ),
+    );
+  }
+
+  // Canonical map: stored rows, with the bundle overlaid for inserted/drifted ids.
+  const out = fromRows(rows);
+  for (const t of Object.values(BUNDLED)) {
+    if (!byId.has(t.manifest.id) || drifted.has(t.manifest.id)) {
+      out[t.manifest.id] = { manifest: t.manifest, files: t.files };
+    }
+  }
+  return Object.keys(out).length ? out : BUNDLED;
 }
 
 export async function getAllTemplates(): Promise<Record<string, Template>> {
@@ -55,9 +105,7 @@ export async function getAllTemplates(): Promise<Record<string, Template>> {
 
   try {
     await schemaReady();
-    await seedMissing();
-    const rows = await db().template.findMany({ select: { templateId: true, manifest: true, files: true } });
-    const data = rows.length ? fromRows(rows) : BUNDLED;
+    const data = await syncBundle();
     cache.__helixTemplates = { at: Date.now(), data };
     return data;
   } catch {

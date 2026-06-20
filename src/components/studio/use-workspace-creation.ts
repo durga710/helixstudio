@@ -83,7 +83,10 @@ export function useWorkspaceCreation(onNavigate?: () => void) {
         body: JSON.stringify({
           mode: "SCRATCH",
           ...(name.trim() ? { name: name.trim() } : {}),
-          ...(prompt && prompt.trim() ? { prompt: prompt.trim(), buildKind: "app" } : {}),
+          // Send a clamped prompt (the server only uses it to pick a starter);
+          // the FULL idea — however long — rides to the editor via sessionStorage
+          // (stashAutoBuild) and is decomposed there, so creation never 400s.
+          ...(prompt && prompt.trim() ? { prompt: prompt.trim().slice(0, 8000), buildKind: "app" } : {}),
         }),
       });
       const json = await res.json().catch(() => null);
@@ -111,7 +114,7 @@ export function useWorkspaceCreation(onNavigate?: () => void) {
       const res = await fetch("/api/workspaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "SCRATCH", buildKind: "game", gameCategory, ...(prompt?.trim() ? { prompt: prompt.trim() } : {}) }),
+        body: JSON.stringify({ mode: "SCRATCH", buildKind: "game", gameCategory, ...(prompt?.trim() ? { prompt: prompt.trim().slice(0, 8000) } : {}) }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {

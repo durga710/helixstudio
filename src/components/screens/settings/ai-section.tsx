@@ -12,6 +12,14 @@ import { useToast } from "@/components/ui/toast";
 import { MODEL_PRESETS } from "@/lib/model-presets";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 import { KeyStatusDot, validateAiKey, type KeyState } from "@/components/studio/key-status";
+import { cn } from "@/lib/utils";
+
+interface BedrockModelOption {
+  modelId: string;
+  label: string;
+  contextLabel: string;
+  protocol: string;
+}
 
 type ProviderId = "openai" | "anthropic" | "local" | "gemini";
 const KEY_FIELD: Record<ProviderId, "openaiKey" | "anthropicKey" | "localKey" | "geminiKey"> = {
@@ -32,6 +40,8 @@ interface Prefs {
   githubOauthConnected?: boolean;
   gitConnections?: Partial<Record<GitProviderName, boolean>>;
   gitConfig?: { gitlabBaseUrl?: string | null; azureOrg?: string | null; giteaBaseUrl?: string | null };
+  bedrockEnabled?: boolean;
+  bedrockModels?: BedrockModelOption[];
 }
 
 type GitHostName = Exclude<GitProviderName, "github">;
@@ -74,6 +84,9 @@ export function AiSection() {
   const [unavailable, setUnavailable] = useState(false);
 
   const [provider, setProvider] = useState<ProviderId>("openai");
+  // Bedrock-served default models (no BYO key) and the currently-selected one.
+  const [bedrockModels, setBedrockModels] = useState<BedrockModelOption[]>([]);
+  const [selectedBedrock, setSelectedBedrock] = useState<string | null>(null);
   const [model, setModel] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -125,6 +138,8 @@ export function AiSection() {
       .then((json) => {
         const d = (json?.data ?? json) as Prefs;
         setPrefs(d);
+        setBedrockModels(d.bedrockModels ?? []);
+        if (d.aiProvider === "bedrock") setSelectedBedrock(d.aiModel);
         const p = (PROVIDER_IDS.includes(d.aiProvider as ProviderId) ? d.aiProvider : "openai") as ProviderId;
         setProvider(p);
         setModel(d.aiModel);
@@ -162,10 +177,23 @@ export function AiSection() {
       setKeySet((k) => ({ ...k, [provider]: true }));
       setApiKey("");
     }
+    // Saving a BYO provider switches away from any selected Helix model.
+    if (!err) setSelectedBedrock(null);
     toast(err ?? "Saved — editor chats use this model from now on.");
     setAiSaving(false);
     // Verify the just-saved key against the provider.
     if (!err) void checkKey(provider);
+  }
+
+  // Pick a Helix-hosted (Bedrock) model — no key, billed against the token quota.
+  async function selectBedrock(modelId: string) {
+    const err = await patchPreferences({ aiProvider: "bedrock", aiModel: modelId });
+    if (err) {
+      toast(err);
+      return;
+    }
+    setSelectedBedrock(modelId);
+    toast("Switched to a Helix model — no key needed.");
   }
 
   async function removeKey() {
@@ -191,8 +219,55 @@ export function AiSection() {
 
   return (
     <>
-      {/* Editor AI model */}
-      <h3 className="mb-[11px] mt-6 text-sm font-semibold">Editor AI model</h3>
+      {/* Helix-hosted models (Bedrock-backed) — no key needed, the default. */}
+      {bedrockModels.length > 0 && (
+        <>
+          <h3 className="mb-[11px] mt-6 text-sm font-semibold">
+            Helix models <span className="font-normal text-txt3">· no key needed</span>
+          </h3>
+          <Card className="p-[18px]">
+            <p className="mb-3 text-xs text-txt2">
+              Run on Helix&apos;s hosted models — nothing to configure. Usage is billed against your
+              monthly token quota.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {bedrockModels.map((m) => {
+                const active = selectedBedrock === m.modelId;
+                return (
+                  <button
+                    key={m.modelId}
+                    type="button"
+                    onClick={() => void selectBedrock(m.modelId)}
+                    aria-pressed={active}
+                    className={cn(
+                      "flex items-center gap-2 rounded-[11px] border px-3.5 py-2.5 text-left transition-colors",
+                      active
+                        ? "border-accent bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
+                        : "border-border2 bg-panel2 hover:border-accent",
+                    )}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-medium text-txt">{m.label}</span>
+                      {m.contextLabel && (
+                        <span className="block truncate text-[11px] text-txt3">{m.contextLabel}</span>
+                      )}
+                    </span>
+                    {active && <Check className="h-4 w-4 shrink-0 text-accent" strokeWidth={2.4} />}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedBedrock && (
+              <p className="mt-3 flex items-center gap-1.5 text-xs text-ok">
+                <Check className="h-3.5 w-3.5 shrink-0" /> Active — your chats use this Helix model.
+              </p>
+            )}
+          </Card>
+        </>
+      )}
+
+      {/* Editor AI model (bring your own provider key) */}
+      <h3 className="mb-[11px] mt-6 text-sm font-semibold">Bring your own model</h3>
       <Card className="p-[18px]">
         <p className="mb-3 text-xs text-txt2">
           The brain behind the editor&apos;s workspace agent. Presets are shortcuts — any model id the

@@ -53,6 +53,15 @@ export interface DeployStatus {
   updatedAt?: string;
 }
 
+/** One recent deployment, for the monitoring / activity view. */
+export interface DeployEvent {
+  id: string;
+  state: DeployState;
+  createdAt?: string; // ISO
+  url?: string;
+  target?: string; // "production" | "preview" | …
+}
+
 /** Soft-fail result: ok-data or a user-facing message (+ optional action
  * hint, e.g. "install the platform's GitHub app"). */
 export type DeployResult<T> = T | { error: string; needsGithubAuth?: boolean };
@@ -75,4 +84,9 @@ export interface DeployProvider {
   ): Promise<DeployResult<LinkedProject>>;
   /** Latest production deployment status for the linked project. */
   status(auth: DeployAuth, project: { projectId: string }): Promise<DeployResult<DeployStatus>>;
+  /**
+   * Recent deployments for the project (newest first) — the data behind the
+   * "Monitor" view. Optional: a platform without it simply shows no history.
+   */
+  logs?(auth: DeployAuth, project: { projectId: string }): Promise<DeployResult<DeployEvent[]>>;
 }

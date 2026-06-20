@@ -36,16 +36,21 @@ import { buildTemplateNote } from "@/lib/templates/router";
 import { personalizeTemplateFiles } from "@/lib/templates/personalize";
 import { resolveTemplateId } from "@/lib/templates/select";
 import { synthesizeReply } from "@/lib/build-feed";
+import { autoWireFeature } from "@/lib/auto-wire";
 import { setProgress, clearProgress } from "@/lib/progress";
 import { usingSandboxBackend, runnerEnabled } from "@/lib/app-runner";
 import { verifyBuild, verifyMarker, canVerifyInProcess } from "@/lib/verify";
 import { runAnthropicAgent, runLocalAgent, runToolCalls, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
+import { bedrockEnabled, resolveBedrockModel, type BedrockResolved } from "@/lib/ai/bedrock";
 import { withRetry } from "@/lib/ai/retry";
 import { createAgentIntent } from "@/lib/intent-ledger";
+import { pathInScope } from "@/lib/jobs/scope";
 import {
-  AGENT_LIMITS,
+  agentLimitsFor,
+  scaleLimitsForProject,
   BUILD_RULES,
   GAME_BUILD_RULES,
+  TRANSFORM_RULES,
   PLAN_RULES,
   VERIFY_DEFAULT_ON,
   VERIFY_MAX_FIX_ATTEMPTS,
@@ -94,6 +99,31 @@ export interface TurnResult {
 
 export type TurnError = { error: string; code?: BudgetCode };
 
+/**
+ * OpenAI bills cached (re-referenced) input tokens at a fraction of the full
+ * input price — ~25% for the models we run. With `previous_response_id`, every
+ * hop after the first re-references the SAME system prompt + already-read files,
+ * so most of a multi-hop turn's "input" is cached. Counting that at 100% (raw
+ * `total_tokens`) hugely overstates what the user is actually billed and burns
+ * their quota for tokens that were nearly free. We meter at the BILLED weight so
+ * a quota token ≈ a real cost — which is the entire point of this product.
+ */
+const CACHED_TOKEN_WEIGHT = 0.25;
+type UsageLike = {
+  total_tokens?: number | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  input_tokens_details?: { cached_tokens?: number | null } | null;
+} | null | undefined;
+export function billedTokens(usage: UsageLike): number {
+  if (!usage) return 0;
+  const total = usage.total_tokens ?? (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0);
+  const cached = usage.input_tokens_details?.cached_tokens ?? 0;
+  if (!cached) return total;
+  // Discount the non-billed portion of the cached tokens.
+  return Math.max(0, Math.round(total - cached * (1 - CACHED_TOKEN_WEIGHT)));
+}
+
 export async function runAgentTurn(opts: {
   ws: Workspace;
   userId: string;
@@ -117,6 +147,9 @@ export async function runAgentTurn(opts: {
    * The model sees `briefPrefix + message`, but only the clean `message` is
    * persisted and shown — internal prompts must never leak into the chat UI. */
   briefPrefix?: string;
+  /** Phase-B worker scope: globs this turn may WRITE (out-of-scope writes are
+   * rejected). Empty/undefined = whole project. */
+  scope?: string[];
 }): Promise<TurnResult | TurnError> {
   const { ws, userId, onEvent } = opts;
   const persist = opts.persist ?? true;
@@ -145,7 +178,10 @@ export async function runAgentTurn(opts: {
       user: { select: { email: true } },
     },
   });
-  let aiProvider = prefs?.aiProvider ?? "openai";
+  // When the user hasn't chosen a provider, default to Bedrock if it's wired
+  // (platform key, no BYO needed) — it's the intended platform default for
+  // signed-in users; otherwise fall back to OpenAI.
+  let aiProvider = prefs?.aiProvider ?? (bedrockEnabled() ? "bedrock" : "openai");
   // "default" was a broken literal an old picker saved — treat as unset.
   const prefModel = prefs?.aiModel === "default" ? "" : (prefs?.aiModel ?? "");
   let aiModel = prefModel || PROVIDER_DEFAULT_MODEL[aiProvider] || "";
@@ -155,6 +191,10 @@ export async function runAgentTurn(opts: {
   // the platform (env) key resolves ONLY for admins, so a fresh signup can
   // never spend our keys.
   const isAdmin = isAdminEmail(prefs?.user?.email);
+  // Phase-2 transform-mode ceilings (bigger context/hops/search + skeleton
+  // unlock) for admins; base limits for everyone else. Scaled to the project's
+  // size below (once the tree is known) so a small project never over-sends.
+  let limits = agentLimitsFor(isAdmin);
   const ownKey =
     aiProvider === "openai"
       ? prefs?.openaiKey
@@ -173,6 +213,26 @@ export async function runAgentTurn(opts: {
     aiModel = process.env.GUEST_AI_MODEL || PROVIDER_DEFAULT_MODEL[aiProvider] || "";
     aiBaseUrl = process.env.GUEST_AI_BASE_URL || aiBaseUrl;
     memberKey = undefined;
+  }
+
+  // Bedrock-served models are the platform default: the bearer key resolves for
+  // EVERY signed-in user (no BYO, no admin gate), metered by the normal token
+  // quota. The transport (OpenAI- or Anthropic-compatible) is chosen per model.
+  // A stored aiModel can predate Bedrock (e.g. a bare "claude-sonnet-4-6" left
+  // over from the Anthropic provider) and miss the Bedrock registry, which keys
+  // on "anthropic.claude-sonnet-4-6". Rather than failing the turn, fall back to
+  // the platform default Bedrock model — mirrors resolveAiPrefs() in ai-agent.ts.
+  const bedrock: BedrockResolved | null =
+    aiProvider === "bedrock"
+      ? (resolveBedrockModel(aiModel) ?? resolveBedrockModel(PROVIDER_DEFAULT_MODEL.bedrock!))
+      : null;
+  if (aiProvider === "bedrock") {
+    if (!bedrock) {
+      // Only reachable when the platform key itself is missing.
+      return { error: "Bedrock isn't configured — set AWS_BEARER_TOKEN_BEDROCK to use these models." };
+    }
+    aiModel = bedrock.modelId; // reflect the model actually used (after any fallback)
+    memberKey = bedrock.apiKey;
   }
 
   const ai = aiProvider === "openai" && memberKey ? new OpenAI({ apiKey: memberKey }) : null;
@@ -198,6 +258,10 @@ export async function runAgentTurn(opts: {
   // skeleton (cheap) and the preview renders instead of staying blank. Covers any
   // path that reaches the agent empty (e.g. "Create from scratch" → first chat).
   let scaffolded = false;
+  // The starter files written this turn (the whole framework) — folded into the
+  // first build's change set so the summary + "files changed" card reflect the
+  // entire project the user got, not just the handful the model then edited.
+  let scaffoldPaths: string[] = [];
   if (mode === "build" && ws.mode === "SCRATCH" && treePaths.length === 0 && !ws.notes && userMessage) {
     try {
       const templateId = await resolveTemplateId({
@@ -211,20 +275,41 @@ export async function runAgentTurn(opts: {
       const tpl = templateId ? await getTemplate(templateId) : undefined;
       if (tpl) {
         emit("scaffolding a starter…");
-        const note = buildTemplateNote(tpl);
         const tplFiles = personalizeTemplateFiles(tpl.files, { appName: ws.name });
-        await writeWorkspaceFiles(ws, tplFiles.map((f) => ({ path: f.path, content: f.content })));
+        // The premium skeletons ship an AGENTS.md/CLAUDE.md that is MODEL-FACING
+        // build guidance ("Premium app skeleton — fill the blanks"), NOT part of
+        // the user's app. Keep it OUT of the workspace so it never shows in the
+        // file tree or gets pushed to the user's repo — and feed its content to
+        // the model as PROJECT NOTES instead (model-only, never a file).
+        const isBrief = (p: string) => /(^|\/)(AGENTS|CLAUDE)\.md$/i.test(p);
+        const briefDoc = tplFiles
+          .filter((f) => isBrief(f.path))
+          .map((f) => f.content)
+          .join("\n\n")
+          .trim();
+        const projectFiles = tplFiles.filter((f) => !isBrief(f.path));
+        // The skeleton brief is the richer guidance; fall back to the manifest
+        // blurb for templates that don't ship one.
+        const note = (briefDoc || buildTemplateNote(tpl)).slice(0, 3000);
+        // Don't silently swallow a failed injection — a rejected file (e.g. an
+        // unsafe path) would otherwise leave the project with 0 scaffolded files
+        // while still emitting a "scaffold" event, so the agent builds on nothing.
+        const wrote = await writeWorkspaceFiles(ws, projectFiles.map((f) => ({ path: f.path, content: f.content })));
+        if ("error" in wrote) throw new Error(`template injection failed: ${wrote.error}`);
         await db().workspace.update({ where: { id: ws.id }, data: { notes: note } });
         ws.notes = note; // reflect it in this turn's context
         tree = await withGitAuth(gitAuth, () => listWorkspaceFiles(ws)).catch(() => tree);
         treePaths = tree.map((f) => f.path);
+        scaffoldPaths = [...treePaths]; // the framework we just created
         // Hand the real scaffold file list to the client so it can play a live
         // "building the home page…/wiring navigation…" feed while we customize.
         onEvent?.({ type: "scaffold", files: treePaths, stack: tpl.manifest.label });
         scaffolded = true; // this turn IS the first build → "your app is ready" phrasing
       }
-    } catch {
-      // best-effort — fall through to building from scratch
+    } catch (e) {
+      // best-effort — fall through to building from scratch, but log so a broken
+      // template (bad path, oversize file) is visible instead of silently empty.
+      console.error("[scaffold] template injection skipped:", e);
     }
   }
 
@@ -264,8 +349,33 @@ export async function runAgentTurn(opts: {
   // text the model receives.
   // Game projects get extra build rules (must be playable: controls + enemies +
   // win/score + feedback). Append to the build rules, never plan.
-  const rules =
+  let rules =
     mode === "plan" ? PLAN_RULES : ws.kind === "game" ? BUILD_RULES + GAME_BUILD_RULES : BUILD_RULES;
+  // Admin "transform mode": lift the build-on-the-skeleton limits so big
+  // structural refactors are allowed (matches the unlocked engine limits).
+  if (mode !== "plan" && limits.unlockSkeleton) rules += TRANSFORM_RULES;
+
+  // Size the budget to the project: a 3-file app gets a lean context; only a big
+  // codebase unlocks the full (admin) ceiling. Keeps token cost proportional.
+  limits = scaleLimitsForProject(limits, treePaths.length);
+
+  // A SCOPED worker (Phase-B refactor sub-task) has a narrow job and its own files
+  // inlined, so it must NOT roam a big repo — without this it inherits the project's
+  // full hop/search budget (maxHops ~43 on a 48-file app) and explores everything,
+  // making a 6-worker refactor balloon. Cap exploration so cost stays proportional
+  // to N workers. The reviewer (one rework round) catches any gap from the tighter
+  // budget.
+  if (opts.scope && opts.scope.length) {
+    limits = {
+      ...limits,
+      maxHops: Math.min(limits.maxHops, 12),
+      searchFileCap: Math.min(limits.searchFileCap, 30),
+      searchMatchCap: Math.min(limits.searchMatchCap, 20),
+      semanticFileCap: Math.min(limits.semanticFileCap, 40),
+      semanticTopN: Math.min(limits.semanticTopN, 6),
+      maxTurnTokens: Math.min(limits.maxTurnTokens, 110_000),
+    };
+  }
 
   const fitted = fitBudget({
     rules,
@@ -273,14 +383,56 @@ export async function runAgentTurn(opts: {
       `Name: ${ws.name}\n` +
       `Mode: ${ws.mode === "IMPORT" ? `imported from ${PROVIDER_META[getProvider(ws.provider).name].label} repo ${ws.repo} @ ${ws.baseBranch} (edits overlay the repo until pushed)` : "built from scratch (files live here until pushed to a git host)"}`,
     stack: stackLine(treePaths, pkgJson),
-    tree: treeOutline(treePaths),
+    tree: treeOutline(treePaths, limits.treeChars),
     notes: ws.notes ?? "",
     instructionsDoc,
     digest: memory,
     recent,
     userMessage,
     treePaths,
-  });
+  }, limits.contextChars);
+
+  // Small-project fast path: for a handful of small text files, INLINE their full
+  // contents into the context instead of making the model spend a read_file hop on
+  // each one. Tool-pulling files re-sends the growing conversation on every later
+  // hop (cheap for a big repo, wasteful for a 3-file app); inlining sends them ONCE
+  // (cached on every hop after), so a tiny edit runs in ~2 hops instead of ~6.
+  // All-or-nothing + size-gated, so anything bigger keeps the lean tool-pull path.
+  const SMALL_PROJECT_MAX_FILES = 12;
+  // Generous: the whole bundle is sent ONCE on hop0 and cached on every hop after,
+  // so a larger cap is far cheaper than the per-hop re-sends that read_file causes.
+  const SMALL_PROJECT_MAX_CHARS = 60_000;
+  const INLINEABLE_RE = /\.(html?|css|js|jsx|ts|tsx|json|md|txt|svg|vue|svelte|py|rb|go|php|astro|mjs|cjs|yml|yaml|env|sh)$/i;
+  // What to inline: a SCOPED worker (Phase-B refactor) only touches its assigned
+  // files, so inline exactly those even inside a big repo — that's what collapses
+  // a worker from ~6 read hops to ~2. An unscoped turn inlines the whole project,
+  // but only when it's small enough to be cheaper than tool-pulling.
+  const inlineCandidates =
+    opts.scope && opts.scope.length ? treePaths.filter((p) => pathInScope(p, opts.scope)) : treePaths;
+  let inlinedFiles = "";
+  if (inlineCandidates.length > 0 && inlineCandidates.length <= SMALL_PROJECT_MAX_FILES) {
+    const editable = inlineCandidates.filter(
+      (p) => INLINEABLE_RE.test(p) && !/(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/i.test(p),
+    );
+    const parts: string[] = [];
+    let budget = SMALL_PROJECT_MAX_CHARS;
+    for (const p of editable) {
+      const content = await withGitAuth(gitAuth, () => readWorkspaceFile(ws, p)).catch(() => null);
+      if (content == null || content.length > budget) break; // too big — fall back to tool-pull
+      budget -= content.length;
+      parts.push(`### ${p}\n\`\`\`\n${content}\n\`\`\``);
+    }
+    // Only worth it if we inlined ALL the candidate files — otherwise the model
+    // can't trust "you already have them" and will read anyway.
+    if (parts.length && parts.length === editable.length) {
+      const isScoped = !!(opts.scope && opts.scope.length);
+      inlinedFiles =
+        `\n\n--- CURRENT FILE CONTENTS (${isScoped ? "the files assigned to this sub-task" : "the project's source files"}, in full, below) ---\n` +
+        `These ARE the current files — edit them DIRECTLY. Do NOT call list_files or read_file for any path shown here; ` +
+        `you already have its complete contents.${isScoped ? " You may only WRITE these files." : " Only read a path that is NOT shown below."}\n\n` +
+        parts.join("\n\n");
+    }
+  }
 
   const instructions =
     fitted.rules +
@@ -292,7 +444,8 @@ export async function runAgentTurn(opts: {
       ? `\n\n--- PROJECT INSTRUCTIONS (from the repo's AGENTS.md/CLAUDE.md — follow them) ---\n${fitted.instructionsDoc}`
       : "") +
     (fitted.notes ? `\n\n--- PROJECT NOTES (yours — update via remember) ---\n${fitted.notes}` : "") +
-    (fitted.digest ? `\n\n--- EARLIER CONVERSATION (working memory) ---\n${fitted.digest}` : "");
+    (fitted.digest ? `\n\n--- EARLIER CONVERSATION (working memory) ---\n${fitted.digest}` : "") +
+    inlinedFiles;
 
   // The model sees the (optional) brief prefix; persistence/UI only ever see the
   // clean userMessage, so internal instructions never surface in the chat.
@@ -303,7 +456,7 @@ export async function runAgentTurn(opts: {
     const msgChars = messages.reduce((n, m) => n + m.content.length, 0);
     console.log(
       `[helix-chat] context: rules=${fitted.rules.length} tree=${fitted.tree.length} notes=${fitted.notes.length} ` +
-        `agentsmd=${fitted.instructionsDoc.length} digest=${fitted.digest.length} recent=${fitted.recent.length}msg/${msgChars}ch ` +
+        `agentsmd=${fitted.instructionsDoc.length} digest=${fitted.digest.length} inlined=${inlinedFiles.length} recent=${fitted.recent.length}msg/${msgChars}ch ` +
         `≈${estimateTokens(instructions.length + msgChars)} input tokens`,
     );
   }
@@ -335,6 +488,9 @@ export async function runAgentTurn(opts: {
     onActivity: (label) => emit(label),
     mode,
     getIntentId,
+    limits,
+    isAdmin,
+    allowedPaths: opts.scope,
   };
   setProgress(ws.id, "reading your message…");
   emit("thinking…");
@@ -344,11 +500,36 @@ export async function runAgentTurn(opts: {
   let changes: ChangeManifest;
   let tokensUsed = 0;
   try {
-    if (aiProvider === "anthropic" || aiProvider === "local" || aiProvider === "gemini") {
+    if (aiProvider === "anthropic" || aiProvider === "local" || aiProvider === "gemini" || aiProvider === "bedrock") {
       // Gemini speaks the OpenAI chat API over a fixed base URL, so it runs
       // through the same OpenAI-compatible runner as the local provider.
-      const result = await withGitAuth(gitAuth, () =>
-        aiProvider === "anthropic"
+      // Bedrock routes by the resolved model's protocol: Claude → the Anthropic
+      // runner (mantle endpoint), everything else → the OpenAI-compatible runner.
+      const result = await withGitAuth(gitAuth, () => {
+        if (bedrock) {
+          return bedrock.protocol === "anthropic"
+            ? runAnthropicAgent({
+                model: bedrock.modelId,
+                instructions,
+                messages,
+                ctx,
+                apiKey: bedrock.apiKey,
+                baseUrl: bedrock.baseUrl,
+                extraHeaders: bedrock.headers,
+                onText,
+              })
+            : runLocalAgent({
+                model: bedrock.modelId,
+                baseUrl: bedrock.baseUrl,
+                instructions,
+                messages,
+                ctx,
+                apiKey: bedrock.apiKey,
+                extraHeaders: bedrock.headers,
+                label: "the Bedrock model",
+              });
+        }
+        return aiProvider === "anthropic"
           ? runAnthropicAgent({ model: aiModel, instructions, messages, ctx, apiKey: memberKey, onText })
           : runLocalAgent({
               model: aiModel,
@@ -358,8 +539,8 @@ export async function runAgentTurn(opts: {
               ctx,
               apiKey: memberKey,
               label: aiProvider === "gemini" ? "Gemini" : "the local model",
-            }),
-      );
+            });
+      });
       if ("error" in result) return { error: result.error };
       ({ text, actions, changes, tokensUsed } = result);
     } else {
@@ -389,15 +570,22 @@ export async function runAgentTurn(opts: {
           return withRetry(() => oai.responses.create(params));
         }
       };
+      // When the whole small project is inlined above, drop the file-read tools so
+      // the model edits straight from context instead of re-reading what it has.
+      // Only drop reads when the WHOLE project is inlined (unscoped) — a scoped
+      // worker keeps reads so it can still see out-of-scope references it imports.
+      const dropReads = !!inlinedFiles && !(opts.scope && opts.scope.length);
+      const turnTools = workspaceTools(mode, isAdmin, dropReads);
       try {
         let resp = await streamOrCreate({
           model: aiModel || OPENAI_MODEL,
           instructions,
           input: messages,
-          tools: workspaceTools(mode),
+          tools: turnTools,
           store: true,
         });
-        tokensUsed += resp.usage?.total_tokens ?? 0;
+        tokensUsed += billedTokens(resp.usage);
+        if (process.env.HELIX_TOKEN_DEBUG) console.log(`[tok] hop0 total=${resp.usage?.total_tokens} cached=${resp.usage?.input_tokens_details?.cached_tokens} in=${resp.usage?.input_tokens} out=${resp.usage?.output_tokens} billed→${tokensUsed}`);
 
         for (const item of resp.output ?? []) {
           if (item.type === "web_search_call") actions.push({ tool: "web_search", label: toolLabel("web_search", null) });
@@ -406,8 +594,8 @@ export async function runAgentTurn(opts: {
         // Tool loop: bounded by move count AND token spend (whichever first),
         // so a long multi-file task runs to completion but a runaway turn
         // can't burn the budget. See AGENT_LIMITS in agent-config.ts.
-        for (let hop = 0; hop < AGENT_LIMITS.maxHops; hop++) {
-          if (tokensUsed >= AGENT_LIMITS.maxTurnTokens) break;
+        for (let hop = 0; hop < limits.maxHops; hop++) {
+          if (tokensUsed >= limits.maxTurnTokens) break;
           const calls = (resp.output ?? []).filter(
             (o): o is Extract<typeof o, { type: "function_call" }> => o.type === "function_call",
           );
@@ -434,7 +622,7 @@ export async function runAgentTurn(opts: {
             outputs.push({
               type: "function_call_output" as const,
               call_id: call.call_id,
-              output: JSON.stringify(result).slice(0, toolResultCapFor(call.name)),
+              output: JSON.stringify(result).slice(0, toolResultCapFor(call.name, limits)),
             });
           }
 
@@ -442,10 +630,11 @@ export async function runAgentTurn(opts: {
             model: aiModel || OPENAI_MODEL,
             previous_response_id: resp.id,
             input: outputs,
-            tools: workspaceTools(mode),
+            tools: turnTools,
             store: true,
           });
-          tokensUsed += resp.usage?.total_tokens ?? 0;
+          tokensUsed += billedTokens(resp.usage);
+          if (process.env.HELIX_TOKEN_DEBUG) console.log(`[tok] hop${hop + 1} total=${resp.usage?.total_tokens} cached=${resp.usage?.input_tokens_details?.cached_tokens} in=${resp.usage?.input_tokens} out=${resp.usage?.output_tokens} calls=${calls.length}:${calls.map((c) => c.name).join(",")} billed→${tokensUsed}`);
 
           for (const item of resp.output ?? []) {
             if (item.type === "web_search_call") actions.push({ tool: "web_search", label: toolLabel("web_search", null) });
@@ -453,6 +642,26 @@ export async function runAgentTurn(opts: {
         }
 
         text = resp.output_text?.trim() || "";
+
+        // A model refusal lands in a `refusal` content part, NOT in output_text —
+        // so without this a refused request reads as an empty (and later faked)
+        // success. Surface the refusal reason as the reply instead.
+        if (!text) {
+          const refusal = (resp.output ?? [])
+            .flatMap((o) =>
+              (o as { type?: string; content?: unknown[] }).type === "message"
+                ? ((o as { content?: unknown[] }).content ?? [])
+                : [],
+            )
+            .map((c) => {
+              const part = c as { type?: string; refusal?: string };
+              return part.type === "refusal" ? (part.refusal ?? "") : "";
+            })
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+          if (refusal) text = refusal;
+        }
 
         // Reasoning models can exhaust the tool-loop budget with no message
         // text. Force a wrap-up turn (tools disabled) so the user always gets
@@ -471,11 +680,11 @@ export async function runAgentTurn(opts: {
                       : "Stop working and reply now: in 1-3 sentences, what did you change in the workspace and what (if anything) is still unfinished? Do not call tools.",
                 },
               ],
-              tools: workspaceTools(mode),
+              tools: turnTools,
               tool_choice: "none",
               store: true,
             });
-            tokensUsed += wrap.usage?.total_tokens ?? 0;
+            tokensUsed += billedTokens(wrap.usage);
             text = wrap.output_text?.trim() || "";
           } catch {
             // fall through to the action-based fallback
@@ -521,6 +730,54 @@ export async function runAgentTurn(opts: {
       }
     }
 
+    // First build: count the WHOLE framework we created (scaffold + the model's
+    // edits), not just the files the model happened to touch — so the summary and
+    // the "files changed" card show the full project the user got. The scaffold
+    // files are real (created this turn), and folding them in here also means a
+    // scaffolded first build never misreads as "no changes".
+    if (scaffolded && scaffoldPaths.length) {
+      const have = new Set(changes.written);
+      for (const p of scaffoldPaths) if (!have.has(p)) changes.written.push(p);
+    }
+
+    // Honesty guard: a BUILD turn that changed no files and produced only a
+    // placeholder reply ("All set!"/"(no reply)") didn't actually build anything
+    // — most often a soft refusal or a chat-tuned model that won't tool-call.
+    // Never report a fake success; tell the user the truth + how to recover.
+    if (mode === "build") {
+      const noChanges = changes.written.length === 0 && changes.deleted.length === 0;
+      const trimmed = text.trim();
+      const placeholder = trimmed === "" || trimmed === "(no reply)" || /^all set\b/i.test(trimmed);
+      if (noChanges && placeholder) {
+        text =
+          "I didn't make any changes this time — the model returned nothing to build. " +
+          "This usually means the request was declined or the selected model didn't write any files. " +
+          "Try a different model in the picker (a Helix model, Claude, or GPT-5), rephrase the request, " +
+          "or break it into smaller steps (e.g. start with the data models, then the pages).";
+      }
+    }
+
+    // Wiring safety net: if the model built a feature component but left it
+    // orphaned (not rendered on the page the user lands on), mount it on the
+    // dashboard so the app never opens to a leftover placeholder. Runs before
+    // verify so the wired page is part of the build check. Best-effort.
+    if (mode === "build" && changes.written.length > 0) {
+      try {
+        const wiredPath = await autoWireFeature({
+          paths: Array.from(new Set([...treePaths, ...changes.written])),
+          written: changes.written,
+          readFile: (p) => withGitAuth(gitAuth, () => readWorkspaceFile(ws, p)).catch(() => null),
+          writeFiles: (files) => withGitAuth(gitAuth, () => writeWorkspaceFiles(ws, files)),
+        });
+        if (wiredPath && !changes.written.includes(wiredPath)) {
+          changes.written.push(wiredPath);
+          actions.push({ tool: "write_files", label: "mounted the main feature on the dashboard" });
+        }
+      } catch (e) {
+        console.error("[auto-wire]", e);
+      }
+    }
+
     // If the provider didn't report usage, estimate (~4 chars per token) so
     // guest metering can't be bypassed by a provider that omits usage. Counts
     // the whole input (system + every message), not just the latest turn.
@@ -541,6 +798,16 @@ export async function runAgentTurn(opts: {
     // fix turns pass verify:false to stop recursion). Gated to non-guests and
     // an available runner; always degrades to a skip — never fails the turn.
     const verifyWanted = opts.verify ?? VERIFY_DEFAULT_ON;
+    // A tiny edit — one file changed, nothing deleted, no dependency/build-config
+    // file touched — doesn't justify a full sandbox build (minutes + a possible
+    // auto-fix model turn). We still run the FREE in-process static check on it;
+    // we only skip the EXPENSIVE sandbox/runner path. Matches effort to size.
+    const tinyEdit =
+      changes.written.length <= 1 &&
+      (changes.deleted?.length ?? 0) === 0 &&
+      !changes.written.some((p) =>
+        /(^|\/)(package(-lock)?\.json|requirements\.txt|pyproject\.toml|go\.mod|tsconfig\.json|next\.config\.|vite\.config\.)/i.test(p),
+      );
     let verify: TurnResult["verify"];
     if (
       verifyWanted &&
@@ -548,8 +815,9 @@ export async function runAgentTurn(opts: {
       changes.written.length > 0 &&
       !dbUser?.isGuest &&
       // Static/game projects verify in-process (no sandbox needed); framework apps
-      // still require the sandbox/runner for their real build.
-      (canVerifyInProcess(treePaths, pkgJson) || usingSandboxBackend() || runnerEnabled())
+      // still require the sandbox/runner for their real build — but a tiny edit
+      // skips that expensive path (the cheap in-process check still runs).
+      (canVerifyInProcess(treePaths, pkgJson) || ((usingSandboxBackend() || runnerEnabled()) && !tinyEdit))
     ) {
       const result = await verifyBuild({
         ws,

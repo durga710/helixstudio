@@ -145,8 +145,8 @@ export function ClassroomOverview({ spaceId, refreshKey }: { spaceId: string; re
             />
             <Stat
               icon={CalendarClock}
-              value={`${data.dueSoon}${data.overdue ? ` · ${data.overdue}!` : ""}`}
-              label={data.overdue ? "Due soon · overdue" : "Due this week"}
+              value={String(data.dueSoon)}
+              label={data.overdue ? `Due soon · ${data.overdue} overdue` : "Due this week"}
               tone={data.overdue ? "amber" : "accent"}
             />
             <Stat

@@ -10,7 +10,7 @@ import "server-only";
  * teamId.
  */
 
-import type { DeployAuth, DeployProvider, DeployResult, DeployStatus, LinkedProject } from "./types";
+import type { DeployAuth, DeployEvent, DeployProvider, DeployResult, DeployStatus, LinkedProject } from "./types";
 
 const API = "https://api.vercel.com";
 
@@ -112,6 +112,28 @@ export const vercelProvider: DeployProvider = {
       url: d.url ? `https://${d.url}` : undefined,
       updatedAt: d.created ? new Date(d.created).toISOString() : undefined,
     };
+  },
+
+  async logs(auth, { projectId }): Promise<DeployResult<DeployEvent[]>> {
+    const res = await vercelFetch(
+      auth,
+      `/v6/deployments${teamQuery(auth) ? teamQuery(auth) + "&" : "?"}projectId=${encodeURIComponent(projectId)}&limit=10`,
+    );
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) return { error: "Vercel rejected the token." };
+      return { error: `Vercel error ${res.status}` };
+    }
+    const body = res.body as {
+      deployments?: { uid?: string; state?: string; readyState?: string; url?: string; created?: number; target?: string }[];
+    };
+    const events: DeployEvent[] = (body.deployments ?? []).map((d, i) => ({
+      id: d.uid ?? `dep-${i}`,
+      state: normalizeState(d.state ?? d.readyState),
+      url: d.url ? `https://${d.url}` : undefined,
+      createdAt: d.created ? new Date(d.created).toISOString() : undefined,
+      target: d.target ?? "production",
+    }));
+    return events;
   },
 };
 

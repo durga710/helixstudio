@@ -3,6 +3,303 @@
 import type { Lesson } from "./types";
 
 export const LESSONS: Record<string, Lesson> = {
+  "ai-factory": {
+    "manifest": {
+      "id": "ai-factory",
+      "title": "AI Factory",
+      "blurb": "Run a whole AI company. Take a product from raw data to launch — every choice along the line matters.",
+      "level": "advanced",
+      "estMinutes": 10,
+      "icon": "Factory",
+      "concept": "machine learning pipeline",
+      "order": 14,
+      "objectives": [
+        "That machine learning is a process, not one step",
+        "How the stages connect: collect, clean, train, test, deploy",
+        "Why early shortcuts cause expensive problems later"
+      ],
+      "glossary": [
+        {
+          "term": "Pipeline",
+          "def": "The full assembly line of an AI product, from data to launch and beyond."
+        },
+        {
+          "term": "Deploy",
+          "def": "Release the model so real people use it."
+        },
+        {
+          "term": "Monitor",
+          "def": "Keep watching after launch to catch new problems."
+        },
+        {
+          "term": "Model drift",
+          "def": "When a model gets worse over time because the world changed since it was trained."
+        }
+      ]
+    },
+    "steps": [
+      {
+        "kind": "explain",
+        "title": "You inherit an AI company",
+        "body": "Congratulations — you're the new boss of a struggling AI company. The board wants one thing: a **successful AI product**.\n\nHere's the catch. A great model isn't one magic step. It's a whole **pipeline**: collect data, clean it, train, test, deploy, and keep watching. Mess up early and you'll pay for it later."
+      },
+      {
+        "kind": "predict",
+        "title": "Where do problems start?",
+        "prompt": "A deployed AI product is making bad predictions. Where did the trouble most likely begin?",
+        "choices": [
+          "Only at the very last step",
+          "Earlier in the pipeline — like rushed data or skipped testing",
+          "Nowhere, bad luck"
+        ],
+        "afterPick": "Usually upstream. A shortcut in collecting or cleaning quietly becomes a disaster after launch. Let's run the line. →"
+      },
+      {
+        "kind": "widget",
+        "widget": "pipeline",
+        "title": "Run the line",
+        "youWillDo": "make a choice at each stage, then deploy",
+        "body": "Move your product through each stage — **Collect → Clean → Train → Test → Deploy**. Make a choice at each one, watch the **health** score, then **Deploy & monitor** to see how it does in the real world. Try a few runs and compare your launches."
+      },
+      {
+        "kind": "explain",
+        "title": "Every stage connects",
+        "body": "Notice how choices **stacked up**. Cheap data plus skipped cleaning didn't just cost a little — it compounded, and a fancy model made it worse by memorizing the junk.\n\nThat's the big idea: machine learning is a **process**. Success depends on every stage working together, not one heroic step."
+      },
+      {
+        "kind": "quiz",
+        "title": "The big picture",
+        "question": "What's the most accurate way to describe building an AI product?",
+        "choices": [
+          "Just train a model and you're done",
+          "A connected process where every stage affects the final result",
+          "Mostly luck",
+          "Only the deploy step matters"
+        ],
+        "answer": 1,
+        "explain": "Collect → clean → train → test → deploy → monitor. Each stage feeds the next, and shortcuts travel downstream."
+      },
+      {
+        "kind": "reflect",
+        "title": "Say it your way",
+        "prompt": "You've now trained models, cleaned data, set rewards, and shipped a product. In your own words: why is building good AI more than just 'making a smart model'?",
+        "placeholder": "Because a good AI product also needs…",
+        "recall": {
+          "question": "A successful AI product depends most on…",
+          "choices": [
+            "One clever step",
+            "The whole pipeline working together",
+            "Avoiding testing to save time"
+          ],
+          "answer": 1,
+          "explain": "Every stage matters — that's the lifecycle of real machine learning."
+        }
+      },
+      {
+        "kind": "explain",
+        "title": "You ran the whole factory 🎉",
+        "body": "You just did what real AI teams do: take a product through its **entire lifecycle**, balancing speed, cost, and quality at every step.\n\nAnd you've now seen the big picture of AI — how it **learns from examples**, **explores with rewards**, **depends on clean, fair data**, **follows clear instructions**, and **costs real energy to run**. That's not just *using* AI — that's understanding *why it behaves the way it does*. 🏆"
+      }
+    ]
+  },
+  "ai-maze-explorer": {
+    "manifest": {
+      "id": "ai-maze-explorer",
+      "title": "AI Maze Explorer",
+      "blurb": "Trap a robot in a maze, set the rewards, and watch it teach itself the way out — no path required.",
+      "level": "intermediate",
+      "estMinutes": 10,
+      "icon": "Map",
+      "concept": "reinforcement learning",
+      "order": 8,
+      "objectives": [
+        "What reinforcement learning is",
+        "How rewards — not instructions — shape what an AI does",
+        "Why a wrong reward leads to weird behavior"
+      ],
+      "glossary": [
+        {
+          "term": "Reward",
+          "def": "Points the AI gets (or loses) for what it does. Good things give points, bad things take them away."
+        },
+        {
+          "term": "Reinforcement learning",
+          "def": "Learning by trying things over and over and keeping what earns the most reward."
+        },
+        {
+          "term": "Agent",
+          "def": "The thing that's learning and making choices — here, the little robot."
+        },
+        {
+          "term": "Episode",
+          "def": "One full attempt — from the start until the robot reaches the goal or gives up."
+        }
+      ]
+    },
+    "steps": [
+      {
+        "kind": "explain",
+        "title": "A robot in a maze",
+        "body": "A little robot is dropped into a maze. It has **no map** and nobody tells it the way out.\n\nAll you can do is decide what's **good** and what's **bad**: reaching the exit feels great, bumping a wall hurts, and wandering forever is a waste. Then the robot tries… and tries… and tries — and slowly figures the rest out itself."
+      },
+      {
+        "kind": "predict",
+        "title": "First try?",
+        "prompt": "When the robot first wakes up in the maze, what will it do?",
+        "choices": [
+          "Walk straight to the exit",
+          "Bumble around almost randomly",
+          "Refuse to move"
+        ],
+        "afterPick": "At the start it knows *nothing*, so it mostly bumbles — bumping walls and backtracking. The magic is what happens after lots of tries. Let's watch. →"
+      },
+      {
+        "kind": "widget",
+        "widget": "maze",
+        "title": "Set the rewards, then train",
+        "youWillDo": "set the rewards and train the robot",
+        "body": "Set your **rewards** (reaching the exit, hitting a wall, taking a step), then press **Train** a few times and **Watch it go**. Early on it's clumsy; after enough rounds it finds a clean path.\n\nWhen that works, try the **Bad rewards** button — make hitting walls a *good* thing — and watch what the robot decides to do."
+      },
+      {
+        "kind": "explain",
+        "title": "You never drew the path",
+        "body": "Notice what you actually did: you **never told the robot the route**. You only said what was worth points.\n\nThe robot found the path by **trial and error** — keeping the moves that earned reward and dropping the ones that didn't. That's **reinforcement learning**."
+      },
+      {
+        "kind": "quiz",
+        "title": "What did the rewards do?",
+        "question": "When you made *hitting a wall* give points, why did the robot start crashing into walls on purpose?",
+        "choices": [
+          "It was broken",
+          "It does whatever earns the most reward — and you told it walls pay",
+          "It got scared of the exit",
+          "Mazes are too hard for AI"
+        ],
+        "answer": 1,
+        "explain": "Exactly — the robot chases reward. If you reward the wrong thing, you get the wrong behavior. The reward *is* the instruction."
+      },
+      {
+        "kind": "reflect",
+        "title": "Say it your way",
+        "prompt": "In your own words: how did the robot learn the maze without being given the path?",
+        "placeholder": "It learned by…",
+        "recall": {
+          "question": "Reinforcement learning means the AI learns mainly by…",
+          "choices": [
+            "Being given the exact answer",
+            "Trying things and chasing rewards",
+            "Reading a rulebook"
+          ],
+          "answer": 1,
+          "explain": "Try → get reward → keep what works. Over and over."
+        }
+      },
+      {
+        "kind": "explain",
+        "title": "Where this shows up 🎉",
+        "body": "You just used **reinforcement learning** — the same idea behind:\n\n- game AIs that get scary-good at chess and video games\n- warehouse and delivery **robots** finding routes\n- self-driving cars learning to steer\n\nThe big lesson: **you shape behavior with rewards, not step-by-step orders** — so picking the right reward is everything. **Next up:** clean the messy data that AI learns from."
+      }
+    ]
+  },
+  "bias-busters": {
+    "manifest": {
+      "id": "bias-busters",
+      "title": "Bias Busters",
+      "blurb": "A scholarship AI seems unfair. Investigate the data, balance it, and make the model fair for everyone.",
+      "level": "intermediate",
+      "estMinutes": 9,
+      "icon": "Scale",
+      "concept": "fairness",
+      "order": 11,
+      "objectives": [
+        "Why AI can be unfair without anyone meaning it to be",
+        "How unbalanced data creates bias",
+        "How balancing data makes a model fairer"
+      ],
+      "glossary": [
+        {
+          "term": "Bias",
+          "def": "When an AI is unfairly better or worse for some group of people."
+        },
+        {
+          "term": "Representation",
+          "def": "How much each group shows up in the training data."
+        },
+        {
+          "term": "Balanced data",
+          "def": "Data with a fair number of examples from each group."
+        },
+        {
+          "term": "Fairness",
+          "def": "The AI working about equally well for everyone it affects."
+        }
+      ]
+    },
+    "steps": [
+      {
+        "kind": "explain",
+        "title": "Something seems unfair",
+        "body": "A city uses an AI to hand out scholarships. Lately, students from **School B** keep getting rejected — way more than students from **School A**. People are upset, and nobody programmed it to be unfair.\n\nYou're the investigator. Time to look at the data."
+      },
+      {
+        "kind": "predict",
+        "title": "Where's the unfairness coming from?",
+        "prompt": "Nobody wrote a rule to reject School B. So why might the AI be unfair to them?",
+        "choices": [
+          "The AI is being mean on purpose",
+          "It barely saw any School B examples, so it learned them poorly",
+          "School B students are worse"
+        ],
+        "afterPick": "It's the data. An AI learns from what it sees — and it barely saw School B. Let's fix that. →"
+      },
+      {
+        "kind": "widget",
+        "widget": "biasBusters",
+        "title": "Balance the data, then retrain",
+        "youWillDo": "balance the examples and retrain until it's fair",
+        "body": "See how lopsided the examples are? Add more **School B** examples to balance things out, then **Retrain** and watch the per-group accuracy and the **fairness** score. Keep going until both groups are treated about equally."
+      },
+      {
+        "kind": "explain",
+        "title": "Fairer data, fairer AI",
+        "body": "As you balanced the examples, School B's accuracy climbed to match School A's. You didn't change the algorithm — you gave it a **fair view of the world** to learn from.\n\nAI repeats the patterns in its data. If the data under-represents a group, the AI will too."
+      },
+      {
+        "kind": "quiz",
+        "title": "What fixed it?",
+        "question": "What made the scholarship AI fairer?",
+        "choices": [
+          "A faster computer",
+          "Giving it a balanced number of examples from each group",
+          "Hiding School B from the data",
+          "Telling it to be nice"
+        ],
+        "answer": 1,
+        "explain": "Balanced representation. When every group is fairly represented, the model learns to treat them fairly."
+      },
+      {
+        "kind": "reflect",
+        "title": "Say it your way",
+        "prompt": "How can an AI end up unfair even when no one meant it to be?",
+        "placeholder": "It can happen when the data…",
+        "recall": {
+          "question": "AI bias often comes from…",
+          "choices": [
+            "Data that under-represents some groups",
+            "Computers disliking people",
+            "Using too much electricity"
+          ],
+          "answer": 0,
+          "explain": "Unbalanced data → biased patterns → unfair results."
+        }
+      },
+      {
+        "kind": "explain",
+        "title": "Responsible AI 🎉",
+        "body": "You just did the work of an **AI fairness** team: spotting bias, tracing it to the data, and fixing it.\n\nThis matters everywhere AI touches people — loans, hiring, healthcare. Responsible AI means checking *who* the data represents. **Next up:** build a recommendation system that learns what people like."
+      }
+    ]
+  },
   "data-and-features": {
     "manifest": {
       "id": "data-and-features",
@@ -56,6 +353,105 @@ export const LESSONS: Record<string, Lesson> = {
         "kind": "explain",
         "title": "What you learned 🎉",
         "body": "- **Data** = a table of examples with **features** (what we measure) and a **label** (the answer)\n- **Good features** make the kinds separate — you found them and cut them apart yourself\n- **Garbage in, garbage out** — data quality beats computer speed\n- **Bias** is born from lopsided data; **balanced, fair data** is the cure\n\n**Next up:** instead of sorting into kinds, you'll teach an AI to **predict a number** — that's *regression*."
+      }
+    ]
+  },
+  "data-cleaning-hero": {
+    "manifest": {
+      "id": "data-cleaning-hero",
+      "title": "Data Cleaning Hero",
+      "blurb": "The AI lab's data is a mess. Fix it, retrain, and watch a junk model turn into a smart one.",
+      "level": "beginner",
+      "estMinutes": 9,
+      "icon": "Wrench",
+      "concept": "data quality",
+      "order": 9,
+      "objectives": [
+        "Why messy data wrecks an AI",
+        "How to spot and fix bad data",
+        "Why clean data can beat a fancier model"
+      ],
+      "glossary": [
+        {
+          "term": "Missing value",
+          "def": "A blank where a number should be — the AI doesn't know what goes there."
+        },
+        {
+          "term": "Outlier",
+          "def": "A value that's way off, like an age of 500. Usually a mistake."
+        },
+        {
+          "term": "Duplicate",
+          "def": "The same record copied twice — it double-counts and skews things."
+        },
+        {
+          "term": "Garbage in, garbage out",
+          "def": "If you train on bad data, you get a bad model — no matter how clever it is."
+        }
+      ]
+    },
+    "steps": [
+      {
+        "kind": "explain",
+        "title": "The lab is failing",
+        "body": "Alarm bells! The lab's AI keeps making terrible guesses, and the scientists are stumped.\n\nYou take one look at the training data and spot the problem instantly: it's a **mess**. Ages like `500`, blanks, `???`, and rows copied twice. Your mission: clean it up."
+      },
+      {
+        "kind": "predict",
+        "title": "Will cleaning help?",
+        "prompt": "If you fix the messy data and train the *exact same* model, what happens to its accuracy?",
+        "choices": [
+          "Goes up a lot",
+          "Stays exactly the same",
+          "Gets worse"
+        ],
+        "afterPick": "Hold that thought — you're about to see the difference with your own eyes. →"
+      },
+      {
+        "kind": "widget",
+        "widget": "dataCleaner",
+        "title": "Clean the data, then train",
+        "youWillDo": "fix every flagged row, then train",
+        "body": "Each **flagged** row is broken in some way. For each one, choose to **Remove** it or **Estimate** a sensible value. When the table is clean, press **Train model** and compare the two scores."
+      },
+      {
+        "kind": "explain",
+        "title": "Same model, way smarter",
+        "body": "Look at that gap. The **algorithm never changed** — only the data did. Clean data took the model from clueless to sharp.\n\nThat's the rule pros live by: **garbage in, garbage out.** A simple model on clean data usually beats a fancy model on junk."
+      },
+      {
+        "kind": "quiz",
+        "title": "Why did it matter?",
+        "question": "An age value of `500` showed up in the data. Why is that a problem for training?",
+        "choices": [
+          "It makes the file bigger",
+          "It's impossible, so it teaches the model a wrong pattern",
+          "Computers can't read the number 500",
+          "It isn't a problem at all"
+        ],
+        "answer": 1,
+        "explain": "The model treats every example as truth. Feed it impossible values and it learns impossible patterns."
+      },
+      {
+        "kind": "reflect",
+        "title": "Say it your way",
+        "prompt": "Explain to a friend why cleaning data made the AI better, even though the model stayed the same.",
+        "placeholder": "Because the AI learns from…",
+        "recall": {
+          "choices": [
+            "A fancier algorithm",
+            "Cleaner, more correct data",
+            "A bigger computer"
+          ],
+          "question": "The cleaned model scored higher mainly because of…",
+          "answer": 1,
+          "explain": "Better data, same model. Data quality is doing the heavy lifting."
+        }
+      },
+      {
+        "kind": "explain",
+        "title": "The unglamorous superpower 🎉",
+        "body": "You just did the job real data scientists spend **most of their time** on: cleaning data.\n\nIt's not flashy, but it's one of the highest-impact things in all of AI. Missing values, outliers, duplicates — hunt them down and your models get better for free. **Next up:** build a clear prompt that gets an AI to do exactly what you want."
       }
     ]
   },
@@ -637,6 +1033,300 @@ export const LESSONS: Record<string, Lesson> = {
         "kind": "explain",
         "title": "What you built 🎉",
         "body": "- **Classification** predicts a category; **regression** predicts a **number**\n- You laid the **line of best fit** — the one with the smallest **error (loss)**\n- **Training = lowering the error**, step by step — the heart of all AI\n- A simple line that's 'close enough' usually beats a wiggly one that **overfits**\n\n**Next up:** a different kind of AI you can actually *read* — the **decision tree**."
+      }
+    ]
+  },
+  "prompt-quest": {
+    "manifest": {
+      "id": "prompt-quest",
+      "title": "Prompt Quest",
+      "blurb": "Spells only work if your instructions are clear. Learn to talk to an AI so it does exactly what you want.",
+      "level": "beginner",
+      "estMinutes": 9,
+      "icon": "Wand2",
+      "concept": "prompt engineering",
+      "order": 10,
+      "objectives": [
+        "Why clear instructions get better AI results",
+        "How to add a target, constraints, and a role",
+        "Why vague prompts go wrong"
+      ],
+      "glossary": [
+        {
+          "term": "Prompt",
+          "def": "The instructions you give an AI — your 'spell'."
+        },
+        {
+          "term": "Constraint",
+          "def": "A limit you add, like 'avoid allies' or 'keep it short'."
+        },
+        {
+          "term": "Role",
+          "def": "Who you ask the AI to act as, like 'a kind science teacher'."
+        },
+        {
+          "term": "Prompt engineering",
+          "def": "The skill of writing clear instructions so an AI gives you what you actually want."
+        }
+      ]
+    },
+    "steps": [
+      {
+        "kind": "explain",
+        "title": "Welcome to Wizard Academy",
+        "body": "Spells here are powered by **prompts** — instructions for the AI wizard. And the wizard is very literal: it does *exactly* what you say, not what you *meant*.\n\nSay “Attack!” and it might blast your own teammate. The fix isn't a better wizard — it's a **clearer spell**."
+      },
+      {
+        "kind": "predict",
+        "title": "Which spell works?",
+        "prompt": "Which instruction will the wizard follow more reliably?",
+        "choices": [
+          "\"Attack.\"",
+          "\"Attack the nearest enemy with fire, and avoid allies.\""
+        ],
+        "afterPick": "The detailed one, every time. Vague leaves the AI guessing; specific leaves no room for mistakes. Let's prove it. →"
+      },
+      {
+        "kind": "widget",
+        "widget": "promptQuest",
+        "title": "Build your spells",
+        "youWillDo": "build a clear spell from the parts and cast it",
+        "body": "Pick the **parts** that make each spell clear — the action, the target, the limits, and (later) a role. Skip the nonsense. Watch the **clarity meter**, then **Cast** and see what happens."
+      },
+      {
+        "kind": "explain",
+        "title": "What made spells work",
+        "body": "The winning spells all had the same things:\n\n- a clear **action** (what to do)\n- a specific **target** (to whom/what)\n- **constraints** (what to avoid)\n- sometimes a **role** (“act as a teacher”)\n\nVague spells left gaps, and the AI filled them however it liked — usually wrong."
+      },
+      {
+        "kind": "quiz",
+        "title": "Why be specific?",
+        "question": "Why does “Summon a friendly blue dragon that protects the villagers” beat “Summon a dragon”?",
+        "choices": [
+          "It's a longer sentence",
+          "It removes the AI's guesswork by saying exactly what you want",
+          "Dragons prefer blue",
+          "It uses fancier words"
+        ],
+        "answer": 1,
+        "explain": "Clear details = fewer guesses = the result you actually wanted. That's the whole game of prompting."
+      },
+      {
+        "kind": "reflect",
+        "title": "Say it your way",
+        "prompt": "What's one tip you'd give a friend for writing a prompt that gets good results?",
+        "placeholder": "I'd tell them to…",
+        "recall": {
+          "question": "The best way to get what you want from an AI is to…",
+          "choices": [
+            "Keep it short and vague",
+            "Be clear and specific about what you want",
+            "Use as many big words as possible"
+          ],
+          "answer": 1,
+          "explain": "Clear and specific wins. Say the goal, the limits, and the role."
+        }
+      },
+      {
+        "kind": "explain",
+        "title": "You're a prompt engineer now 🎉",
+        "body": "This is exactly how people get great results from real AI tools like chatbots: **clear instructions, constraints, and a role**.\n\nIt even has a job title — *prompt engineering*. **Next up:** make sure the AI is fair to everyone, not just the group it saw most."
+      }
+    ]
+  },
+  "recommendation-factory": {
+    "manifest": {
+      "id": "recommendation-factory",
+      "title": "Recommendation Factory",
+      "blurb": "Run a streaming service. Learn a viewer's taste and recommend what they'll actually love.",
+      "level": "beginner",
+      "estMinutes": 8,
+      "icon": "ThumbsUp",
+      "concept": "recommendation systems",
+      "order": 12,
+      "objectives": [
+        "What a recommendation system does",
+        "How it learns your patterns from feedback",
+        "Why random recommendations drive people away"
+      ],
+      "glossary": [
+        {
+          "term": "Recommendation system",
+          "def": "An AI that suggests things you might like, based on what you've liked before."
+        },
+        {
+          "term": "Preference",
+          "def": "What someone tends to enjoy — their taste."
+        },
+        {
+          "term": "Hit rate",
+          "def": "How often your recommendations actually land (they watch / enjoy it)."
+        },
+        {
+          "term": "Feedback",
+          "def": "Signals like thumbs up/down or watch time that teach the system your taste."
+        }
+      ]
+    },
+    "steps": [
+      {
+        "kind": "explain",
+        "title": "Your streaming service",
+        "body": "You just launched a streaming app. Thousands of titles, and every viewer wants the app to *just know* what to play next.\n\nThat's a **recommendation system** — and you're about to be one. Your job: figure out a viewer's taste and suggest things they'll love."
+      },
+      {
+        "kind": "predict",
+        "title": "What keeps viewers around?",
+        "prompt": "Which app keeps people watching longer?",
+        "choices": [
+          "One that recommends random titles",
+          "One that learns your taste and matches it"
+        ],
+        "afterPick": "Matching taste wins — that's why your feed feels personal. Let's see it in action. →"
+      },
+      {
+        "kind": "widget",
+        "widget": "recommender",
+        "title": "Recommend to this viewer",
+        "youWillDo": "recommend titles that match the viewer's taste",
+        "body": "Check the viewer's **likes and dislikes** at the top. For each title, **Recommend** it or **Skip** it. Matches get watched (a hit!); mismatches make them bounce. Try to keep your **hit rate** high — then hit **Recommend at random** to see what a clueless feed does."
+      },
+      {
+        "kind": "explain",
+        "title": "You learned their patterns",
+        "body": "Good recommendations weren't luck — you used the viewer's **patterns** (loves space + action, hates romance) to predict what they'd enjoy.\n\nWhen you recommended at random, the hit rate cratered and they bounced. Real apps learn from your **feedback** — thumbs, watch time, skips — to keep improving."
+      },
+      {
+        "kind": "quiz",
+        "title": "How does it work?",
+        "question": "How does a recommendation system decide what to suggest?",
+        "choices": [
+          "It guesses completely at random",
+          "It finds patterns in what you've liked and predicts more like it",
+          "It shows everyone the exact same thing",
+          "It asks you to type what you want every time"
+        ],
+        "answer": 1,
+        "explain": "Patterns in your past behavior → predictions about what you'll enjoy next. The more feedback, the sharper it gets."
+      },
+      {
+        "kind": "reflect",
+        "title": "Say it your way",
+        "prompt": "How does an app like a music or video service seem to 'know' what you like?",
+        "placeholder": "It watches what I…",
+        "recall": {
+          "question": "A recommender gets better mainly by…",
+          "choices": [
+            "Learning from your feedback and patterns",
+            "Recommending random things",
+            "Showing everyone identical picks"
+          ],
+          "answer": 0,
+          "explain": "Your likes, skips, and watch time teach it your taste."
+        }
+      },
+      {
+        "kind": "explain",
+        "title": "It's everywhere 🎉",
+        "body": "You just built the idea behind the feeds you use every day — video apps, music, shopping, and social media all run **recommendation systems**.\n\nThey learn your patterns to predict what you'll enjoy. **Next up:** discover what all this AI actually *costs* to run."
+      }
+    ]
+  },
+  "token-power-grid": {
+    "manifest": {
+      "id": "token-power-grid",
+      "title": "Token Power Grid",
+      "blurb": "Every word an AI writes burns energy. Run a city's AI on a tight token budget without a blackout.",
+      "level": "intermediate",
+      "estMinutes": 9,
+      "icon": "Gauge",
+      "concept": "tokens and efficiency",
+      "order": 13,
+      "objectives": [
+        "What tokens are and why they cost energy",
+        "Why longer answers cost more",
+        "How to match an answer's length to what's actually needed"
+      ],
+      "glossary": [
+        {
+          "term": "Token",
+          "def": "A small chunk of text (about a word piece). AIs read and write in tokens."
+        },
+        {
+          "term": "Compute",
+          "def": "The computer work an AI does. More tokens = more compute = more energy."
+        },
+        {
+          "term": "Budget",
+          "def": "A limit on how many tokens you can spend."
+        },
+        {
+          "term": "Efficiency",
+          "def": "Getting the most helpfulness out of the fewest tokens."
+        }
+      ]
+    },
+    "steps": [
+      {
+        "kind": "explain",
+        "title": "The city runs on tokens",
+        "body": "A futuristic city powers all its AI helpers from one energy grid. Every time an AI generates text, it uses **tokens** — and tokens take **computation**, which takes **energy**.\n\nMore words → more tokens → more power drawn. The city engineer needs you: keep the AI helpful **and** keep the lights on."
+      },
+      {
+        "kind": "predict",
+        "title": "Short vs long",
+        "prompt": "Which answer costs the grid more energy?",
+        "choices": [
+          "A short, direct reply",
+          "A long, detailed reply with extra examples"
+        ],
+        "afterPick": "The long one — more tokens, more compute, more energy. Detail is great, but only when it's actually needed. Let's manage a real budget. →"
+      },
+      {
+        "kind": "widget",
+        "widget": "tokenGrid",
+        "title": "Answer the city within budget",
+        "youWillDo": "answer every request without blowing the token budget",
+        "body": "Each citizen request is **simple** or **needs detail**. Pick a reply length for each — but watch the **token meter**. Spend detail where it helps, keep simple asks short, and stay under budget. Go over and the grid browns out!"
+      },
+      {
+        "kind": "explain",
+        "title": "Match the length to the need",
+        "body": "The trick wasn't “always short” or “always long.” It was **matching the reply to the request**: short answers for simple questions, detail only where it genuinely helped.\n\nThat's efficiency — the most help for the fewest tokens. At the scale of millions of requests, it's the difference between a stable grid and a blackout."
+      },
+      {
+        "kind": "quiz",
+        "title": "Why does length matter?",
+        "question": "Why does a longer AI answer cost more to produce?",
+        "choices": [
+          "Longer answers are always wrong",
+          "Each extra token is extra computation, which uses more energy",
+          "The internet charges per letter",
+          "It doesn't cost any more"
+        ],
+        "answer": 1,
+        "explain": "Every token is real compute. More tokens = more energy and cost — which is why efficient prompting and answers matter at scale."
+      },
+      {
+        "kind": "reflect",
+        "title": "Say it your way",
+        "prompt": "Why is it smart to ask an AI for a short answer when a short answer is all you need?",
+        "placeholder": "Because every word the AI writes…",
+        "recall": {
+          "question": "Using fewer tokens (when you can) mainly helps by…",
+          "choices": [
+            "Saving compute, energy, and cost",
+            "Making the AI smarter",
+            "Changing the answer's meaning"
+          ],
+          "answer": 0,
+          "explain": "Fewer tokens → less compute → less energy and cost, with the same usefulness."
+        }
+      },
+      {
+        "kind": "explain",
+        "title": "Efficient AI 🎉",
+        "body": "You learned something most people never think about: AI has a **real running cost**. The huge models you use run in **data centers** that draw serious electricity.\n\nGood AI design isn't just about being smart — it's about being **efficient**: helpful answers, fewer wasted tokens. **Next up:** put it all together and run a whole AI product, start to finish."
       }
     ]
   },

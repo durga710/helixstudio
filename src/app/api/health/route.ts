@@ -1,5 +1,6 @@
 import { oauthProviders } from "@/lib/auth";
 import { aiProviderName } from "@/lib/ai/provider";
+import { bedrockEnabled } from "@/lib/ai/bedrock";
 import { redisEnabled } from "@/lib/redis";
 import { adminEmails } from "@/lib/admin";
 
@@ -26,6 +27,10 @@ export async function GET() {
       AUTH_GOOGLE: oauthProviders.google,
       OPENAI_API_KEY: Boolean(process.env.OPENAI_API_KEY),
       ANTHROPIC_API_KEY: Boolean(process.env.ANTHROPIC_API_KEY),
+      // Bedrock token presence (the value that gates Bedrock chat) + its project
+      // id. True here means AWS_BEARER_TOKEN_BEDROCK reached this deployment.
+      BEDROCK: bedrockEnabled(),
+      BEDROCK_WORKSPACE_ID: Boolean(process.env.BEDROCK_WORKSPACE_ID),
       REDIS: redisEnabled(),
       SENTRY: Boolean(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN),
       // Count only — proves /admin is gated and the allowlist env reached this

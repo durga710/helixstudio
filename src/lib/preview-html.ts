@@ -34,11 +34,21 @@ export async function composePreviewHtml(
   if (html === null) return null;
 
   const baseDir = entry.includes("/") ? entry.slice(0, entry.lastIndexOf("/") + 1) : "";
+  // Collapse "." and ".." segments so refs like "../js/app.js" resolve correctly.
+  const normalize = (path: string) => {
+    const out: string[] = [];
+    for (const seg of path.split("/")) {
+      if (seg === "" || seg === ".") continue;
+      if (seg === "..") out.pop();
+      else out.push(seg);
+    }
+    return out.join("/");
+  };
   const resolve = (ref: string) => {
     let p = ref.startsWith("./") ? ref.slice(2) : ref;
     if (p.startsWith("/")) p = p.slice(1);
     else p = baseDir + p;
-    return p;
+    return normalize(p);
   };
   const isLocalRef = (ref: string) =>
     Boolean(ref) && !/^([a-z]+:)?\/\//i.test(ref) && !ref.startsWith("data:") && !ref.startsWith("#");
@@ -58,16 +68,34 @@ export async function composePreviewHtml(
     }
   }
 
-  // <script src="app.js"></script> → <script>…</script>
+  // <script src="app.js"></script> → <script>…</script>. CRITICAL: preserve
+  // type="module" — dropping it turns module code (import/export) into a classic
+  // script that throws "Cannot use import statement outside a module" and renders
+  // a blank page. This was the #1 "nothing shows up" bug.
   const scriptRe = /<script\b[^>]*src=["']([^"']+)["'][^>]*>\s*<\/script>/gi;
   const scripts = Array.from(html.matchAll(scriptRe)).filter((m) => isLocalRef(m[1]!));
   for (const m of scripts) {
     const js = await getFile(resolve(m[1]!));
     if (js !== null) {
-      html = html.replace(m[0], `<script>\n${js}\n</script>`);
+      const isModule = /\btype\s*=\s*["']?module["']?/i.test(m[0]);
+      html = html.replace(m[0], `<script${isModule ? ' type="module"' : ""}>\n${js}\n</script>`);
       inlined.push(m[1]!);
     }
   }
+
+  // The preview iframe is sandboxed to a unique opaque origin, where touching
+  // localStorage/sessionStorage throws a SecurityError — which blanks any app
+  // that persists state (a calendar saving events, a todo list, …). Shim them
+  // with an in-memory store ONLY when the real ones are unavailable, so those
+  // apps run instead of crashing. Injected first so it's in place before app code.
+  const storageShim =
+    "<script>(function(){try{window.localStorage.getItem('_helix');}catch(e){" +
+    "var mk=function(){var m={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(m,k)?m[k]:null;}," +
+    "setItem:function(k,v){m[k]=String(v);},removeItem:function(k){delete m[k];},clear:function(){m={};}," +
+    "key:function(i){return Object.keys(m)[i]||null;},get length(){return Object.keys(m).length;}};};" +
+    "try{Object.defineProperty(window,'localStorage',{value:mk(),configurable:true});}catch(_){}" +
+    "try{Object.defineProperty(window,'sessionStorage',{value:mk(),configurable:true});}catch(_){}}})();</script>";
+  html = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (h) => h + storageShim) : storageShim + html;
 
   // Keyboard input only reaches a game if the iframe's document is focused.
   // Inject a tiny helper that focuses the canvas/window on load and on any click

@@ -8,8 +8,18 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Rocket, RotateCw } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CircleSlash,
+  ExternalLink,
+  Loader2,
+  MinusCircle,
+  Rocket,
+  RotateCw,
+  XCircle,
+} from "lucide-react";
+import { cn, timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
@@ -23,6 +33,32 @@ interface DeployInfo {
   dashboardUrl?: string;
   deploymentUrl?: string;
   state?: string;
+}
+
+type CheckStatus = "pass" | "warn" | "fail" | "skip";
+interface PreflightCheck {
+  id: "security" | "test" | "weight";
+  label: string;
+  status: CheckStatus;
+  detail: string;
+}
+interface PreflightReport {
+  checks: PreflightCheck[];
+  ok: boolean;
+}
+interface DeployEvent {
+  id: string;
+  state: string;
+  createdAt?: string;
+  url?: string;
+  target?: string;
+}
+
+function CheckIcon({ status }: { status: CheckStatus }) {
+  if (status === "pass") return <CheckCircle2 className="h-3.5 w-3.5 text-ok" />;
+  if (status === "warn") return <AlertTriangle className="h-3.5 w-3.5 text-warn" />;
+  if (status === "fail") return <XCircle className="h-3.5 w-3.5 text-bad" />;
+  return <MinusCircle className="h-3.5 w-3.5 text-txt3" />;
 }
 
 interface DeployPlatform {
@@ -58,6 +94,12 @@ export function DeployDialog({
   const [busy, setBusy] = useState(false);
   const [platforms, setPlatforms] = useState<DeployPlatform[]>([]);
   const [provider, setProvider] = useState("vercel");
+  // Real pre-deploy gate (security scan + tests + bundle weight).
+  const [preflight, setPreflight] = useState<PreflightReport | null>(null);
+  const [preflightLoading, setPreflightLoading] = useState(false);
+  const [preflightError, setPreflightError] = useState(false);
+  // Monitoring: recent deployments for the linked project.
+  const [events, setEvents] = useState<DeployEvent[]>([]);
 
   // The platforms the user has connected a token for (deploy targets to offer).
   useEffect(() => {
@@ -89,17 +131,47 @@ export function DeployDialog({
     try {
       const res = await fetch(`/api/workspaces/${workspaceId}/deploy`, { cache: "no-store" });
       const json = await res.json().catch(() => null);
-      if (res.ok && json?.ok) setInfo(json.data as DeployInfo);
-      else setInfo({ linked: false });
+      if (res.ok && json?.ok) {
+        const data = json.data as DeployInfo;
+        setInfo(data);
+        // Linked → pull recent deployments for the monitor view.
+        if (data.linked) {
+          fetch(`/api/workspaces/${workspaceId}/deploy/logs`, { cache: "no-store" })
+            .then((r) => r.json())
+            .then((j) => {
+              if (j?.ok) setEvents((j.data.events ?? []) as DeployEvent[]);
+            })
+            .catch(() => {});
+        }
+      } else setInfo({ linked: false });
     } catch {
       setInfo({ linked: false });
     }
     setLoading(false);
   }, [workspaceId]);
 
+  // Run the pre-deploy gate (security scan + tests + weight) when we have a repo.
+  const runPreflight = useCallback(async () => {
+    setPreflightLoading(true);
+    setPreflightError(false);
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/deploy/preflight`, { method: "POST" });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) setPreflight(json.data as PreflightReport);
+      else setPreflightError(true);
+    } catch {
+      setPreflightError(true);
+    }
+    setPreflightLoading(false);
+  }, [workspaceId]);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (hasRepo) void runPreflight();
+  }, [hasRepo, runPreflight]);
 
   const chosen = platforms.find((p) => p.name === provider);
   const chosenLabel = chosen?.label ?? "Vercel";
@@ -165,6 +237,26 @@ export function DeployDialog({
                 <CheckCircle2 className="h-3.5 w-3.5 text-ok" />
                 Auto-deploys on every push to your repo.
               </p>
+              {/* Monitor: recent deployments pulled live from the platform. */}
+              {events.length > 0 && (
+                <div className="rounded-card border border-border2 bg-panel2/50 p-3">
+                  <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-txt3">
+                    Recent deployments
+                  </div>
+                  <div className="space-y-1">
+                    {events.slice(0, 5).map((e) => {
+                      const p = STATE_PILL[e.state] ?? STATE_PILL.UNKNOWN;
+                      return (
+                        <div key={e.id} className="flex items-center gap-2 text-[12px]">
+                          <Pill tone={p.tone}>{p.label}</Pill>
+                          <span className="text-txt3">{e.target ?? "production"}</span>
+                          {e.createdAt && <span className="ml-auto text-[11px] text-txt3">{timeAgo(e.createdAt)}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div className="flex gap-2 pt-1">
                 <Button variant="ghost" onClick={() => void load()} disabled={busy}>
                   <RotateCw className="h-3.5 w-3.5" /> Refresh status
@@ -208,7 +300,48 @@ export function DeployDialog({
                     ))}
                 </div>
               )}
-              <Button onClick={() => void deploy()} disabled={busy} className="w-full justify-center">
+              {/* Pre-deploy pipeline: real security scan + tests + weight. */}
+              {(preflightLoading || preflight || preflightError) && (
+                <div className="rounded-card border border-border2 bg-panel2/50 p-3">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-txt3">
+                    Pre-deploy checks
+                    {preflightLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+                  </div>
+                  {preflight?.checks.map((c) => (
+                    <div key={c.id} className="flex items-start gap-2 py-1 text-[12px]">
+                      <span className="mt-0.5">
+                        <CheckIcon status={c.status} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="font-medium text-txt">{c.label}</span>
+                        <span className="text-txt3"> — {c.detail}</span>
+                      </span>
+                    </div>
+                  ))}
+                  {preflight && !preflight.ok && (
+                    <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-bad">
+                      <CircleSlash className="h-3.5 w-3.5 shrink-0" /> Fix the blocking issue above before deploying.
+                    </p>
+                  )}
+                  {preflightError && !preflightLoading && (
+                    <p className="flex items-center gap-1.5 py-1 text-[11.5px] text-warn">
+                      <CircleSlash className="h-3.5 w-3.5 shrink-0" /> Couldn&apos;t run the pre-deploy checks.
+                      <button
+                        type="button"
+                        onClick={() => void runPreflight()}
+                        className="font-medium text-accent underline-offset-2 transition-colors hover:underline"
+                      >
+                        Retry
+                      </button>
+                    </p>
+                  )}
+                </div>
+              )}
+              <Button
+                onClick={() => void deploy()}
+                disabled={busy || preflightLoading || (preflight ? !preflight.ok : false)}
+                className="w-full justify-center"
+              >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
                 Deploy to {chosenLabel}
               </Button>

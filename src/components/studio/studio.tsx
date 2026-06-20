@@ -39,12 +39,15 @@ export function Studio({
   workspace,
   isGuest,
   isOwner = true,
+  isAdmin = false,
   ownerName,
 }: {
   workspace: WorkspaceMeta;
   isGuest?: boolean;
   /** False when a Space member is viewing a teammate's shared workspace. */
   isOwner?: boolean;
+  /** Admin preview: offer durable multi-agent refactor jobs. */
+  isAdmin?: boolean;
   ownerName?: string;
 }) {
   const [changes, setChanges] = useState<Changes | null>(null);
@@ -67,6 +70,7 @@ export function Studio({
           workspace={workspace}
           isGuest={isGuest}
           isOwner={isOwner}
+          isAdmin={isAdmin}
           onChanges={(written, deleted) =>
             setChanges((c) => ({ written, deleted, nonce: (c?.nonce ?? 0) + 1 }))
           }

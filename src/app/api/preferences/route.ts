@@ -13,12 +13,13 @@ import { ok, apiErrors } from "@/lib/api-response";
 import { guard } from "@/lib/route-helpers";
 import { isAdminEmail } from "@/lib/admin";
 import { sanitizeBaseUrl, invalidateGitAuth } from "@/lib/git";
+import { liveBedrockModels, bedrockEnabled } from "@/lib/ai/bedrock";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PatchSchema = z.object({
-  aiProvider: z.enum(["openai", "anthropic", "local", "gemini"]).optional(),
+  aiProvider: z.enum(["openai", "anthropic", "local", "gemini", "bedrock"]).optional(),
   aiModel: z.string().max(120).optional(),
   aiBaseUrl: z.string().max(300).optional(),
   openaiKey: z.string().max(300).optional(),
@@ -67,6 +68,14 @@ export async function GET() {
       gemini: admin && Boolean(process.env.GEMINI_API_KEY),
     },
     githubTokenSet: Boolean(prefs?.githubToken),
+    // Bedrock-served default models (no BYO key) — only the ones confirmed live.
+    bedrockEnabled: bedrockEnabled(),
+    bedrockModels: liveBedrockModels().map((m) => ({
+      modelId: m.modelId,
+      label: m.label,
+      contextLabel: m.contextLabel ?? "",
+      protocol: m.protocol,
+    })),
     // Which git hosts are connected (token present + required config).
     gitConnections: {
       github: Boolean(prefs?.githubToken || githubAccount?.access_token),

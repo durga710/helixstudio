@@ -126,7 +126,7 @@ export function LessonRunner({ lesson }: { lesson: Lesson }) {
       <div className="pad-screen">
         <div className="mx-auto max-w-[620px]">
           <div className="mb-5 flex items-center gap-3">
-            <Link href="/lab" className="text-txt3 transition-colors hover:text-txt" title="Back to AI Lab">
+            <Link href="/academy" className="text-txt3 transition-colors hover:text-txt" title="Back to AI Academy">
               <ArrowLeft className="h-4 w-4" />
             </Link>
             <span className="text-[13px] font-semibold text-txt">{lesson.manifest.title}</span>
@@ -168,7 +168,7 @@ export function LessonRunner({ lesson }: { lesson: Lesson }) {
             </button>
           </div>
         </div>
-        <TutorPanel lessonId={lessonId} stepIndex={0} state={labState} />
+        <TutorPanel lessonId={lessonId} stepIndex={0} state={labState} concept={lesson.manifest.concept} />
       </div>
     );
   }
@@ -188,10 +188,10 @@ export function LessonRunner({ lesson }: { lesson: Lesson }) {
             </p>
             <div className="mt-6 flex items-center justify-center gap-2">
               <Link
-                href="/lab"
+                href="/academy"
                 className="rounded-[10px] border border-border2 bg-panel2 px-4 py-2 text-[13px] text-txt2 transition-colors hover:border-accent hover:text-txt"
               >
-                Back to AI Lab
+                Back to AI Academy
               </Link>
               <button
                 onClick={() => {
@@ -217,7 +217,7 @@ export function LessonRunner({ lesson }: { lesson: Lesson }) {
       <div className="mx-auto max-w-[760px]">
         {/* Header: progress + words + exit */}
         <div className="mb-5 flex items-center gap-3">
-          <Link href="/lab" className="text-txt3 transition-colors hover:text-txt" title="Back to AI Lab">
+          <Link href="/academy" className="text-txt3 transition-colors hover:text-txt" title="Back to AI Academy">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <span className="truncate text-[13px] font-semibold text-txt">{lesson.manifest.title}</span>
@@ -359,7 +359,18 @@ export function LessonRunner({ lesson }: { lesson: Lesson }) {
         </div>
       </div>
 
-      <TutorPanel lessonId={lessonId} stepIndex={i} state={labState} />
+      <TutorPanel
+        lessonId={lessonId}
+        stepIndex={i}
+        state={labState}
+        concept={lesson.manifest.concept}
+        step={{
+          kind: step.kind,
+          title: "title" in step ? step.title : undefined,
+          youWillDo: "youWillDo" in step ? step.youWillDo : undefined,
+          widget: step.kind === "widget" ? step.widget : undefined,
+        }}
+      />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { apiErrors } from "@/lib/api-response";
 import { runAgentTurn } from "@/lib/agent-turn";
+import { runBuildPipeline } from "@/lib/orchestrator";
 import { maybeCompactConversation } from "@/lib/conversation-memory";
 import { db } from "@/lib/db";
 import { isAdminEmail } from "@/lib/admin";
@@ -27,17 +28,24 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const ChatSchema = z.object({
-  message: z.string().min(1).max(8000),
-  // A model-only instruction prefix (e.g. the build studio's scaffold brief).
-  // The model sees it, but it's never persisted or shown — keeps internal
-  // prompts out of the chat UI / editor history.
-  brief: z.string().max(2000).optional(),
+  // Roomy enough for a detailed one-off request pasted straight into the chat.
+  // Truly large specs (a whole-app brief) are decomposed into milestones by the
+  // planner first, so each turn's message stays a compact, focused instruction.
+  message: z.string().min(1).max(24_000),
+  // A model-only instruction prefix (e.g. the build studio's scaffold brief, or
+  // a milestone detail from the planner). The model sees it, but it's never
+  // persisted or shown — keeps internal prompts out of the chat UI / history.
+  brief: z.string().max(8000).optional(),
   // "plan": read-only agent turn that replies with an implementation plan.
   mode: z.enum(["plan", "build"]).default("build"),
   // A build turn that writes files runs + verifies in the sandbox (auto-fixing
   // once). Optional: when omitted the server applies VERIFY_DEFAULT_ON; the UI
   // sends an explicit value from its toggle.
   verify: z.boolean().optional(),
+  // /build opts into the full seven-agent pipeline (planner → analyzer →
+  // architect → engineer → reviewer → security → performance), streaming
+  // per-agent `phase` events. The editor keeps its lean single turn.
+  pipeline: z.boolean().optional(),
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -78,15 +86,27 @@ export async function POST(req: Request, { params }: Params) {
 
       turnPromise = (async () => {
         try {
-          const result = await runAgentTurn({
-            ws,
-            userId: user.id,
-            message,
-            briefPrefix: parsed.data.brief,
-            mode: parsed.data.mode,
-            verify: parsed.data.verify,
-            onEvent: (e) => write(e),
-          });
+          // /build runs the full seven-agent pipeline; everything else (the
+          // editor) runs the lean single turn. Both share the event channel.
+          const usePipeline = parsed.data.pipeline && parsed.data.mode === "build";
+          const result = usePipeline
+            ? await runBuildPipeline({
+                ws,
+                userId: user.id,
+                message,
+                briefPrefix: parsed.data.brief,
+                verify: parsed.data.verify,
+                onEvent: (e) => write(e),
+              })
+            : await runAgentTurn({
+                ws,
+                userId: user.id,
+                message,
+                briefPrefix: parsed.data.brief,
+                mode: parsed.data.mode,
+                verify: parsed.data.verify,
+                onEvent: (e) => write(e),
+              });
           if ("error" in result) {
             write({ type: "error", message: result.error, code: result.code });
           } else {
@@ -98,6 +118,8 @@ export async function POST(req: Request, { params }: Params) {
               changes: result.changes,
               verify: result.verify,
               guestRemaining: result.guestRemaining,
+              tokensUsed: result.tokensUsed,
+              phases: "phases" in result ? result.phases : undefined,
             });
           }
         } catch (e) {

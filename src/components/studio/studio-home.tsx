@@ -13,7 +13,6 @@ import {
   Loader2,
   MessageSquare,
   FileCode2,
-  Trash2,
   Lock,
   UploadCloud,
   Users,
@@ -34,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { RepoPicker } from "@/components/studio/repo-picker";
 import { GitHostPicker } from "@/components/studio/git-host-picker";
 import { useWorkspaceCreation } from "@/components/studio/use-workspace-creation";
+import { WorkspaceCardMenu } from "@/components/screens/workspace-card-menu";
 import { GAME_CATEGORIES } from "@/lib/templates/engines";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 
@@ -104,10 +104,8 @@ export function StudioHome({
   const [picking, setPicking] = useState(false);
   const [pickingHost, setPickingHost] = useState(false);
   const [scratchName, setScratchName] = useState("");
-  const [idea, setIdea] = useState("");
   const [namePrompt, setNamePrompt] = useState(false);
   const [showOther, setShowOther] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
   const { creating, error, setError, uploadNote, createScratch, createGame, importFolder, importRepo: importRepoBase } =
@@ -132,27 +130,14 @@ export function StudioHome({
     }
   }
 
-  async function deleteWorkspace(id: string) {
-    if (deleting) return;
-    if (!window.confirm("Delete this workspace? Its files and chat are gone for good (GitHub repos are untouched).")) return;
-    setDeleting(id);
-    try {
-      const res = await fetch(`/api/workspaces/${id}`, { method: "DELETE" });
-      if (res.ok) router.refresh();
-      else setError("Couldn't delete that workspace — try again.");
-    } catch {
-      setError("Network error — couldn't delete the workspace.");
-    }
-    setDeleting(null);
-  }
-
   const gameCats = GAME_CATEGORIES.filter((c) => !c.adminOnly || isAdmin);
 
   function ProjectCard(w: WorkspaceCard) {
     return (
       <li key={w.id} className="glass-panel group relative p-4 transition-colors hover:border-accent">
+        <WorkspaceCardMenu id={w.id} name={w.name} />
         <button type="button" onClick={() => router.push(`/editor/${w.id}`)} className="w-full text-left">
-          <div className="mb-2 flex items-center gap-2">
+          <div className="mb-2 flex items-center gap-2 pr-16">
             {w.kind === "game" ? (
               <Gamepad2 className="h-4 w-4 shrink-0 text-accent" />
             ) : w.mode === "IMPORT" ? (
@@ -186,14 +171,6 @@ export function StudioHome({
             <span className="ml-auto">{timeAgo(w.updatedAt)}</span>
           </div>
         </button>
-        <button
-          type="button"
-          aria-label="Delete workspace"
-          onClick={() => void deleteWorkspace(w.id)}
-          className="absolute right-3 top-9 text-txt3 opacity-0 transition-all hover:text-bad group-hover:opacity-100"
-        >
-          {deleting === w.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-        </button>
       </li>
     );
   }
@@ -209,76 +186,24 @@ export function StudioHome({
         {kind === "app" && (
           <section>
             <h1 className="mb-1.5 text-2xl font-semibold tracking-tight text-txt">Build an App</h1>
-            <p className="mb-6 text-sm text-txt3">Start from a description, an existing repo, or a folder on your computer.</p>
-
-            {/* Prompt-first: the idea seeds a premium starter at creation, so the
-                editor opens already styled + running. */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!idea.trim() || creating) return;
-                const name = idea.trim().split(/\s+/).slice(0, 6).join(" ").slice(0, 60);
-                void createScratch(name, idea);
-              }}
-              className="mb-4 rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[linear-gradient(110deg,color-mix(in_srgb,var(--accent)_14%,transparent),color-mix(in_srgb,#c084fc_10%,transparent))] p-4"
-            >
-              <div className="mb-2.5 flex items-center gap-2 text-sm font-medium text-txt">
-                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[var(--brand-cyan,#00ffd1)] via-accent to-[#c084fc]">
-                  <Sparkles className="h-4 w-4 text-white" strokeWidth={1.8} />
-                </span>
-                What do you want to build?
-              </div>
-              <div className="flex gap-2">
-                <input
-                  autoFocus
-                  value={idea}
-                  onChange={(e) => setIdea(e.target.value)}
-                  placeholder="e.g. a portfolio for a photographer, a habit tracker, a team dashboard…"
-                  className="flex-1 rounded-lg border border-border bg-bg2 px-3.5 py-2.5 text-sm text-txt placeholder:text-txt3 focus:border-accent focus:outline-none"
-                />
-                <Button type="submit" disabled={creating || !idea.trim()}>
-                  {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Build it"}
-                </Button>
-              </div>
-              <p className="mt-2 text-[11px] text-txt3">
-                Helix sets up a styled, working starter and builds your idea into it — refine it in chat.
-              </p>
-            </form>
+            <p className="mb-6 text-sm text-txt3">Start from scratch, an existing repo, or a folder on your computer.</p>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div
-                className={cn("glass-panel-strong p-6 text-left transition-colors", !namePrompt && "cursor-pointer hover:border-accent")}
-                onClick={() => !namePrompt && setNamePrompt(true)}
+                className={cn(
+                  "glass-panel-strong cursor-pointer p-6 text-left transition-colors hover:border-accent",
+                  namePrompt && "border-accent",
+                )}
+                onClick={() => setNamePrompt((v) => !v)}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(e) => e.key === "Enter" && !namePrompt && setNamePrompt(true)}
+                onKeyDown={(e) => e.key === "Enter" && setNamePrompt((v) => !v)}
               >
                 <span className="mb-4 grid h-10 w-10 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--green)_35%,transparent)] bg-[color-mix(in_srgb,var(--green)_12%,transparent)]">
                   <FilePlus2 className="h-5 w-5 text-ok" />
                 </span>
                 <h2 className="mb-1 text-base font-medium text-txt">Create from scratch</h2>
                 <p className="text-xs leading-relaxed text-txt3">Start empty. Describe what you want; files appear as Helix writes them.</p>
-                {namePrompt && (
-                  <form
-                    className="mt-4 flex gap-2"
-                    onClick={(e) => e.stopPropagation()}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void createScratch(scratchName);
-                    }}
-                  >
-                    <input
-                      autoFocus
-                      value={scratchName}
-                      onChange={(e) => setScratchName(e.target.value)}
-                      placeholder="Project name (optional)"
-                      className="flex-1 rounded-lg border border-border bg-bg2 px-3 py-2 text-xs text-txt placeholder:text-txt3 focus:border-accent focus:outline-none"
-                    />
-                    <Button type="submit" disabled={creating}>
-                      {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Create"}
-                    </Button>
-                  </form>
-                )}
               </div>
 
               <button
@@ -340,6 +265,27 @@ export function StudioHome({
                 }}
               />
             </div>
+
+            {namePrompt && (
+              <form
+                className="mt-4 flex flex-col gap-2 rounded-xl border border-accent/40 bg-panel2/40 p-4 sm:flex-row sm:items-center"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void createScratch(scratchName);
+                }}
+              >
+                <input
+                  autoFocus
+                  value={scratchName}
+                  onChange={(e) => setScratchName(e.target.value)}
+                  placeholder="Project name (optional)"
+                  className="flex-1 rounded-lg border border-border bg-bg2 px-3 py-2 text-sm text-txt placeholder:text-txt3 focus:border-accent focus:outline-none"
+                />
+                <Button type="submit" disabled={creating} className="sm:w-auto">
+                  {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Create project"}
+                </Button>
+              </form>
+            )}
           </section>
         )}
 
@@ -500,13 +446,14 @@ export function StudioHome({
           </div>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {sharedWorkspaces.map((w) => (
-              <li key={w.id}>
+              <li key={w.id} className="relative">
+                <WorkspaceCardMenu id={w.id} name={w.name} canManage={false} />
                 <button
                   type="button"
                   onClick={() => router.push(`/editor/${w.id}`)}
                   className="glass-panel block w-full p-4 text-left transition-colors hover:border-accent"
                 >
-                  <div className="mb-1 flex items-center gap-2">
+                  <div className="mb-1 flex items-center gap-2 pr-8">
                     {w.kind === "game" ? (
                       <Gamepad2 className="h-4 w-4 shrink-0 text-accent" />
                     ) : w.mode === "IMPORT" ? (

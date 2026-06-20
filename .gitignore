@@ -41,3 +41,6 @@ desktop/dist/
 /playwright-report/
 /blob-report/
 /.playwright/
+
+# local-only Bedrock diagnostic (reads the bearer token)
+/scripts/probe-bedrock.mjs

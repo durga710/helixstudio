@@ -42,6 +42,50 @@ function primaryLanguage(files: SourceFile[]): string {
   return best;
 }
 
+/**
+ * A real data-flow model: the architectural layers ACTUALLY present in the repo,
+ * detected from file paths + contents (not a hardcoded list). Ordered request →
+ * storage so it reads as a pipeline.
+ */
+function computeDataFlow(files: SourceFile[], deps: Record<string, string>, database: string): string[] {
+  const hasPath = (re: RegExp) => files.some((f) => re.test(f.path));
+  const hasCode = (re: RegExp) => files.some((f) => re.test(f.content));
+  const layers: string[] = [];
+
+  if (hasPath(/\.(tsx|jsx|vue|svelte)$/) || hasPath(/(^|\/)public\//) || hasPath(/index\.html$/)) {
+    layers.push("Web client");
+  }
+  if (
+    hasPath(/(^|\/)app\/api\//) ||
+    hasPath(/(^|\/)pages\/api\//) ||
+    hasPath(/(^|\/)routes?\//) ||
+    hasPath(/route\.[jt]s$/) ||
+    hasCode(/\b(?:app|router)\.(?:get|post|put|delete|patch)\s*\(/)
+  ) {
+    layers.push("API routes");
+  }
+  if (hasPath(/(^|\/)(lib|services|server)\//) || hasCode(/["']use server["']/)) {
+    layers.push("Business logic");
+  }
+  if (database !== "None detected") layers.push(database.split(" ")[0]!);
+  else if (hasPath(/\.sql$/) || hasPath(/(^|\/)models?\//)) layers.push("Data store");
+  if (hasCode(/https?:\/\/api\./) || deps.axios || deps.stripe || deps.openai || deps["@anthropic-ai/sdk"]) {
+    layers.push("External APIs");
+  }
+
+  return layers.length > 0 ? layers : ["Client", "Logic", "Storage"];
+}
+
+/** A genuine (if simple) coupling signal: count relative import/require edges. */
+function internalImportEdges(files: SourceFile[]): number {
+  let edges = 0;
+  for (const f of files) {
+    const matches = f.content.match(/\b(?:import|require)\b[^\n;]*?['"](\.[^'"]+)['"]/g);
+    if (matches) edges += matches.length;
+  }
+  return edges;
+}
+
 function readmeSummary(files: SourceFile[]): string | null {
   const readme = files.find((f) => /^readme\.(md|mdx|txt)$/i.test(f.path));
   if (!readme) return null;
@@ -142,9 +186,8 @@ export function analyzeRepo(projectId: string, repoName: string, files: SourceFi
     });
   }
 
-  const dataFlow = deps.next
-    ? ["Web client", "Route handlers", "Business logic", database === "None detected" ? "External APIs" : database.split(" ")[0]!]
-    : ["Client", "API", "Logic", "Storage"];
+  const dataFlow = computeDataFlow(files, deps, database);
+  const importEdges = internalImportEdges(files);
 
   return {
     projectId,
@@ -157,6 +200,7 @@ export function analyzeRepo(projectId: string, repoName: string, files: SourceFi
       { k: "Database", v: database },
       { k: "Auth", v: auth },
       { k: "Entry points", v: entryCandidates.slice(0, 2).join(" · ") || "Not detected" },
+      { k: "Internal deps", v: `${importEdges} import edge${importEdges === 1 ? "" : "s"} across ${files.length} files` },
     ],
     dataFlow,
     dependencies: dependencies.length > 0 ? dependencies : [{ name: "no package.json", version: "—", status: "ok" }],

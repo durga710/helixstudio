@@ -47,4 +47,10 @@ export const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
   anthropic: "claude-sonnet-4-6",
   local: "llama3.1",
   gemini: "gemini-2.0-flash",
+  // Bedrock platform default: GPT-OSS 120B — the strongest model this AWS
+  // account actually has access to (verified live 2026-06-19: 200 + clean
+  // tool_calls). Open-weight, so it's cheap on the platform's metered bill.
+  // Every Claude id is currently 403/404 on this account (no entitlement —
+  // see docs/BEDROCK-MODEL-ACCESS.md), so a Claude default would dead-end.
+  bedrock: "openai.gpt-oss-120b-1:0",
 };

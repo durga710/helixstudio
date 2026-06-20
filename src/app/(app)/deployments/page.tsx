@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Rocket } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db, dbEnabled } from "@/lib/db";
@@ -70,8 +71,11 @@ export default async function DeploymentsPage() {
             <Rocket className="h-8 w-8 text-txt3" strokeWidth={1.3} />
             <p className="text-sm text-txt3">No deployments yet.</p>
             <p className="max-w-xs text-xs text-txt3">
-              Open a workspace in the Editor, then use the Deploy button to push to Vercel, Netlify, or another
-              platform.
+              Open a workspace in the{" "}
+              <Link href="/editor" className="text-accent transition-colors hover:brightness-110">
+                Editor
+              </Link>
+              , then use the Deploy button to push to Vercel, Netlify, or another platform.
             </p>
           </Card>
         </div>

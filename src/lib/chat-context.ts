@@ -179,7 +179,7 @@ export interface ContextParts {
  * Hard input ceiling. Trim order: digest → tree (depth-1 rebuild) → verbatim
  * window down to 4 messages. Rules, notes, and the current message survive.
  */
-export function fitBudget(parts: ContextParts): ContextParts {
+export function fitBudget(parts: ContextParts, maxChars: number = MAX_INPUT_CHARS): ContextParts {
   const size = (p: ContextParts) =>
     p.rules.length +
     p.workspaceMeta.length +
@@ -191,12 +191,12 @@ export function fitBudget(parts: ContextParts): ContextParts {
     p.recent.reduce((n, m) => n + m.content.length, 0) +
     p.userMessage.length;
 
-  if (size(parts) <= MAX_INPUT_CHARS) return parts;
+  if (size(parts) <= maxChars) return parts;
   parts = { ...parts, digest: "" };
-  if (size(parts) <= MAX_INPUT_CHARS) return parts;
+  if (size(parts) <= maxChars) return parts;
   parts = { ...parts, tree: treeOutline(parts.treePaths, 400) };
-  if (size(parts) <= MAX_INPUT_CHARS) return parts;
-  while (parts.recent.length > 4 && size(parts) > MAX_INPUT_CHARS) {
+  if (size(parts) <= maxChars) return parts;
+  while (parts.recent.length > 4 && size(parts) > maxChars) {
     parts = { ...parts, recent: parts.recent.slice(1) };
   }
   return parts;

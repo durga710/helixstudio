@@ -1,32 +1,25 @@
 "use client";
 
-// Authenticated app shell: redirects to /login if there's no session, otherwise
-// renders the sidebar + topbar around the page. Add pages under app/(app)/.
+// App shell — opens DIRECTLY to the app (no forced login). The mock auth in
+// lib/auth.ts is kept as an OPTIONAL feature: if a stored session exists we use
+// it, otherwise the app runs as a guest. Wire login as a real gate only if the
+// user asks for it. Add pages under app/(app)/.
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { getUser, type User } from "@/lib/auth";
 import { APP_NAME } from "@/lib/config";
 import Sidebar from "@/components/sidebar";
 import Topbar from "@/components/topbar";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [ready, setReady] = useState(false);
+const GUEST: User = { name: "Guest", email: "guest@demo.app" };
 
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User>(GUEST);
+
+  // Hydrate a real session if one exists — but never block on it.
   useEffect(() => {
     const u = getUser();
-    if (!u) {
-      router.replace("/login");
-      return;
-    }
-    setUser(u);
-    setReady(true);
-  }, [router]);
-
-  if (!ready || !user) {
-    return <div className="grid min-h-screen place-items-center text-muted">Loading…</div>;
-  }
+    if (u) setUser(u);
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-bg">

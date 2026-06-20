@@ -32,10 +32,10 @@ import {
   UploadCloud,
   X,
   Pencil,
-  Trash2,
+  Terminal as TerminalIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
+import { pickPreviewEntry } from "@/lib/preview-html";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
@@ -55,6 +55,9 @@ import { IntentsPanel } from "@/components/studio/intents-panel";
 import { UndoDialog } from "@/components/studio/undo-dialog";
 import { IntentPopover } from "@/components/studio/intent-popover";
 import type { OnMount } from "@monaco-editor/react";
+import { useAppRunner } from "@/components/studio/use-app-runner";
+import { useWorkspaceDiff } from "@/components/studio/use-workspace-diff";
+import { useLivePreview } from "@/components/studio/use-live-preview";
 
 const editorLoading = (
   <div className="grid h-full place-items-center text-sm text-txt3">
@@ -75,6 +78,12 @@ const MonacoDiff = dynamic(
     ssr: false,
     loading: () => editorLoading,
   },
+);
+
+// xterm touches the DOM, so load the terminal client-side only.
+const TerminalPanel = dynamic(
+  () => import("@/components/studio/terminal-panel").then((m) => m.TerminalPanel),
+  { ssr: false },
 );
 
 const LANGUAGES: Record<string, string> = {
@@ -167,21 +176,17 @@ export function WorkspacePanel({
   const [pushing, setPushing] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
   const [envOpen, setEnvOpen] = useState(false);
-  // Project name (editable inline) + delete-project flow.
+  const [showTerminal, setShowTerminal] = useState(false);
+  // Project name (editable inline). Deletion lives on the dashboard.
   const [name, setName] = useState(workspace.name);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(workspace.name);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deletingWs, setDeletingWs] = useState(false);
 
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  const [previewInfo, setPreviewInfo] = useState<string | null>(null);
   const [previewNonce, setPreviewNonce] = useState(0);
   // Games need the iframe focused for keyboard input; a one-time "click to play"
   // hint makes the first focus obvious (the in-iframe helper re-focuses on click).
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const [playOverlay, setPlayOverlay] = useState(true);
-  const composeSeq = useRef(0);
   const monacoTheme = useMonacoTheme();
 
   // Intent ledger: per-line provenance in the Code tab + the Intents tab's
@@ -201,6 +206,10 @@ export function WorkspacePanel({
   // new lines highlighted in the Code tab, with a hover/click provenance
   // card anchored next to them. Works without the Ledger toggle.
   const [recentPaths, setRecentPaths] = useState<string[]>([]);
+  // Just-changed files: highlighted + sorted to the top of the file tree, and
+  // summarized in a "what changed" banner — both fade a few seconds after a turn.
+  const [recentTreePaths, setRecentTreePaths] = useState<Set<string>>(new Set());
+  const [turnChanges, setTurnChanges] = useState<{ written: number; deleted: number } | null>(null);
   const [popover, setPopover] = useState<{
     line: number;
     /** First line of the highlighted block — the card's identity (prevents
@@ -217,34 +226,6 @@ export function WorkspacePanel({
   // Intents the user has dismissed — never auto-reopen their provenance card.
   const dismissedIntents = useRef<Set<string>>(new Set());
 
-  // Framework app runner (Next.js/Vite/Flask… on this machine in dev, in a
-  // cloud VM with a public preview URL on the hosted site)
-  interface RunInfo {
-    status: "exporting" | "installing" | "starting" | "running" | "stopped" | "error";
-    framework: string;
-    url: string | null;
-    port: number | null;
-    reachable: boolean;
-    logs: string[];
-  }
-  const [run, setRun] = useState<RunInfo | null>(null);
-  const [runBusy, setRunBusy] = useState(false);
-  const logsEndRef = useRef<HTMLDivElement>(null);
-
-  // Diff tab: pending workspace changes vs the base branch.
-  interface DiffEntry {
-    path: string;
-    status: "added" | "modified" | "deleted";
-    base: string;
-    current: string;
-  }
-  const [diffEntries, setDiffEntries] = useState<DiffEntry[] | null>(null);
-  const [diffLoading, setDiffLoading] = useState(false);
-  const [diffError, setDiffError] = useState<string | null>(null);
-  const [diffSelected, setDiffSelected] = useState<string | null>(null);
-  const [review, setReview] = useState<string | null>(null);
-  const [reviewing, setReviewing] = useState(false);
-
   // A workspace with a package.json (or python entry) is a framework app —
   // the static compose can't represent it; the runner can.
   // A Godot game compiles on demand and plays in an iframe (no live srcDoc).
@@ -255,6 +236,28 @@ export function WorkspacePanel({
       files.some((f) => /^(app|main|server)\.py$/.test(f.path)),
     [files],
   );
+
+  // Runner + diff state live in focused hooks, called unconditionally here so
+  // their state persists across tab switches exactly as it did inline.
+  const { run, runBusy, startApp, stopApp, logsEndRef } = useAppRunner({
+    workspaceId: workspace.id,
+    isFrameworkApp,
+    tab,
+    onNote: setNote,
+  });
+  const {
+    diffEntries,
+    diffLoading,
+    diffError,
+    diffSelected,
+    setDiffSelected,
+    diffSelectedEntry,
+    review,
+    setReview,
+    reviewing,
+    loadDiff,
+    runReview,
+  } = useWorkspaceDiff({ workspaceId: workspace.id, tab, changesNonce: changes?.nonce });
 
   const dirtyCount = Object.keys(dirty).length;
   const dirtyPaths = useMemo(() => new Set(Object.keys(dirty)), [dirty]);
@@ -357,7 +360,18 @@ export function WorkspacePanel({
     setPreviewNonce((n) => n + 1); // recompose the preview with fresh files
     setLedgerNonce((n) => n + 1); // refetch blame + the intents timeline
     setRecentPaths(written); // highlight the fresh lines in the Code tab
+    setRecentTreePaths(new Set(written)); // highlight + float them in the tree
+    setTurnChanges(written.length || deleted.length ? { written: written.length, deleted: deleted.length } : null);
     setPopover(null);
+    // Jump to the file that changed so the user SEES it instead of hunting — the
+    // page/entry first, else the first real (non-config) file the AI wrote.
+    if (written.length) {
+      const isConfig = (p: string) =>
+        /\.(json|lock|md|gitignore)$/i.test(p) ||
+        /(^|\/)(package|tsconfig|next\.config|postcss\.config|eslint\.config|tailwind\.config|vite\.config)/i.test(p);
+      const primary = pickPreviewEntry(written, null) ?? written.find((p) => !isConfig(p)) ?? written[0]!;
+      void openFile(primary, true);
+    }
   }, [openFile]);
 
   useEffect(() => {
@@ -372,6 +386,12 @@ export function WorkspacePanel({
         .filter(Boolean)
         .join(", "),
     );
+    // Fade the tree highlight + the "what changed" banner a few seconds later.
+    const t = setTimeout(() => {
+      setRecentTreePaths(new Set());
+      setTurnChanges(null);
+    }, 12000);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [changes?.nonce]);
 
@@ -684,26 +704,6 @@ export function WorkspacePanel({
     }
   }
 
-  // Delete the whole project (owner only) and leave the editor.
-  async function deleteProject() {
-    if (deletingWs) return;
-    setDeletingWs(true);
-    try {
-      const res = await fetch(`/api/workspaces/${workspace.id}`, { method: "DELETE" });
-      if (res.ok) {
-        router.push("/editor");
-      } else {
-        toast("Couldn't delete the project.");
-        setDeletingWs(false);
-        setConfirmDelete(false);
-      }
-    } catch {
-      toast("Couldn't delete the project.");
-      setDeletingWs(false);
-      setConfirmDelete(false);
-    }
-  }
-
   // Premium: download the project as a zip with a one-command local setup.
   async function exportProject() {
     if (exporting) return;
@@ -731,58 +731,6 @@ export function WorkspacePanel({
     setExporting(false);
   }
 
-  /* ------------------------------- diff ----------------------------- */
-
-  const loadDiff = useCallback(async () => {
-    setDiffLoading(true);
-    setDiffError(null);
-    try {
-      const res = await fetch(`/api/workspaces/${workspace.id}/diff`, { cache: "no-store" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) {
-        setDiffError(json?.error?.message ?? "Couldn't load the diff.");
-      } else {
-        const entries = (json.data.entries ?? []) as DiffEntry[];
-        setDiffEntries(entries);
-        setDiffSelected((sel) =>
-          sel && entries.some((e) => e.path === sel) ? sel : (entries[0]?.path ?? null),
-        );
-      }
-    } catch {
-      setDiffError("Couldn't load the diff.");
-    }
-    setDiffLoading(false);
-    // DiffEntry is a stable local type; workspace.id is the only real dep.
-     
-  }, [workspace.id]);
-
-  // Fetch the diff whenever the tab opens or AI/manual changes land while open.
-  useEffect(() => {
-    if (tab !== "diff") return;
-    void loadDiff();
-  }, [tab, loadDiff, changes?.nonce]);
-
-  async function runReview() {
-    if (reviewing) return;
-    setReviewing(true);
-    try {
-      const res = await fetch(`/api/workspaces/${workspace.id}/review`, { method: "POST" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) {
-        setReview(json?.error?.message ?? "Review failed.");
-      } else {
-        setReview(json.data.text);
-      }
-    } catch {
-      setReview("Review failed.");
-    }
-    setReviewing(false);
-  }
-
-  const diffSelectedEntry = useMemo(
-    () => diffEntries?.find((e) => e.path === diffSelected) ?? null,
-    [diffEntries, diffSelected],
-  );
 
   /* ----------------------------- preview ---------------------------- */
 
@@ -793,38 +741,15 @@ export function WorkspacePanel({
     [files, selected],
   );
 
-  // Compose the preview: take the entry HTML and inline its RELATIVE css/js
-  // references from workspace files, so multi-file static apps run in one
-  // sandboxed iframe.
-  useEffect(() => {
-    if (tab !== "preview") return;
-    if (!previewEntry) {
-      setPreviewHtml(null);
-      setPreviewInfo(null);
-      return;
-    }
-    const seq = ++composeSeq.current;
-    (async () => {
-      const getFile = async (path: string): Promise<string | null> => {
-        if (dirty[path] !== undefined) return dirty[path];
-        if (contents[path] !== undefined) return contents[path];
-        return fetchContent(path);
-      };
+  const { previewHtml, previewInfo } = useLivePreview({
+    tab,
+    previewEntry,
+    previewNonce,
+    dirty,
+    contents,
+    fetchContent,
+  });
 
-      const composed = await composePreviewHtml(previewEntry, getFile);
-      if (seq !== composeSeq.current) return;
-      if (!composed) {
-        setPreviewHtml(null);
-        setPreviewInfo("Couldn't load the page.");
-        return;
-      }
-
-      setPreviewHtml(composed.html);
-      setPreviewInfo(
-        `${previewEntry}${composed.inlined.length ? ` + ${composed.inlined.length} inlined asset(s)` : ""}`,
-      );
-    })();
-  }, [tab, previewEntry, previewNonce, dirty, contents, fetchContent]);
 
   // Esc exits fullscreen.
   useEffect(() => {
@@ -834,69 +759,6 @@ export function WorkspacePanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [fullscreen]);
 
-  /* --------------------------- app runner --------------------------- */
-
-  const refreshRun = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/workspaces/${workspace.id}/run`, { cache: "no-store" });
-      const json = await res.json().catch(() => null);
-      if (res.ok && json?.ok) setRun(json.data);
-    } catch {
-      // next poll will catch up
-    }
-  }, [workspace.id]);
-
-  async function startApp() {
-    if (runBusy) return;
-    setRunBusy(true);
-    try {
-      const res = await fetch(`/api/workspaces/${workspace.id}/run`, { method: "POST" });
-      const json = await res.json().catch(() => null);
-      if (res.ok && json?.ok) setRun(json.data);
-      else setNote(json?.error?.message ?? "Couldn't start the app.");
-    } catch {
-      setNote("Couldn't start the app.");
-    }
-    setRunBusy(false);
-  }
-
-  async function stopApp() {
-    if (runBusy) return;
-    setRunBusy(true);
-    try {
-      const res = await fetch(`/api/workspaces/${workspace.id}/run`, { method: "DELETE" });
-      // Only clear the run UI when the stop actually succeeded — otherwise the
-      // app keeps running (and billing the VM) while we'd falsely show "stopped".
-      if (res.ok) setRun(null);
-      else setNote("Couldn't stop the app — it may still be running.");
-    } catch {
-      setNote("Couldn't reach the server — the app may still be running.");
-    }
-    setRunBusy(false);
-  }
-
-  // Check for an existing run when entering the preview tab; poll while the
-  // app is coming up (install → start → reachable).
-  useEffect(() => {
-    if (tab !== "preview" || !isFrameworkApp) return;
-    void refreshRun();
-  }, [tab, isFrameworkApp, refreshRun]);
-
-  useEffect(() => {
-    if (tab !== "preview" || !run) return;
-    const busy =
-      run.status === "exporting" ||
-      run.status === "installing" ||
-      run.status === "starting" ||
-      (run.status === "running" && !run.reachable);
-    if (!busy) return;
-    const t = setInterval(() => void refreshRun(), 2500);
-    return () => clearInterval(t);
-  }, [tab, run, refreshRun]);
-
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [run?.logs?.length]);
 
   /* ------------------------------ render ----------------------------- */
 
@@ -1043,6 +905,26 @@ export function WorkspacePanel({
             </button>
           )}
 
+          {isOwner && (
+            <button
+              type="button"
+              aria-label="Terminal"
+              title="Terminal — run commands in your workspace"
+              onClick={() => {
+                setTab("code");
+                setShowTerminal((v) => !v);
+              }}
+              className={cn(
+                "rounded-lg border p-1.5 transition-colors",
+                showTerminal
+                  ? "border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl text-accent"
+                  : "border-border text-txt2 hover:border-accent hover:text-txt",
+              )}
+            >
+              <TerminalIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
+
           <button
             type="button"
             aria-label={fullscreen ? "Exit full screen" : "Full screen"}
@@ -1098,15 +980,8 @@ export function WorkspacePanel({
                 {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                 Export
               </Button>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                title="Delete this project"
-                aria-label="Delete project"
-                className="rounded-lg border border-border p-1.5 text-txt2 transition-colors hover:border-bad hover:text-bad"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              {/* Project deletion lives on the dashboard, not here — the editor
+                  is for working on the project, not removing it. */}
             </>
           ) : (
             <Button onClick={() => void forkWorkspace()} disabled={forking} className="px-3.5 py-1.5">
@@ -1124,6 +999,38 @@ export function WorkspacePanel({
           <span className="min-w-0 truncate">
             Viewing {ownerName ? `${ownerName}'s` : "a shared"} workspace — read only. Copy it to edit.
           </span>
+        </div>
+      )}
+
+      {/* "What changed" banner — appears after an AI turn, fades after a few
+          seconds, and lets the user jump straight to the diff. */}
+      {turnChanges && (turnChanges.written > 0 || turnChanges.deleted > 0) && (
+        <div className="flex items-center gap-2 border-b border-ok/30 bg-ok/10 px-3 py-2 text-[12px] text-txt2">
+          <GitCompare className="h-3.5 w-3.5 shrink-0 text-ok" />
+          <span className="min-w-0 truncate">
+            <span className="font-medium text-txt">
+              {turnChanges.written + turnChanges.deleted} file{turnChanges.written + turnChanges.deleted === 1 ? "" : "s"} changed
+            </span>{" "}
+            — opened the latest one; highlighted in the tree.
+          </span>
+          <button
+            type="button"
+            onClick={() => setTab("diff")}
+            className="ml-auto shrink-0 rounded-md border border-ok/40 px-2 py-0.5 text-[11px] font-medium text-ok transition-colors hover:bg-ok/15"
+          >
+            Review changes
+          </button>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => {
+              setTurnChanges(null);
+              setRecentTreePaths(new Set());
+            }}
+            className="shrink-0 text-txt3 transition-colors hover:text-txt"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
 
@@ -1164,6 +1071,7 @@ export function WorkspacePanel({
                 files={files}
                 selected={selected}
                 dirtyPaths={dirtyPaths}
+                recentPaths={recentTreePaths}
                 importMode={workspace.mode === "IMPORT"}
                 onOpen={(p) => void openFile(p)}
                 onDelete={(p) => isOwner && void deleteFile(p)}
@@ -1272,6 +1180,11 @@ export function WorkspacePanel({
                 />
               )}
             </div>
+            {showTerminal && (
+              <div className="h-56 shrink-0 overflow-hidden border-t border-border">
+                <TerminalPanel workspaceId={workspace.id} />
+              </div>
+            )}
           </div>
         </div>
       ) : tab === "diff" ? (
@@ -1443,14 +1356,25 @@ export function WorkspacePanel({
                 </span>
                 <div className="ml-auto flex items-center gap-2">
                   {run?.url && run.reachable && (
-                    <a
-                      href={run.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 font-mono text-[11px] text-ok transition-colors hover:brightness-110"
-                    >
-                      {run.port ? `:${run.port}` : "open preview"} <ExternalLink className="h-3 w-3" />
-                    </a>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setFullscreen((v) => !v)}
+                        aria-label={fullscreen ? "Exit full screen" : "Full screen preview"}
+                        title={fullscreen ? "Exit full screen (Esc)" : "Full screen preview"}
+                        className="inline-flex items-center gap-1 text-txt3 transition-colors hover:text-txt"
+                      >
+                        {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                      </button>
+                      <a
+                        href={run.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 font-mono text-[11px] text-ok transition-colors hover:brightness-110"
+                      >
+                        {run.port ? `:${run.port}` : "open preview"} <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </>
                   )}
                   {run && run.status !== "stopped" && run.status !== "error" ? (
                     <button
@@ -1547,6 +1471,15 @@ export function WorkspacePanel({
                   className="ml-auto text-txt3 transition-colors hover:text-ok"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFullscreen((v) => !v)}
+                  aria-label={fullscreen ? "Exit full screen" : "Full screen preview"}
+                  title={fullscreen ? "Exit full screen (Esc)" : "Full screen preview"}
+                  className="text-txt3 transition-colors hover:text-txt"
+                >
+                  {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
                 </button>
               </div>
               <div className="relative min-h-0 flex-1 bg-white">
@@ -1695,42 +1628,6 @@ export function WorkspacePanel({
           hasRepo={Boolean(workspace.repo)}
           onClose={() => setDeployOpen(false)}
         />
-      )}
-      {confirmDelete && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
-          onClick={() => !deletingWs && setConfirmDelete(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl border border-border2 bg-panel p-5 shadow-pop"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-[15px] font-semibold text-txt">Delete this project?</h2>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-txt2">
-              <span className="font-medium text-txt">{name || "This project"}</span> and all its files will be
-              permanently deleted. This can&apos;t be undone.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(false)}
-                disabled={deletingWs}
-                className="rounded-lg border border-border px-3.5 py-1.5 text-sm text-txt2 transition-colors hover:text-txt disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void deleteProject()}
-                disabled={deletingWs}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-bad px-3.5 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {deletingWs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                Delete project
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

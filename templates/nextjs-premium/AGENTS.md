@@ -18,10 +18,19 @@ rebuild it — fill it in.
 - **Theming**: 6 palettes in `app/globals.css` (`[data-theme]`), live picker
   `components/theme-picker.tsx`, no-flash script in `app/layout.tsx`.
 
+## Where the user lands (read this first)
+The app opens to **`app/(app)/dashboard/page.tsx`** — that's the page the user
+sees. The root **`app/page.tsx` only does `redirect("/dashboard")`**, so editing
+it shows the user NOTHING. Whatever the user asked you to build MUST be rendered
+on the dashboard page. If you create a feature component, **import and render it
+there** — standalone files that no page imports are dead code and the app will
+look empty/broken.
+
 ## Your job (the "blanks")
 1. Set the product name + tagline in `lib/config.ts`.
 2. Replace the region marked **"AI: BUILD THE APP'S MAIN FEATURE HERE"** in
-   `app/(app)/dashboard/page.tsx` — the `DataTable` (columns + data) is the pattern.
+   `app/(app)/dashboard/page.tsx` with the user's real feature — mount your
+   component(s) here. The `DataTable` (columns + data) is the pattern.
 3. Relabel the placeholder stat cards for real metrics (or remove them).
 4. Add a page by copying `app/(app)/settings/page.tsx` to `app/(app)/<route>/page.tsx`
    and adding a `NAV` entry in `components/sidebar.tsx`.

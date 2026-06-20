@@ -22,14 +22,17 @@ export const dynamic = "force-dynamic";
 const Schema = z.object({
   lessonId: z.string().min(1).max(80),
   stepIndex: z.number().int().min(0).max(200).optional(),
+  concept: z.string().max(80).optional(),
   question: z.string().min(1).max(1000),
   state: z.record(z.string(), z.unknown()).optional(),
 });
 
-const SYSTEM = `You are "Helix Tutor", a warm, patient teacher helping a young student in a hands-on AI lesson. Rules:
+const SYSTEM = `You are "Helix Coach", a warm, patient teacher sitting beside a young student (about 10–14) while they play a hands-on AI learning game. You guide, explain, and check understanding. Rules:
 - Use plain, friendly language a 10–14 year old understands. No jargon (say "examples" not "training data", "rounds" not "epochs").
-- Keep answers SHORT — 2–4 sentences. Encourage; never condescend.
-- HINT and guide; don't just give the answer. Ask a gentle question back when it helps them think.
+- Keep replies SHORT — 2–4 sentences. Warm and encouraging; never condescending.
+- When EXPLAINING a concept: give the simplest version plus one tiny everyday analogy. You can mention the on-screen picture/diagram they can open.
+- When CHECKING understanding (you were asked to quiz them): ask ONE short question and stop — do not answer it yourself. When they reply, react warmly and gently correct anything missed.
+- Otherwise HINT and guide; don't just hand over the answer. Ask a gentle question back when it helps them think.
 - Stay on the lesson's topic. If asked something off-topic, gently steer back.`;
 
 export async function GET() {
@@ -50,7 +53,7 @@ export async function POST(req: Request) {
 
   const parsed = Schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return apiErrors.validation(parsed.error);
-  const { lessonId, stepIndex, question, state } = parsed.data;
+  const { lessonId, stepIndex, concept, question, state } = parsed.data;
 
   const budget = await checkTokenBudget(g.user.id);
   if (!budget.ok) return ok({ ok: false, unavailable: true });
@@ -61,8 +64,9 @@ export async function POST(req: Request) {
   const lesson = await getLessonForViewer(lessonId, g.user.id);
   const step = lesson && stepIndex !== undefined ? lesson.steps[stepIndex] : undefined;
   const stepTitle = step && "title" in step ? step.title : undefined;
+  const topic = lesson?.manifest.concept ?? concept;
   const contextLine = [
-    lesson ? `Lesson: "${lesson.manifest.title}" (about ${lesson.manifest.concept}).` : "",
+    lesson ? `Module: "${lesson.manifest.title}" (about ${lesson.manifest.concept}).` : topic ? `Topic: ${topic}.` : "",
     stepTitle ? `Current step: ${stepTitle}.` : "",
     state && Object.keys(state).length ? `What the student is doing right now: ${JSON.stringify(state).slice(0, 500)}.` : "",
   ]
