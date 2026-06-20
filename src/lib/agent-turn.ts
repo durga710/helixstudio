@@ -39,7 +39,7 @@ import { synthesizeReply } from "@/lib/build-feed";
 import { autoWireFeature } from "@/lib/auto-wire";
 import { setProgress, clearProgress } from "@/lib/progress";
 import { usingSandboxBackend, runnerEnabled } from "@/lib/app-runner";
-import { verifyBuild, verifyMarker, canVerifyInProcess } from "@/lib/verify";
+import { verifyBuild, verifyMarker, canVerifyInProcess, applyDeterministicFixes } from "@/lib/verify";
 import { runAnthropicAgent, runLocalAgent, runToolCalls, PROVIDER_DEFAULT_MODEL } from "@/lib/ai-agent";
 import { bedrockEnabled, resolveBedrockModel, type BedrockResolved } from "@/lib/ai/bedrock";
 import { withRetry } from "@/lib/ai/retry";
@@ -779,6 +779,24 @@ export async function runAgentTurn(opts: {
       } catch (e) {
         console.error("[auto-wire]", e);
       }
+
+      // Deterministic pre-build repairs (zero tokens, no sandbox, no model):
+      // fix import casing, missing exports, and missing "use client" before the
+      // build check. Runs for EVERY build turn — including guests and no-sandbox
+      // demo builds, where the sandbox verify below never runs. This is where the
+      // weak engine model used to loop for hundreds of thousands of tokens.
+      try {
+        await applyDeterministicFixes({
+          treePaths: Array.from(new Set([...treePaths, ...changes.written])),
+          changes,
+          actions,
+          emit,
+          readFile: (p) => withGitAuth(gitAuth, () => readWorkspaceFile(ws, p)).catch(() => null),
+          writeFiles: (files) => withGitAuth(gitAuth, () => writeWorkspaceFiles(ws, files)),
+        });
+      } catch (e) {
+        console.error("[deterministic-fix]", e);
+      }
     }
 
     // If the provider didn't report usage, estimate (~4 chars per token) so
@@ -832,8 +850,6 @@ export async function runAgentTurn(opts: {
         maxAttempts: opts.verifyMaxAttempts ?? VERIFY_MAX_FIX_ATTEMPTS,
         // In-process static/game check reads scripts to parse them (no sandbox).
         readFile: (p) => withGitAuth(gitAuth, () => readWorkspaceFile(ws, p)).catch(() => null),
-        // Deterministic pre-build fix pass writes casing/export repairs back here.
-        writeFiles: (files) => withGitAuth(gitAuth, () => writeWorkspaceFiles(ws, files)),
         deep: false, // auto loop stays cheap — the headless run is on-demand only
         // Injected fix runner — a build-mode turn with verify OFF (the guard
         // that prevents infinite verify recursion). Not persisted; its changes
