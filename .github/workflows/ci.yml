@@ -18,3 +18,47 @@ jobs:
       - run: npx prisma validate
       - run: npm run lint
       - run: npm run build
+
+  # DB-backed terminal E2E: a real Postgres + HELIX_LOCAL_RUNNER=1 so the editor
+  # terminal executes commands locally (no cloud sandbox creds needed). Creates a
+  # scratch workspace via the API and asserts /exec stdout/stderr/exit codes.
+  terminal-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: helix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/helix_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/helix_test
+      HELIX_LOCAL_RUNNER: "1"
+      AUTH_SECRET: ci-e2e-secret-not-for-production
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma db push --accept-data-loss
+      - run: npm run build
+      - name: Run terminal E2E against the built server
+        run: |
+          npm run start &
+          SERVER_PID=$!
+          timeout 90 bash -c 'until curl -sf http://localhost:3000/api/health >/dev/null; do sleep 2; done'
+          node scripts/e2e-terminal.mjs
+          status=$?
+          kill "$SERVER_PID" 2>/dev/null || true
+          exit $status

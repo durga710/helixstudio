@@ -16,8 +16,11 @@ import "server-only";
 
 import type { Workspace } from "@/generated/prisma/client";
 import { localBackend } from "./runner/local";
-import { sandboxBackend } from "./runner/vercel-sandbox";
+import { sandboxBackend, execInSandbox } from "./runner/vercel-sandbox";
+import { execLocal, type ExecResult } from "./runner/local-exec";
 import type { RunInfo, RunnerBackend } from "./runner/types";
+
+export type { ExecResult } from "./runner/local-exec";
 
 export type { RunInfo, RunStatus, Detection } from "./runner/types";
 export { detectFramework } from "./runner/types";
@@ -53,4 +56,14 @@ export function getRunInfo(ws: Workspace): Promise<RunInfo> {
 
 export function stopRun(workspaceId: string): Promise<void> {
   return backend().stop(workspaceId);
+}
+
+/**
+ * Run one shell command in the workspace environment (the editor's terminal).
+ * Routes to the same backend as the runner: a cloud microVM on serverless
+ * deploys, a temp-dir child process on local dev / self-hosted. The workspace
+ * copy is disposable — commands never mutate the stored files.
+ */
+export function execCommand(ws: Workspace, command: string): Promise<ExecResult> {
+  return usingSandboxBackend() ? execInSandbox(ws, command) : execLocal(ws, command);
 }
