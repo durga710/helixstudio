@@ -8,6 +8,7 @@ import { pickPreviewEntry } from "@/lib/preview-html";
 import { headlessCheckCommand } from "@/lib/runner/headless-check";
 import type { ChangeManifest } from "@/lib/workspace-tools";
 import { runDeterministicFixes, aliasesFromTsconfig } from "@/lib/fixers";
+import { extractBuildError } from "@/lib/build-log";
 
 /** Merge a fix turn's manifest into the outer one (dedup; deletions win). */
 function absorbChanges(into: ChangeManifest, from: ChangeManifest): void {
@@ -348,9 +349,13 @@ export async function verifyBuild(ctx: VerifyContext): Promise<VerifyResult & { 
         };
       }
 
-      // Feed the error back to the model to fix.
+      // Feed the error back to the model to fix. Distill the noisy build
+      // transcript down to the actionable error region first — there's no
+      // prompt caching on the default provider, so this whole feed is re-sent
+      // at full price every fix round; the chrome is pure waste.
       ctx.emit("fixing a build error…");
-      const feed = tailLog(res.stdout, res.stderr, LOG_FEED_CAP);
+      const fullLog = [res.stdout, res.stderr].filter(Boolean).join("\n");
+      const feed = extractBuildError(fullLog) || tailLog(res.stdout, res.stderr, LOG_FEED_CAP);
       const fix = await ctx.runFix(
         `Verification failed running \`${command}\`:\n\n${feed}\n\n` +
           "Fix the code so the command succeeds. Make the smallest change that resolves the error.",
