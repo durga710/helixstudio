@@ -131,6 +131,59 @@ test("bare/package imports are never touched", () => {
   assert.deepEqual(out.changed, {});
 });
 
+test("use-client: prepends the directive to a component using useState", () => {
+  const files = {
+    "src/components/Counter.tsx": `import { useState } from "react";\nexport function Counter() { const [n, setN] = useState(0); return <button onClick={() => setN(n + 1)}>{n}</button>; }\n`,
+  };
+  const out = runDeterministicFixes(files);
+  const fix = out.fixes.find((f) => f.kind === "use-client");
+  assert.ok(fix, "expected a use-client fix");
+  assert.match(out.changed["src/components/Counter.tsx"], /^"use client";/);
+});
+
+test("use-client: detects next/navigation client hooks", () => {
+  const files = {
+    "src/components/Nav.tsx": `import { useRouter } from "next/navigation";\nexport function Nav() { const r = useRouter(); return null; }\n`,
+  };
+  const out = runDeterministicFixes(files);
+  assert.match(out.changed["src/components/Nav.tsx"], /^"use client";/);
+});
+
+test("use-client: no-op when the directive already exists", () => {
+  const files = {
+    "src/components/Counter.tsx": `"use client";\nimport { useState } from "react";\nexport function Counter() { useState(0); return null; }\n`,
+  };
+  const out = runDeterministicFixes(files);
+  assert.equal(out.fixes.length, 0);
+});
+
+test("use-client: never overrides an existing 'use server' file", () => {
+  const files = {
+    "src/app/actions.ts": `"use server";\nexport async function act() { /* uses no hooks really */ }\n`,
+  };
+  const out = runDeterministicFixes(files);
+  assert.equal(out.fixes.length, 0);
+});
+
+test("use-client: no-op for a server component with no hooks", () => {
+  const files = {
+    "src/app/page.tsx": `export default function Page() { return <main>hello</main>; }\n`,
+  };
+  const out = runDeterministicFixes(files);
+  assert.equal(out.fixes.length, 0);
+});
+
+test("use-client: stacks with a missing-export fix on the same file", () => {
+  const files = {
+    "src/components/Widget.tsx": `import { useState } from "react";\nfunction Widget() { useState(0); return null; }\nexport default Widget;\n`,
+    "src/app/page.tsx": `import { Widget } from "@/components/Widget";\n`,
+  };
+  const out = runDeterministicFixes(files);
+  const w = out.changed["src/components/Widget.tsx"];
+  assert.match(w, /^"use client";/); // directive added
+  assert.match(w, /export function Widget/); // and the named export
+});
+
 test("aliasesFromTsconfig: parses compilerOptions.paths", () => {
   const a = aliasesFromTsconfig(`{ "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }`);
   assert.deepEqual(a, { "@/": ["src/"] });
