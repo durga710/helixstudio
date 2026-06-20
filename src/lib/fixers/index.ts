@@ -22,7 +22,7 @@
 
 export type FileMap = Readonly<Record<string, string>>;
 
-export type FixKind = "import-casing" | "missing-export";
+export type FixKind = "import-casing" | "missing-export" | "use-client";
 
 export interface DeterministicFix {
   /** Workspace-relative path of the file that was rewritten. */
@@ -319,6 +319,40 @@ function fixMissingExports(
   return { changed, fixes };
 }
 
+/** React/Next client-only hooks — calling any of these forces a Client Component.
+ *  A Server Component (the App Router default) that uses one fails to build with
+ *  "This React hook only works in a client component." */
+const CLIENT_HOOK_RE =
+  /\b(useState|useEffect|useLayoutEffect|useReducer|useRef|useContext|useImperativeHandle|useSyncExternalStore|useTransition|useDeferredValue|useCallback|useMemo|useRouter|usePathname|useSearchParams|useParams)\s*\(/;
+
+/** Already carries a directive prologue (`"use client"` / `"use server"`) near the top? */
+function hasUseDirective(content: string): boolean {
+  // Directive prologues sit before any statement; check the first few non-empty,
+  // non-comment lines.
+  const head = content.split("\n").slice(0, 6).join("\n");
+  return /(^|\n)\s*["']use (client|server)["']\s*;?/.test(head);
+}
+
+/**
+ * Pass 3 — prepend `"use client"` to a component that calls a client-only hook
+ * but lacks the directive. Only `.tsx`/`.jsx` (and `.ts`/`.js`) component files,
+ * only on a clear hook-call signal, and never when a directive already exists —
+ * so it can't wrongly convert a real Server Component.
+ */
+function fixMissingUseClient(files: FileMap, working: Record<string, string>): FixOutcome {
+  const changed: Record<string, string> = {};
+  const fixes: DeterministicFix[] = [];
+  for (const [path] of Object.entries(files)) {
+    if (!isSourceFile(path) || files[path].length > MAX_SCAN_CHARS) continue;
+    const content = working[path] ?? files[path];
+    if (!CLIENT_HOOK_RE.test(content)) continue;
+    if (hasUseDirective(content)) continue;
+    changed[path] = `"use client";\n\n${content}`;
+    fixes.push({ path, kind: "use-client", detail: `added "use client" (uses a client-only React hook)` });
+  }
+  return { changed, fixes };
+}
+
 /**
  * Run all deterministic fixers over a file map. Returns only the files whose
  * content changed, plus a list of what was fixed. Safe to call on any project;
@@ -327,12 +361,13 @@ function fixMissingExports(
 export function runDeterministicFixes(files: FileMap, aliases: AliasMap = DEFAULT_ALIASES): FixOutcome {
   const index = indexFiles(files);
   const casing = fixImportCasing(files, index, aliases);
-  // Missing-export pass reads casing-corrected content where available.
-  const exportsPass = fixMissingExports(files, index, aliases, casing.changed);
-
+  // Later passes read earlier passes' corrected content where available.
   const changed: Record<string, string> = { ...casing.changed };
+  const exportsPass = fixMissingExports(files, index, aliases, changed);
   for (const [p, c] of Object.entries(exportsPass.changed)) changed[p] = c;
-  return { changed, fixes: [...casing.fixes, ...exportsPass.fixes] };
+  const useClient = fixMissingUseClient(files, changed);
+  for (const [p, c] of Object.entries(useClient.changed)) changed[p] = c;
+  return { changed, fixes: [...casing.fixes, ...exportsPass.fixes, ...useClient.fixes] };
 }
 
 /** Parse `compilerOptions.paths` from a tsconfig string into an AliasMap. */
