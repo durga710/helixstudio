@@ -61,3 +61,5 @@
 - Demo mode runs everything in-memory; connect `DATABASE_URL` for PostgreSQL
   persistence (see `docs/DATABASE.md`) and `ANTHROPIC_API_KEY` for live AI.
 - Domain: helixstudio.org on Vercel — see `docs/DEPLOYMENT.md`.
+- Engine token/fix-loop hardening (deterministic fixers, delete-storm guard,
+  error-log distillation) — see `docs/ENGINE-TOKEN-HARDENING.md`.
