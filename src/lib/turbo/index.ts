@@ -1,0 +1,170 @@
+import "server-only";
+
+/**
+ * Turbo build — the orchestrator.
+ *
+ * The default engine runs ONE sequential tool-calling agent loop. With no prompt
+ * caching on the GPT-OSS endpoint, that loop re-sends the whole growing
+ * conversation on every hop, so its token cost is ~O(hops²) — the source of the
+ * 150k–575k-token builds.
+ *
+ * Turbo changes the SHAPE:
+ *   1. PLAN     — one strong-model call → a file manifest + a shared contract.
+ *   2. GENERATE — each file by its own STATELESS one-shot call, in parallel.
+ *                 No history, no tool loop → no re-send → O(files), not O(hops²).
+ *   3. STITCH   — the deterministic fixers repair the cross-file seams that
+ *                 independent generation inevitably leaves (casing, exports,
+ *                 "use client", default exports) — zero tokens.
+ *
+ * Flag-gated (`HELIX_TURBO=1` + the per-request `turbo` flag) and SCRATCH-only
+ * for now; any failure falls back to the proven sequential `runAgentTurn`.
+ */
+
+import type { Workspace } from "@/generated/prisma/client";
+import { db } from "@/lib/db";
+import { resolveAiPrefs } from "@/lib/ai-agent";
+import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFiles } from "@/lib/workspace";
+import { checkTokenBudget } from "@/lib/token-budget";
+import { aiUsageOps } from "@/lib/ai-usage";
+import { synthesizeReply } from "@/lib/build-feed";
+import { GUEST_TOKEN_LIMIT } from "@/lib/auth";
+import { createAgentIntent } from "@/lib/intent-ledger";
+import { applyDeterministicFixes } from "@/lib/verify";
+import { runAgentTurn, type TurnResult, type TurnError, type TurnEvent } from "@/lib/agent-turn";
+import { planManifest } from "./manifest";
+import { generateFile } from "./generate";
+import { runPool, type AiPrefs } from "./parse";
+
+/** Parallel leaf generators in flight at once. */
+const LEAF_CONCURRENCY = 4;
+
+/** Global on/off. Per-request `turbo` still has to be set too. */
+export function turboEnabled(): boolean {
+  return process.env.HELIX_TURBO === "1";
+}
+
+/** Route leaf generation to the cheaper/faster GPT-OSS 20B when the base model
+ *  is the GPT-OSS 120B default — leaves do no tool-calling, so 20B fits. Any
+ *  other model (a BYO key, etc.) generates leaves with the user's own choice. */
+async function leafPrefs(base: AiPrefs): Promise<AiPrefs> {
+  if (base.model !== "openai.gpt-oss-120b-1:0") return base;
+  const { resolveBedrockModel } = await import("@/lib/ai/bedrock");
+  const r = resolveBedrockModel("openai.gpt-oss-20b-1:0");
+  if (!r) return base;
+  return {
+    provider: r.protocol === "anthropic" ? "anthropic" : "local",
+    model: r.modelId,
+    apiKey: r.apiKey,
+    baseUrl: r.baseUrl,
+    extraHeaders: r.headers,
+  };
+}
+
+export interface TurboOpts {
+  ws: Workspace;
+  userId: string;
+  message: string;
+  onEvent?: (e: TurnEvent) => void;
+  persist?: boolean;
+}
+
+/** True when turbo should handle this turn (else the caller uses the sequential path). */
+export function shouldUseTurbo(ws: Workspace): boolean {
+  return turboEnabled() && ws.mode === "SCRATCH";
+}
+
+/**
+ * Run a build via the plan→parallel-generate→stitch path. Returns the same
+ * TurnResult shape as runAgentTurn; falls back to runAgentTurn on any failure
+ * (no manifest, no files generated) so a turbo miss is never a dead end.
+ */
+export async function runTurboBuild(opts: TurboOpts): Promise<TurnResult | TurnError> {
+  const { ws, userId } = opts;
+  const persist = opts.persist ?? true;
+  const message = opts.message.trim();
+  const emit = (label: string) => opts.onEvent?.({ type: "activity", label });
+
+  const budget = await checkTokenBudget(userId);
+  if (!budget.ok) return { code: budget.code, error: budget.error };
+  const dbUser = budget.user;
+
+  const prefs = await resolveAiPrefs(userId);
+  const meter = { tokensUsed: 0 };
+
+  // 1. PLAN — one strong-model call.
+  emit("planning the build…");
+  const manifest = await planManifest(ws, userId, message, ws.notes, meter);
+  if (!manifest) return runAgentTurn(opts); // planner miss → proven sequential path
+
+  // 2. GENERATE — every file in parallel, each a stateless one-shot call.
+  emit(`generating ${manifest.files.length} files in parallel…`);
+  const leaves = await leafPrefs(prefs);
+  const generated = await runPool(manifest.files, LEAF_CONCURRENCY, (spec) =>
+    generateFile(leaves, manifest, spec, message, ws.notes),
+  );
+  const ok = generated.filter((g): g is Extract<typeof g, { content: string }> => "content" in g);
+  for (const g of generated) meter.tokensUsed += g.tokensUsed;
+  if (ok.length === 0) return runAgentTurn(opts); // total miss → fall back
+
+  // 3. WRITE the generated files to the overlay (one intent for undo).
+  const intentId = await createAgentIntent(ws, message).catch(() => null);
+  const wrote = await writeWorkspaceFiles(
+    ws,
+    ok.map((g) => ({ path: g.path, content: g.content })),
+    intentId ? { intentId } : undefined,
+  );
+  if ("error" in wrote) return { error: wrote.error };
+  const changes = { written: [...wrote.writtenPaths], deleted: [] as string[] };
+  const actions: TurnResult["actions"] = [
+    { tool: "write_files", label: `generated ${changes.written.length} files in parallel` },
+  ];
+  const failed = generated.length - ok.length;
+  if (failed > 0) actions.push({ tool: "write_files", label: `${failed} file(s) needed a follow-up` });
+
+  // 4. STITCH — deterministic fixers repair the cross-file seams (0 tokens).
+  const tree = await listWorkspaceFiles(ws).catch(() => []);
+  await applyDeterministicFixes({
+    treePaths: Array.from(new Set([...tree.map((f) => f.path), ...changes.written])),
+    changes,
+    actions,
+    emit,
+    readFile: (p) => readWorkspaceFile(ws, p).catch(() => null),
+    writeFiles: (files) => writeWorkspaceFiles(ws, files, intentId ? { intentId } : undefined),
+  });
+
+  const tokensUsed = meter.tokensUsed;
+  const summary = synthesizeReply({
+    changes,
+    userMessage: message,
+    kind: ws.kind === "game" ? "game" : "app",
+    isFirstBuild: true,
+    seed: ws.id,
+  });
+  const text = `Built ${changes.written.length} files in parallel (turbo).`;
+
+  if (persist) {
+    try {
+      await db().$transaction([
+        db().workspaceMessage.create({ data: { workspaceId: ws.id, role: "user", content: message } }),
+        db().workspaceMessage.create({
+          data: { workspaceId: ws.id, role: "assistant", content: text, actions, summary },
+        }),
+        ...aiUsageOps({ userId, tokens: tokensUsed, kind: "chat", provider: prefs.provider, model: prefs.model, workspaceId: ws.id }),
+      ]);
+    } catch (e) {
+      console.error("[turbo] persist failed", e);
+    }
+  }
+
+  if (intentId) {
+    await db()
+      .workspaceIntent.update({ where: { id: intentId }, data: { status: "final", reasoning: text.slice(0, 8000) } })
+      .catch(() => {});
+  }
+
+  const guestRemaining = dbUser?.isGuest
+    ? Math.max(0, (dbUser.tokenLimit ?? GUEST_TOKEN_LIMIT) - (dbUser.tokensUsed + tokensUsed))
+    : null;
+
+  return { text, summary, actions, changes, tokensUsed, guestRemaining };
+}
