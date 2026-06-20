@@ -64,9 +64,6 @@ export interface VerifyContext {
   maxAttempts?: number;
   /** Read a workspace file's content (for the in-process static syntax check). */
   readFile?: (path: string) => Promise<string | null>;
-  /** Write files back to the workspace overlay (used by the deterministic
-   * pre-build fix pass to apply casing/missing-export repairs). */
-  writeFiles?: (files: { path: string; content: string }[]) => Promise<unknown>;
   /** Deep check: also run the app in a headless browser (on-demand only — the
    * "Verify build" button). The auto per-iteration verify leaves this off so it
    * stays cheap (no sandbox for static/games). */
@@ -141,19 +138,31 @@ const SOURCE_FILE_RE = /\.(?:tsx?|jsx?|mjs|cjs)$/i;
  * cheap enough to read in one batch; huge imported repos skip it (it's a bonus). */
 const FIX_MAX_SOURCE_FILES = 400;
 
+/** Everything the deterministic fix pass needs — a focused shape so it can run
+ *  from the main build turn (for EVERY build, incl. guests/no-sandbox) and not
+ *  only from inside verifyBuild. */
+export interface DeterministicFixParams {
+  treePaths: string[];
+  changes: ChangeManifest;
+  actions: { tool: string; label: string; log?: string }[];
+  emit: (label: string) => void;
+  readFile: (path: string) => Promise<string | null>;
+  writeFiles: (files: { path: string; content: string }[]) => Promise<unknown>;
+}
+
 /**
  * Deterministic pre-build fix pass: read the project's source files, repair the
- * statically-decidable errors (import casing, missing exports) WITHOUT the model,
- * and write the fixes back to the overlay. Runs before the sandbox build so it
- * PREVENTS the failure rather than burning a model fix-turn (and tokens) on it.
- * Best-effort: any read/write hiccup degrades to a no-op, never fails the turn.
+ * statically-decidable errors (import casing, missing exports, missing
+ * "use client") WITHOUT the model, and write the fixes back to the overlay.
+ * Runs before the build check so it PREVENTS the failure rather than burning a
+ * model fix-turn (and tokens) on it. No sandbox, no model — so it runs for every
+ * build turn including guests. Best-effort: any hiccup degrades to a no-op.
  */
 export async function applyDeterministicFixes(
-  ctx: VerifyContext,
+  p: DeterministicFixParams,
 ): Promise<{ count: number; details: string[] }> {
-  if (!ctx.readFile || !ctx.writeFiles) return { count: 0, details: [] };
-  const sources = ctx.treePaths.filter(
-    (p) => SOURCE_FILE_RE.test(p) && !p.includes("node_modules/"),
+  const sources = p.treePaths.filter(
+    (path) => SOURCE_FILE_RE.test(path) && !path.includes("node_modules/"),
   );
   if (sources.length < 2 || sources.length > FIX_MAX_SOURCE_FILES) return { count: 0, details: [] };
 
@@ -162,26 +171,26 @@ export async function applyDeterministicFixes(
     const BATCH = 8;
     for (let i = 0; i < sources.length; i += BATCH) {
       const batch = sources.slice(i, i + BATCH);
-      const reads = await Promise.all(batch.map((p) => ctx.readFile!(p)));
-      batch.forEach((p, j) => {
-        if (reads[j] != null) files[p] = reads[j] as string;
+      const reads = await Promise.all(batch.map((path) => p.readFile(path)));
+      batch.forEach((path, j) => {
+        if (reads[j] != null) files[path] = reads[j] as string;
       });
     }
 
     // Alias map from the workspace's own tsconfig when present (falls back to @/→src).
-    const tsconfigPath = ctx.treePaths.find((p) => /(^|\/)tsconfig\.json$/.test(p));
-    const tsconfig = tsconfigPath ? await ctx.readFile(tsconfigPath).catch(() => null) : null;
+    const tsconfigPath = p.treePaths.find((path) => /(^|\/)tsconfig\.json$/.test(path));
+    const tsconfig = tsconfigPath ? await p.readFile(tsconfigPath).catch(() => null) : null;
     const aliases = aliasesFromTsconfig(tsconfig);
 
     const { changed, fixes } = runDeterministicFixes(files, aliases);
     const paths = Object.keys(changed);
     if (paths.length === 0) return { count: 0, details: [] };
 
-    ctx.emit(`auto-fixing ${fixes.length} import/export issue(s)…`);
-    await ctx.writeFiles(paths.map((p) => ({ path: p, content: changed[p] })));
-    for (const p of paths) if (!ctx.changes.written.includes(p)) ctx.changes.written.push(p);
+    p.emit(`auto-fixing ${fixes.length} import/export issue(s)…`);
+    await p.writeFiles(paths.map((path) => ({ path, content: changed[path] })));
+    for (const path of paths) if (!p.changes.written.includes(path)) p.changes.written.push(path);
     const details = fixes.map((f) => f.detail);
-    ctx.actions.push({
+    p.actions.push({
       tool: "auto_fix",
       label: `auto-fixed ${fixes.length} import/export issue(s)`,
       log: details.join("\n").slice(0, LOG_STORE_CAP),
@@ -288,10 +297,9 @@ async function verifyStaticInProcess(ctx: VerifyContext): Promise<VerifyResult &
 export async function verifyBuild(ctx: VerifyContext): Promise<VerifyResult & { extraTokens: number }> {
   const maxAttempts = ctx.maxAttempts ?? 1;
 
-  // Deterministic pre-build fix pass (zero tokens, no sandbox): repair import
-  // casing + missing exports before anything runs, so the model never burns a
-  // fix-turn on an error a compiler resolves for free. Best-effort.
-  await applyDeterministicFixes(ctx);
+  // (The deterministic pre-build fix pass — import casing, missing exports,
+  // "use client" — now runs in agent-turn for EVERY build turn, including guests
+  // and no-sandbox, before this gate. See applyDeterministicFixes.)
 
   // Static apps + games: verify IN-PROCESS (parse each script in our own server —
   // no sandbox, so the cheap per-iteration build-check costs nothing). The heavier
