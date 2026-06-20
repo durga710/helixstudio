@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:studios": "node scripts/studio-smoke.mjs",
+    "test:e2e": "playwright test",
     "test:terminal": "node scripts/e2e-terminal.mjs",
     "postinstall": "prisma generate",
     "gen:docs": "node scripts/gen-docs.mjs",
@@ -52,6 +53,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -59,7 +61,7 @@
     "@types/semver": "^7.7.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
-    "playwright": "^1.60.0",
+    "playwright": "^1.61.0",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "typescript": "^5"

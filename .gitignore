@@ -36,6 +36,11 @@ dev-server-err.log
 desktop/node_modules/
 desktop/dist/
 
-# local-only Bedrock diagnostic (reads the bearer token) + test-runner artifacts
-/scripts/probe-bedrock.mjs
+# playwright
 /test-results/
+/playwright-report/
+/blob-report/
+/.playwright/
+
+# local-only Bedrock diagnostic (reads the bearer token)
+/scripts/probe-bedrock.mjs
