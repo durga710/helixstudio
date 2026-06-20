@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:studios": "node scripts/studio-smoke.mjs",
+    "test:unit": "node --experimental-strip-types --test \"src/**/*.test.ts\"",
     "test:e2e": "playwright test",
     "test:terminal": "node scripts/e2e-terminal.mjs",
     "postinstall": "prisma generate",

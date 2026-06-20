@@ -19,6 +19,18 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  # Fast deterministic unit tests (no DB, no sandbox) — the engine fixers etc.
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:unit
+
   e2e:
     runs-on: ubuntu-latest
     steps:

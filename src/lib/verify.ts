@@ -7,6 +7,8 @@ import { detectFramework } from "@/lib/app-runner";
 import { pickPreviewEntry } from "@/lib/preview-html";
 import { headlessCheckCommand } from "@/lib/runner/headless-check";
 import type { ChangeManifest } from "@/lib/workspace-tools";
+import { runDeterministicFixes, aliasesFromTsconfig } from "@/lib/fixers";
+import { extractBuildError } from "@/lib/build-log";
 
 /** Merge a fix turn's manifest into the outer one (dedup; deletions win). */
 function absorbChanges(into: ChangeManifest, from: ChangeManifest): void {
@@ -62,6 +64,9 @@ export interface VerifyContext {
   maxAttempts?: number;
   /** Read a workspace file's content (for the in-process static syntax check). */
   readFile?: (path: string) => Promise<string | null>;
+  /** Write files back to the workspace overlay (used by the deterministic
+   * pre-build fix pass to apply casing/missing-export repairs). */
+  writeFiles?: (files: { path: string; content: string }[]) => Promise<unknown>;
   /** Deep check: also run the app in a headless browser (on-demand only — the
    * "Verify build" button). The auto per-iteration verify leaves this off so it
    * stays cheap (no sandbox for static/games). */
@@ -129,6 +134,63 @@ export function canVerifyInProcess(treePaths: string[], pkgJson: string | null):
   if (d.kind !== "static" && d.kind !== "unknown") return false;
   if (treePaths.includes("project.godot")) return false;
   return treePaths.some((p) => /\.js$/i.test(p) && !p.startsWith("node_modules/"));
+}
+
+const SOURCE_FILE_RE = /\.(?:tsx?|jsx?|mjs|cjs)$/i;
+/** Bounds for the pre-build fix pass: enough to cover a freshly-scaffolded app,
+ * cheap enough to read in one batch; huge imported repos skip it (it's a bonus). */
+const FIX_MAX_SOURCE_FILES = 400;
+
+/**
+ * Deterministic pre-build fix pass: read the project's source files, repair the
+ * statically-decidable errors (import casing, missing exports) WITHOUT the model,
+ * and write the fixes back to the overlay. Runs before the sandbox build so it
+ * PREVENTS the failure rather than burning a model fix-turn (and tokens) on it.
+ * Best-effort: any read/write hiccup degrades to a no-op, never fails the turn.
+ */
+export async function applyDeterministicFixes(
+  ctx: VerifyContext,
+): Promise<{ count: number; details: string[] }> {
+  if (!ctx.readFile || !ctx.writeFiles) return { count: 0, details: [] };
+  const sources = ctx.treePaths.filter(
+    (p) => SOURCE_FILE_RE.test(p) && !p.includes("node_modules/"),
+  );
+  if (sources.length < 2 || sources.length > FIX_MAX_SOURCE_FILES) return { count: 0, details: [] };
+
+  try {
+    const files: Record<string, string> = {};
+    const BATCH = 8;
+    for (let i = 0; i < sources.length; i += BATCH) {
+      const batch = sources.slice(i, i + BATCH);
+      const reads = await Promise.all(batch.map((p) => ctx.readFile!(p)));
+      batch.forEach((p, j) => {
+        if (reads[j] != null) files[p] = reads[j] as string;
+      });
+    }
+
+    // Alias map from the workspace's own tsconfig when present (falls back to @/→src).
+    const tsconfigPath = ctx.treePaths.find((p) => /(^|\/)tsconfig\.json$/.test(p));
+    const tsconfig = tsconfigPath ? await ctx.readFile(tsconfigPath).catch(() => null) : null;
+    const aliases = aliasesFromTsconfig(tsconfig);
+
+    const { changed, fixes } = runDeterministicFixes(files, aliases);
+    const paths = Object.keys(changed);
+    if (paths.length === 0) return { count: 0, details: [] };
+
+    ctx.emit(`auto-fixing ${fixes.length} import/export issue(s)…`);
+    await ctx.writeFiles(paths.map((p) => ({ path: p, content: changed[p] })));
+    for (const p of paths) if (!ctx.changes.written.includes(p)) ctx.changes.written.push(p);
+    const details = fixes.map((f) => f.detail);
+    ctx.actions.push({
+      tool: "auto_fix",
+      label: `auto-fixed ${fixes.length} import/export issue(s)`,
+      log: details.join("\n").slice(0, LOG_STORE_CAP),
+    });
+    return { count: fixes.length, details };
+  } catch (e) {
+    console.error("[helix-verify] deterministic fix pass failed", e);
+    return { count: 0, details: [] };
+  }
 }
 
 /** Combined, tail-capped log from an exec result. */
@@ -226,6 +288,11 @@ async function verifyStaticInProcess(ctx: VerifyContext): Promise<VerifyResult &
 export async function verifyBuild(ctx: VerifyContext): Promise<VerifyResult & { extraTokens: number }> {
   const maxAttempts = ctx.maxAttempts ?? 1;
 
+  // Deterministic pre-build fix pass (zero tokens, no sandbox): repair import
+  // casing + missing exports before anything runs, so the model never burns a
+  // fix-turn on an error a compiler resolves for free. Best-effort.
+  await applyDeterministicFixes(ctx);
+
   // Static apps + games: verify IN-PROCESS (parse each script in our own server —
   // no sandbox, so the cheap per-iteration build-check costs nothing). The heavier
   // headless run-it-in-a-browser check only runs when `deep` (the on-demand Verify
@@ -282,9 +349,13 @@ export async function verifyBuild(ctx: VerifyContext): Promise<VerifyResult & { 
         };
       }
 
-      // Feed the error back to the model to fix.
+      // Feed the error back to the model to fix. Distill the noisy build
+      // transcript down to the actionable error region first — there's no
+      // prompt caching on the default provider, so this whole feed is re-sent
+      // at full price every fix round; the chrome is pure waste.
       ctx.emit("fixing a build error…");
-      const feed = tailLog(res.stdout, res.stderr, LOG_FEED_CAP);
+      const fullLog = [res.stdout, res.stderr].filter(Boolean).join("\n");
+      const feed = extractBuildError(fullLog) || tailLog(res.stdout, res.stderr, LOG_FEED_CAP);
       const fix = await ctx.runFix(
         `Verification failed running \`${command}\`:\n\n${feed}\n\n` +
           "Fix the code so the command succeeds. Make the smallest change that resolves the error.",
