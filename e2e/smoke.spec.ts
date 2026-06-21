@@ -19,7 +19,7 @@ test("landing: unauthenticated `/` lands on the marketing page", async ({ page }
   await page.goto("/");
   // (app)/layout redirects unauthenticated visitors to /welcome.
   await expect(page).toHaveURL(/\/welcome/);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(/Build software/i);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(/Frontier code/i);
   await expect(page.getByText("Helix Studio").first()).toBeVisible();
   expect(errors, `uncaught page errors: ${errors.join("; ")}`).toEqual([]);
 });

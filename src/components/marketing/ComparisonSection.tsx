@@ -6,6 +6,10 @@ type Cell = "yes" | "partial" | "no";
 const COLUMNS = ["Helix Studio", "Cursor", "Copilot", "Claude Code"] as const;
 
 const ROWS: { feature: string; cells: [Cell, Cell, Cell, Cell] }[] = [
+  { feature: "Frontier-grade model quality", cells: ["yes", "yes", "partial", "yes"] },
+  { feature: "Builds for cents, not dollars", cells: ["yes", "no", "no", "no"] },
+  { feature: "Up to 10× fewer tokens / build", cells: ["yes", "no", "no", "no"] },
+  { feature: "Free tier — no API key", cells: ["yes", "no", "partial", "no"] },
   { feature: "Repository-aware editing", cells: ["yes", "yes", "partial", "yes"] },
   { feature: "Multi-agent review pipeline", cells: ["yes", "no", "no", "partial"] },
   { feature: "Built-in security audit", cells: ["yes", "no", "partial", "partial"] },
@@ -27,12 +31,13 @@ export function ComparisonSection() {
     <section id="compare" className="py-[84px]">
       <div className="mx-auto max-w-[1120px] px-6">
         <Reveal className="mx-auto mb-12 max-w-[640px] text-center">
-          <span className="text-xs font-bold uppercase tracking-[0.14em] text-accent">How Helix compares</span>
+          <span className="text-xs font-bold uppercase tracking-[0.14em] text-accent">Helix vs the frontier</span>
           <h2 className="mt-2.5 text-[clamp(26px,4vw,40px)] font-bold tracking-tight text-txt">
-            An operating system, not an autocomplete.
+            Frontier quality. A fraction of the price.
           </h2>
           <p className="mt-3 text-base text-txt2">
-            Editors and copilots help you type. Helix plans, builds, reviews, secures, and ships the whole change.
+            Helix 1.0 &amp; 2.0 match the best coding models — then our engine makes them faster and up to 10× cheaper
+            per build. Plus everything the copilots still can&apos;t do: plan, review, secure, and ship the whole change.
           </p>
         </Reveal>
 
