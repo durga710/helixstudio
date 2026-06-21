@@ -19,7 +19,7 @@ import { db } from "@/lib/db";
 import { GUEST_TOKEN_LIMIT } from "@/lib/auth";
 import { getGitAuth, withGitAuth, PROVIDER_META, getProvider } from "@/lib/git";
 import { OPENAI_MODEL } from "@/lib/openai";
-import { resolveAiKey, GEMINI_BASE_URL } from "@/lib/ai/keys";
+import { resolveAiKey, defaultAiProvider, openaiHouseForAll, GEMINI_BASE_URL } from "@/lib/ai/keys";
 import { isAdminEmail } from "@/lib/admin";
 import {
   workspaceTools,
@@ -147,6 +147,9 @@ export async function runAgentTurn(opts: {
   /** Phase-B worker scope: globs this turn may WRITE (out-of-scope writes are
    * rejected). Empty/undefined = whole project. */
   scope?: string[];
+  /** Force a specific provider, bypassing prefs/default resolution. Set by the
+   * house-OpenAI → Bedrock fallback so a dead OpenAI key can't brick a build. */
+  providerOverride?: string;
 }): Promise<TurnResult | TurnError> {
   const { ws, userId, onEvent } = opts;
   const persist = opts.persist ?? true;
@@ -178,7 +181,7 @@ export async function runAgentTurn(opts: {
   // When the user hasn't chosen a provider, default to Bedrock if it's wired
   // (platform key, no BYO needed) — it's the intended platform default for
   // signed-in users; otherwise fall back to OpenAI.
-  let aiProvider = prefs?.aiProvider ?? (bedrockEnabled() ? "bedrock" : "openai");
+  let aiProvider = opts.providerOverride ?? prefs?.aiProvider ?? defaultAiProvider(bedrockEnabled());
   // "default" was a broken literal an old picker saved — treat as unset.
   const prefModel = prefs?.aiModel === "default" ? "" : (prefs?.aiModel ?? "");
   let aiModel = prefModel || PROVIDER_DEFAULT_MODEL[aiProvider] || "";
@@ -667,6 +670,23 @@ export async function runAgentTurn(opts: {
         console.error("[helix-chat]", e);
         // Surface actionable provider errors instead of a generic failure.
         const status = (e as { status?: number }).status;
+        const code = (e as { code?: string }).code;
+        // ROBUSTNESS: when the house OpenAI key fails fatally (rejected key or
+        // out of credits) and Bedrock is wired, don't brick the build — retry the
+        // whole turn on the Bedrock GPT-OSS fallback. Only when this turn was the
+        // house-OpenAI default (not a user's own key, not already overridden).
+        const houseOpenAiFatal =
+          aiProvider === "openai" &&
+          !ownKey &&
+          openaiHouseForAll() &&
+          (status === 401 || // rejected key
+            status === 404 || // bad/typo'd OPENAI_MODEL
+            (status === 429 && code === "insufficient_quota")); // out of credits
+        if (houseOpenAiFatal && bedrockEnabled() && !opts.providerOverride) {
+          console.warn("[helix-chat] house OpenAI failed — falling back to Bedrock GPT-OSS");
+          emit("switching to the backup model…");
+          return runAgentTurn({ ...opts, providerOverride: "bedrock" });
+        }
         if (status === 401) {
           return {
             error:
@@ -674,7 +694,6 @@ export async function runAgentTurn(opts: {
           };
         }
         if (status === 429) {
-          const code = (e as { code?: string }).code;
           return {
             error:
               code === "insufficient_quota"
