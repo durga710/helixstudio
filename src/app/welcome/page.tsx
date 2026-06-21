@@ -42,12 +42,12 @@ const STACK = [
 
 const PLANS = [
   {
-    name: "Hobby",
+    name: "Free",
     price: "$0",
     per: " / mo",
     popular: false,
     cta: "Start free",
-    items: ["1 repository", "Editor + repo-aware chat", "All 24 skills", "100k AI tokens / mo", "Community support"],
+    items: ["Gunner 1.0 & Gunner Max models — free", "1 repository", "Editor + repo-aware chat", "All 24 skills", "100k tokens / mo · no card"],
   },
   {
     name: "Pro",
@@ -55,7 +55,7 @@ const PLANS = [
     per: " / mo",
     popular: true,
     cta: "Start Pro trial",
-    items: ["Unlimited repositories", "Full multi-agent pipeline", "One-click deploys", "25M AI tokens / mo", "Project memory", "Priority support"],
+    items: ["Helix 1.0 & 2.0 — premium models", "Turbo parallel build engine", "Unlimited repositories", "Full multi-agent pipeline + deploys", "25M tokens / mo", "Project memory"],
   },
   {
     name: "Team",
@@ -63,7 +63,7 @@ const PLANS = [
     per: " / mo",
     popular: false,
     cta: "Contact sales",
-    items: ["Everything in Pro", "100M AI tokens / mo", "Shared workspaces + RBAC", "Audit logs", "SSO"],
+    items: ["Everything in Pro", "Helix priority + 100M tokens / mo", "Shared workspaces + RBAC", "Audit logs", "SSO"],
   },
 ];
 
@@ -105,27 +105,28 @@ export default async function WelcomePage() {
           {/* Left — copy */}
           <div className="text-center lg:text-left">
             <Reveal from="up">
-              <span className="inline-flex items-center gap-2 rounded-full border border-border2 bg-panel px-3.5 py-1.5 text-[12.5px] text-txt2">
-                <span className="h-1.5 w-1.5 rounded-full bg-ok" />
-                Now in preview · helixstudio.org
+              <span className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] px-3.5 py-1.5 text-[12.5px] font-medium text-accent">
+                <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
+                New — Helix 1.0 &amp; Helix 2.0, our fastest coding models yet
               </span>
             </Reveal>
 
             <Reveal from="up" delay={0.05}>
               <h1 className="mt-5 text-[clamp(38px,6.4vw,66px)] font-bold leading-[1.02] tracking-[-0.035em]">
-                Build software
+                Frontier code.
                 <br />
-                at the speed
+                A fraction of
                 <br />
-                of{" "}
-                <span className="bg-gradient-to-r from-accent to-[#a78bfa] bg-clip-text text-transparent">thought.</span>
+                the{" "}
+                <span className="bg-gradient-to-r from-accent to-[#a78bfa] bg-clip-text text-transparent">price.</span>
               </h1>
             </Reveal>
 
             <Reveal from="up" delay={0.1}>
-              <p className="mx-auto mt-5 max-w-[540px] text-[clamp(16px,2.2vw,19px)] text-txt2 lg:mx-0">
-                Plan, build, review, deploy, and scale software using a team of AI engineering agents working
-                directly inside your codebase.
+              <p className="mx-auto mt-5 max-w-[545px] text-[clamp(16px,2.2vw,19px)] text-txt2 lg:mx-0">
+                Meet <strong className="font-semibold text-txt">Helix 1.0 &amp; 2.0</strong> — coding models that match the
+                frontier on quality and beat it on speed and cost. Our build engine spends up to{" "}
+                <strong className="font-semibold text-txt">10× fewer tokens</strong>, so every app ships for cents, not dollars.
               </p>
             </Reveal>
 
@@ -142,9 +143,25 @@ export default async function WelcomePage() {
               </div>
             </Reveal>
 
+            {/* Proof stats */}
+            <Reveal from="up" delay={0.18}>
+              <div className="mt-8 grid max-w-[540px] grid-cols-3 gap-2.5 lg:mx-0">
+                {[
+                  { big: "10×", small: "fewer tokens / build" },
+                  { big: "Parallel", small: "build engine" },
+                  { big: "$0", small: "free tier — no card" },
+                ].map((s) => (
+                  <div key={s.small} className="rounded-xl border border-border2 bg-panel/60 px-3 py-2.5 text-center lg:text-left">
+                    <div className="text-[19px] font-bold tracking-tight text-accent">{s.big}</div>
+                    <div className="text-[11.5px] leading-tight text-txt3">{s.small}</div>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+
             {/* Social proof */}
-            <Reveal from="up" delay={0.2}>
-              <div className="mt-7 flex flex-col items-center gap-3 text-[12.5px] text-txt3 sm:flex-row lg:items-center lg:justify-start">
+            <Reveal from="up" delay={0.24}>
+              <div className="mt-6 flex flex-col items-center gap-3 text-[12.5px] text-txt3 sm:flex-row lg:items-center lg:justify-start">
                 <span className="flex items-center gap-1 text-accent" aria-label="Rated 5 out of 5">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Star key={i} className="h-3.5 w-3.5 fill-current" strokeWidth={0} aria-hidden />
@@ -190,8 +207,8 @@ export default async function WelcomePage() {
         <div className="mx-auto max-w-[1120px] px-6">
           <Reveal className="mx-auto mb-12 max-w-[640px] text-center">
             <span className="text-xs font-bold uppercase tracking-[0.14em] text-accent">Pricing</span>
-            <h2 className="mt-2.5 text-[clamp(26px,4vw,40px)] font-bold tracking-tight text-txt">Start free. Scale when you ship.</h2>
-            <p className="mt-3 text-base text-txt2">Every plan includes the editor, repo-aware chat, and all 24 skills.</p>
+            <h2 className="mt-2.5 text-[clamp(26px,4vw,40px)] font-bold tracking-tight text-txt">Start free. Upgrade to ship faster.</h2>
+            <p className="mt-3 text-base text-txt2">Build free on Gunner, no card required. Step up to Helix 1.0 &amp; 2.0 — frontier quality, a fraction of the cost — the moment you&apos;re ready to scale.</p>
           </Reveal>
           <div className="mx-auto grid max-w-[980px] grid-cols-1 gap-4 md:grid-cols-3">
             {PLANS.map((plan, i) => (
@@ -238,14 +255,15 @@ export default async function WelcomePage() {
           <div className="relative">
             <Reveal>
               <h2 className="text-[clamp(28px,4.4vw,46px)] font-bold leading-[1.08] tracking-tight text-txt">
-                Build faster. Ship better.
+                Ship frontier code.
                 <br />
-                Scale confidently.
+                For a fraction of the price.
               </h2>
             </Reveal>
             <Reveal delay={0.05}>
               <p className="mx-auto mt-4 max-w-[520px] text-base text-txt2">
-                The AI operating system for software engineering. Connect a repo and let the agents handle the rest.
+                Start free on Gunner — no card. Step up to Helix 1.0 &amp; 2.0 the moment you want to move faster.
+                Connect a repo and let the agents ship it.
               </p>
             </Reveal>
             <Reveal delay={0.1}>
