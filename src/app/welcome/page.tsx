@@ -10,6 +10,7 @@ import { WorkflowSection } from "@/components/marketing/WorkflowSection";
 import { AgentsSection } from "@/components/marketing/AgentsSection";
 import { RepoIntelligenceSection } from "@/components/marketing/RepoIntelligenceSection";
 import { DeploymentsSection } from "@/components/marketing/DeploymentsSection";
+import { HelixVideoSection } from "@/components/marketing/HelixVideoSection";
 import { ComparisonSection } from "@/components/marketing/ComparisonSection";
 import { TestimonialsSection } from "@/components/marketing/TestimonialsSection";
 
@@ -28,6 +29,7 @@ const NAV = [
   { href: "#workflow", label: "Workflow" },
   { href: "#agents", label: "Agents" },
   { href: "#repo", label: "Intelligence" },
+  { href: "#video", label: "HelixVideo" },
   { href: "#compare", label: "Compare" },
   { href: "#pricing", label: "Pricing" },
 ];
@@ -199,6 +201,7 @@ export default async function WelcomePage() {
       <AgentsSection />
       <RepoIntelligenceSection />
       <DeploymentsSection />
+      <HelixVideoSection />
       <ComparisonSection />
       <TestimonialsSection />
 
