@@ -5,7 +5,7 @@ import "server-only";
  * worker agents. One model call returning JSON; the parser is pure + tested.
  */
 
-import { runOneShot, resolveAiPrefs } from "@/lib/ai-agent";
+import { runOneShotResilient, resolveAiPrefs } from "@/lib/ai-agent";
 import { listWorkspaceFiles } from "@/lib/workspace";
 import type { Workspace } from "@/generated/prisma/client";
 import { parsePlan, type PlannedTask } from "./parse";
@@ -27,7 +27,7 @@ export async function planRefactor(ws: Workspace, userId: string, request: strin
   const prefs = await resolveAiPrefs(userId);
   const files = await listWorkspaceFiles(ws).catch(() => []);
   const tree = files.map((f) => f.path).slice(0, 500).join("\n");
-  const res = await runOneShot({
+  const res = await runOneShotResilient({
     provider: prefs.provider,
     model: prefs.model,
     apiKey: prefs.apiKey,

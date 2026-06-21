@@ -24,7 +24,7 @@ import {
 } from "@/lib/workspace-tools";
 import { AGENT_LIMITS, type AgentLimits, ANTHROPIC_MAX_OUTPUT, READONLY_TOOLS, toolResultCapFor } from "@/lib/agent-config";
 import { withRetry } from "@/lib/ai/retry";
-import { resolveAiKey, defaultAiProvider, GEMINI_BASE_URL, PROVIDER_DEFAULT_MODEL } from "@/lib/ai/keys";
+import { resolveAiKey, defaultAiProvider, openaiHouseForAll, GEMINI_BASE_URL, PROVIDER_DEFAULT_MODEL } from "@/lib/ai/keys";
 import { isAdminEmail } from "@/lib/admin";
 
 // Re-exported so existing importers (agent-turn, webhook, ai-review) keep their
@@ -454,6 +454,36 @@ export async function runOneShot(opts: {
   }
 }
 
+/**
+ * `runOneShot` with a safety net: when the HOUSE OpenAI default fails, retry on
+ * Bedrock GPT-OSS — so a dead / over-quota / mis-modeled key can't silently kill
+ * the auxiliary model calls across the app (the studio pipeline's planner,
+ * architect, and reviewer; background job planning/review; intake; memory
+ * folding; turbo planning + leaf generation). Mirrors the main agent's fallback.
+ *
+ * These calls are best-effort, so we fall back on ANY error from a house-OpenAI
+ * call. A user's own key or a non-OpenAI provider is returned as-is (no fallback).
+ */
+export async function runOneShotResilient(
+  opts: Parameters<typeof runOneShot>[0],
+): Promise<{ text: string; tokensUsed: number } | { error: string }> {
+  const first = await runOneShot(opts);
+  if (!("error" in first)) return first;
+  if (opts.provider !== "openai" || !openaiHouseForAll()) return first;
+  const { bedrockEnabled, resolveBedrockModel } = await import("@/lib/ai/bedrock");
+  if (!bedrockEnabled()) return first;
+  const r = resolveBedrockModel("openai.gpt-oss-120b-1:0");
+  if (!r) return first;
+  return runOneShot({
+    ...opts,
+    provider: r.protocol === "anthropic" ? "anthropic" : "local",
+    model: r.modelId,
+    apiKey: r.apiKey,
+    baseUrl: r.baseUrl,
+    extraHeaders: r.headers,
+  });
+}
+
 /* ============================ Reviewer ============================= */
 
 /**
@@ -478,7 +508,7 @@ export async function runReviewer(opts: {
       "Flag ONLY real problems — correctness bugs, security issues, data loss, broken builds — with file and line " +
       "references. Skip style nits. Be concise (bullets). End with exactly one line: 'Verdict: ship it' or " +
       "'Verdict: hold — <one-line reason>'.";
-  const result = await runOneShot({
+  const result = await runOneShotResilient({
     provider: opts.provider,
     model: opts.model,
     apiKey: opts.apiKey,

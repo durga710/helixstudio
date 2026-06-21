@@ -23,7 +23,7 @@ import type { Workspace, WorkspaceIntent, WorkspaceChange } from "@/generated/pr
 import { db } from "@/lib/db";
 import { readWorkspaceFile, writeWorkspaceFiles, deleteWorkspaceFile } from "@/lib/workspace";
 import { normalizeEol, pruneIntents } from "@/lib/intent-ledger";
-import { runOneShot } from "@/lib/ai-agent";
+import { runOneShotResilient } from "@/lib/ai-agent";
 import { MAX_FILE_CHARS } from "@/lib/repo-files";
 
 /** Files the AI untangler will attempt per proposal — beyond this they're
@@ -153,7 +153,7 @@ export async function buildUndoProposal(
       `--- A: BEFORE the intent ---\n${change.beforeContent ?? "(file did not exist)"}\n\n` +
       `--- B: AFTER the intent ---\n${change.afterContent ?? "(file was deleted)"}\n\n` +
       `--- C: CURRENT ---\n${current ?? "(file does not exist)"}`;
-    const result = await runOneShot({
+    const result = await runOneShotResilient({
       ...ai,
       system: UNTANGLE_SYSTEM,
       user: prompt.slice(0, 90_000),

@@ -33,7 +33,7 @@ import { db } from "@/lib/db";
 import { GUEST_TOKEN_LIMIT } from "@/lib/auth";
 import { getGitAuth, withGitAuth } from "@/lib/git";
 import { listWorkspaceFiles, readWorkspaceFile } from "@/lib/workspace";
-import { resolveAiPrefs, runOneShot, runReviewer } from "@/lib/ai-agent";
+import { resolveAiPrefs, runOneShotResilient, runReviewer } from "@/lib/ai-agent";
 import { checkTokenBudget } from "@/lib/token-budget";
 import { aiUsageOps } from "@/lib/ai-usage";
 import { auditFiles } from "@/lib/security/audit";
@@ -189,7 +189,7 @@ export async function runBuildPipeline(opts: {
   let planText = "";
   if (useModelPhases && prefs.apiKey !== undefined) {
     const treeOutline = treePaths.slice(0, 60).join("\n") || "(empty — a starter will be scaffolded)";
-    const r = await runOneShot({
+    const r = await runOneShotResilient({
       provider: prefs.provider,
       model: prefs.model,
       apiKey: prefs.apiKey,
@@ -231,7 +231,7 @@ export async function runBuildPipeline(opts: {
   let approach = "";
   if (useModelPhases && prefs.apiKey !== undefined) {
     const { framework } = detectStack(treePaths, pkgJson);
-    const r = await runOneShot({
+    const r = await runOneShotResilient({
       provider: prefs.provider,
       model: prefs.model,
       apiKey: prefs.apiKey,
