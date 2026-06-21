@@ -22,6 +22,8 @@ interface Prefs {
   keySet: { openai: boolean; anthropic: boolean; local: boolean; gemini: boolean };
   serverKeys: { openai: boolean; anthropic: boolean; gemini: boolean };
   bedrockModels?: BedrockModelOption[];
+  /** Premium (pro/team or admin) — unlocks the Helix models; free = Gunner only. */
+  premium?: boolean;
 }
 
 type CloudProvider = "openai" | "anthropic" | "gemini";
@@ -333,11 +335,11 @@ export function ModelPicker() {
             className="fade-up absolute right-0 top-full z-50 mt-2 w-[22rem] space-y-3 rounded-card-lg border
                        border-border2 bg-panel p-4 shadow-pop"
           >
-            {/* Helix-hosted models — one click, no key needed. */}
+            {/* Free Gunner models — one click, no key needed. */}
             {bedrockModels.length > 0 && (
               <div>
                 <label className="label-tactical mb-1.5 block">
-                  Helix models · no key
+                  Free models · no key
                 </label>
                 <div className="flex flex-wrap gap-1.5">
                   {bedrockModels.map((m) => {
@@ -363,7 +365,8 @@ export function ModelPicker() {
                   })}
                 </div>
                 <p className="mt-1.5 text-[10px] leading-relaxed text-txt3">
-                  Hosted by Helix — billed against your token quota. Or bring your own model below.
+                  Gunner — free, hosted by Helix, billed against your token quota. Helix (premium) and
+                  your own key are below.
                 </p>
               </div>
             )}
@@ -460,6 +463,13 @@ export function ModelPicker() {
                   />
                 )}
               </div>
+              {/* Helix is premium: free users can select it but builds run on the
+                  free Gunner engine until they upgrade (the server enforces this). */}
+              {provider === "openai" && prefs && !prefs.premium && (
+                <p className="mt-1.5 text-[10px] leading-relaxed text-warn">
+                  Helix is a premium plan. Free builds run on Gunner — upgrade your plan to build on Helix.
+                </p>
+              )}
             </div>
 
             {provider === "local" ? (

@@ -37,27 +37,39 @@ export function openaiHouseForAll(): boolean {
 }
 
 /**
- * The default provider when the user hasn't picked one. House OpenAI wins when
- * enabled; otherwise Bedrock if it's wired; otherwise OpenAI. `bedrockWired` is
+ * Premium access — unlocks the Helix (house OpenAI) models. Free and guest users
+ * are limited to the Gunner free models (Bedrock GPT-OSS). Paid subscribers
+ * (pro/team) and admins qualify. Pure (no DB) — the caller passes the tier it
+ * already loaded.
+ */
+export function canUseHelix(opts: { tier?: string | null; isGuest?: boolean; isAdmin?: boolean }): boolean {
+  if (opts.isAdmin) return true;
+  if (opts.isGuest) return false;
+  return opts.tier === "pro" || opts.tier === "team";
+}
+
+/**
+ * The default provider when the user hasn't picked one. Premium subscribers get
+ * the Helix house engine (OpenAI) when it's enabled; everyone else gets the
+ * Gunner free engine (Bedrock) when wired; otherwise OpenAI. `bedrockWired` is
  * passed in to avoid importing the Bedrock module here.
  */
-export function defaultAiProvider(bedrockWired: boolean): string {
-  if (openaiHouseForAll()) return "openai";
+export function defaultAiProvider(bedrockWired: boolean, premium: boolean): string {
+  if (openaiHouseForAll() && premium) return "openai";
   return bedrockWired ? "bedrock" : "openai";
 }
 
 /**
- * The final key for a request. User's own key wins; the house OpenAI key serves
- * everyone when enabled; otherwise the platform env key but ONLY for admins.
- * `local` is a bring-your-own-endpoint provider, so it falls back to a dummy key
- * for everyone (many local/custom endpoints need no auth) — but its PLATFORM key
- * (LOCAL_AI_API_KEY, e.g. a paid gateway) stays admin-only.
+ * The final key for a request. User's own key wins; the house OpenAI (Helix) key
+ * serves PREMIUM subscribers when enabled; otherwise the platform env key but
+ * ONLY for admins. `local` is a bring-your-own-endpoint provider, so it falls
+ * back to a dummy key for everyone — but its PLATFORM key stays admin-only.
  */
-export function resolveAiKey(opts: { provider: string; userKey?: string | null; isAdmin: boolean }): string | undefined {
+export function resolveAiKey(opts: { provider: string; userKey?: string | null; isAdmin: boolean; premium?: boolean }): string | undefined {
   if (opts.userKey) return opts.userKey;
-  // House OpenAI key: available to ALL users when explicitly enabled. Trim it —
-  // a trailing newline from a dashboard paste makes the API reject it with 401.
-  if (opts.provider === "openai" && openaiHouseForAll()) {
+  // House OpenAI (Helix) key — PREMIUM subscribers only. Trim it: a trailing
+  // newline from a dashboard paste makes the API reject it with 401.
+  if (opts.provider === "openai" && openaiHouseForAll() && opts.premium) {
     const houseKey = envKeyFor("openai")?.trim();
     if (houseKey) return houseKey;
   }
@@ -78,5 +90,7 @@ export const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
   // tool_calls). Open-weight, so it's cheap on the platform's metered bill.
   // Every Claude id is currently 403/404 on this account (no entitlement —
   // see docs/BEDROCK-MODEL-ACCESS.md), so a Claude default would dead-end.
-  bedrock: "openai.gpt-oss-120b-1:0",
+  // Free-tier default = Gunner 1.0 (the 20B): cheaper/faster for the free plan.
+  // Gunner Max (120B) is the upgrade and the house→Helix fallback target.
+  bedrock: "openai.gpt-oss-20b-1:0",
 };

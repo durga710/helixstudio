@@ -193,7 +193,7 @@ export function AiSection() {
       return;
     }
     setSelectedBedrock(modelId);
-    toast("Switched to a Helix model — no key needed.");
+    toast("Switched to a Gunner free model — no key needed.");
   }
 
   async function removeKey() {
@@ -223,7 +223,7 @@ export function AiSection() {
       {bedrockModels.length > 0 && (
         <>
           <h3 className="mb-[11px] mt-6 text-sm font-semibold">
-            Helix models <span className="font-normal text-txt3">· no key needed</span>
+            Free models <span className="font-normal text-txt3">· Gunner · no key needed</span>
           </h3>
           <Card className="p-[18px]">
             <p className="mb-3 text-xs text-txt2">

@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { guard } from "@/lib/route-helpers";
 import { isAdminEmail } from "@/lib/admin";
 import { HELIX_MODELS } from "@/lib/model-presets";
+import { isPremiumUser } from "@/lib/templates/select";
 import { resolveAiKey, GEMINI_BASE_URL } from "@/lib/ai/keys";
 
 export const runtime = "nodejs";
@@ -70,7 +71,10 @@ export async function GET(req: Request) {
   });
   const userKey =
     provider === "openai" ? prefs?.openaiKey : provider === "anthropic" ? prefs?.anthropicKey : prefs?.geminiKey;
-  const key = resolveAiKey({ provider, userKey, isAdmin: isAdminEmail(g.user.email) });
+  // Helix (openai house) models list only for premium subscribers; free users
+  // get no live list and fall back to the presets, which the picker locks.
+  const premium = provider === "openai" ? await isPremiumUser(g.user.id, g.user.email) : false;
+  const key = resolveAiKey({ provider, userKey, isAdmin: isAdminEmail(g.user.email), premium });
   // No usable key for this user → no live list; the client keeps the presets.
   if (!key) return ok({ models: [], reason: "no-key" });
 

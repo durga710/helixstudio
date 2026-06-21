@@ -4,7 +4,7 @@
  */
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { openaiHouseForAll, defaultAiProvider, resolveAiKey } from "./keys.ts";
+import { openaiHouseForAll, defaultAiProvider, resolveAiKey, canUseHelix } from "./keys.ts";
 
 const ENV = { ...process.env };
 afterEach(() => {
@@ -25,14 +25,24 @@ test("openaiHouseForAll: needs both the flag and a non-empty key", () => {
   assert.equal(openaiHouseForAll(), true);
 });
 
-test("defaultAiProvider: house OpenAI wins, else Bedrock if wired, else OpenAI", () => {
+test("canUseHelix: admins + pro/team yes; free + guests no", () => {
+  assert.equal(canUseHelix({ isAdmin: true }), true);
+  assert.equal(canUseHelix({ tier: "pro" }), true);
+  assert.equal(canUseHelix({ tier: "team" }), true);
+  assert.equal(canUseHelix({ tier: "free" }), false);
+  assert.equal(canUseHelix({ tier: "pro", isGuest: true }), false); // guests never premium
+  assert.equal(canUseHelix({}), false);
+});
+
+test("defaultAiProvider: PREMIUM + house OpenAI wins; free falls to Gunner (bedrock)", () => {
   delete process.env.OPENAI_FOR_ALL;
   delete process.env.OPENAI_API_KEY;
-  assert.equal(defaultAiProvider(true), "bedrock");
-  assert.equal(defaultAiProvider(false), "openai");
+  assert.equal(defaultAiProvider(true, true), "bedrock"); // no house → bedrock
+  assert.equal(defaultAiProvider(false, true), "openai");
   process.env.OPENAI_FOR_ALL = "1";
   process.env.OPENAI_API_KEY = "sk-test";
-  assert.equal(defaultAiProvider(true), "openai"); // house beats bedrock
+  assert.equal(defaultAiProvider(true, true), "openai"); // premium + house → Helix
+  assert.equal(defaultAiProvider(true, false), "bedrock"); // free → Gunner even with house
 });
 
 test("resolveAiKey: user's own key always wins", () => {
@@ -41,10 +51,12 @@ test("resolveAiKey: user's own key always wins", () => {
   assert.equal(resolveAiKey({ provider: "openai", userKey: "sk-mine", isAdmin: false }), "sk-mine");
 });
 
-test("resolveAiKey: house OpenAI key serves a non-admin when enabled (trimmed)", () => {
+test("resolveAiKey: house OpenAI key serves a PREMIUM non-admin (trimmed), not a free one", () => {
   process.env.OPENAI_FOR_ALL = "1";
   process.env.OPENAI_API_KEY = "sk-house\n"; // trailing newline from a paste
-  assert.equal(resolveAiKey({ provider: "openai", userKey: null, isAdmin: false }), "sk-house");
+  assert.equal(resolveAiKey({ provider: "openai", userKey: null, isAdmin: false, premium: true }), "sk-house");
+  // Free user (premium:false) gets no house key — they're limited to Gunner.
+  assert.equal(resolveAiKey({ provider: "openai", userKey: null, isAdmin: false, premium: false }), undefined);
 });
 
 test("resolveAiKey: without house mode, a non-admin gets no platform key", () => {

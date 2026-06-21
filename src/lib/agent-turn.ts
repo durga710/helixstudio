@@ -19,7 +19,7 @@ import { db } from "@/lib/db";
 import { GUEST_TOKEN_LIMIT } from "@/lib/auth";
 import { getGitAuth, withGitAuth, PROVIDER_META, getProvider } from "@/lib/git";
 import { OPENAI_MODEL } from "@/lib/openai";
-import { resolveAiKey, defaultAiProvider, openaiHouseForAll, GEMINI_BASE_URL } from "@/lib/ai/keys";
+import { resolveAiKey, defaultAiProvider, canUseHelix, openaiHouseForAll, GEMINI_BASE_URL } from "@/lib/ai/keys";
 import { isAdminEmail } from "@/lib/admin";
 import {
   workspaceTools,
@@ -178,19 +178,16 @@ export async function runAgentTurn(opts: {
       user: { select: { email: true } },
     },
   });
-  // When the user hasn't chosen a provider, default to Bedrock if it's wired
-  // (platform key, no BYO needed) — it's the intended platform default for
-  // signed-in users; otherwise fall back to OpenAI.
-  let aiProvider = opts.providerOverride ?? prefs?.aiProvider ?? defaultAiProvider(bedrockEnabled());
+  // Premium subscribers (pro/team) + admins get the Helix house engine (OpenAI);
+  // free and guest users get the Gunner free engine (Bedrock GPT-OSS). The picker
+  // gates Helix too, but we enforce it here so a stored pref can't bypass it.
+  const isAdmin = isAdminEmail(prefs?.user?.email);
+  const premium = canUseHelix({ tier: dbUser?.tier, isGuest: dbUser?.isGuest, isAdmin });
+  let aiProvider = opts.providerOverride ?? prefs?.aiProvider ?? defaultAiProvider(bedrockEnabled(), premium);
   // "default" was a broken literal an old picker saved — treat as unset.
   const prefModel = prefs?.aiModel === "default" ? "" : (prefs?.aiModel ?? "");
   let aiModel = prefModel || PROVIDER_DEFAULT_MODEL[aiProvider] || "";
   let aiBaseUrl = prefs?.aiBaseUrl || "http://localhost:1234/v1";
-  // Per-provider keys: switching provider can never send the wrong vendor's key.
-  // Key resolution goes through resolveAiKey — the user's OWN key always works;
-  // the platform (env) key resolves ONLY for admins, so a fresh signup can
-  // never spend our keys.
-  const isAdmin = isAdminEmail(prefs?.user?.email);
   // Phase-2 transform-mode ceilings (bigger context/hops/search + skeleton
   // unlock) for admins; base limits for everyone else. Scaled to the project's
   // size below (once the tree is known) so a small project never over-sends.
@@ -203,7 +200,14 @@ export async function runAgentTurn(opts: {
         : aiProvider === "gemini"
           ? prefs?.geminiKey
           : prefs?.localKey;
-  let memberKey = resolveAiKey({ provider: aiProvider, userKey: ownKey, isAdmin });
+  // Enforce the gate: a non-premium user who landed on the Helix house engine
+  // (no own key, not an explicit override) is downgraded to the Gunner free
+  // engine. Their OWN OpenAI key still works (BYOK).
+  if (!premium && aiProvider === "openai" && !ownKey && bedrockEnabled() && !opts.providerOverride) {
+    aiProvider = "bedrock";
+    aiModel = PROVIDER_DEFAULT_MODEL.bedrock; // Gunner 1.0 (the bedrock block re-resolves)
+  }
+  let memberKey = resolveAiKey({ provider: aiProvider, userKey: ownKey, isAdmin, premium });
 
   // Guest beta model: when GUEST_AI_PROVIDER is set, ALL guests are pinned to
   // it (e.g. a local LM Studio model) so trial traffic never spends the
