@@ -29,6 +29,7 @@ import { aiUsageOps } from "@/lib/ai-usage";
 import { synthesizeReply } from "@/lib/build-feed";
 import { GUEST_TOKEN_LIMIT } from "@/lib/auth";
 import { createAgentIntent } from "@/lib/intent-ledger";
+import { ensureScaffold } from "@/lib/scaffold";
 import { applyDeterministicFixes } from "@/lib/verify";
 import { runAgentTurn, type TurnResult, type TurnError, type TurnEvent } from "@/lib/agent-turn";
 import { planManifest } from "./manifest";
@@ -91,6 +92,20 @@ export async function runTurboBuild(opts: TurboOpts): Promise<TurnResult | TurnE
   const prefs = await resolveAiPrefs(userId);
   const meter = { tokensUsed: 0 };
 
+  // 0. SCAFFOLD — first build of an empty SCRATCH project gets the starter
+  // skeleton (same injection the sequential path uses), so turbo generates the
+  // delta on top of a real, runnable framework instead of from nothing.
+  const currentFiles = await listWorkspaceFiles(ws).catch(() => []);
+  const sc = await ensureScaffold({
+    ws,
+    userId,
+    userMessage: message,
+    currentFiles,
+    emit,
+    onScaffold: (files, stack) => opts.onEvent?.({ type: "scaffold", files, stack }),
+    relist: () => listWorkspaceFiles(ws),
+  });
+
   // 1. PLAN — one strong-model call.
   emit("planning the build…");
   const manifest = await planManifest(ws, userId, message, ws.notes, meter);
@@ -115,8 +130,12 @@ export async function runTurboBuild(opts: TurboOpts): Promise<TurnResult | TurnE
   );
   if ("error" in wrote) return { error: wrote.error };
   const changes = { written: [...wrote.writtenPaths], deleted: [] as string[] };
+  // Fold the scaffold framework into the change set so the summary + "files
+  // changed" card reflect the whole project, not just the generated delta.
+  for (const p of sc.scaffoldPaths) if (!changes.written.includes(p)) changes.written.push(p);
+  const generatedCount = wrote.writtenPaths.length;
   const actions: TurnResult["actions"] = [
-    { tool: "write_files", label: `generated ${changes.written.length} files in parallel` },
+    { tool: "write_files", label: `generated ${generatedCount} files in parallel` },
   ];
   const failed = generated.length - ok.length;
   if (failed > 0) actions.push({ tool: "write_files", label: `${failed} file(s) needed a follow-up` });
@@ -137,10 +156,10 @@ export async function runTurboBuild(opts: TurboOpts): Promise<TurnResult | TurnE
     changes,
     userMessage: message,
     kind: ws.kind === "game" ? "game" : "app",
-    isFirstBuild: true,
+    isFirstBuild: sc.scaffolded,
     seed: ws.id,
   });
-  const text = `Built ${changes.written.length} files in parallel (turbo).`;
+  const text = `Built ${generatedCount} files in parallel (turbo).`;
 
   if (persist) {
     try {
