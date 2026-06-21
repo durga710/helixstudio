@@ -31,7 +31,8 @@ export type AiUsageKind =
   | "lesson_generation"
   | "lesson_assist"
   | "compaction"
-  | "lab_guide";
+  | "lab_guide"
+  | "video";
 
 export interface AiUsageInput {
   userId: string;
