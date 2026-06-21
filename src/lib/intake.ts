@@ -17,7 +17,7 @@ import "server-only";
  */
 
 import { classifyPrompt } from "@/lib/templates/router";
-import { resolveAiPrefs, runOneShot } from "@/lib/ai-agent";
+import { resolveAiPrefs, runOneShotResilient } from "@/lib/ai-agent";
 import { recordAiUsage } from "@/lib/ai-usage";
 import { checkTokenBudget } from "@/lib/token-budget";
 import { matchArchetype, applyImplications } from "@/lib/intake-knowledge";
@@ -127,7 +127,7 @@ async function aiScopeQuestions(opts: {
     if (!(await checkTokenBudget(opts.userId)).ok) return [];
     const prefs = await resolveAiPrefs(opts.userId);
     if (!prefs.apiKey && prefs.provider !== "local") return []; // no key → rules only
-    const res = await runOneShot({
+    const res = await runOneShotResilient({
       provider: prefs.provider,
       model: prefs.model,
       apiKey: prefs.apiKey,

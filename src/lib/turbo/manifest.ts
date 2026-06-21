@@ -13,7 +13,7 @@ import "server-only";
  * model call.
  */
 
-import { resolveAiPrefs, runOneShot } from "@/lib/ai-agent";
+import { resolveAiPrefs, runOneShotResilient } from "@/lib/ai-agent";
 import type { Workspace } from "@/generated/prisma/client";
 import { listWorkspaceFiles } from "@/lib/workspace";
 import { parseManifest, type TurboManifest } from "./parse";
@@ -49,7 +49,7 @@ export async function planManifest(
     `REQUEST:\n${request}\n\n` +
     (notes ? `PROJECT NOTES (the scaffold already in place — build on it, don't recreate config):\n${notes}\n\n` : "") +
     `EXISTING FILES:\n${tree || "(empty project)"}`;
-  const res = await runOneShot({
+  const res = await runOneShotResilient({
     provider: prefs.provider,
     model: prefs.model,
     apiKey: prefs.apiKey,

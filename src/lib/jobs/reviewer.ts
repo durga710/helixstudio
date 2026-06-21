@@ -6,7 +6,7 @@ import "server-only";
  * rounds). One model call returning JSON; the parser is pure + tested.
  */
 
-import { runOneShot, resolveAiPrefs } from "@/lib/ai-agent";
+import { runOneShotResilient, resolveAiPrefs } from "@/lib/ai-agent";
 import { readWorkspaceFile } from "@/lib/workspace";
 import type { Workspace } from "@/generated/prisma/client";
 import { parseReview, MAX_REWORK_ROUNDS, type ReviewResult } from "./parse";
@@ -34,7 +34,7 @@ export async function reviewJob(opts: {
     const c = await readWorkspaceFile(opts.ws, p).catch(() => null);
     if (c !== null) parts.push(`--- ${p} ---\n${c.slice(0, 4000)}`);
   }
-  const res = await runOneShot({
+  const res = await runOneShotResilient({
     provider: prefs.provider,
     model: prefs.model,
     apiKey: prefs.apiKey,

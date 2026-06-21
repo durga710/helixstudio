@@ -20,7 +20,7 @@ import "server-only";
  */
 
 import { db } from "@/lib/db";
-import { resolveAiPrefs, runOneShot } from "@/lib/ai-agent";
+import { resolveAiPrefs, runOneShotResilient } from "@/lib/ai-agent";
 import { recordAiUsage } from "@/lib/ai-usage";
 import { checkTokenBudget } from "@/lib/token-budget";
 import { RECENT_VERBATIM, oneLine, actionSuffix } from "@/lib/chat-context";
@@ -111,7 +111,7 @@ export async function maybeCompactConversation(opts: { workspaceId: string; user
       (ws.convoSummary ? `MEMORY SO FAR:\n${ws.convoSummary}\n\n` : "") +
       `NEW OLDER TURNS (oldest first):\n${renderBatch(fresh)}`;
 
-    const res = await runOneShot({
+    const res = await runOneShotResilient({
       provider: prefs.provider,
       model: prefs.model,
       apiKey: prefs.apiKey,
