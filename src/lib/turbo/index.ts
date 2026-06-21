@@ -30,7 +30,8 @@ import { synthesizeReply } from "@/lib/build-feed";
 import { GUEST_TOKEN_LIMIT } from "@/lib/auth";
 import { createAgentIntent } from "@/lib/intent-ledger";
 import { ensureScaffold } from "@/lib/scaffold";
-import { applyDeterministicFixes } from "@/lib/verify";
+import { applyDeterministicFixes, verifyBuild, verifyMarker } from "@/lib/verify";
+import { VERIFY_MAX_FIX_ATTEMPTS } from "@/lib/agent-config";
 import { runAgentTurn, type TurnResult, type TurnError, type TurnEvent } from "@/lib/agent-turn";
 import { planManifest } from "./manifest";
 import { generateFile } from "./generate";
@@ -151,9 +152,48 @@ export async function runTurboBuild(opts: TurboOpts): Promise<TurnResult | TurnE
     writeFiles: (files) => writeWorkspaceFiles(ws, files, intentId ? { intentId } : undefined),
   });
 
+  // 5. VERIFY — run the build in the sandbox and auto-fix once, exactly like the
+  // sequential path (the fix turn is a normal runAgentTurn with verify off).
+  // Best-effort: degrades to "skipped" when there's nothing to verify or the
+  // sandbox is unreachable. Guests skip it (keeps trial cost down).
+  let verify: TurnResult["verify"];
+  if (!dbUser?.isGuest && changes.written.length > 0) {
+    const treeAfter = await listWorkspaceFiles(ws).catch(() => tree);
+    const pkgJson = await readWorkspaceFile(ws, "package.json").catch(() => null);
+    const result = await verifyBuild({
+      ws,
+      treePaths: treeAfter.map((f) => f.path),
+      pkgJson,
+      changes,
+      actions,
+      emit,
+      maxAttempts: VERIFY_MAX_FIX_ATTEMPTS,
+      readFile: (p) => readWorkspaceFile(ws, p).catch(() => null),
+      deep: false,
+      runFix: async (fixMessage) => {
+        const r = await runAgentTurn({
+          ws,
+          userId,
+          message: fixMessage,
+          persist: false,
+          mode: "build",
+          verify: false,
+          intentId: intentId ?? undefined,
+        });
+        if ("error" in r) return null;
+        return { changes: r.changes, actions: r.actions, tokensUsed: r.tokensUsed };
+      },
+    });
+    meter.tokensUsed += result.extraTokens;
+    const marker = verifyMarker(result);
+    actions.push({ tool: marker.tool, label: marker.label, ...(marker.log ? { log: marker.log } : {}) });
+    verify = { status: result.status, command: result.command, log: result.log };
+  }
+
   const tokensUsed = meter.tokensUsed;
   const summary = synthesizeReply({
     changes,
+    verify,
     userMessage: message,
     kind: ws.kind === "game" ? "game" : "app",
     isFirstBuild: sc.scaffolded,
@@ -185,5 +225,5 @@ export async function runTurboBuild(opts: TurboOpts): Promise<TurnResult | TurnE
     ? Math.max(0, (dbUser.tokenLimit ?? GUEST_TOKEN_LIMIT) - (dbUser.tokensUsed + tokensUsed))
     : null;
 
-  return { text, summary, actions, changes, tokensUsed, guestRemaining };
+  return { text, summary, actions, changes, tokensUsed, guestRemaining, verify };
 }
