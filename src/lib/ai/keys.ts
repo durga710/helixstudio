@@ -27,14 +27,40 @@ export function envKeyFor(provider: string): string | undefined {
 }
 
 /**
- * The final key for a request. User's own key wins; otherwise the platform env
- * key but ONLY for admins. `local` is a bring-your-own-endpoint provider, so it
- * falls back to a dummy key for everyone (many local/custom endpoints need no
- * auth) — but its PLATFORM key (LOCAL_AI_API_KEY, e.g. a paid gateway) stays
- * admin-only.
+ * House OpenAI mode: when `OPENAI_FOR_ALL=1` AND `OPENAI_API_KEY` is set, the
+ * platform OpenAI key serves EVERY user (not just admins) — the operator is
+ * deliberately footing the bill so all builds run on a strong GPT model. The
+ * normal per-user token quota still meters spend. Off by default.
+ */
+export function openaiHouseForAll(): boolean {
+  return process.env.OPENAI_FOR_ALL === "1" && Boolean(process.env.OPENAI_API_KEY?.trim());
+}
+
+/**
+ * The default provider when the user hasn't picked one. House OpenAI wins when
+ * enabled; otherwise Bedrock if it's wired; otherwise OpenAI. `bedrockWired` is
+ * passed in to avoid importing the Bedrock module here.
+ */
+export function defaultAiProvider(bedrockWired: boolean): string {
+  if (openaiHouseForAll()) return "openai";
+  return bedrockWired ? "bedrock" : "openai";
+}
+
+/**
+ * The final key for a request. User's own key wins; the house OpenAI key serves
+ * everyone when enabled; otherwise the platform env key but ONLY for admins.
+ * `local` is a bring-your-own-endpoint provider, so it falls back to a dummy key
+ * for everyone (many local/custom endpoints need no auth) — but its PLATFORM key
+ * (LOCAL_AI_API_KEY, e.g. a paid gateway) stays admin-only.
  */
 export function resolveAiKey(opts: { provider: string; userKey?: string | null; isAdmin: boolean }): string | undefined {
   if (opts.userKey) return opts.userKey;
+  // House OpenAI key: available to ALL users when explicitly enabled. Trim it —
+  // a trailing newline from a dashboard paste makes the API reject it with 401.
+  if (opts.provider === "openai" && openaiHouseForAll()) {
+    const houseKey = envKeyFor("openai")?.trim();
+    if (houseKey) return houseKey;
+  }
   const env = opts.isAdmin ? envKeyFor(opts.provider) : undefined;
   if (env) return env;
   if (opts.provider === "local") return "local";

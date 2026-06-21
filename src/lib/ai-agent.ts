@@ -24,7 +24,7 @@ import {
 } from "@/lib/workspace-tools";
 import { AGENT_LIMITS, type AgentLimits, ANTHROPIC_MAX_OUTPUT, READONLY_TOOLS, toolResultCapFor } from "@/lib/agent-config";
 import { withRetry } from "@/lib/ai/retry";
-import { resolveAiKey, GEMINI_BASE_URL, PROVIDER_DEFAULT_MODEL } from "@/lib/ai/keys";
+import { resolveAiKey, defaultAiProvider, GEMINI_BASE_URL, PROVIDER_DEFAULT_MODEL } from "@/lib/ai/keys";
 import { isAdminEmail } from "@/lib/admin";
 
 // Re-exported so existing importers (agent-turn, webhook, ai-review) keep their
@@ -332,7 +332,7 @@ export async function resolveAiPrefs(userId: string): Promise<{
       user: { select: { email: true } },
     },
   });
-  const provider = prefs?.aiProvider ?? (bedrockEnabled() ? "bedrock" : "openai");
+  const provider = prefs?.aiProvider ?? defaultAiProvider(bedrockEnabled());
   const prefModel = prefs?.aiModel === "default" ? "" : (prefs?.aiModel ?? "");
 
   // Bedrock-served models (platform default, no BYO key). Map to the matching
@@ -433,13 +433,18 @@ export async function runOneShot(opts: {
       const label = opts.provider === "gemini" ? "Gemini" : "OpenAI";
       return { error: `No ${label} API key — add one in Settings → AI model.` };
     }
-    const resp = await client.chat.completions.create({
-      model: opts.model,
-      messages: [
-        { role: "system", content: opts.system },
-        { role: "user", content: opts.user },
-      ],
-    });
+    // Retry transient 429/5xx (important for turbo's parallel fan-out), and bound
+    // the output — GPT-5 ignores `max_tokens`, so use `max_completion_tokens`.
+    const resp = await withRetry(() =>
+      client.chat.completions.create({
+        model: opts.model,
+        max_completion_tokens: opts.maxTokens ?? 8_192,
+        messages: [
+          { role: "system", content: opts.system },
+          { role: "user", content: opts.user },
+        ],
+      }),
+    );
     return {
       text: resp.choices[0]?.message?.content?.trim() || "",
       tokensUsed: resp.usage?.total_tokens ?? 0,
