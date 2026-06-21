@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
-import { MODEL_PRESETS } from "@/lib/model-presets";
+import { MODEL_PRESETS, brandModel } from "@/lib/model-presets";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 import { KeyStatusDot, validateAiKey, type KeyState } from "@/components/studio/key-status";
 import { cn } from "@/lib/utils";
@@ -290,25 +290,28 @@ export function AiSection() {
         </div>
         <div className="flex gap-2">
           <select
-            value={modelOptions.includes(model) ? model : "__custom"}
+            value={modelOptions.includes(model) ? model : provider === "openai" ? modelOptions[0] : "__custom"}
             onChange={(e) => e.target.value !== "__custom" && setModel(e.target.value)}
             aria-label="Model preset"
             className="rounded-[9px] border border-border2 bg-panel2 px-2 py-2 font-mono text-xs outline-none focus:border-accent"
           >
             {modelOptions.map((m) => (
               <option key={m} value={m}>
-                {m}
+                {brandModel(m)}
               </option>
             ))}
-            <option value="__custom">custom…</option>
+            {provider !== "openai" && <option value="__custom">custom…</option>}
           </select>
-          <Input
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder="model id"
-            aria-label="Model id"
-            className="font-mono text-xs"
-          />
+          {/* White-label: no raw model-id entry for the Helix house engine. */}
+          {provider !== "openai" && (
+            <Input
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="model id"
+              aria-label="Model id"
+              className="font-mono text-xs"
+            />
+          )}
         </div>
         {provider === "local" && (
           <div className="mt-3">

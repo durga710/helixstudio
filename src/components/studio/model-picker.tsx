@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BrainCircuit, Check, ChevronDown, Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { MODEL_PRESETS } from "@/lib/model-presets";
+import { MODEL_PRESETS, brandModel } from "@/lib/model-presets";
 import { KeyStatusDot, validateAiKey, type KeyState } from "@/components/studio/key-status";
 
 interface BedrockModelOption {
@@ -190,7 +190,7 @@ export function ModelPicker() {
   // A Bedrock ("Helix") model shows its friendly label instead of the raw id.
   const activeBedrock =
     prefs?.aiProvider === "bedrock" ? bedrockModels.find((m) => m.modelId === prefs.aiModel) : undefined;
-  const chipModel = prefs ? (activeBedrock ? activeBedrock.label : prefs.aiModel || "default") : "…";
+  const chipModel = prefs ? (activeBedrock ? activeBedrock.label : brandModel(prefs.aiModel) || "default") : "…";
   const chipProvider = prefs
     ? activeBedrock
       ? "Helix"
@@ -431,29 +431,34 @@ export function ModelPicker() {
 
             <div>
               <label className="label-tactical mb-1.5 block">
-                Model — any id your provider supports
+                {provider === "openai" ? "Model" : "Model — any id your provider supports"}
               </label>
               <div className="flex gap-1.5">
                 <select
-                  value={modelOptions.includes(model) ? model : "__custom"}
+                  value={modelOptions.includes(model) ? model : provider === "openai" ? modelOptions[0] : "__custom"}
                   onChange={(e) => e.target.value !== "__custom" && setModel(e.target.value)}
-                  className={cn(fieldCls, "max-w-[10rem] px-1.5")}
+                  className={cn(fieldCls, provider === "openai" ? "flex-1" : "max-w-[10rem]", "px-1.5")}
                 >
                   {modelOptions.map((m) => (
                     <option key={m} value={m} className="bg-panel">
-                      {m}
+                      {brandModel(m)}
                     </option>
                   ))}
-                  <option value="__custom" className="bg-panel">
-                    custom…
-                  </option>
+                  {/* White-label: no raw model-id entry for the Helix house engine. */}
+                  {provider !== "openai" && (
+                    <option value="__custom" className="bg-panel">
+                      custom…
+                    </option>
+                  )}
                 </select>
-                <input
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  placeholder="model id"
-                  className={cn(fieldCls, "min-w-0 flex-1")}
-                />
+                {provider !== "openai" && (
+                  <input
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder="model id"
+                    className={cn(fieldCls, "min-w-0 flex-1")}
+                  />
+                )}
               </div>
             </div>
 
