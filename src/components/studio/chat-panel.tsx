@@ -32,6 +32,7 @@ import {
   Gamepad2,
   Lightbulb,
   Coins,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { GAME_CATEGORIES } from "@/lib/templates/engines";
@@ -265,6 +266,7 @@ export function ChatPanel({
   isGuest,
   isOwner = true,
   isAdmin = false,
+  turboAvailable = false,
 }: {
   workspace: WorkspaceMeta;
   onChanges: (written: string[], deleted: string[]) => void;
@@ -272,6 +274,8 @@ export function ChatPanel({
   isOwner?: boolean;
   /** Admin preview: offer a durable multi-agent refactor job for big requests. */
   isAdmin?: boolean;
+  /** Server has HELIX_TURBO enabled — show the parallel-build toggle (SCRATCH only). */
+  turboAvailable?: boolean;
 }) {
   const [messages, setMessages] = useState<Msg[] | null>(null); // null = loading history
   const [input, setInput] = useState("");
@@ -284,6 +288,9 @@ export function ChatPanel({
   // is the standard flow now); the toggle lets you turn it off, and the
   // per-message "Verify" button works regardless.
   const [verifyOn, setVerifyOn] = useState(true);
+  // Turbo: parallel plan→generate→stitch build. Only meaningful on a SCRATCH
+  // project with HELIX_TURBO enabled on the server (turboAvailable).
+  const [turboOn, setTurboOn] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [openLog, setOpenLog] = useState<number | null>(null); // message index with expanded log
   const [openDetails, setOpenDetails] = useState<number | null>(null); // message index with expanded "what the model said"
@@ -674,6 +681,9 @@ export function ChatPanel({
           message: content.slice(0, 24_000),
           mode: sendMode,
           verify: sendVerify,
+          // Turbo: parallel plan→generate→stitch. Server triple-gates it
+          // (HELIX_TURBO + SCRATCH), so this is a no-op unless truly available.
+          turbo: turboOn && sendMode === "build" ? true : undefined,
           brief: brief ? brief.slice(0, 8000) : undefined,
         }),
         signal: ctl.signal,
@@ -1811,6 +1821,27 @@ export function ChatPanel({
             >
               <ShieldCheck className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Verify</span>
+            </button>
+          )}
+          {mode === "build" && turboAvailable && workspace.mode === "SCRATCH" && (
+            <button
+              type="button"
+              onClick={() => setTurboOn((v) => !v)}
+              aria-pressed={turboOn}
+              title={
+                turboOn
+                  ? "Turbo ON — plan, then generate every file in parallel (faster, fewer tokens)"
+                  : "Turbo OFF — turn on to build with the parallel plan→generate→stitch engine"
+              }
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs transition-colors",
+                turboOn
+                  ? "border-accent/50 bg-hl text-accent"
+                  : "border-border2 bg-panel text-txt3 hover:border-accent hover:text-txt2",
+              )}
+            >
+              <Zap className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Turbo</span>
             </button>
           )}
           </div>

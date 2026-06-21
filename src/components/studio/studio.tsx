@@ -41,6 +41,7 @@ export function Studio({
   isOwner = true,
   isAdmin = false,
   ownerName,
+  turboAvailable = false,
 }: {
   workspace: WorkspaceMeta;
   isGuest?: boolean;
@@ -49,6 +50,8 @@ export function Studio({
   /** Admin preview: offer durable multi-agent refactor jobs. */
   isAdmin?: boolean;
   ownerName?: string;
+  /** Server has HELIX_TURBO enabled — surfaces the parallel-build toggle. */
+  turboAvailable?: boolean;
 }) {
   const [changes, setChanges] = useState<Changes | null>(null);
 
@@ -71,6 +74,7 @@ export function Studio({
           isGuest={isGuest}
           isOwner={isOwner}
           isAdmin={isAdmin}
+          turboAvailable={turboAvailable}
           onChanges={(written, deleted) =>
             setChanges((c) => ({ written, deleted, nonce: (c?.nonce ?? 0) + 1 }))
           }
