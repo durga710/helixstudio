@@ -4,15 +4,32 @@
  * supports — presets are just shortcuts.
  */
 
+/**
+ * White-label display names. The Helix house engine runs on OpenAI under the
+ * hood, but users only ever see the Helix brand — the raw model id is what we
+ * send to the provider; the brand name is what we render. Add a row here to
+ * surface a new tier.
+ */
+export const MODEL_BRAND: Record<string, string> = {
+  "gpt-5.4-mini": "Helix 1.0",
+  "gpt-5.5": "Helix 2.0",
+};
+
+/** The branded display name for a model id, or the id itself when unbranded. */
+export function brandModel(modelId: string): string {
+  return MODEL_BRAND[modelId] ?? modelId;
+}
+
+/** The OpenAI model ids the Helix provider surfaces — fastest tier first.
+ *  Full white-label: only these show; every other gpt-* id is hidden. */
+export const HELIX_MODELS = ["gpt-5.4-mini", "gpt-5.5"];
+
 export const MODEL_PRESETS: Record<string, { label: string; models: string[]; hint: string }> = {
   openai: {
-    label: "OpenAI",
-    // Only reasoning models that reliably emit tool calls (so builds actually
-    // write files). Chat-tuned snapshots (gpt-5-chat-latest, chatgpt-*) are
-    // excluded — they narrate edits instead of calling the tools. gpt-5.5 is the
-    // strongest; gpt-5-mini is the snappy/cheap pick.
-    models: ["gpt-5.5", "gpt-5-mini", "gpt-5", "gpt-4.1"],
-    hint: "gpt-5.5 is the strongest; gpt-5-mini is snappy and cheap. Reasoning models that reliably call the build tools, with built-in web search. Any OpenAI model id that supports tool calling works.",
+    // White-labeled: this is the Helix house engine (OpenAI under the hood).
+    label: "Helix",
+    models: HELIX_MODELS, // shown as Helix 1.0 / Helix 2.0
+    hint: "Helix 1.0 is fast and efficient — the default. Helix 2.0 is the most capable for complex builds. Helix's hosted engine; no key needed.",
   },
   anthropic: {
     label: "Anthropic (Claude)",

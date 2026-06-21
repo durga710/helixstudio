@@ -14,6 +14,7 @@ import { ok, apiErrors } from "@/lib/api-response";
 import { db } from "@/lib/db";
 import { guard } from "@/lib/route-helpers";
 import { isAdminEmail } from "@/lib/admin";
+import { HELIX_MODELS } from "@/lib/model-presets";
 import { resolveAiKey, GEMINI_BASE_URL } from "@/lib/ai/keys";
 
 export const runtime = "nodejs";
@@ -46,9 +47,13 @@ function chatModels(provider: string, ids: string[]): string[] {
     // Gemini ids come back as "models/gemini-2.0-flash" — strip the prefix.
     .map((id) => (provider === "gemini" ? id.replace(/^models\//, "") : id))
     .filter((id) => id && !NON_CHAT.test(id) && !CHAT_TUNED.test(id));
-  // OpenAI lists dozens of non-chat ids; keep the gpt/o-series families.
-  const filtered = provider === "openai" ? out.filter((id) => /^(gpt-|o[1-9])/i.test(id)) : out;
-  return Array.from(new Set(filtered)).slice(0, 60);
+  // OpenAI is the white-labeled Helix house engine: surface ONLY the branded
+  // Helix tiers (in their canonical order), never the raw gpt-* catalog.
+  if (provider === "openai") {
+    const have = new Set(out);
+    return HELIX_MODELS.filter((id) => have.has(id));
+  }
+  return Array.from(new Set(out)).slice(0, 60);
 }
 
 export async function GET(req: Request) {
