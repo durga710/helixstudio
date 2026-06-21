@@ -59,6 +59,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
         isOwner={isOwner}
         isAdmin={isAdminEmail(session.user.email)}
         ownerName={ownerName}
+        turboAvailable={process.env.HELIX_TURBO === "1"}
       />
     </div>
   );
