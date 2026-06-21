@@ -474,6 +474,8 @@ export async function runOneShotResilient(
   if (!bedrockEnabled()) return first;
   const r = resolveBedrockModel("openai.gpt-oss-120b-1:0");
   if (!r) return first;
+  const { recordHouseFallback } = await import("@/lib/fallback-stats");
+  recordHouseFallback();
   return runOneShot({
     ...opts,
     provider: r.protocol === "anthropic" ? "anthropic" : "local",

@@ -685,6 +685,8 @@ export async function runAgentTurn(opts: {
         if (houseOpenAiFatal && bedrockEnabled() && !opts.providerOverride) {
           console.warn("[helix-chat] house OpenAI failed — falling back to Bedrock GPT-OSS");
           emit("switching to the backup model…");
+          const { recordHouseFallback } = await import("@/lib/fallback-stats");
+          recordHouseFallback();
           return runAgentTurn({ ...opts, providerOverride: "bedrock" });
         }
         if (status === 401) {

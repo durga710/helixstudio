@@ -3,12 +3,16 @@ import { aiProviderName } from "@/lib/ai/provider";
 import { bedrockEnabled } from "@/lib/ai/bedrock";
 import { openaiHouseForAll } from "@/lib/ai/keys";
 import { redisEnabled } from "@/lib/redis";
+import { getHouseFallbackStats } from "@/lib/fallback-stats";
 import { adminEmails } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
 
 /** Public, secret-free deployment fingerprint — used to verify what's live. */
 export async function GET() {
+  // Has the house-OpenAI → Bedrock fallback been firing? A nonzero count means
+  // the OpenAI key is failing (out of credits / bad model) and needs attention.
+  const houseFallback = await getHouseFallbackStats();
   return Response.json({
     ok: true,
     app: "helix-studio",
@@ -20,6 +24,9 @@ export async function GET() {
     aiProvider: aiProviderName("anthropic"),
     // The house default model id when OPENAI_FOR_ALL is on (non-secret), else null.
     houseModel: openaiHouseForAll() ? (process.env.OPENAI_MODEL || "gpt-5-mini") : null,
+    // House-OpenAI → Bedrock fallback activity. count > 0 (and a recent lastAt)
+    // means the OpenAI key is failing and traffic is degrading to GPT-OSS.
+    houseFallback,
     // Presence booleans only — never values. One glance shows which env vars
     // reached this deployment.
     configured: {
