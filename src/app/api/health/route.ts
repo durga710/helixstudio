@@ -1,6 +1,7 @@
 import { oauthProviders } from "@/lib/auth";
 import { aiProviderName } from "@/lib/ai/provider";
 import { bedrockEnabled } from "@/lib/ai/bedrock";
+import { openaiHouseForAll } from "@/lib/ai/keys";
 import { redisEnabled } from "@/lib/redis";
 import { adminEmails } from "@/lib/admin";
 
@@ -17,6 +18,8 @@ export async function GET() {
     region: process.env.VERCEL_REGION ?? null,
     demoMode: !process.env.DATABASE_URL && !oauthProviders.github && !oauthProviders.google,
     aiProvider: aiProviderName("anthropic"),
+    // The house default model id when OPENAI_FOR_ALL is on (non-secret), else null.
+    houseModel: openaiHouseForAll() ? (process.env.OPENAI_MODEL || "gpt-5-mini") : null,
     // Presence booleans only — never values. One glance shows which env vars
     // reached this deployment.
     configured: {
@@ -33,6 +36,12 @@ export async function GET() {
       BEDROCK_WORKSPACE_ID: Boolean(process.env.BEDROCK_WORKSPACE_ID),
       REDIS: redisEnabled(),
       SENTRY: Boolean(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN),
+      // House OpenAI: a strong GPT model is the default for ALL users (vs the
+      // admin-only platform key). True only when OPENAI_FOR_ALL=1 + a key reached
+      // this deployment. The model id is non-secret — handy to confirm gpt-5.5 is live.
+      OPENAI_FOR_ALL: openaiHouseForAll(),
+      // Turbo parallel-build engine (per-request toggle still required).
+      HELIX_TURBO: process.env.HELIX_TURBO === "1",
       // Count only — proves /admin is gated and the allowlist env reached this
       // deployment, without exposing who's on it.
       ADMIN_ALLOWLIST: adminEmails().length,
