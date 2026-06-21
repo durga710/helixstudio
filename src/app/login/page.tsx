@@ -291,14 +291,15 @@ export default async function LoginPage({
           <div className="mt-8 rounded-2xl border border-[#28364f] bg-[color-mix(in_srgb,#0d1626_55%,transparent)] p-[18px]">
             <div className="flex items-center gap-2 text-[13.5px] font-semibold text-[#f8fbff]">
               <Coins className="h-4 w-4 text-accent" />
-              Bring any model — pay less per build
+              Built on Helix — pay less per build
             </div>
             <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#9cadc4]">
-              Run OpenAI, Claude, Gemini — or your own key. Our context engine, 0-token starters, and
-              rolling compaction cut the tokens every build spends, so the same model costs you less.
+              The Helix engine is built in — no key needed. Prefer your own? Bring an OpenAI, Claude, or
+              Gemini key. Our context engine, 0-token starters, and rolling compaction cut the tokens every
+              build spends, so each build costs less.
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5">
-              {["OpenAI", "Claude", "Gemini", "Your own key"].map((m) => (
+              {["Helix 1.0", "Helix 2.0", "Bring your own key"].map((m) => (
                 <span
                   key={m}
                   className="rounded-full border border-[#28364f] bg-[#0d1626] px-2.5 py-1 text-[11px] font-medium text-[#9cadc4]"

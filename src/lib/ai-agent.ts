@@ -24,7 +24,7 @@ import {
 } from "@/lib/workspace-tools";
 import { AGENT_LIMITS, type AgentLimits, ANTHROPIC_MAX_OUTPUT, READONLY_TOOLS, toolResultCapFor } from "@/lib/agent-config";
 import { withRetry } from "@/lib/ai/retry";
-import { resolveAiKey, defaultAiProvider, openaiHouseForAll, GEMINI_BASE_URL, PROVIDER_DEFAULT_MODEL } from "@/lib/ai/keys";
+import { resolveAiKey, defaultAiProvider, canUseHelix, openaiHouseForAll, GEMINI_BASE_URL, PROVIDER_DEFAULT_MODEL } from "@/lib/ai/keys";
 import { isAdminEmail } from "@/lib/admin";
 
 // Re-exported so existing importers (agent-turn, webhook, ai-review) keep their
@@ -329,11 +329,18 @@ export async function resolveAiPrefs(userId: string): Promise<{
       anthropicKey: true,
       localKey: true,
       geminiKey: true,
-      user: { select: { email: true } },
+      user: { select: { email: true, tier: true, isGuest: true } },
     },
   });
-  const provider = prefs?.aiProvider ?? defaultAiProvider(bedrockEnabled());
+  const isAdmin = isAdminEmail(prefs?.user?.email);
+  const premium = canUseHelix({ tier: prefs?.user?.tier, isGuest: prefs?.user?.isGuest, isAdmin });
+  let provider = prefs?.aiProvider ?? defaultAiProvider(bedrockEnabled(), premium);
   const prefModel = prefs?.aiModel === "default" ? "" : (prefs?.aiModel ?? "");
+  // Gate: a non-premium user can't use the Helix house engine — downgrade to the
+  // Gunner free engine (Bedrock). Their OWN OpenAI key still works (BYOK below).
+  if (!premium && provider === "openai" && !userKeyFor("openai", prefs) && bedrockEnabled()) {
+    provider = "bedrock";
+  }
 
   // Bedrock-served models (platform default, no BYO key). Map to the matching
   // transport: openai-protocol → the OpenAI-compatible path; claude → anthropic.
@@ -354,7 +361,8 @@ export async function resolveAiPrefs(userId: string): Promise<{
   const apiKey = resolveAiKey({
     provider,
     userKey: userKeyFor(provider, prefs),
-    isAdmin: isAdminEmail(prefs?.user?.email),
+    isAdmin,
+    premium,
   });
   const baseUrl =
     provider === "gemini" ? GEMINI_BASE_URL : prefs?.aiBaseUrl || "http://localhost:1234/v1";

@@ -127,18 +127,18 @@ export const BEDROCK_MODELS: BedrockModel[] = [
   // multi-tool builds, so prefer 120B for real Engineer runs.
   {
     modelId: "openai.gpt-oss-120b-1:0",
-    label: "GPT-OSS 120B",
+    label: "Gunner Max", // white-labeled free model (GPT-OSS 120B under the hood)
     protocol: "openai",
-    contextLabel: "open weight",
+    contextLabel: "free",
     confirmed: true,
     endpoint: "runtime",
     project: false,
   },
   {
     modelId: BEDROCK_SMOKE_TEST_MODEL, // openai.gpt-oss-20b-1:0
-    label: "GPT-OSS 20B",
+    label: "Gunner 1.0", // white-labeled free model (GPT-OSS 20B under the hood)
     protocol: "openai",
-    contextLabel: "open weight",
+    contextLabel: "free",
     confirmed: true,
     endpoint: "runtime",
     region: "us-west-2",

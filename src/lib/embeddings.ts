@@ -70,7 +70,9 @@ async function resolveOpenAiKey(userId: string): Promise<string | undefined> {
     where: { userId },
     select: { openaiKey: true, user: { select: { email: true } } },
   });
-  return resolveAiKey({ provider: "openai", userKey: prefs?.openaiKey ?? undefined, isAdmin: isAdminEmail(prefs?.user?.email) });
+  // Embeddings power semantic search and are cheap — exempt from the Helix
+  // premium gate so free-tier search keeps working on the house key (premium:true).
+  return resolveAiKey({ provider: "openai", userKey: prefs?.openaiKey ?? undefined, isAdmin: isAdminEmail(prefs?.user?.email), premium: true });
 }
 
 function hashOf(text: string): string {

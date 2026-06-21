@@ -14,6 +14,8 @@ import { guard } from "@/lib/route-helpers";
 import { isAdminEmail } from "@/lib/admin";
 import { sanitizeBaseUrl, invalidateGitAuth } from "@/lib/git";
 import { liveBedrockModels, bedrockEnabled } from "@/lib/ai/bedrock";
+import { openaiHouseForAll } from "@/lib/ai/keys";
+import { isPremiumUser } from "@/lib/templates/select";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,15 +43,19 @@ export async function GET() {
   if ("response" in g) return g.response;
 
   const admin = isAdminEmail(g.user.email);
-  const [prefs, githubAccount] = await Promise.all([
+  const [prefs, githubAccount, premium] = await Promise.all([
     db().userPreferences.findUnique({ where: { userId: g.user.id } }),
     db().account.findFirst({
       where: { userId: g.user.id, provider: "github" },
       select: { access_token: true },
     }),
+    isPremiumUser(g.user.id, g.user.email),
   ]);
   return ok({
     githubOauthConnected: Boolean(githubAccount?.access_token),
+    // Premium (pro/team or admin) unlocks the Helix models; free users are
+    // limited to the Gunner free models. The picker uses this to lock Helix.
+    premium,
     aiProvider: prefs?.aiProvider ?? "openai",
     aiModel: prefs?.aiModel === "default" ? "" : (prefs?.aiModel ?? ""),
     aiBaseUrl: prefs?.aiBaseUrl ?? "",
@@ -63,7 +69,8 @@ export async function GET() {
     // Platform keys are admin-only — a non-admin signup can't spend our keys,
     // so we report them as unavailable and the UI tells them to bring their own.
     serverKeys: {
-      openai: admin && Boolean(process.env.OPENAI_API_KEY),
+      // Premium users (and admins) get the Helix house OpenAI key with no BYO.
+      openai: (admin || (premium && openaiHouseForAll())) && Boolean(process.env.OPENAI_API_KEY),
       anthropic: admin && Boolean(process.env.ANTHROPIC_API_KEY),
       gemini: admin && Boolean(process.env.GEMINI_API_KEY),
     },
