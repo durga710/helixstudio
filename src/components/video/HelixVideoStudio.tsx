@@ -287,7 +287,15 @@ export function HelixVideoStudio() {
                     }}
                     className="aspect-video overflow-hidden rounded-lg border border-border2 bg-black"
                   >
-                    <video src={`/api/video/${r.id}/content`} muted playsInline className="h-full w-full object-cover" />
+                    {/* preload metadata only — thumbnails shouldn't pull full MP4s
+                        (the proxied source can also expire). Click loads it above. */}
+                    <video
+                      src={`/api/video/${r.id}/content`}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="h-full w-full object-cover"
+                    />
                   </button>
                 ))}
               </div>
