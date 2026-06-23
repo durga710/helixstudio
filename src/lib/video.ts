@@ -13,6 +13,7 @@ import "server-only";
 import OpenAI from "openai";
 import { isPremiumUser } from "@/lib/templates/select";
 import { recordAiUsage } from "@/lib/ai-usage";
+import { brandVideoMessage, sanitizeVideoError } from "@/lib/video-errors";
 
 /** The model behind HelixVideo (never shown to users). */
 const HELIX_VIDEO_MODEL = "sora-2-pro";
@@ -70,7 +71,7 @@ export async function createVideo(
     void recordAiUsage({ userId, tokens: 0, kind: "video", provider: "helixvideo", model: HELIX_VIDEO_MODEL });
     return { id: v.id, status: v.status, progress: v.progress };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "couldn't start the video" };
+    return { error: sanitizeVideoError(e, "Couldn't start the video. Please try again.") };
   }
 }
 
@@ -84,9 +85,12 @@ export async function videoStatus(
   if ("error" in client) return { error: client.error };
   try {
     const v = await client.videos.retrieve(id);
-    return { id: v.id, status: v.status, progress: v.progress, failReason: v.error?.message ?? undefined };
+    const failReason = v.error?.message
+      ? brandVideoMessage(v.error.message, undefined, "The video couldn't be generated. Try a different prompt.")
+      : undefined;
+    return { id: v.id, status: v.status, progress: v.progress, failReason };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "couldn't read the video status" };
+    return { error: sanitizeVideoError(e, "Couldn't read the video status.") };
   }
 }
 
@@ -101,6 +105,6 @@ export async function videoContent(
   try {
     return await client.videos.downloadContent(id);
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "couldn't download the video" };
+    return { error: sanitizeVideoError(e, "Couldn't download the video.") };
   }
 }
