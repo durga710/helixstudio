@@ -53,7 +53,7 @@ import {
   VERIFY_MAX_FIX_ATTEMPTS,
   toolResultCapFor,
 } from "@/lib/agent-config";
-import { checkTokenBudget, type BudgetCode } from "@/lib/token-budget";
+import { checkTokenBudget, reserveTokenBudget, releaseTokenReservation, type BudgetCode } from "@/lib/token-budget";
 import { aiUsageOps } from "@/lib/ai-usage";
 import {
   stackLine,
@@ -473,6 +473,21 @@ export async function runAgentTurn(opts: {
   let actions: TurnAction[];
   let changes: ChangeManifest;
   let tokensUsed = 0;
+
+  // H4: atomically reserve this turn's budget right before any spend, so N
+  // concurrent turns can't all slip past the read-only gate above. Only the
+  // recording path reserves — a nested non-persisting sub-turn (orchestrator's
+  // engineer, turbo's fix turn) is metered by its parent. The reservation is
+  // reconciled to the real spend at the persist below, and refunded by the
+  // finally on any early/error/fallback exit.
+  const wantReserve = persist;
+  let reserved = 0;
+  let reconciled = false;
+  if (wantReserve) {
+    const r = await reserveTokenBudget(userId);
+    if (!r.ok) return { code: r.code, error: r.error };
+    reserved = r.reserved;
+  }
   try {
     if (aiProvider === "anthropic" || aiProvider === "local" || aiProvider === "gemini" || aiProvider === "bedrock") {
       // Gemini speaks the OpenAI chat API over a fixed base URL, so it runs
@@ -911,8 +926,12 @@ export async function runAgentTurn(opts: {
             // aiModel is "" when the OpenAI default applies — record the real one.
             model: aiModel || (aiProvider === "openai" ? OPENAI_MODEL : ""),
             workspaceId: ws.id,
+            reserved,
           }),
         ]);
+        // The transaction settled the reserved counters to the true spend — don't
+        // let the finally refund them.
+        reconciled = true;
       } catch (e) {
         console.error("[helix-chat] persist failed", e);
       }
@@ -926,6 +945,9 @@ export async function runAgentTurn(opts: {
 
     return { text, summary, actions, changes, tokensUsed, guestRemaining, verify };
   } finally {
+    // Refund the reservation if we never recorded a reconciled spend — covers
+    // every error return, the Bedrock fallback re-run, and a failed persist.
+    if (reserved > 0 && !reconciled) await releaseTokenReservation(userId, reserved);
     clearProgress(ws.id);
   }
 }

@@ -15,6 +15,7 @@ import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { usageAccounting } from "@/lib/usage-accounting";
 
 export type AiUsageKind =
   | "chat"
@@ -41,6 +42,15 @@ export interface AiUsageInput {
   provider?: string;
   model?: string;
   workspaceId?: string | null;
+  /**
+   * Tokens already reserved for this turn by reserveTokenBudget (token-budget.ts).
+   * The reservation pre-incremented both counters by this amount to close the
+   * concurrent-turn quota race (H4); recording therefore only needs to move the
+   * counters by the DELTA to the real spend (`tokens - reserved`), which may be
+   * negative when the turn came in under its reserve. The usage-history row still
+   * logs the true `tokens`. Default 0 = no reservation (legacy behaviour).
+   */
+  reserved?: number;
 }
 
 /** Usage-history rows older than this are pruned (lifetime totals live on
@@ -49,26 +59,40 @@ export const USAGE_RETENTION_DAYS = 90;
 
 /** The Prisma ops for one spend — spread into an existing $transaction. */
 export function aiUsageOps(input: AiUsageInput): Prisma.PrismaPromise<unknown>[] {
-  if (input.tokens <= 0) return [];
-  return [
-    db().user.update({
-      where: { id: input.userId },
-      data: {
-        tokensUsed: { increment: input.tokens },
-        periodTokens: { increment: input.tokens },
-      },
-    }),
-    db().aiUsageEvent.create({
-      data: {
-        userId: input.userId,
-        workspaceId: input.workspaceId ?? null,
-        kind: input.kind,
-        provider: input.provider ?? "",
-        model: input.model ?? "",
-        tokens: input.tokens,
-      },
-    }),
-  ];
+  const reserved = input.reserved ?? 0;
+  // Nothing to record AND nothing to settle.
+  if (input.tokens <= 0 && reserved === 0) return [];
+  const { counterDelta, writeEvent } = usageAccounting(input.tokens, reserved);
+
+  const ops: Prisma.PrismaPromise<unknown>[] = [];
+  if (counterDelta !== 0) {
+    ops.push(
+      db().user.update({
+        where: { id: input.userId },
+        data: {
+          tokensUsed: { increment: counterDelta },
+          periodTokens: { increment: counterDelta },
+        },
+      }),
+    );
+  }
+  // The usage-history row always logs the TRUE token count (not the delta); a
+  // zero-token spend writes no row, matching the prior behaviour.
+  if (writeEvent) {
+    ops.push(
+      db().aiUsageEvent.create({
+        data: {
+          userId: input.userId,
+          workspaceId: input.workspaceId ?? null,
+          kind: input.kind,
+          provider: input.provider ?? "",
+          model: input.model ?? "",
+          tokens: input.tokens,
+        },
+      }),
+    );
+  }
+  return ops;
 }
 
 /** Standalone variant for sites without a transaction. Never throws. */
