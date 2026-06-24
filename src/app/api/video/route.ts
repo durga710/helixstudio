@@ -16,7 +16,7 @@ export const maxDuration = 60;
 
 const CreateSchema = z.object({
   prompt: z.string().min(3).max(2_000),
-  seconds: z.enum(["4", "8", "12"]).default("4"),
+  seconds: z.enum(["4", "8", "12", "16", "20"]).default("4"),
   size: z.enum(["720x1280", "1280x720", "1024x1792", "1792x1024"]).default("1280x720"),
 });
 

@@ -37,24 +37,35 @@ async function recordVideoOwnership(userId: string, videoId: string): Promise<vo
   }
 }
 
-/** Whether this user created the given video id. */
+/** Whether this user created the given video id. Demo mode (no DB) is
+ * single-tenant — the sole user owns everything. A DB error PROPAGATES: callers
+ * must treat it as transient, never as "not owned" (that would lock the owner
+ * out of their own render on a brief blip). */
 async function ownsVideo(userId: string, videoId: string): Promise<boolean> {
-  if (!dbEnabled()) return false;
+  if (!dbEnabled()) return true;
+  const row = await db().aiUsageEvent.findFirst({
+    where: { userId, kind: "video", model: videoId },
+    select: { id: true },
+  });
+  return !!row;
+}
+
+/** Ownership with transient-error tolerance: `true`/`false` for a definite
+ * answer, or `null` when the check itself failed (DB blip) — callers surface a
+ * RETRYABLE status for `null`, not a hard "not found". */
+async function checkOwnership(userId: string, videoId: string): Promise<boolean | null> {
   try {
-    const row = await db().aiUsageEvent.findFirst({
-      where: { userId, kind: "video", model: videoId },
-      select: { id: true },
-    });
-    return !!row;
-  } catch {
-    return false;
+    return await ownsVideo(userId, videoId);
+  } catch (e) {
+    console.error("[helixvideo] ownership check failed", e);
+    return null;
   }
 }
 
-export type HelixVideoSeconds = "4" | "8" | "12";
+export type HelixVideoSeconds = "4" | "8" | "12" | "16" | "20";
 export type HelixVideoSize = "720x1280" | "1280x720" | "1024x1792" | "1792x1024";
 
-export const HELIX_VIDEO_SECONDS: HelixVideoSeconds[] = ["4", "8", "12"];
+export const HELIX_VIDEO_SECONDS: HelixVideoSeconds[] = ["4", "8", "12", "16", "20"];
 export const HELIX_VIDEO_SIZES: { value: HelixVideoSize; label: string }[] = [
   { value: "1280x720", label: "Landscape · 720p" },
   { value: "720x1280", label: "Portrait · 720p" },
@@ -99,7 +110,10 @@ export async function createVideo(
     const v = await client.videos.create({
       model: HELIX_VIDEO_MODEL,
       prompt: opts.prompt,
-      seconds: opts.seconds,
+      // The SDK's seconds union lags the API, which accepts "16"/"20" on
+      // sora-2-pro (verified against the live endpoint). Cast so the wider
+      // HelixVideoSeconds reaches the provider; the request is valid at runtime.
+      seconds: opts.seconds as "4" | "8" | "12",
       size: opts.size,
     });
     // Record ownership BEFORE returning the id so a poll can't race ahead of it.
@@ -118,7 +132,9 @@ export async function videoStatus(
 ): Promise<VideoJob | { error: string }> {
   const client = await houseClient(userId, email);
   if ("error" in client) return { error: client.error };
-  if (!(await ownsVideo(userId, id))) return { error: "We couldn't find that video." };
+  const owns = await checkOwnership(userId, id);
+  if (owns === null) return { error: "Couldn't read the video status." }; // transient — client retries
+  if (!owns) return { error: "We couldn't find that video." };
   try {
     const v = await client.videos.retrieve(id);
     const failReason = v.error?.message
@@ -138,7 +154,9 @@ export async function videoContent(
 ): Promise<Response | { error: string }> {
   const client = await houseClient(userId, email);
   if ("error" in client) return { error: client.error };
-  if (!(await ownsVideo(userId, id))) return { error: "We couldn't find that video." };
+  const owns = await checkOwnership(userId, id);
+  if (owns === null) return { error: "Couldn't read the video right now." }; // transient
+  if (!owns) return { error: "We couldn't find that video." };
   try {
     return await client.videos.downloadContent(id);
   } catch (e) {

@@ -6,7 +6,7 @@ import { ScriptAssistant } from "@/components/video/script-assistant";
 
 type Status = "idle" | "queued" | "in_progress" | "completed" | "failed" | "error";
 
-const SECONDS = ["4", "8", "12"] as const;
+const SECONDS = ["4", "8", "12", "16", "20"] as const;
 const SIZES = [
   { value: "1280x720", label: "Landscape" },
   { value: "720x1280", label: "Portrait" },
@@ -91,7 +91,12 @@ export function HelixVideoStudio() {
       return;
     }
 
-    // Poll until the job resolves (cancellable on unmount).
+    // Poll until the job resolves (cancellable on unmount). A single bad poll —
+    // a deployment swap mid-render, a cold function, a brief provider/DB blip —
+    // must NOT kill a job that's still rendering, so we tolerate a run of
+    // consecutive misses (~32s) before giving up. A good poll resets the budget.
+    let misses = 0;
+    const MAX_MISSES = 8;
     for (;;) {
       await new Promise((res) => setTimeout(res, 4_000));
       if (cancelled.current) return;
@@ -100,13 +105,18 @@ export function HelixVideoStudio() {
         const sr = await fetch(`/api/video?id=${encodeURIComponent(id)}`);
         d = (await sr.json())?.data;
       } catch {
-        continue; // transient — keep polling
+        if (++misses <= MAX_MISSES) continue; // transient network error — retry
+        setStatus("error");
+        setError("Lost connection while rendering — your clip may still finish. Try again.");
+        return;
       }
       if (!d) {
+        if (++misses <= MAX_MISSES) continue; // transient server/poll error — retry
         setStatus("error");
         setError("Lost the video job.");
         return;
       }
+      misses = 0;
       setProgress(d.progress ?? 0);
       if (d.status === "completed") {
         setStatus("completed");
