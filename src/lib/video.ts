@@ -38,8 +38,10 @@ export interface VideoJob {
   failReason?: string;
 }
 
-/** Resolve a house OpenAI client for video — premium only. */
-async function houseClient(
+/** Resolve a house OpenAI client for video — premium only. Exported so the
+ * Script Assistant (src/lib/video-script.ts) reuses the SAME premium gate +
+ * house key instead of duplicating it. */
+export async function houseClient(
   userId: string,
   email: string | null,
 ): Promise<OpenAI | { error: string; code: "forbidden" | "config" }> {

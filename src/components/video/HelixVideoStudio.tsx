@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Sparkles, Film, Download, Loader2, Lock, Wand2 } from "lucide-react";
+import { ScriptAssistant } from "@/components/video/script-assistant";
 
 type Status = "idle" | "queued" | "in_progress" | "completed" | "failed" | "error";
 
@@ -162,6 +163,7 @@ export function HelixVideoStudio() {
       <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         {/* Composer */}
         <div className="rounded-2xl border border-border2 bg-panel p-5">
+          <ScriptAssistant premium={premium === true} onUseScript={(s) => setPrompt(s)} />
           <label className="label-tactical mb-1.5 block">Prompt</label>
           <textarea
             value={prompt}
