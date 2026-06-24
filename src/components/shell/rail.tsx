@@ -6,8 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   Code2,
+  Compass,
   Film,
-  GraduationCap,
   Home,
   LogOut,
   Settings,
@@ -21,8 +21,8 @@ export const NAV_ITEMS = [
   { href: "/", title: "Home", icon: Home },
   { href: "/editor", title: "Editor", icon: Code2 },
   { href: "/video", title: "HelixVideo", icon: Film },
+  { href: "/community", title: "Community", icon: Compass },
   { href: "/space", title: "Space", icon: Users },
-  { href: "/classroom", title: "Classroom", icon: GraduationCap },
 ] as const;
 
 export function Rail({ userInitials, userImage }: { userInitials: string; userImage?: string | null }) {

@@ -873,3 +873,59 @@ CREATE INDEX "LabWidget_authorId_updatedAt_idx" ON "LabWidget"("authorId", "upda
 
 -- CreateIndex
 CREATE INDEX "LabWidget_spaceId_idx" ON "LabWidget"("spaceId");
+
+-- CreateTable
+CREATE TABLE "CommunityPost" (
+    "id" TEXT NOT NULL,
+    "authorId" TEXT NOT NULL,
+    "kind" TEXT NOT NULL,
+    "workspaceId" TEXT,
+    "embedUrl" TEXT,
+    "embedProvider" TEXT,
+    "title" TEXT NOT NULL,
+    "description" TEXT NOT NULL DEFAULT '',
+    "likeCount" INTEGER NOT NULL DEFAULT 0,
+    "forkCount" INTEGER NOT NULL DEFAULT 0,
+    "viewCount" INTEGER NOT NULL DEFAULT 0,
+    "hidden" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "CommunityPost_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "CommunityLike" (
+    "id" TEXT NOT NULL,
+    "postId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "CommunityLike_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "CommunityPost_hidden_createdAt_idx" ON "CommunityPost"("hidden", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "CommunityPost_hidden_likeCount_idx" ON "CommunityPost"("hidden", "likeCount");
+
+-- CreateIndex
+CREATE INDEX "CommunityPost_workspaceId_idx" ON "CommunityPost"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CommunityLike_postId_userId_key" ON "CommunityLike"("postId", "userId");
+
+-- CreateIndex
+CREATE INDEX "CommunityLike_userId_idx" ON "CommunityLike"("userId");
+
+-- AddForeignKey
+ALTER TABLE "CommunityPost" ADD CONSTRAINT "CommunityPost_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CommunityPost" ADD CONSTRAINT "CommunityPost_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CommunityLike" ADD CONSTRAINT "CommunityLike_postId_fkey" FOREIGN KEY ("postId") REFERENCES "CommunityPost"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CommunityLike" ADD CONSTRAINT "CommunityLike_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

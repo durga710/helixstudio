@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Code2,
+  Compass,
   Film,
   GraduationCap,
   Home,
@@ -45,7 +46,7 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
   // Warm every navigation target the moment the palette opens, so picking
   // one lands on an already-prefetched route.
   useEffect(() => {
-    for (const href of ["/", "/editor", "/video", "/space", "/classroom", "/academy", "/settings"]) router.prefetch(href);
+    for (const href of ["/", "/editor", "/video", "/community", "/space", "/academy", "/settings"]) router.prefetch(href);
   }, [router]);
 
   const items = useMemo<PaletteItem[]>(() => {
@@ -54,8 +55,8 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
       { id: "home", group: "Navigate", label: "Go to Home", icon: Home, shortcut: "G H", run: go("/") },
       { id: "editor", group: "Navigate", label: "Open Editor", icon: Code2, shortcut: "G E", run: go("/editor") },
       { id: "video", group: "Navigate", label: "Open HelixVideo — prompt to video", icon: Film, run: go("/video") },
+      { id: "community", group: "Navigate", label: "Go to Community — explore & fork projects", icon: Compass, run: go("/community") },
       { id: "space", group: "Navigate", label: "Go to Space", icon: Users, run: go("/space") },
-      { id: "classroom", group: "Navigate", label: "Go to Classroom", icon: GraduationCap, run: go("/classroom") },
       { id: "academy", group: "Navigate", label: "AI Academy — learn AI by playing", icon: GraduationCap, run: go("/academy") },
       { id: "deployments", group: "Navigate", label: "Go to Deployments", icon: Rocket, run: go("/deployments") },
       { id: "theme", group: "Customize", label: "Toggle dark / light theme", icon: Moon, shortcut: "⌘ ⇧ L", run: toggleTheme },

@@ -15,7 +15,6 @@ export const dynamic = "force-dynamic";
 
 const CreateSchema = z.object({
   name: z.string().min(1).max(60),
-  kind: z.enum(["team", "classroom"]).default("team"),
 });
 
 export async function GET() {
@@ -56,7 +55,6 @@ export async function POST(req: Request) {
   const space = await db().space.create({
     data: {
       name: parsed.data.name.trim(),
-      kind: parsed.data.kind,
       ownerId: g.user.id,
       joinCode: randomBytes(9).toString("base64url"),
       members: { create: { userId: g.user.id, role: "owner" } },

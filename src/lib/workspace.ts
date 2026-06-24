@@ -66,9 +66,9 @@ export async function getWorkspaceForUser(
 
 /**
  * Read access: the owner, OR a member of the Space the workspace is shared
- * into, OR the instructor of a classroom the workspace was submitted to.
- * Used by the read-only routes (view files, diff, run status) so Space
- * teammates can look at — but not modify — each other's work.
+ * into, OR (for Community posts) any signed-in user. Used by the read-only
+ * routes (view files, diff, run status) so Space teammates can look at — but
+ * not modify — each other's work.
  */
 export async function getWorkspaceForViewer(
   workspaceId: string,
@@ -84,14 +84,14 @@ export async function getWorkspaceForViewer(
     });
     if (member) return { ws, isOwner: false };
   }
-  // Classroom instructor: may view any workspace linked to an assignment in a
-  // classroom Space they own. Submission workspaces carry no spaceId, so this
-  // is the only grant the instructor gets — and classmates get none.
-  const submission = await db().assignmentSubmission.findFirst({
-    where: { workspaceId, assignment: { space: { kind: "classroom", ownerId: userId } } },
+  // A workspace published to the Community is readable by any signed-in user
+  // (so the public detail/preview + fork work). Read-only; hiding/unpublishing
+  // the post revokes it immediately.
+  const post = await db().communityPost.findFirst({
+    where: { workspaceId, kind: "app", hidden: false },
     select: { id: true },
   });
-  if (submission) return { ws, isOwner: false };
+  if (post) return { ws, isOwner: false };
   return null;
 }
 

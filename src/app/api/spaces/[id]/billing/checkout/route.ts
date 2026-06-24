@@ -1,7 +1,7 @@
 /**
  * /api/spaces/[id]/billing/checkout — POST { seats }: owner starts a Stripe
- * Checkout session for this Space's subscription (quantity = seats; classroom
- * Spaces use the education price). Returns { url } to redirect to.
+ * Checkout session for this Space's subscription (quantity = seats). Returns
+ * { url } to redirect to.
  */
 
 import { z } from "zod";
@@ -33,7 +33,6 @@ export async function POST(req: Request, { params }: Params) {
     select: {
       id: true,
       name: true,
-      kind: true,
       ownerId: true,
       stripeCustomerId: true,
       _count: { select: { members: true } },
@@ -67,7 +66,7 @@ export async function POST(req: Request, { params }: Params) {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
-      line_items: [{ price: priceIdForSpace(space), quantity: parsed.data.seats }],
+      line_items: [{ price: priceIdForSpace(), quantity: parsed.data.seats }],
       client_reference_id: space.id,
       subscription_data: { metadata: { spaceId: space.id } },
       success_url: `${origin}/space?s=${space.id}&billing=success`,

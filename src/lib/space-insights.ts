@@ -2,9 +2,9 @@ import "server-only";
 
 /**
  * Space contribution insights — per-member activity aggregated from data the app
- * already records (space events, AI usage, shared workspaces, submissions). It's
- * a balanced *visibility* view, not a productivity scoreboard: no single
- * rankable "score", no lines-of-code. Everything is read-only aggregation.
+ * already records (space events, AI usage, shared workspaces). It's a balanced
+ * *visibility* view, not a productivity scoreboard: no single rankable "score",
+ * no lines-of-code. Everything is read-only aggregation.
  */
 
 import { db } from "@/lib/db";
@@ -21,9 +21,7 @@ export interface MemberStat {
   lastActive: string | null;
   /** Distinct days active in the last 7 (quiet "momentum", not a streak flame). */
   activeDays7: number;
-  /** Submissions (classroom only). */
-  submissions: number;
-  /** No activity at all — surfaced as a subtle tag (esp. useful in classrooms). */
+  /** No activity at all — surfaced as a subtle tag. */
   quiet: boolean;
 }
 
@@ -58,27 +56,17 @@ export async function getSpaceInsights(spaceId: string): Promise<SpaceInsights> 
   ]);
 
   const wsIds = workspaces.map((w) => w.id);
-  const [aiByUser, subsByUser] = await Promise.all([
-    wsIds.length
-      ? db().aiUsageEvent.groupBy({
-          by: ["userId"],
-          where: { kind: "chat", workspaceId: { in: wsIds } },
-          _count: { _all: true },
-          _max: { createdAt: true }, // so AI activity also counts toward "last active"
-        })
-      : Promise.resolve([] as { userId: string; _count: { _all: number }; _max: { createdAt: Date | null } }[]),
-    space.kind === "classroom"
-      ? db().assignmentSubmission.groupBy({
-          by: ["userId"],
-          where: { assignment: { spaceId }, status: { in: ["submitted", "reviewed"] } },
-          _count: { _all: true },
-        })
-      : Promise.resolve([] as { userId: string; _count: { _all: number } }[]),
-  ]);
+  const aiByUser = wsIds.length
+    ? await db().aiUsageEvent.groupBy({
+        by: ["userId"],
+        where: { kind: "chat", workspaceId: { in: wsIds } },
+        _count: { _all: true },
+        _max: { createdAt: true }, // so AI activity also counts toward "last active"
+      })
+    : ([] as { userId: string; _count: { _all: number }; _max: { createdAt: Date | null } }[]);
 
   const aiMap = new Map(aiByUser.map((r) => [r.userId, r._count._all]));
   const aiLastMap = new Map(aiByUser.map((r) => [r.userId, r._max.createdAt]));
-  const subMap = new Map(subsByUser.map((r) => [r.userId, r._count._all]));
   const wsMap = new Map<string, number>();
   for (const w of workspaces) wsMap.set(w.userId, (wsMap.get(w.userId) ?? 0) + 1);
 
@@ -113,7 +101,6 @@ export async function getSpaceInsights(spaceId: string): Promise<SpaceInsights> 
     const pushes = agg?.pushes ?? 0;
     totalPushes += pushes;
     const aiBuilds = aiMap.get(m.userId) ?? 0;
-    const submissions = subMap.get(m.userId) ?? 0;
     // Last active = the most recent of a space event OR an AI build.
     const eventLast = agg?.last ?? null;
     const aiLast = aiLastMap.get(m.userId) ?? null;
@@ -128,8 +115,7 @@ export async function getSpaceInsights(spaceId: string): Promise<SpaceInsights> 
       workspaces: wsMap.get(m.userId) ?? 0,
       lastActive: last ? last.toISOString() : null,
       activeDays7: agg?.days.size ?? 0,
-      submissions,
-      quiet: !agg?.any && aiBuilds === 0 && submissions === 0,
+      quiet: !agg?.any && aiBuilds === 0,
     };
   });
 

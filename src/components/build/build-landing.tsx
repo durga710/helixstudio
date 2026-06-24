@@ -213,9 +213,10 @@ export function BuildLanding({ signedIn, isGuest, dbReady, isAdmin }: BuildLandi
           then keep refining it in plain English.
         </p>
 
-        {/* App vs Game — the two agents */}
+        {/* Pick what to build. Games are temporarily hidden from creation (the
+            engine still runs existing game projects); we'll resurface it later. */}
         <div className="mt-7 flex items-center justify-center gap-2.5" role="group" aria-label="What to build">
-          {KINDS.map((k) => {
+          {KINDS.filter((k) => k.id !== "game").map((k) => {
             const Icon = k.icon;
             const active = kind === k.id;
             return (

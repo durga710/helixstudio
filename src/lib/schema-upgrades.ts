@@ -446,4 +446,48 @@ BEGIN
     ALTER TABLE "WorkspaceTask" ADD COLUMN "job" JSONB;
   END IF;
 END $$;
+
+-- 2026-06 · Community (CommunityPost + CommunityLike). A published project in
+-- the /community gallery: kind="app" → workspaceId; kind="video" → embedUrl.
+CREATE TABLE IF NOT EXISTS "CommunityPost" (
+    "id" TEXT NOT NULL,
+    "authorId" TEXT NOT NULL,
+    "kind" TEXT NOT NULL,
+    "workspaceId" TEXT,
+    "embedUrl" TEXT,
+    "embedProvider" TEXT,
+    "title" TEXT NOT NULL,
+    "description" TEXT NOT NULL DEFAULT '',
+    "likeCount" INTEGER NOT NULL DEFAULT 0,
+    "forkCount" INTEGER NOT NULL DEFAULT 0,
+    "viewCount" INTEGER NOT NULL DEFAULT 0,
+    "hidden" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CommunityPost_pkey" PRIMARY KEY ("id")
+);
+CREATE INDEX IF NOT EXISTS "CommunityPost_hidden_createdAt_idx" ON "CommunityPost"("hidden", "createdAt");
+CREATE INDEX IF NOT EXISTS "CommunityPost_hidden_likeCount_idx" ON "CommunityPost"("hidden", "likeCount");
+CREATE INDEX IF NOT EXISTS "CommunityPost_workspaceId_idx" ON "CommunityPost"("workspaceId");
+DO $$ BEGIN
+  ALTER TABLE "CommunityPost" ADD CONSTRAINT "CommunityPost_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CommunityPost" ADD CONSTRAINT "CommunityPost_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE TABLE IF NOT EXISTS "CommunityLike" (
+    "id" TEXT NOT NULL,
+    "postId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CommunityLike_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "CommunityLike_postId_userId_key" ON "CommunityLike"("postId", "userId");
+CREATE INDEX IF NOT EXISTS "CommunityLike_userId_idx" ON "CommunityLike"("userId");
+DO $$ BEGIN
+  ALTER TABLE "CommunityLike" ADD CONSTRAINT "CommunityLike_postId_fkey" FOREIGN KEY ("postId") REFERENCES "CommunityPost"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "CommunityLike" ADD CONSTRAINT "CommunityLike_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 `;

@@ -22,12 +22,10 @@ interface MemberStat {
   workspaces: number;
   lastActive: string | null;
   activeDays7: number;
-  submissions: number;
   quiet: boolean;
 }
 
 interface Insights {
-  kind: string;
   summary: { activeThisWeek: number; pushes: number; aiBuilds: number; workspaces: number };
   members: MemberStat[];
 }
@@ -58,7 +56,6 @@ export function SpaceContributions({ spaceId }: { spaceId: string }) {
   // Seamless: render nothing until there's something worth showing.
   if (!data || data.members.length === 0) return null;
 
-  const classroom = data.kind === "classroom";
   const s = data.summary;
   // Most active first; quiet members fall to the bottom (and carry a tag).
   const members = [...data.members].sort((a, b) => {
@@ -97,12 +94,11 @@ export function SpaceContributions({ spaceId }: { spaceId: string }) {
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5">
                     <span className="truncate text-[13px] text-txt">{m.name}</span>
-                    {m.role === "owner" && <Pill tone="accent">{classroom ? "instructor" : "owner"}</Pill>}
+                    {m.role === "owner" && <Pill tone="accent">owner</Pill>}
                     {m.quiet && <Pill tone="amber">no activity yet</Pill>}
                   </span>
                   <span className="mt-0.5 block font-mono text-[11px] text-txt3">
                     {m.pushes} pushes · {m.aiBuilds} builds
-                    {classroom && ` · ${m.submissions} submitted`}
                     {" · "}
                     {m.lastActive ? `active ${timeAgo(m.lastActive)}` : "never active"}
                   </span>
@@ -117,7 +113,7 @@ export function SpaceContributions({ spaceId }: { spaceId: string }) {
                   <Stat k="Pushes" v={m.pushes} />
                   <Stat k="AI builds" v={m.aiBuilds} />
                   <Stat k="Workspaces" v={m.workspaces} />
-                  {classroom ? <Stat k="Submitted" v={m.submissions} /> : <Stat k="Active days (7)" v={m.activeDays7} />}
+                  <Stat k="Active days (7)" v={m.activeDays7} />
                 </div>
               )}
             </div>

@@ -1,8 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- fetch-on-mount + URL-param sync effects; they set state from async loads / search params and behave correctly */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SpaceContributions } from "@/components/screens/space-contributions";
 import {
@@ -21,7 +20,6 @@ import {
   LogOut,
   X,
   ArrowRight,
-  GraduationCap,
   Play,
 } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
@@ -31,21 +29,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Input } from "@/components/ui/input";
-import { Segmented } from "@/components/ui/segmented";
 import { useToast } from "@/components/ui/toast";
-import { AssignmentsSection } from "@/components/screens/assignments-section";
-import { ClassroomOverview } from "@/components/screens/classroom-overview";
 import { SpaceBillingCard, type SpaceBilling } from "@/components/screens/space-billing-card";
 import { SpaceActivityFeed } from "@/components/screens/space-activity-feed";
 import { SpaceBoard } from "@/components/screens/space-board";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 
-type SpaceKind = "team" | "classroom";
-
 interface SpaceSummary {
   id: string;
   name: string;
-  kind: SpaceKind;
   isOwner: boolean;
   joinCode: string;
   memberCount: number;
@@ -76,7 +68,6 @@ interface SharedWorkspace {
 interface SpaceDetail {
   id: string;
   name: string;
-  kind: SpaceKind;
   isOwner: boolean;
   joinCode: string;
   billing: SpaceBilling;
@@ -100,26 +91,19 @@ function extractCode(raw: string): string {
   return value;
 }
 
-export function SpaceScreen({ youName, filter }: { youName?: string | null; filter?: SpaceKind }) {
+export function SpaceScreen({ youName }: { youName?: string | null }) {
   const params = useSearchParams();
   const { toast } = useToast();
-  const isClass = filter === "classroom";
 
   const [spaces, setSpaces] = useState<SpaceSummary[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [inviteNotice, setInviteNotice] = useState<"invalid" | "full" | null>(null);
 
-  // Only the spaces of this section's kind (team vs classroom).
-  const visible = useMemo(
-    () => (spaces == null ? null : filter ? spaces.filter((s) => s.kind === filter) : spaces),
-    [spaces, filter],
-  );
+  const visible = spaces;
 
-  // Create / join forms (empty state + sidebar). When a section is kind-locked,
-  // new spaces are created as that kind.
+  // Create / join forms (empty state + sidebar).
   const [newName, setNewName] = useState("");
-  const [newKind, setNewKind] = useState<SpaceKind>(filter ?? "team");
   const [creating, setCreating] = useState(false);
   const [joinValue, setJoinValue] = useState("");
   const [joining, setJoining] = useState(false);
@@ -176,7 +160,7 @@ export function SpaceScreen({ youName, filter }: { youName?: string | null; filt
       const res = await fetch("/api/spaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, kind: newKind }),
+        body: JSON.stringify({ name }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
@@ -239,48 +223,16 @@ export function SpaceScreen({ youName, filter }: { youName?: string | null; filt
     <div className="pad-screen">
       <div className="mx-auto max-w-[1100px]">
         <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">
-          {isClass ? "Teach" : "Collaborate"}
+          Collaborate
         </div>
         <div className="flex items-center gap-2">
-          <h1 className="text-[22px] font-bold tracking-tight">{isClass ? "Classrooms" : "Spaces"}</h1>
-          {isClass ? (
-            <GraduationCap className="h-5 w-5 text-txt3" strokeWidth={1.7} />
-          ) : (
-            <Users className="h-5 w-5 text-txt3" strokeWidth={1.7} />
-          )}
+          <h1 className="text-[22px] font-bold tracking-tight">Spaces</h1>
+          <Users className="h-5 w-5 text-txt3" strokeWidth={1.7} />
         </div>
         <p className="mt-1 text-[13px] text-txt2">
-          {isClass
-            ? "A classroom is your students in one place. Invite them with a link, hand out assignments and AI Academy modules, and track their progress in the gradebook."
-            : "A Space is a group of people. Invite friends with a link, then see and open each other's projects — read-only, copy any to make it yours."}
+          A Space is a group of people. Invite friends with a link, then see and open each other&apos;s projects —
+          read-only, copy any to make it yours.
         </p>
-
-        {isClass && (
-          <Link
-            href="/academy"
-            className="group relative mt-4 flex items-center gap-4 overflow-hidden rounded-card-lg border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-gradient-to-br from-[color-mix(in_srgb,var(--accent)_14%,transparent)] via-[color-mix(in_srgb,var(--accent)_7%,transparent)] to-transparent px-5 py-5 transition-all hover:border-accent hover:shadow-card"
-          >
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-hl">
-              <GraduationCap className="h-6 w-6 text-accent" strokeWidth={1.8} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="mb-1 flex items-center gap-2">
-                <span className="text-[15px] font-bold tracking-tight text-txt">AI Academy</span>
-                <span className="rounded-full bg-accent px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wide text-accent-ink">
-                  New
-                </span>
-              </span>
-              <span className="block text-[12.5px] leading-relaxed text-txt2">
-                Learn AI by <span className="text-txt">playing</span> — game modules (train a puppy, escape a maze,
-                bust bias, engineer prompts) with an AI coach beside every student. Take them yourself, or build,
-                edit, and assign them to your class.
-              </span>
-            </span>
-            <span className="hidden shrink-0 items-center gap-1.5 self-center rounded-[10px] border border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-panel px-3 py-2 text-[12.5px] font-semibold text-accent transition group-hover:bg-accent group-hover:text-accent-ink sm:inline-flex">
-              Enter <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </span>
-          </Link>
-        )}
 
         {inviteNotice && (
           <Card className="mt-4 flex items-center gap-3 border-warn/40 bg-warn/10 p-3.5">
@@ -309,12 +261,8 @@ export function SpaceScreen({ youName, filter }: { youName?: string | null; filt
           </Card>
         ) : !hasSpaces ? (
           <EmptyState
-            isClass={isClass}
-            showKindToggle={!filter}
             newName={newName}
             setNewName={setNewName}
-            newKind={newKind}
-            setNewKind={setNewKind}
             creating={creating}
             onCreate={createSpace}
             joinValue={joinValue}
@@ -327,7 +275,6 @@ export function SpaceScreen({ youName, filter }: { youName?: string | null; filt
           <div className="mt-6 grid gap-5 lg:grid-cols-[260px_1fr]">
             <SpaceList
               spaces={visible!}
-              showKindToggle={!filter}
               selectedId={selectedId}
               onSelect={setSelectedId}
               joinValue={joinValue}
@@ -336,8 +283,6 @@ export function SpaceScreen({ youName, filter }: { youName?: string | null; filt
               onJoin={joinSpace}
               newName={newName}
               setNewName={setNewName}
-              newKind={newKind}
-              setNewKind={setNewKind}
               creating={creating}
               onCreate={createSpace}
               error={formError}
@@ -368,18 +313,9 @@ export function SpaceScreen({ youName, filter }: { youName?: string | null; filt
 
 /* ------------------------------ empty state ----------------------------- */
 
-const KIND_OPTIONS = [
-  { value: "team", label: "Team" },
-  { value: "classroom", label: "Classroom" },
-] as const;
-
 function EmptyState({
-  isClass,
-  showKindToggle,
   newName,
   setNewName,
-  newKind,
-  setNewKind,
   creating,
   onCreate,
   joinValue,
@@ -388,12 +324,8 @@ function EmptyState({
   onJoin,
   error,
 }: {
-  isClass: boolean;
-  showKindToggle: boolean;
   newName: string;
   setNewName: (v: string) => void;
-  newKind: SpaceKind;
-  setNewKind: (v: SpaceKind) => void;
   creating: boolean;
   onCreate: () => void;
   joinValue: string;
@@ -408,11 +340,9 @@ function EmptyState({
         <span className="mb-4 grid h-10 w-10 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-hl">
           <Plus className="h-5 w-5 text-accent" />
         </span>
-        <h2 className="mb-1 text-base font-medium text-txt">{isClass ? "Create a classroom" : "Create a Space"}</h2>
+        <h2 className="mb-1 text-base font-medium text-txt">Create a Space</h2>
         <p className="mb-4 text-xs leading-relaxed text-txt3">
-          {isClass
-            ? "Start a classroom, then share an invite link with your students. Hand out assignments and AI Academy modules, and review their work."
-            : "Start a group, then share an invite link to see and open each other's projects."}
+          Start a group, then share an invite link to see and open each other&apos;s projects.
         </p>
         <form
           className="flex flex-col gap-2.5"
@@ -421,20 +351,11 @@ function EmptyState({
             onCreate();
           }}
         >
-          {showKindToggle && (
-            <Segmented
-              options={KIND_OPTIONS}
-              value={newKind}
-              onChange={setNewKind}
-              aria-label="Space type"
-              className="self-start"
-            />
-          )}
           <div className="flex gap-2">
             <Input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder={isClass || newKind === "classroom" ? "Classroom name" : "Space name"}
+              placeholder="Space name"
               aria-label="Space name"
               className="text-[13px]"
             />
@@ -482,7 +403,6 @@ function EmptyState({
 
 function SpaceList({
   spaces,
-  showKindToggle,
   selectedId,
   onSelect,
   joinValue,
@@ -491,14 +411,11 @@ function SpaceList({
   onJoin,
   newName,
   setNewName,
-  newKind,
-  setNewKind,
   creating,
   onCreate,
   error,
 }: {
   spaces: SpaceSummary[];
-  showKindToggle: boolean;
   selectedId: string | null;
   onSelect: (id: string) => void;
   joinValue: string;
@@ -507,8 +424,6 @@ function SpaceList({
   onJoin: () => void;
   newName: string;
   setNewName: (v: string) => void;
-  newKind: SpaceKind;
-  setNewKind: (v: SpaceKind) => void;
   creating: boolean;
   onCreate: () => void;
   error: string | null;
@@ -549,9 +464,6 @@ function SpaceList({
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5 truncate text-[13px] font-medium text-txt">
                   <span className="truncate">{s.name}</span>
-                  {s.kind === "classroom" && (
-                    <GraduationCap className="h-3.5 w-3.5 shrink-0 text-txt3" aria-label="Classroom" />
-                  )}
                 </span>
                 <span className="block text-[11px] text-txt3">
                   {s.memberCount} {s.memberCount === 1 ? "member" : "members"} ·{" "}
@@ -577,20 +489,11 @@ function SpaceList({
               onCreate();
             }}
           >
-            {showKindToggle && (
-              <Segmented
-                options={KIND_OPTIONS}
-                value={newKind}
-                onChange={setNewKind}
-                aria-label="Space type"
-                className="self-start"
-              />
-            )}
             <div className="flex gap-2">
               <Input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder={newKind === "classroom" ? "New classroom name" : "New space name"}
+                placeholder="New space name"
                 aria-label="New space name"
                 className="text-[12.5px]"
               />
@@ -814,11 +717,10 @@ function SpaceDetailPanel({
           ) : (
             <>
               <h2 className="truncate text-lg font-semibold text-txt">{detail.name}</h2>
-              {detail.kind === "classroom" && <Pill tone="neutral">classroom</Pill>}
               {detail.isOwner ? (
-                <Pill tone="accent">{detail.kind === "classroom" ? "instructor" : "owner"}</Pill>
+                <Pill tone="accent">owner</Pill>
               ) : (
-                <Pill tone="neutral">{detail.kind === "classroom" ? "student" : "member"}</Pill>
+                <Pill tone="neutral">member</Pill>
               )}
               {detail.isOwner && (
                 <button
@@ -839,11 +741,6 @@ function SpaceDetailPanel({
 
           {!renaming && (
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              {detail.kind === "classroom" && detail.isOwner && (
-                <Button onClick={() => router.push(`/space/${detail.id}/instructor`)}>
-                  <GraduationCap className="h-3.5 w-3.5" /> Instructor Dashboard
-                </Button>
-              )}
               <Button onClick={() => copyInvite(detail.joinCode)}>
                 <Link2 className="h-3.5 w-3.5" /> Invite
               </Button>
@@ -884,36 +781,18 @@ function SpaceDetailPanel({
               <span className="text-[12px] text-txt2">
                 {m.isYou ? `${youName ?? m.name} (you)` : m.name}
               </span>
-              {m.role === "owner" && (
-                <Pill tone="accent">{detail.kind === "classroom" ? "instructor" : "owner"}</Pill>
-              )}
+              {m.role === "owner" && <Pill tone="accent">owner</Pill>}
             </span>
           ))}
         </div>
       </Card>
 
-      {/* Contributions — team: all members; classroom: instructor only. Hides
-          itself when there's nothing to show, so it never feels forced. */}
-      {(detail.kind === "team" || detail.isOwner) && <SpaceContributions spaceId={detail.id} />}
+      {/* Contributions — all members. Hides itself when there's nothing to
+          show, so it never feels forced. */}
+      <SpaceContributions spaceId={detail.id} />
 
       {/* Plan & seats (owner only; hidden when billing isn't configured) */}
-      {detail.isOwner && (
-        <SpaceBillingCard spaceId={detail.id} kind={detail.kind} billing={detail.billing} />
-      )}
-
-      {/* Classroom command center (instructor only) — at-a-glance status */}
-      {detail.kind === "classroom" && detail.isOwner && (
-        <ClassroomOverview spaceId={detail.id} refreshKey={detail.id} />
-      )}
-
-      {/* Assignments (classrooms only) */}
-      {detail.kind === "classroom" && (
-        <AssignmentsSection
-          spaceId={detail.id}
-          isOwner={detail.isOwner}
-          onUpgradeNeeded={(msg) => toast(msg)}
-        />
-      )}
+      {detail.isOwner && <SpaceBillingCard spaceId={detail.id} billing={detail.billing} />}
 
       {/* Task board */}
       <SpaceBoard

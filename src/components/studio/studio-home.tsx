@@ -388,9 +388,11 @@ export function StudioHome({
         <h1 className="text-[28px] font-bold tracking-tight text-txt sm:text-[32px]">What do you want to make?</h1>
         <p className="mx-auto mt-2 max-w-[460px] text-sm text-txt2">Pick one to begin. Each project is its own thing — start a new one anytime to make something different.</p>
 
-        {/* The two primary creation modes; everything else lives behind "Other". */}
-        <div className="mx-auto mt-8 grid max-w-[620px] gap-4 sm:grid-cols-2">
-          {CHOICES.filter((c) => c.kind === "app" || c.kind === "game").map(renderChoiceCard)}
+        {/* App is the primary creation mode; everything else lives behind "Other".
+            (Games are temporarily hidden from creation — the engine still works
+            for existing game projects; we'll resurface "Make a Game" later.) */}
+        <div className="mx-auto mt-8 grid max-w-[360px] gap-4">
+          {CHOICES.filter((c) => c.kind === "app").map(renderChoiceCard)}
         </div>
 
         <button

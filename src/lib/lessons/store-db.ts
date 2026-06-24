@@ -6,12 +6,11 @@ import "server-only";
  * from the client-safe `store.ts` so DB access never leaks into client bundles.
  *
  * Visibility: a viewer sees bundled lessons (always) + their own authored
- * lessons + published lessons in classroom Spaces they belong to.
+ * lessons + published lessons in Spaces they belong to.
  */
 
 import { db, dbEnabled, schemaReady } from "@/lib/db";
 import { getLesson, getLessonManifests } from "./store";
-import { isTeacher, authorNames } from "./teacher";
 import type { Lesson, LessonManifest, LessonStep } from "./types";
 
 function rowToManifest(row: { id: string; manifest: unknown; source: string; authorName?: string | null }): LessonManifest {
@@ -67,31 +66,8 @@ export async function getLessonForViewer(id: string, userId: string): Promise<Le
         .catch(() => null);
       if (member) return rowToLesson(row);
     }
-    // Public library lessons: viewable by teachers only (never plain students).
-    if (row.status === "published" && row.visibility === "public" && (await isTeacher(userId))) {
-      return rowToLesson(row);
-    }
     return undefined;
   } catch {
     return undefined;
-  }
-}
-
-/** Public library: published+public lessons, newest first, with author names.
- * Caller must already be a teacher (gated at the page). */
-export async function getPublicLessons(): Promise<LessonManifest[]> {
-  if (!dbEnabled()) return [];
-  try {
-    await schemaReady();
-    const rows = await db().lesson.findMany({
-      where: { status: "published", visibility: "public" },
-      select: { id: true, manifest: true, authorId: true },
-      orderBy: { updatedAt: "desc" },
-      take: 200,
-    });
-    const names = await authorNames(rows.map((r) => r.authorId));
-    return rows.map((r) => ({ ...(r.manifest as unknown as LessonManifest), id: r.id, authored: true, author: names[r.authorId] }));
-  } catch {
-    return [];
   }
 }

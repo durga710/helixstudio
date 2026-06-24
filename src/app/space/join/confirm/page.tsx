@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Users, GraduationCap } from "lucide-react";
+import { Users } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db, dbEnabled, schemaReady } from "@/lib/db";
 import { canJoin } from "@/lib/billing";
@@ -38,7 +38,6 @@ export default async function ConfirmJoinPage({
     select: {
       id: true,
       name: true,
-      kind: true,
       plan: true,
       seats: true,
       currentPeriodEnd: true,
@@ -56,7 +55,6 @@ export default async function ConfirmJoinPage({
     if (existing) redirect(`/space?s=${space.id}`);
   }
 
-  const isClassroom = space?.kind === "classroom";
   const gate = space ? canJoin(space, space._count.members) : { allowed: false, reason: "" };
   const ownerName = space?.owner.name ?? space?.owner.email ?? "someone";
 
@@ -83,12 +81,11 @@ export default async function ConfirmJoinPage({
         ) : (
           <>
             <div className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-border2 px-2.5 py-1 text-[11px] text-txt3">
-              {isClassroom ? <GraduationCap className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
-              {isClassroom ? "Classroom invite" : "Team invite"}
+              <Users className="h-3.5 w-3.5" />
+              Team invite
             </div>
             <h1 className="mt-3 text-xl font-semibold tracking-tight text-txt">
-              Join {isClassroom ? "the classroom" : "the team"}{" "}
-              <span className="text-accent">{space.name}</span>?
+              Join the team <span className="text-accent">{space.name}</span>?
             </h1>
             <p className="mt-2 text-[13px] text-txt2">
               Invited by {ownerName} · {space._count.members} member{space._count.members === 1 ? "" : "s"}.
