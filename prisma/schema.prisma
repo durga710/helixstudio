@@ -63,6 +63,8 @@ model User {
   spaceEvents      SpaceEvent[]
   assignedTasks    SpaceTask[]            @relation("TaskAssignee")
   usageEvents      AiUsageEvent[]
+  communityPosts   CommunityPost[]
+  communityLikes   CommunityLike[]
 }
 
 // One row per AI call that spent tokens — powers the admin per-user usage
@@ -380,6 +382,7 @@ model Workspace {
   starterFor            Assignment[]           @relation("AssignmentStarter")
   assignmentSubmissions AssignmentSubmission[] @relation("SubmissionWorkspace")
   usageEvents           AiUsageEvent[]
+  communityPosts        CommunityPost[]
 
   @@index([userId, updatedAt])
   @@index([spaceId])
@@ -875,4 +878,45 @@ model Template {
   freshnessError   String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+}
+
+// Community: a published project surfaced in the /community gallery. One row per
+// publication. kind="app" → workspaceId set (the project's files, forkable);
+// kind="video" → embedUrl set (an allowlisted YouTube/Vimeo/Loom embed). Like/
+// fork/view counts are denormalized here for cheap "Popular" sorting; CommunityLike
+// is only the per-user toggle + de-dup. hidden = soft-removed (moderation/unpublish).
+model CommunityPost {
+  id            String     @id @default(cuid())
+  authorId      String
+  author        User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  kind          String // "app" | "video"
+  workspaceId   String? // set iff kind == "app"
+  workspace     Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  embedUrl      String? // set iff kind == "video" (normalized embed URL)
+  embedProvider String? // youtube | vimeo | loom
+  title         String
+  description   String     @default("")
+  likeCount     Int        @default(0)
+  forkCount     Int        @default(0)
+  viewCount     Int        @default(0)
+  hidden        Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+
+  likes CommunityLike[]
+
+  @@index([hidden, createdAt])
+  @@index([hidden, likeCount])
+  @@index([workspaceId])
+}
+
+model CommunityLike {
+  id        String        @id @default(cuid())
+  postId    String
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@unique([postId, userId])
+  @@index([userId])
 }

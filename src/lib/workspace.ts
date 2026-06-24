@@ -92,6 +92,14 @@ export async function getWorkspaceForViewer(
     select: { id: true },
   });
   if (submission) return { ws, isOwner: false };
+  // A workspace published to the Community is readable by any signed-in user
+  // (so the public detail/preview + fork work). Read-only; hiding/unpublishing
+  // the post revokes it immediately.
+  const post = await db().communityPost.findFirst({
+    where: { workspaceId, kind: "app", hidden: false },
+    select: { id: true },
+  });
+  if (post) return { ws, isOwner: false };
   return null;
 }
 
