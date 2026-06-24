@@ -6,16 +6,23 @@ import "server-only";
  * setting, camera, pacing), then synthesizes one vivid text-to-video prompt the
  * user can drop straight into the composer. Two small chat calls total.
  *
- * Reuses HelixVideo's house OpenAI client + premium gate (houseClient in
- * video.ts) so a free user never reaches the model, and it needs no BYO key.
- * Mirrors the new-project intake engine's ask→synthesize shape (intake.ts).
+ * ENGINE: Gunner Max (Bedrock GPT-OSS 120B) is the default for every premium
+ * user — it runs on the platform Bedrock key (no per-clip OpenAI cost, works
+ * without OpenAI credits). Premium-gated like the rest of HelixVideo (so a free
+ * user never reaches the model). Falls back to the house OpenAI model only if
+ * Bedrock isn't wired. Mirrors the new-project intake engine (intake.ts).
  */
 
+import OpenAI from "openai";
+import { isPremiumUser } from "@/lib/templates/select";
+import { resolveBedrockModel } from "@/lib/ai/bedrock";
 import { houseClient } from "@/lib/video";
 import { recordAiUsage } from "@/lib/ai-usage";
 
-/** Cheap text model for the assistant (the video model is separate). */
-const SCRIPT_MODEL = "gpt-4o-mini";
+/** Gunner Max = GPT-OSS 120B on Bedrock — the default assistant engine. */
+const GUNNER_MAX = "openai.gpt-oss-120b-1:0";
+/** Only used if Bedrock isn't configured (keeps the feature working). */
+const FALLBACK_MODEL = "gpt-4o-mini";
 
 export interface ScriptQuestion {
   key: string;
@@ -29,15 +36,48 @@ export type ScriptResult =
   | { done: true; script: string }
   | { error: string };
 
+interface Engine {
+  client: OpenAI;
+  model: string;
+  provider: string;
+}
+
+/**
+ * Resolve the assistant engine for a PREMIUM user: Gunner Max via the platform
+ * Bedrock key by default; the house OpenAI client only as a fallback. Returns an
+ * error (surfaced as a clean 400) for non-premium users or when nothing's wired.
+ */
+async function assistantEngine(userId: string, email: string | null): Promise<Engine | { error: string }> {
+  if (!(await isPremiumUser(userId, email))) {
+    return { error: "HelixVideo is a premium feature — upgrade your plan to use the script assistant." };
+  }
+  // Default for all premium users: Gunner Max (Bedrock GPT-OSS 120B).
+  const b = resolveBedrockModel(GUNNER_MAX);
+  if (b) {
+    return {
+      client: new OpenAI({ apiKey: b.apiKey, baseURL: b.baseUrl, defaultHeaders: b.headers }),
+      model: b.modelId,
+      provider: "bedrock",
+    };
+  }
+  // Fallback — Bedrock not configured: use the house OpenAI client (re-checks premium, harmless).
+  const house = await houseClient(userId, email);
+  if ("error" in house) return { error: house.error };
+  return { client: house, model: FALLBACK_MODEL, provider: "openai" };
+}
+
 export async function scriptAssistant(opts: {
   userId: string;
   email: string | null;
   idea: string;
   answers?: Record<string, string>;
 }): Promise<ScriptResult> {
-  const client = await houseClient(opts.userId, opts.email);
-  if ("error" in client) return { error: client.error }; // premium / config gate
+  const engine = await assistantEngine(opts.userId, opts.email);
+  if ("error" in engine) return { error: engine.error };
+  const { client, model, provider } = engine;
   const idea = opts.idea.trim().slice(0, 1500);
+  const meter = (tokens: number) =>
+    void recordAiUsage({ userId: opts.userId, tokens, kind: "video_script", provider, model });
 
   // Round 2 — synthesize the final prompt from the idea + answers.
   if (opts.answers && Object.keys(opts.answers).length > 0) {
@@ -47,7 +87,7 @@ export async function scriptAssistant(opts: {
         .map(([k, v]) => `${k}: ${v.trim()}`)
         .join("\n");
       const res = await client.chat.completions.create({
-        model: SCRIPT_MODEL,
+        model,
         temperature: 0.8,
         max_tokens: 320,
         messages: [
@@ -61,7 +101,7 @@ export async function scriptAssistant(opts: {
           { role: "user", content: `Idea: ${idea}\n${ans}` },
         ],
       });
-      void recordAiUsage({ userId: opts.userId, tokens: res.usage?.total_tokens ?? 0, kind: "video_script", provider: "openai", model: SCRIPT_MODEL });
+      meter(res.usage?.total_tokens ?? 0);
       const script = res.choices[0]?.message?.content?.trim();
       if (!script) return { error: "Couldn't draft a script. Try writing your own." };
       return { done: true, script: script.replace(/^["']|["']$/g, "").slice(0, 2000) };
@@ -73,7 +113,7 @@ export async function scriptAssistant(opts: {
   // Round 1 — ask a few concrete questions to fill the visual gaps.
   try {
     const res = await client.chat.completions.create({
-      model: SCRIPT_MODEL,
+      model,
       temperature: 0.5,
       max_tokens: 320,
       messages: [
@@ -88,7 +128,7 @@ export async function scriptAssistant(opts: {
         { role: "user", content: `Idea: ${idea || "(not given yet — ask the most useful opening questions)"}` },
       ],
     });
-    void recordAiUsage({ userId: opts.userId, tokens: res.usage?.total_tokens ?? 0, kind: "video_script", provider: "openai", model: SCRIPT_MODEL });
+    meter(res.usage?.total_tokens ?? 0);
     const raw = (res.choices[0]?.message?.content ?? "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
     const parsed = JSON.parse(raw) as { questions?: ScriptQuestion[] };
     const questions = (parsed.questions ?? [])
