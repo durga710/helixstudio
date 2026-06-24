@@ -310,7 +310,7 @@ export function SpaceScreen({ youName, filter }: { youName?: string | null; filt
         ) : !hasSpaces ? (
           <EmptyState
             isClass={isClass}
-            showKindToggle={!filter}
+            showKindToggle={false}
             newName={newName}
             setNewName={setNewName}
             newKind={newKind}
@@ -327,7 +327,7 @@ export function SpaceScreen({ youName, filter }: { youName?: string | null; filt
           <div className="mt-6 grid gap-5 lg:grid-cols-[260px_1fr]">
             <SpaceList
               spaces={visible!}
-              showKindToggle={!filter}
+              showKindToggle={false}
               selectedId={selectedId}
               onSelect={setSelectedId}
               joinValue={joinValue}
