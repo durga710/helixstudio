@@ -9,7 +9,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { ok, apiErrors } from "@/lib/api-response";
 import { db } from "@/lib/db";
-import { billingEnabled, isPlanActive, memberCap, FREE_ASSIGNMENT_CAP } from "@/lib/billing";
+import { billingEnabled, isPlanActive, memberCap } from "@/lib/billing";
 import { guard } from "@/lib/route-helpers";
 
 export const runtime = "nodejs";
@@ -47,13 +47,12 @@ export async function GET(_req: Request, { params }: Params) {
   const space = await memberSpace(id, g.user.id);
   if (!space) return apiErrors.notFound("Space");
 
-  const [members, assignmentCount, workspaces] = await Promise.all([
+  const [members, workspaces] = await Promise.all([
     db().spaceMember.findMany({
       where: { spaceId: id },
       orderBy: { joinedAt: "asc" },
       select: { role: true, user: { select: { id: true, name: true, email: true, image: true } } },
     }),
-    db().assignment.count({ where: { spaceId: id } }),
     db().workspace.findMany({
       where: { spaceId: id },
       orderBy: { updatedAt: "desc" },
@@ -85,8 +84,6 @@ export async function GET(_req: Request, { params }: Params) {
       seats: space.seats,
       memberCount: members.length,
       memberCap: memberCap(space),
-      assignmentCount,
-      assignmentCap: isPlanActive(space) ? null : FREE_ASSIGNMENT_CAP,
       renewsAt: isPlanActive(space) && space.currentPeriodEnd ? space.currentPeriodEnd.toISOString() : null,
     },
     members: members.map((m) => ({

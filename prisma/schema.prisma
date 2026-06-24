@@ -59,7 +59,6 @@ model User {
   deployConnections DeployConnection[]
   ownedSpaces      Space[]                @relation("SpaceOwner")
   spaceMemberships SpaceMember[]
-  submissions      AssignmentSubmission[]
   spaceEvents      SpaceEvent[]
   assignedTasks    SpaceTask[]            @relation("TaskAssignee")
   usageEvents      AiUsageEvent[]
@@ -76,7 +75,7 @@ model AiUsageEvent {
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspaceId String?
   workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
-  kind        String     @default("chat") // chat | review | classroom_review | ledger_ask | undo_preview | rerank
+  kind        String     @default("chat") // chat | review | ledger_ask | undo_preview | rerank
   provider    String     @default("")     // openai | anthropic | local
   model       String     @default("")
   tokens      Int
@@ -116,50 +115,19 @@ model Space {
   members    SpaceMember[]
   workspaces Workspace[]
 
-  // "team" (default, peer collaboration) | "classroom" (the owner is the
-  // instructor: can create assignments and view linked submission workspaces).
+  // Reserved discriminator (currently always "team", peer collaboration).
   kind String @default("team")
 
   // Billing — one subscription per Space, so the fields live inline.
-  // plan "free" caps members/assignments; "active" unlocks up to `seats`.
+  // plan "free" caps members; "active" unlocks up to `seats`.
   plan                 String    @default("free") // free | active
   seats                Int       @default(5)
   stripeCustomerId     String?   @unique
   stripeSubscriptionId String?   @unique
   currentPeriodEnd     DateTime?
 
-  assignments Assignment[]
   events      SpaceEvent[]
   spaceTasks  SpaceTask[]
-}
-
-// ---------- Helix Space v2 · classroom assignments ----------
-// An Assignment belongs to a classroom Space. Students start it (the starter
-// workspace's files are copied into a workspace they own), work in the normal
-// editor, then submit. The instructor reviews each submission read-only,
-// optionally runs an AI review, and records feedback + a grade.
-model Assignment {
-  id      String @id @default(cuid())
-  spaceId String
-  space   Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
-
-  title        String
-  instructions String // markdown
-  dueAt        DateTime?
-
-  // Template the student copy starts from; null = empty scratch workspace.
-  starterWorkspaceId String?
-  starterWorkspace   Workspace? @relation("AssignmentStarter", fields: [starterWorkspaceId], references: [id], onDelete: SetNull)
-
-  // AI Lab "lesson assignment": when set, this is a lesson (bundled id or an
-  // authored Lesson id) to complete, auto-graded by its quiz — no workspace.
-  lessonId String?
-
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
-  submissions AssignmentSubmission[]
-
-  @@index([spaceId, createdAt])
 }
 
 // ---------- Helix Space v3 · activity feed + task board ----------
@@ -174,10 +142,9 @@ model SpaceEvent {
   user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   actorName String
-  // joined | left | shared | unshared | assignment_created | submitted |
-  // reviewed | pushed | forked | task_added | task_done
+  // joined | left | shared | unshared | pushed | forked | task_added | task_done
   action    String
-  target    String // workspace/assignment/task title (display only)
+  target    String // workspace/task title (display only)
   targetId  String?
   createdAt DateTime @default(now())
 
@@ -203,34 +170,6 @@ model SpaceTask {
   updatedAt DateTime @updatedAt
 
   @@index([spaceId, status, order])
-}
-
-// One row per (assignment, student). Created when the student starts the
-// assignment; the unique constraint doubles as the double-start race guard.
-// Feedback/grade live here (NOT in WorkspaceMessage — that is the student's
-// AI chat history and feeds the agent's context).
-model AssignmentSubmission {
-  id           String     @id @default(cuid())
-  assignmentId String
-  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  userId       String // the student
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // The student's copy. SetNull so the grade record survives workspace deletion.
-  workspaceId String?
-  workspace   Workspace? @relation("SubmissionWorkspace", fields: [workspaceId], references: [id], onDelete: SetNull)
-
-  status      String    @default("in_progress") // in_progress | submitted | reviewed
-  submittedAt DateTime?
-
-  grade      String? // free text: "92/100", "A-"
-  feedback   String? // instructor's written feedback (markdown)
-  aiReview   String? // persisted output of an instructor-run AI review
-  reviewedAt DateTime?
-  createdAt  DateTime  @default(now())
-
-  @@unique([assignmentId, userId])
-  @@index([workspaceId])
 }
 
 model SpaceMember {
@@ -377,12 +316,8 @@ model Workspace {
   deploy      WorkspaceDeploy?
   godotBuilds GodotBuild[]
 
-  // Classroom assignments (v2): this workspace as a starter template, and as
-  // a student's submission copy.
-  starterFor            Assignment[]           @relation("AssignmentStarter")
-  assignmentSubmissions AssignmentSubmission[] @relation("SubmissionWorkspace")
-  usageEvents           AiUsageEvent[]
-  communityPosts        CommunityPost[]
+  usageEvents    AiUsageEvent[]
+  communityPosts CommunityPost[]
 
   @@index([userId, updatedAt])
   @@index([spaceId])
@@ -465,14 +400,14 @@ model LessonProgress {
   @@index([userId, updatedAt])
 }
 
-// AI Lab — a teacher/AI-authored lesson (bundled lessons stay bundle-only and
-// are NOT stored here). Published to a classroom Space → its members see it in
-// the Lab. No FKs (light migration; orphans on author/space deletion are
-// harmless). manifest/steps mirror the bundled Lesson shape.
+// AI Academy — an authored lesson (bundled lessons stay bundle-only and are
+// NOT stored here). Published to a Space → its members see it in the Academy.
+// No FKs (light migration; orphans on author/space deletion are harmless).
+// manifest/steps mirror the bundled Lesson shape.
 model Lesson {
   id         String   @id @default(cuid())
   authorId   String
-  spaceId    String? // the classroom it's published to (null = unpublished draft)
+  spaceId    String? // the Space it's published to (null = unpublished draft)
   title      String
   status     String   @default("draft") // draft | published
   visibility String   @default("space") // space | public (reserved)
@@ -484,23 +419,6 @@ model Lesson {
 
   @@index([authorId, updatedAt])
   @@index([spaceId, status])
-}
-
-// AI Lab — a teacher's saved, reusable interactive widget: a configurable
-// template (e.g. "customSort") + a config blob filled with their own data. Saved
-// once, inserted into many lessons. No FKs (light migration; orphans harmless).
-model LabWidget {
-  id        String   @id @default(cuid())
-  authorId  String
-  spaceId   String? // the classroom it belongs to (scoping); null = personal
-  title     String
-  template  String // the widget id this configures (e.g. "customSort")
-  config    Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([authorId, updatedAt])
-  @@index([spaceId])
 }
 
 // ---------- Deploy integrations ----------

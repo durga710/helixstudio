@@ -120,8 +120,8 @@ toggle.addEventListener('click', () => {
 /**
  * Deletes every seed user by exact email match. CASCADE removes the entire
  * downstream graph (workspaces, files, messages, intents/changes, tasks,
- * deploys, usage; owned spaces → assignments/submissions/members/events/tasks;
- * deploy connections; preferences). Real accounts are never in ALL_SEED_EMAILS.
+ * deploys, usage; owned spaces → members/events/tasks; deploy connections;
+ * preferences). Real accounts are never in ALL_SEED_EMAILS.
  */
 export async function wipeTestData(): Promise<{ deletedUsers: number }> {
   await schemaReady();
@@ -354,11 +354,10 @@ export async function seedTestData(): Promise<SeedSummary> {
     bump("connections");
   }
 
-  // ── Classroom Space owned by the primary user ─────────────────────────────
-  const classroom = await db().space.create({
+  // ── Team Space owned by the primary user (seeds the Contributions card) ────
+  const crew = await db().space.create({
     data: {
-      name: "CS101 — Intro to Web",
-      kind: "classroom",
+      name: "Web Dev Crew",
       plan: "active",
       seats: 30,
       ownerId: primary.id,
@@ -375,63 +374,18 @@ export async function seedTestData(): Promise<SeedSummary> {
   bump("spaces");
   bump("spaceMembers", students.length + 1);
 
-  const assignmentA = await db().assignment.create({
-    data: {
-      spaceId: classroom.id,
-      title: "Build a responsive navbar",
-      instructions: "Create a mobile-friendly navbar with a hamburger menu. Submit when done.",
-      dueAt: daysAgo(-3), // due in 3 days
-      createdAt: daysAgo(20),
-    },
-  });
-  const assignmentB = await db().assignment.create({
-    data: {
-      spaceId: classroom.id,
-      title: "Fetch and render an API list",
-      instructions: "Fetch JSON from a public API and render it with loading/empty/error states.",
-      dueAt: daysAgo(5), // was due 5 days ago
-      createdAt: daysAgo(15),
-    },
-  });
-  bump("assignments", 2);
-
-  // Submissions in varied states across students × assignments.
-  const subPlan = [
-    { assignment: assignmentA, student: students[0], status: "reviewed", grade: "94/100", feedback: "Clean markup, great a11y.", reviewed: true },
-    { assignment: assignmentA, student: students[1], status: "submitted", grade: null, feedback: null, reviewed: false },
-    { assignment: assignmentA, student: students[2], status: "in_progress", grade: null, feedback: null, reviewed: false },
-    { assignment: assignmentB, student: students[0], status: "reviewed", grade: "88/100", feedback: "Handle the empty state too.", reviewed: true },
-    { assignment: assignmentB, student: students[1], status: "in_progress", grade: null, feedback: null, reviewed: false },
-  ];
-  for (const p of subPlan) {
-    await db().assignmentSubmission.create({
-      data: {
-        assignmentId: p.assignment.id,
-        userId: p.student.id,
-        status: p.status,
-        grade: p.grade,
-        feedback: p.feedback,
-        aiReview: p.reviewed ? "AI review: solid structure; consider extracting the list item into a component." : null,
-        submittedAt: p.status === "in_progress" ? null : daysAgo(8),
-        reviewedAt: p.reviewed ? daysAgo(6) : null,
-        createdAt: daysAgo(12),
-      },
-    });
-    bump("submissions");
-  }
-
   // Task board.
   const boardTasks = [
-    { title: "Grade navbar submissions", status: "doing", assigneeId: primary.id },
-    { title: "Write assignment 3 brief", status: "todo", assigneeId: null },
-    { title: "Set up the syllabus page", status: "done", assigneeId: primary.id },
-    { title: "Review API-list rubric", status: "todo", assigneeId: null },
+    { title: "Polish the shared navbar", status: "doing", assigneeId: primary.id },
+    { title: "Draft the next sprint brief", status: "todo", assigneeId: null },
+    { title: "Set up the landing page", status: "done", assigneeId: primary.id },
+    { title: "Review the API-list pattern", status: "todo", assigneeId: null },
   ];
   for (let i = 0; i < boardTasks.length; i++) {
     const t = boardTasks[i];
     await db().spaceTask.create({
       data: {
-        spaceId: classroom.id,
+        spaceId: crew.id,
         title: t.title,
         status: t.status,
         assigneeId: t.assigneeId,
@@ -445,16 +399,14 @@ export async function seedTestData(): Promise<SeedSummary> {
 
   // Activity feed.
   const events: { action: string; actor: string; target: string; userId: string | null; days: number }[] = [
-    { action: "joined", actor: "Sam (test)", target: "CS101", userId: students[0].id, days: 19 },
-    { action: "joined", actor: "Mei (test)", target: "CS101", userId: students[1].id, days: 18 },
-    { action: "assignment_created", actor: "Durga (test)", target: "Build a responsive navbar", userId: primary.id, days: 20 },
-    { action: "submitted", actor: "Sam (test)", target: "Build a responsive navbar", userId: students[0].id, days: 8 },
-    { action: "reviewed", actor: "Durga (test)", target: "Build a responsive navbar", userId: primary.id, days: 6 },
-    { action: "task_added", actor: "Durga (test)", target: "Write assignment 3 brief", userId: primary.id, days: 5 },
+    { action: "joined", actor: "Sam (test)", target: "Web Dev Crew", userId: students[0].id, days: 19 },
+    { action: "joined", actor: "Mei (test)", target: "Web Dev Crew", userId: students[1].id, days: 18 },
+    { action: "shared", actor: "Sam (test)", target: "sam-navbar", userId: students[0].id, days: 8 },
+    { action: "task_added", actor: "Durga (test)", target: "Draft the next sprint brief", userId: primary.id, days: 5 },
   ];
   for (const e of events) {
     await db().spaceEvent.create({
-      data: { spaceId: classroom.id, userId: e.userId, actorName: e.actor, action: e.action, target: e.target, createdAt: daysAgo(e.days) },
+      data: { spaceId: crew.id, userId: e.userId, actorName: e.actor, action: e.action, target: e.target, createdAt: daysAgo(e.days) },
     });
     bump("spaceEvents");
   }
@@ -475,7 +427,7 @@ export async function seedTestData(): Promise<SeedSummary> {
         name: sa.wsName,
         mode: "SCRATCH",
         provider: "github",
-        spaceId: classroom.id, // shared into the classroom
+        spaceId: crew.id, // shared into the team space
         createdAt: daysAgo(14),
         files: { create: navbarProject(sa.student.name?.split(" ")[0] ?? "Nav") },
         messages: {
@@ -492,7 +444,7 @@ export async function seedTestData(): Promise<SeedSummary> {
 
     for (let p = 0; p < sa.pushes; p++) {
       await db().spaceEvent.create({
-        data: { spaceId: classroom.id, userId: sa.student.id, actorName: sa.student.name ?? "student", action: "pushed", target: sa.wsName, createdAt: daysAgo(12 - p, p) },
+        data: { spaceId: crew.id, userId: sa.student.id, actorName: sa.student.name ?? "student", action: "pushed", target: sa.wsName, createdAt: daysAgo(12 - p, p) },
       });
     }
     bump("spaceEvents", sa.pushes);

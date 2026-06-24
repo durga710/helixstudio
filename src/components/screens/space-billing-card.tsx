@@ -15,8 +15,6 @@ export interface SpaceBilling {
   seats: number;
   memberCount: number;
   memberCap: number;
-  assignmentCount: number;
-  assignmentCap: number | null; // null = unlimited (paid)
   renewsAt: string | null;
 }
 
@@ -28,11 +26,9 @@ export interface SpaceBilling {
  */
 export function SpaceBillingCard({
   spaceId,
-  kind,
   billing,
 }: {
   spaceId: string;
-  kind: "team" | "classroom";
   billing: SpaceBilling;
 }) {
   const { toast } = useToast();
@@ -100,9 +96,6 @@ export function SpaceBillingCard({
           </div>
           <p className="mt-0.5 text-[11.5px] text-txt3">
             {billing.memberCount} of {billing.memberCap} members
-            {billing.assignmentCap !== null && kind === "classroom"
-              ? ` · ${billing.assignmentCount} of ${billing.assignmentCap} assignments`
-              : ""}
             {billing.renewsAt
               ? ` · renews ${new Date(billing.renewsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
               : ""}
@@ -133,11 +126,7 @@ export function SpaceBillingCard({
         <DialogContent>
           <DialogHeader
             title="Upgrade this space"
-            description={
-              kind === "classroom"
-                ? "Per-seat subscription at the education rate. More members, unlimited assignments."
-                : "Per-seat subscription. Buy a seat for each member."
-            }
+            description="Per-seat subscription. Buy a seat for each member."
           />
           <form
             className="space-y-3 p-5"

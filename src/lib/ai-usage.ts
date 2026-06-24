@@ -19,7 +19,6 @@ import { db } from "@/lib/db";
 export type AiUsageKind =
   | "chat"
   | "review"
-  | "classroom_review"
   | "ledger_ask"
   | "undo_preview"
   | "rerank"
@@ -28,8 +27,6 @@ export type AiUsageKind =
   | "intake_curation"
   | "embed"
   | "tutor"
-  | "lesson_generation"
-  | "lesson_assist"
   | "compaction"
   | "lab_guide"
   | "video"

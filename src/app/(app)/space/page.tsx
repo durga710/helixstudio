@@ -35,5 +35,5 @@ export default async function SpacePage() {
   const joinCode = (await cookies()).get("helix.join-space")?.value;
   if (joinCode) redirect(`/space/join/${encodeURIComponent(joinCode)}`);
 
-  return <SpaceScreen youName={session.user.name ?? null} filter="team" />;
+  return <SpaceScreen youName={session.user.name ?? null} />;
 }

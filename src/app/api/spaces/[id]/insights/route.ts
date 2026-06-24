@@ -1,8 +1,7 @@
 /**
  * /api/spaces/[id]/insights — GET: per-member contribution insights.
  *
- * Visibility: TEAM → any member; CLASSROOM → owner (instructor) only. Mirrors
- * the access posture of the rest of the Space API.
+ * Visibility: any member of the Space.
  */
 
 import { ok, apiErrors } from "@/lib/api-response";
@@ -22,15 +21,9 @@ export async function GET(_req: Request, { params }: Params) {
 
   const member = await db().spaceMember.findUnique({
     where: { spaceId_userId: { spaceId: id, userId: g.user.id } },
-    select: { space: { select: { kind: true, ownerId: true } } },
+    select: { id: true },
   });
-  const space = member?.space;
-  if (!space) return apiErrors.notFound("Space");
-
-  // Classroom insights are instructor-only; teams share them with all members.
-  if (space.kind === "classroom" && space.ownerId !== g.user.id) {
-    return apiErrors.notFound("Space");
-  }
+  if (!member) return apiErrors.notFound("Space");
 
   return ok(await getSpaceInsights(id));
 }
