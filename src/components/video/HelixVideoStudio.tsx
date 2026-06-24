@@ -127,18 +127,29 @@ export function HelixVideoStudio() {
 
   return (
     <div className="mx-auto max-w-[1100px] px-5 py-8">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-accent to-[#a78bfa] text-white shadow-pop">
-          <Film className="h-5 w-5" strokeWidth={2} />
-        </span>
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-txt">HelixVideo</h1>
-          <p className="text-[12.5px] text-txt3">Turn a prompt into a cinematic clip. Premium.</p>
+      {/* Cinematic hero */}
+      <div className="relative overflow-hidden rounded-3xl border border-border2 bg-[#08080c] p-6 sm:p-8">
+        {/* vignette glow + a thin light sweep across the top edge */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_140%_at_12%_-15%,color-mix(in_srgb,var(--accent)_22%,transparent),transparent_55%)]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/60 to-transparent"
+        />
+        <div className="relative flex items-center gap-4">
+          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-accent to-[#a78bfa] text-white shadow-pop ring-1 ring-white/10">
+            <Film className="h-6 w-6" strokeWidth={1.8} />
+          </span>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight text-white">HelixVideo</h1>
+            <p className="mt-0.5 text-[13px] text-white/55">Direct a shot in words. Render it in cinema quality.</p>
+          </div>
+          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-white/70">
+            <Sparkles className="h-3.5 w-3.5 text-accent" /> Premium
+          </span>
         </div>
-        <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] px-3 py-1 text-[11.5px] font-medium text-accent">
-          <Sparkles className="h-3.5 w-3.5" /> Cinematic, white-labeled
-        </span>
       </div>
 
       {premium === false && (
@@ -221,7 +232,7 @@ export function HelixVideoStudio() {
         {/* Preview */}
         <div className="rounded-2xl border border-border2 bg-panel p-5">
           <div
-            className={`relative mx-auto overflow-hidden rounded-xl border border-border2 bg-panel2 ${
+            className={`relative mx-auto overflow-hidden rounded-xl border border-white/10 bg-black shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_24px_60px_-22px_color-mix(in_srgb,var(--accent)_55%,transparent)] ${
               portrait ? "aspect-[9/16] max-w-[300px]" : "aspect-video w-full"
             }`}
           >
@@ -240,21 +251,21 @@ export function HelixVideoStudio() {
                 {busy ? (
                   <div className="px-6">
                     <Loader2 className="mx-auto h-7 w-7 animate-spin text-accent" />
-                    <div className="mt-3 text-[13px] font-medium text-txt2">
-                      {status === "queued" ? "Queued…" : "Rendering your clip…"}
+                    <div className="mt-3 text-[13px] font-medium text-white/80">
+                      {status === "queued" ? "Queued…" : "Rendering your shot…"}
                     </div>
-                    <div className="mx-auto mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-border2">
+                    <div className="mx-auto mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-white/10">
                       <div
                         className="h-full rounded-full bg-accent transition-all"
                         style={{ width: `${Math.max(5, progress)}%` }}
                       />
                     </div>
-                    <div className="mt-1.5 text-[11px] text-txt3">This can take a minute or two.</div>
+                    <div className="mt-1.5 text-[11px] text-white/40">This can take a minute or two.</div>
                   </div>
                 ) : (
-                  <div className="px-6 text-txt3">
-                    <Film className="mx-auto h-8 w-8 opacity-50" />
-                    <div className="mt-2 text-[13px]">Your video preview appears here.</div>
+                  <div className="px-6 text-white/45">
+                    <Film className="mx-auto h-8 w-8 opacity-60" />
+                    <div className="mt-2 text-[13px]">Your shot will appear here.</div>
                   </div>
                 )}
               </div>
