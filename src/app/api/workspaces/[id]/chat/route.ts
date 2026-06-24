@@ -14,6 +14,7 @@
 import { after } from "next/server";
 import { z } from "zod";
 import { apiErrors } from "@/lib/api-response";
+import { brandProviderError } from "@/lib/ai/provider-errors";
 import { runAgentTurn } from "@/lib/agent-turn";
 import { runBuildPipeline } from "@/lib/orchestrator";
 import { runTurboBuild, shouldUseTurbo } from "@/lib/turbo";
@@ -124,7 +125,9 @@ export async function POST(req: Request, { params }: Params) {
                 onEvent: (e) => write(e),
               });
           if ("error" in result) {
-            write({ type: "error", message: result.error, code: result.code });
+            // SECURITY (H3): brand provider/billing internals before they reach
+            // the user; genuine app-level messages pass through unchanged.
+            write({ type: "error", message: brandProviderError(result.error), code: result.code });
           } else {
             write({
               type: "final",

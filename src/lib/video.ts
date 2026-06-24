@@ -12,11 +12,44 @@ import "server-only";
 
 import OpenAI from "openai";
 import { isPremiumUser } from "@/lib/templates/select";
-import { recordAiUsage } from "@/lib/ai-usage";
+import { db, dbEnabled } from "@/lib/db";
 import { brandVideoMessage, sanitizeVideoError } from "@/lib/video-errors";
 
 /** The model behind HelixVideo (never shown to users). */
 const HELIX_VIDEO_MODEL = "sora-2-pro";
+
+/**
+ * SECURITY (H1): the provider video id is an opaque, guessable handle on a
+ * SHARED house key — without an ownership record any premium user could poll or
+ * download another user's video. We record ownership in AiUsageEvent (which also
+ * gives video a usage-history row it previously lacked) and verify it before any
+ * provider call. Ownership rows are pruned with usage history (~90d), which is
+ * fine: provider video jobs expire well before then.
+ */
+async function recordVideoOwnership(userId: string, videoId: string): Promise<void> {
+  if (!dbEnabled()) return;
+  try {
+    await db().aiUsageEvent.create({
+      data: { userId, kind: "video", provider: "helixvideo", model: videoId, tokens: 0 },
+    });
+  } catch (e) {
+    console.error("[helixvideo] ownership record failed", e);
+  }
+}
+
+/** Whether this user created the given video id. */
+async function ownsVideo(userId: string, videoId: string): Promise<boolean> {
+  if (!dbEnabled()) return false;
+  try {
+    const row = await db().aiUsageEvent.findFirst({
+      where: { userId, kind: "video", model: videoId },
+      select: { id: true },
+    });
+    return !!row;
+  } catch {
+    return false;
+  }
+}
 
 export type HelixVideoSeconds = "4" | "8" | "12";
 export type HelixVideoSize = "720x1280" | "1280x720" | "1024x1792" | "1792x1024";
@@ -69,8 +102,8 @@ export async function createVideo(
       seconds: opts.seconds,
       size: opts.size,
     });
-    // Best-effort usage marker (video is billed by clip, not tokens; record 0).
-    void recordAiUsage({ userId, tokens: 0, kind: "video", provider: "helixvideo", model: HELIX_VIDEO_MODEL });
+    // Record ownership BEFORE returning the id so a poll can't race ahead of it.
+    await recordVideoOwnership(userId, v.id);
     return { id: v.id, status: v.status, progress: v.progress };
   } catch (e) {
     return { error: sanitizeVideoError(e, "Couldn't start the video. Please try again.") };
@@ -85,6 +118,7 @@ export async function videoStatus(
 ): Promise<VideoJob | { error: string }> {
   const client = await houseClient(userId, email);
   if ("error" in client) return { error: client.error };
+  if (!(await ownsVideo(userId, id))) return { error: "We couldn't find that video." };
   try {
     const v = await client.videos.retrieve(id);
     const failReason = v.error?.message
@@ -104,6 +138,7 @@ export async function videoContent(
 ): Promise<Response | { error: string }> {
   const client = await houseClient(userId, email);
   if ("error" in client) return { error: client.error };
+  if (!(await ownsVideo(userId, id))) return { error: "We couldn't find that video." };
   try {
     return await client.videos.downloadContent(id);
   } catch (e) {

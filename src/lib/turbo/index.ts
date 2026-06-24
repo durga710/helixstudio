@@ -24,7 +24,7 @@ import type { Workspace } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { resolveAiPrefs } from "@/lib/ai-agent";
 import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFiles } from "@/lib/workspace";
-import { checkTokenBudget } from "@/lib/token-budget";
+import { checkTokenBudget, reserveTokenBudget, releaseTokenReservation } from "@/lib/token-budget";
 import { aiUsageOps } from "@/lib/ai-usage";
 import { synthesizeReply } from "@/lib/build-feed";
 import { GUEST_TOKEN_LIMIT } from "@/lib/auth";
@@ -86,9 +86,12 @@ export async function runTurboBuild(opts: TurboOpts): Promise<TurnResult | TurnE
   const message = opts.message.trim();
   const emit = (label: string) => opts.onEvent?.({ type: "activity", label });
 
-  const budget = await checkTokenBudget(userId);
+  // H4: the recording path atomically reserves so concurrent builds can't all
+  // pass a read-only gate. A non-persisting nested run is metered by its parent.
+  const budget = persist ? await reserveTokenBudget(userId) : await checkTokenBudget(userId);
   if (!budget.ok) return { code: budget.code, error: budget.error };
   const dbUser = budget.user;
+  const reserved = budget.reserved;
 
   const prefs = await resolveAiPrefs(userId);
   const meter = { tokensUsed: 0 };
@@ -110,7 +113,11 @@ export async function runTurboBuild(opts: TurboOpts): Promise<TurnResult | TurnE
   // 1. PLAN — one strong-model call.
   emit("planning the build…");
   const manifest = await planManifest(ws, userId, message, ws.notes, meter);
-  if (!manifest) return runAgentTurn(opts); // planner miss → proven sequential path
+  if (!manifest) {
+    // The sequential fallback re-reserves on its own — release ours first.
+    await releaseTokenReservation(userId, reserved);
+    return runAgentTurn(opts); // planner miss → proven sequential path
+  }
 
   // 2. GENERATE — every file in parallel, each a stateless one-shot call.
   emit(`generating ${manifest.files.length} files in parallel…`);
@@ -120,7 +127,10 @@ export async function runTurboBuild(opts: TurboOpts): Promise<TurnResult | TurnE
   );
   const ok = generated.filter((g): g is Extract<typeof g, { content: string }> => "content" in g);
   for (const g of generated) meter.tokensUsed += g.tokensUsed;
-  if (ok.length === 0) return runAgentTurn(opts); // total miss → fall back
+  if (ok.length === 0) {
+    await releaseTokenReservation(userId, reserved);
+    return runAgentTurn(opts); // total miss → fall back
+  }
 
   // 3. WRITE the generated files to the overlay (one intent for undo).
   const intentId = await createAgentIntent(ws, message).catch(() => null);
@@ -129,7 +139,10 @@ export async function runTurboBuild(opts: TurboOpts): Promise<TurnResult | TurnE
     ok.map((g) => ({ path: g.path, content: g.content })),
     intentId ? { intentId } : undefined,
   );
-  if ("error" in wrote) return { error: wrote.error };
+  if ("error" in wrote) {
+    await releaseTokenReservation(userId, reserved);
+    return { error: wrote.error };
+  }
   const changes = { written: [...wrote.writtenPaths], deleted: [] as string[] };
   // Fold the scaffold framework into the change set so the summary + "files
   // changed" card reflect the whole project, not just the generated delta.
@@ -208,11 +221,18 @@ export async function runTurboBuild(opts: TurboOpts): Promise<TurnResult | TurnE
         db().workspaceMessage.create({
           data: { workspaceId: ws.id, role: "assistant", content: text, actions, summary },
         }),
-        ...aiUsageOps({ userId, tokens: tokensUsed, kind: "chat", provider: prefs.provider, model: prefs.model, workspaceId: ws.id }),
+        // reserved reconciles the up-front reservation to the true spend (H4).
+        ...aiUsageOps({ userId, tokens: tokensUsed, kind: "chat", provider: prefs.provider, model: prefs.model, workspaceId: ws.id, reserved }),
       ]);
     } catch (e) {
       console.error("[turbo] persist failed", e);
+      // Persist never settled the reservation — refund it so the turn isn't billed.
+      await releaseTokenReservation(userId, reserved);
     }
+  } else if (reserved > 0) {
+    // Reserved but not recording here — refund (shouldn't happen: reserve is
+    // gated on persist, but keep the counters honest if that ever changes).
+    await releaseTokenReservation(userId, reserved);
   }
 
   if (intentId) {

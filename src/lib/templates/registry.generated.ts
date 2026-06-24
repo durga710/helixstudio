@@ -897,16 +897,12 @@ export const TEMPLATES: Record<string, Template> = {
         "content": "import { defineConfig, globalIgnores } from \"eslint/config\";\nimport nextVitals from \"eslint-config-next/core-web-vitals\";\nimport nextTs from \"eslint-config-next/typescript\";\n\nconst eslintConfig = defineConfig([\n  ...nextVitals,\n  ...nextTs,\n  // Override default ignores of eslint-config-next.\n  globalIgnores([\n    // Default ignores of eslint-config-next:\n    \".next/**\",\n    \"out/**\",\n    \"build/**\",\n    \"next-env.d.ts\",\n  ]),\n]);\n\nexport default eslintConfig;\n"
       },
       {
-        "path": "next-env.d.ts",
-        "content": "/// <reference types=\"next\" />\n/// <reference types=\"next/image-types/global\" />\nimport \"./.next/types/routes.d.ts\";\n\n// NOTE: This file should not be edited\n// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.\n"
-      },
-      {
         "path": "next.config.ts",
         "content": "import type { NextConfig } from \"next\";\n\nconst nextConfig: NextConfig = {\n  /* config options here */\n};\n\nexport default nextConfig;\n"
       },
       {
         "path": "package.json",
-        "content": "{\n  \"name\": \"nextjs-app\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"dev\": \"next dev\",\n    \"build\": \"next build\",\n    \"start\": \"next start\",\n    \"lint\": \"eslint\"\n  },\n  \"dependencies\": {\n    \"next\": \"16.2.9\",\n    \"react\": \"19.2.7\",\n    \"react-dom\": \"19.2.7\"\n  },\n  \"devDependencies\": {\n    \"@tailwindcss/postcss\": \"^4\",\n    \"@types/node\": \"^25\",\n    \"@types/react\": \"^19\",\n    \"@types/react-dom\": \"^19\",\n    \"eslint\": \"^9\",\n    \"eslint-config-next\": \"16.2.9\",\n    \"tailwindcss\": \"^4\",\n    \"typescript\": \"^6\"\n  }\n}\n"
+        "content": "{\n  \"name\": \"nextjs-app\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"dev\": \"next dev\",\n    \"build\": \"next build\",\n    \"start\": \"next start\",\n    \"lint\": \"eslint\"\n  },\n  \"dependencies\": {\n    \"next\": \"16.2.9\",\n    \"react\": \"19.2.7\",\n    \"react-dom\": \"19.2.7\"\n  },\n  \"devDependencies\": {\n    \"@tailwindcss/postcss\": \"^4\",\n    \"@types/node\": \"^26\",\n    \"@types/react\": \"^19\",\n    \"@types/react-dom\": \"^19\",\n    \"eslint\": \"^10\",\n    \"eslint-config-next\": \"16.2.9\",\n    \"tailwindcss\": \"^4\",\n    \"typescript\": \"^6\"\n  }\n}\n"
       },
       {
         "path": "postcss.config.mjs",
@@ -1086,10 +1082,6 @@ export const TEMPLATES: Record<string, Template> = {
         "content": "import { clsx, type ClassValue } from \"clsx\";\nimport { twMerge } from \"tailwind-merge\";\n\n/** Merge class names with Tailwind-aware conflict resolution. Used by every\n * component in components/ui/*. */\nexport function cn(...inputs: ClassValue[]) {\n  return twMerge(clsx(inputs));\n}\n"
       },
       {
-        "path": "next-env.d.ts",
-        "content": "/// <reference types=\"next\" />\n/// <reference types=\"next/image-types/global\" />\nimport \"./.next/types/routes.d.ts\";\n\n// NOTE: This file should not be edited\n// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.\n"
-      },
-      {
         "path": "next.config.ts",
         "content": "import type { NextConfig } from \"next\";\n\nconst nextConfig: NextConfig = {\n  /* config options here */\n};\n\nexport default nextConfig;\n"
       },
@@ -1231,7 +1223,7 @@ export const TEMPLATES: Record<string, Template> = {
       },
       {
         "path": "package.json",
-        "content": "{\n  \"name\": \"vite-spa\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"tsc -b && vite build\",\n    \"lint\": \"eslint .\",\n    \"preview\": \"vite preview\"\n  },\n  \"dependencies\": {\n    \"react\": \"^19.2.6\",\n    \"react-dom\": \"^19.2.6\"\n  },\n  \"devDependencies\": {\n    \"@eslint/js\": \"^10.0.1\",\n    \"@types/node\": \"^25.9.3\",\n    \"@types/react\": \"^19.2.14\",\n    \"@types/react-dom\": \"^19.2.3\",\n    \"@vitejs/plugin-react\": \"^6.0.1\",\n    \"eslint\": \"^10.3.0\",\n    \"eslint-plugin-react-hooks\": \"^7.1.1\",\n    \"eslint-plugin-react-refresh\": \"^0.5.2\",\n    \"globals\": \"^17.6.0\",\n    \"typescript\": \"~6.0.2\",\n    \"typescript-eslint\": \"^8.59.2\",\n    \"vite\": \"^8.0.12\"\n  }\n}\n"
+        "content": "{\n  \"name\": \"vite-spa\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"tsc -b && vite build\",\n    \"lint\": \"eslint .\",\n    \"preview\": \"vite preview\"\n  },\n  \"dependencies\": {\n    \"react\": \"^19.2.6\",\n    \"react-dom\": \"^19.2.6\"\n  },\n  \"devDependencies\": {\n    \"@eslint/js\": \"^10.0.1\",\n    \"@types/node\": \"^26.0.0\",\n    \"@types/react\": \"^19.2.14\",\n    \"@types/react-dom\": \"^19.2.3\",\n    \"@vitejs/plugin-react\": \"^6.0.1\",\n    \"eslint\": \"^10.3.0\",\n    \"eslint-plugin-react-hooks\": \"^7.1.1\",\n    \"eslint-plugin-react-refresh\": \"^0.5.2\",\n    \"globals\": \"^17.6.0\",\n    \"typescript\": \"~6.0.2\",\n    \"typescript-eslint\": \"^8.59.2\",\n    \"vite\": \"^8.0.12\"\n  }\n}\n"
       },
       {
         "path": "public/favicon.svg",

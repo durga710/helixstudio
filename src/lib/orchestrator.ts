@@ -34,7 +34,7 @@ import { GUEST_TOKEN_LIMIT } from "@/lib/auth";
 import { getGitAuth, withGitAuth } from "@/lib/git";
 import { listWorkspaceFiles, readWorkspaceFile } from "@/lib/workspace";
 import { resolveAiPrefs, runOneShotResilient, runReviewer } from "@/lib/ai-agent";
-import { checkTokenBudget } from "@/lib/token-budget";
+import { reserveTokenBudget, releaseTokenReservation } from "@/lib/token-budget";
 import { aiUsageOps } from "@/lib/ai-usage";
 import { auditFiles } from "@/lib/security/audit";
 import { analyzePerf } from "@/lib/perf/analyze";
@@ -157,10 +157,13 @@ export async function runBuildPipeline(opts: {
   const emitPhase = (id: PipelinePhaseId, state: PhaseState, result?: string) =>
     onEvent?.({ type: "phase", id, state, result, progress: state === "complete" ? PROGRESS[id] : undefined });
 
-  // One budget gate up front (the engineer re-checks, harmlessly).
-  const budget = await checkTokenBudget(userId);
+  // One budget gate up front. H4: the pipeline is the recorder (its engineer runs
+  // persist:false), so it atomically reserves here and reconciles at the combined
+  // persist below — concurrent pipelines can't all pass a read-only check.
+  const budget = await reserveTokenBudget(userId);
   if (!budget.ok) return { code: budget.code, error: budget.error };
   const dbUser = budget.user;
+  const reserved = budget.reserved;
   // Guests never spend on the extra model calls (planner/architect/reviewer):
   // they get the computed phases + the engineer, which is already gated/pinned.
   const useModelPhases = !dbUser?.isGuest;
@@ -270,6 +273,8 @@ export async function runBuildPipeline(opts: {
   });
   if ("error" in eng) {
     emitPhase("engineer", "skipped");
+    // No combined persist will run — refund the reservation.
+    await releaseTokenReservation(userId, reserved);
     return eng;
   }
   const wrote = eng.changes.written.length;
@@ -364,10 +369,13 @@ export async function runBuildPipeline(opts: {
         provider: prefs.provider,
         model: prefs.model,
         workspaceId: ws.id,
+        reserved,
       }),
     ]);
   } catch (e) {
     console.error("[orchestrator] persist failed", e);
+    // Persist never settled the reservation — refund so the turn isn't billed.
+    await releaseTokenReservation(userId, reserved);
   }
 
   const guestRemaining = dbUser?.isGuest

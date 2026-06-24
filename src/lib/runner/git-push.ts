@@ -13,6 +13,7 @@ import "server-only";
 
 import type { Workspace } from "@/generated/prisma/client";
 import type { GitAuth } from "@/lib/git";
+import { isSafeRepoPath, isValidBranchName } from "@/lib/repo-files";
 import { ensurePreparedSandbox } from "./vercel-sandbox";
 
 const CLONE_DIR = "helix-push-repo"; // relative to the VM's /vercel/sandbox cwd
@@ -72,7 +73,9 @@ export async function gitPush(ws: Workspace, auth: GitAuth, opts: GitPushOpts): 
   const { sandbox } = prepared;
 
   const onBase = opts.branch === opts.baseBranch;
-  const bb = opts.baseBranch || "main";
+  // baseBranch is interpolated into shell (incl. an unquoted `origin/${bb}`), so
+  // it must be a valid git ref. Fall back to "main" if anything looks off.
+  const bb = isValidBranchName(opts.baseBranch) ? opts.baseBranch : "main";
 
   try {
     // 1. Clean clone (shallow). Empty repos can't be cloned with -b → init.
@@ -113,7 +116,15 @@ export async function gitPush(ws: Workspace, auth: GitAuth, opts: GitPushOpts): 
     }
 
     // 3. Branch, commit, rebase onto latest base, push.
-    const delCmds = opts.deletions.map((p) => `git rm -f --ignore-unmatch -- "${p.replace(/"/g, '\\"')}" >/dev/null 2>&1 || true`).join("\n");
+    // SECURITY (C3): deletion paths originate from the workspace overlay (model /
+    // virtual-FS controlled) and are interpolated into `sh -c`. Only paths that
+    // pass isSafeRepoPath (no shell metacharacters: no $ ` \ " ; & | etc.) are
+    // allowed; anything else is dropped rather than executed. The push route also
+    // rejects unsafe deletions up front — this is defense in depth.
+    const safeDeletions = opts.deletions.filter(isSafeRepoPath);
+    const delCmds = safeDeletions
+      .map((p) => `git rm -f --ignore-unmatch -- "${p}" >/dev/null 2>&1 || true`)
+      .join("\n");
     const branchCmd = onBase ? "" : `git checkout -q -b "${opts.branch}"`;
     const rebaseCmd = empty
       ? "" // nothing upstream to rebase onto

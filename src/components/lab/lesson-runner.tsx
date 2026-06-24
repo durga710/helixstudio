@@ -53,18 +53,15 @@ export function LessonRunner({ lesson }: { lesson: Lesson }) {
 
   const step = steps[i];
   const total = steps.length;
-  // Recognition checks that count toward the score: quizzes + reflect recalls.
-  const scoredCount = useMemo(
-    () => steps.filter((s) => s.kind === "quiz" || s.kind === "reflect").length,
-    [steps],
-  );
 
   const save = useCallback(
-    (currentStep: number, status: "in_progress" | "completed", quizScore?: number) => {
+    (currentStep: number, status: "in_progress" | "completed", quizAnswers?: Record<string, number>) => {
+      // Send the picked answer per scored step; the server recomputes the grade.
+      // We never send a self-reported score (it would be trivially forgeable).
       void fetch("/api/lab/progress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lessonId, currentStep, status, ...(quizScore !== undefined && { quizScore }) }),
+        body: JSON.stringify({ lessonId, currentStep, status, ...(quizAnswers && { quizAnswers }) }),
       }).catch(() => {});
     },
     [lessonId],
@@ -109,9 +106,10 @@ export function LessonRunner({ lesson }: { lesson: Lesson }) {
     if (!canAdvance) return;
     const ni = i + 1;
     if (ni >= total) {
-      const correct = Object.values(answers).filter((a) => a.correct).length;
-      const score = scoredCount > 0 ? correct / scoredCount : 1;
-      save(total, "completed", score);
+      // Send the raw picks keyed by step index; the server is the grade authority.
+      const quizAnswers: Record<string, number> = {};
+      for (const [idx, a] of Object.entries(answers)) quizAnswers[idx] = a.picked;
+      save(total, "completed", quizAnswers);
       setDone(true);
       return;
     }

@@ -11,6 +11,8 @@ import "server-only";
  * per-iteration verify (that's the in-process syntax check). Validated locally with
  * real Chromium; the sandbox chromium provisioning needs a prod pass.
  */
+import { isSafeRepoPath } from "@/lib/repo-files";
+
 export const HEADLESS_CHECK_SCRIPT = String.raw`'use strict';
 const http = require('http'), fs = require('fs'), path = require('path');
 function loadChromium() {
@@ -61,7 +63,11 @@ const MIME = { '.html':'text/html','.htm':'text/html','.js':'text/javascript','.
  * headless check. Skips gracefully if the browser can't be provisioned. */
 export function headlessCheckCommand(entry: string): string {
   const b64 = Buffer.from(HEADLESS_CHECK_SCRIPT, "utf8").toString("base64");
-  const safeEntry = entry.replace(/'/g, "");
+  // SECURITY (C3): `entry` is a workspace file path that gets interpolated into a
+  // shell command. isSafeRepoPath permits no shell metacharacters ($ ` \ ' " ; &
+  // | etc.), so a path that passes is safe inside the single-quoted arg; anything
+  // else falls back to the default entry rather than executing.
+  const safeEntry = isSafeRepoPath(entry) ? entry : "index.html";
   return (
     `node -e "require('fs').writeFileSync('/tmp/helix-hc.cjs', Buffer.from('${b64}','base64').toString('utf8'))" && ` +
     `(npm i -D playwright-core >/dev/null 2>&1 || true) && (npx -y playwright install chromium >/dev/null 2>&1 || true) && ` +
