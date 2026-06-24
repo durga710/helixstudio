@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
-import { MODEL_PRESETS, brandModel } from "@/lib/model-presets";
+import { MODEL_PRESETS, brandModel, modelRate, formatTpm } from "@/lib/model-presets";
 import { PROVIDER_META, type GitProviderName } from "@/lib/git/meta";
 import { KeyStatusDot, validateAiKey, type KeyState } from "@/components/studio/key-status";
 import { cn } from "@/lib/utils";
@@ -295,11 +295,15 @@ export function AiSection() {
             aria-label="Model preset"
             className="rounded-[9px] border border-border2 bg-panel2 px-2 py-2 font-mono text-xs outline-none focus:border-accent"
           >
-            {modelOptions.map((m) => (
-              <option key={m} value={m}>
-                {brandModel(m)}
-              </option>
-            ))}
+            {modelOptions.map((m) => {
+              const tpm = formatTpm(modelRate(m).tpm);
+              return (
+                <option key={m} value={m}>
+                  {brandModel(m)}
+                  {tpm ? ` · ${tpm} TPM` : ""}
+                </option>
+              );
+            })}
             {provider !== "openai" && <option value="__custom">custom…</option>}
           </select>
           {/* White-label: no raw model-id entry for the Helix house engine. */}

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BrainCircuit, Check, ChevronDown, Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { MODEL_PRESETS, brandModel } from "@/lib/model-presets";
+import { MODEL_PRESETS, brandModel, modelRate, formatTpm } from "@/lib/model-presets";
 import { KeyStatusDot, validateAiKey, type KeyState } from "@/components/studio/key-status";
 
 interface BedrockModelOption {
@@ -442,11 +442,15 @@ export function ModelPicker() {
                   onChange={(e) => e.target.value !== "__custom" && setModel(e.target.value)}
                   className={cn(fieldCls, provider === "openai" ? "flex-1" : "max-w-[10rem]", "px-1.5")}
                 >
-                  {modelOptions.map((m) => (
-                    <option key={m} value={m} className="bg-panel">
-                      {brandModel(m)}
-                    </option>
-                  ))}
+                  {modelOptions.map((m) => {
+                    const tpm = formatTpm(modelRate(m).tpm);
+                    return (
+                      <option key={m} value={m} className="bg-panel">
+                        {brandModel(m)}
+                        {tpm ? ` · ${tpm} TPM` : ""}
+                      </option>
+                    );
+                  })}
                   {/* White-label: no raw model-id entry for the Helix house engine. */}
                   {provider !== "openai" && (
                     <option value="__custom" className="bg-panel">
