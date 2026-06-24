@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, Film, Download, Loader2, Lock, Wand2 } from "lucide-react";
+import { Sparkles, Film, Download, Loader2, Lock, Wand2, Clapperboard } from "lucide-react";
 import { ScriptAssistant } from "@/components/video/script-assistant";
 
 type Status = "idle" | "queued" | "in_progress" | "completed" | "failed" | "error";
@@ -157,9 +157,17 @@ export function HelixVideoStudio() {
             <h1 className="text-2xl font-bold tracking-tight text-white">HelixVideo</h1>
             <p className="mt-0.5 text-[13px] text-white/55">Direct a shot in words. Render it in cinema quality.</p>
           </div>
-          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-white/70">
-            <Sparkles className="h-3.5 w-3.5 text-accent" /> Premium
-          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <a
+              href="/video/editor"
+              className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] px-3 py-1 text-[11px] font-medium text-accent transition hover:brightness-110"
+            >
+              <Clapperboard className="h-3.5 w-3.5" /> Long-form
+            </a>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-white/70">
+              <Sparkles className="h-3.5 w-3.5 text-accent" /> Premium
+            </span>
+          </div>
         </div>
       </div>
 
