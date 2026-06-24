@@ -15,7 +15,11 @@ export const maxDuration = 60;
 const STALE_MS = 90_000; // a healthy slice heartbeats every step, well under this
 
 export async function GET(req: NextRequest) {
-  if (process.env.CRON_SECRET && req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
+  // SECURITY (M2): fail CLOSED. If CRON_SECRET isn't configured, reject every
+  // caller rather than running the drainer for anyone (the previous `&&` form
+  // skipped the check entirely when the secret was unset).
+  const secret = process.env.CRON_SECRET;
+  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response("unauthorized", { status: 401 });
   }
   if (!dbEnabled()) return Response.json({ ok: true, rescued: 0 });

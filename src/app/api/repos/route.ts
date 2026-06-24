@@ -23,6 +23,16 @@ async function githubToken(userId: string | undefined): Promise<string | undefin
 
 export const dynamic = "force-dynamic";
 
+/**
+ * SECURITY (C1): the in-memory `store()` is a single process-global shared by
+ * ALL users — it is a demo-mode fixture only. In production (DB configured) these
+ * routes must never serve it, or one user's imported repo + source code leaks to
+ * another. Real, per-user repos live in the DB-backed /api/workspaces routes.
+ */
+function demoOnly(): Response | null {
+  return dbEnabled() ? Response.json({ error: "Not available" }, { status: 404 }) : null;
+}
+
 const importSchema = z.object({
   repoUrl: z
     .string()
@@ -37,6 +47,8 @@ const activateSchema = z.object({ projectId: z.string().min(1) });
 export async function GET() {
   const session = await auth();
   if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = demoOnly();
+  if (gate) return gate;
   return Response.json({ projects: store().projects, activeProjectId: store().activeProjectId });
 }
 
@@ -44,6 +56,8 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = demoOnly();
+  if (gate) return gate;
 
   const parsed = activateSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success || !setActiveProject(parsed.data.projectId)) {
@@ -55,6 +69,8 @@ export async function PATCH(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = demoOnly();
+  if (gate) return gate;
 
   const parsed = importSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Enter a valid repository URL" }, { status: 400 });

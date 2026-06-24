@@ -17,7 +17,7 @@ import { getProvider, getGitAuth, withGitAuth, PROVIDER_META, type GitAuth } fro
 import { getOverlay } from "@/lib/workspace";
 import { usingSandboxBackend } from "@/lib/app-runner";
 import { gitPush } from "@/lib/runner/git-push";
-import { isValidBranchName, validateFiles, MAX_PUSH_FILES } from "@/lib/repo-files";
+import { isValidBranchName, isSafeRepoPath, validateFiles, MAX_PUSH_FILES } from "@/lib/repo-files";
 import { scanFiles } from "@/lib/security/secret-scan";
 import { guardWorkspace } from "@/lib/route-helpers";
 import { recordSpaceEvent, actorNameOf } from "@/lib/space-events";
@@ -112,6 +112,10 @@ export async function POST(req: Request, { params }: Params) {
     const check = validateFiles(overlay.files, MAX_PUSH_FILES);
     if (!check.ok) return apiErrors.badRequest(check.error);
   }
+  // Deletion paths flow into a shell `git rm` in the sandbox — validate them with
+  // the same safe-path guard as files so no shell metacharacters can be injected.
+  const badDeletion = overlay.deletions.find((p) => !isSafeRepoPath(p));
+  if (badDeletion) return apiErrors.badRequest(`Unsafe file path: ${badDeletion}`);
 
   // Secret scan: block a push that looks like it contains hardcoded credentials,
   // unless the user reviewed the findings and explicitly overrode (allowSecrets).

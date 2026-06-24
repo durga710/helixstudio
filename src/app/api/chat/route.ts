@@ -58,10 +58,10 @@ export async function POST(req: NextRequest) {
       } catch (error) {
         if (error instanceof Anthropic.AuthenticationError) {
           controller.enqueue(
-            encoder.encode("\n\n[Your Anthropic API key was rejected — update it in Settings → AI provider.]")
+            encoder.encode("\n\n[Your AI provider key was rejected — update it in Settings → AI provider.]")
           );
         } else if (error instanceof Anthropic.RateLimitError) {
-          controller.enqueue(encoder.encode("\n\n[Anthropic rate limit hit — wait a moment and try again.]"));
+          controller.enqueue(encoder.encode("\n\n[The AI service is busy — wait a moment and try again.]"));
         } else {
           controller.enqueue(encoder.encode("\n\n[Helix hit a provider error — try again.]"));
         }

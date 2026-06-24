@@ -10,6 +10,7 @@
 import { z } from "zod";
 import { ok, apiErrors } from "@/lib/api-response";
 import { guard } from "@/lib/route-helpers";
+import { resolvesToPrivateHost } from "@/lib/security/ssrf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,13 @@ export async function GET(req: Request) {
   if (!parsed.success) return apiErrors.badRequest("base must be a valid http(s) URL");
 
   const entered = parsed.data.replace(/\/+$/, "");
+
+  // SECURITY (H2): this feature targets the user's OWN localhost in dev (LM
+  // Studio). In a deployed environment, fetching a user-supplied URL that
+  // resolves to a private/loopback/link-local address is SSRF — block it.
+  if (process.env.NODE_ENV === "production" && (await resolvesToPrivateHost(entered))) {
+    return apiErrors.badRequest("That address can't be reached from the server.");
+  }
 
   // People paste the bare server URL (http://localhost:1234), the OpenAI
   // path (/v1), or LM Studio's native path (/api/v1). Try the sensible
