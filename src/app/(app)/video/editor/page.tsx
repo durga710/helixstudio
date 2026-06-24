@@ -1,21 +1,21 @@
 import type { Metadata } from "next";
-import { EditorStage } from "@/components/video-editor/EditorStage";
+import { LongVideoComposer } from "@/components/video-editor/LongVideoComposer";
 
 export const metadata: Metadata = {
   title: "HelixVideo Editor — Helix Studio",
-  description: "Compose and preview cinematic AI video, scene by scene.",
+  description: "Turn one idea into a multi-minute video — AI shot list, generated and stitched.",
 };
 
 export default function VideoEditorPage() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-8">
+    <div className="mx-auto w-full max-w-6xl px-6 py-8">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">HelixVideo Editor</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Live preview of a composed scene. Timeline editing and AI scene authoring land next.
+          One idea → an AI shot list → a clip per shot → stitched into one continuous, multi-minute reel.
         </p>
       </header>
-      <EditorStage />
+      <LongVideoComposer />
     </div>
   );
 }
