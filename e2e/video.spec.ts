@@ -60,8 +60,10 @@ test("video: authenticated user reaches the HelixVideo studio", async ({ page })
   // Header + composer render for every plan (the upgrade banner is the only
   // premium-gated piece), so anchor on those.
   await expect(page.getByRole("heading", { name: /^HelixVideo$/ })).toBeVisible();
-  await expect(page.getByText(/cinematic clip/i).first()).toBeVisible();
+  // Anchor on the composer's durable pieces: the Prompt label and the primary
+  // action. (Avoid taglines/preview copy, which the studio rebrand churns.)
   await expect(page.getByText("Prompt", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Generate video/i })).toBeVisible();
 
   expect(errors, `uncaught page errors: ${errors.join("; ")}`).toEqual([]);
 });
