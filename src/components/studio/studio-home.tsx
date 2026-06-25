@@ -134,7 +134,7 @@ export function StudioHome({
 
   function ProjectCard(w: WorkspaceCard) {
     return (
-      <li key={w.id} className="glass-panel group relative p-4 transition-colors hover:border-accent">
+      <li key={w.id} className="glass-panel hover-lift lit group relative p-4">
         <WorkspaceCardMenu id={w.id} name={w.name} />
         <button type="button" onClick={() => router.push(`/editor/${w.id}`)} className="w-full text-left">
           <div className="mb-2 flex items-center gap-2 pr-16">

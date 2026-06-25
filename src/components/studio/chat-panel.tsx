@@ -1154,9 +1154,9 @@ export function ChatPanel({
   };
 
   return (
-    <div className="glass-panel-strong relative flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="glass-panel-strong lit relative flex h-full min-h-0 flex-col overflow-hidden">
       {/* Chat header: identity + model switcher */}
-      <div className="relative flex items-center gap-2 border-b border-border px-4 py-2">
+      <div className="relative flex items-center gap-2 border-b border-border bg-bg2/40 px-4 py-2">
         <Sparkles className="h-4 w-4 shrink-0 text-accent" />
         <span className="label-tactical text-[11px]">Chat</span>
         <div className="ml-auto flex items-center gap-2">
@@ -1181,7 +1181,7 @@ export function ChatPanel({
         {ideasOpen && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setIdeasOpen(false)} />
-            <div className="absolute right-3 top-[calc(100%+4px)] z-50 w-[min(340px,90vw)] rounded-xl border border-border2 bg-panel p-3 shadow-pop">
+            <div className="glass absolute right-3 top-[calc(100%+4px)] z-50 w-[min(340px,90vw)] rounded-xl p-3 shadow-pop">
               <p className="mb-1 text-[13px] font-semibold text-txt">{modeGreeting(workspace, true).title}</p>
               <p className="mb-2.5 text-[11.5px] leading-relaxed text-txt3">{modeGreeting(workspace, true).body}</p>
               <div className="flex flex-col gap-1.5">
@@ -1876,7 +1876,7 @@ export function ChatPanel({
                         ? "Describe the game you want built…"
                         : "Describe the app you want built…"
             }
-            className="scroll-area max-h-[40vh] min-h-[60px] flex-1 resize-none rounded-xl border border-border bg-bg2 px-4 py-2.5 text-sm leading-relaxed text-txt placeholder:text-txt3 focus:border-accent focus:outline-none disabled:opacity-60"
+            className="scroll-area max-h-[40vh] min-h-[60px] flex-1 resize-none rounded-xl border border-border bg-bg2 px-4 py-2.5 text-sm leading-relaxed text-txt placeholder:text-txt3 transition-shadow focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_15%,transparent)] focus:outline-none disabled:opacity-60"
           />
           {!isGuest && mode === "build" && (
             <Button
@@ -1893,6 +1893,7 @@ export function ChatPanel({
           )}
           <Button
             type="submit"
+            variant="glow"
             disabled={busy || !input.trim() || guestBlocked}
             className="shrink-0 px-3 py-2.5"
           >

@@ -763,9 +763,9 @@ export function WorkspacePanel({
   /* ------------------------------ render ----------------------------- */
 
   const panel = (
-    <div className="glass-panel-strong flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="glass-panel-strong lit flex h-full min-h-0 flex-col overflow-hidden">
       {/* Top bar: identity · tabs · actions */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-bg2/40 p-3">
         {workspace.mode === "IMPORT" ? (
           <FolderGit2 className="h-4 w-4 shrink-0 text-accent" />
         ) : (
@@ -962,7 +962,7 @@ export function WorkspacePanel({
                 )}
                 {dirtyCount > 0 ? `Save (${dirtyCount})` : "Saved"}
               </Button>
-              <Button onClick={() => setPushing(true)} className="px-3.5 py-1.5">
+              <Button variant="glow" onClick={() => setPushing(true)} className="px-3.5 py-1.5">
                 <UploadCloud className="h-3.5 w-3.5" />
                 Push
               </Button>
@@ -1037,7 +1037,7 @@ export function WorkspacePanel({
       {tab === "code" ? (
         <div className="flex min-h-0 flex-1">
           {/* File tree */}
-          <aside className="scroll-area w-60 shrink-0 overflow-y-auto border-r border-border p-2">
+          <aside className="scroll-area w-60 shrink-0 overflow-y-auto border-r border-border bg-bg2/40 p-2">
             <div className="flex items-center justify-between px-2 py-1">
               <span className="label-tactical">Files</span>
               {isOwner && (
@@ -1261,7 +1261,7 @@ export function WorkspacePanel({
           ) : (
             <div className="flex min-h-0 flex-1">
               {/* Changed-file list */}
-              <aside className="scroll-area w-60 shrink-0 overflow-y-auto border-r border-border p-2">
+              <aside className="scroll-area w-60 shrink-0 overflow-y-auto border-r border-border bg-bg2/40 p-2">
                 <div className="px-2 py-1">
                   <span className="label-tactical">Changes</span>
                 </div>
@@ -1544,7 +1544,7 @@ export function WorkspacePanel({
           onClick={() => setNewFileOpen(false)}
         >
           <div
-            className="fade-up w-full max-w-sm rounded-card-lg border border-border2 bg-panel p-5 shadow-pop"
+            className="fade-up glass w-full max-w-sm rounded-card-lg p-5 shadow-pop"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center gap-2">
