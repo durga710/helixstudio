@@ -43,27 +43,59 @@ interface Engine {
 }
 
 /**
- * Resolve the assistant engine for a PREMIUM user: Gunner Max via the platform
- * Bedrock key by default; the house OpenAI client only as a fallback. Returns an
- * error (surfaced as a clean 400) for non-premium users or when nothing's wired.
+ * Resolve the assistant engines for a PREMIUM user, in PREFERENCE ORDER:
+ * Gunner Max (Bedrock GPT-OSS 120B) first when wired, then the house OpenAI
+ * client. Returning a LIST (not one engine) is the fix for "the script assistant
+ * doesn't work": the previous version committed to Bedrock and errored when the
+ * Bedrock *call* failed (broken/misconfigured) instead of falling back to the
+ * working OpenAI key. Errors for non-premium users or when nothing is wired.
  */
-async function assistantEngine(userId: string, email: string | null): Promise<Engine | { error: string }> {
+async function assistantEngines(userId: string, email: string | null): Promise<Engine[] | { error: string }> {
   if (!(await isPremiumUser(userId, email))) {
     return { error: "HelixVideo is a premium feature — upgrade your plan to use the script assistant." };
   }
-  // Default for all premium users: Gunner Max (Bedrock GPT-OSS 120B).
+  const engines: Engine[] = [];
+  // Preferred: Gunner Max (Bedrock GPT-OSS 120B) — no per-call OpenAI cost.
   const b = resolveBedrockModel(GUNNER_MAX);
   if (b) {
-    return {
+    engines.push({
       client: new OpenAI({ apiKey: b.apiKey, baseURL: b.baseUrl, defaultHeaders: b.headers }),
       model: b.modelId,
       provider: "bedrock",
-    };
+    });
   }
-  // Fallback — Bedrock not configured: use the house OpenAI client (re-checks premium, harmless).
+  // Always include the house OpenAI client as a reliable fallback when wired.
   const house = await houseClient(userId, email);
-  if ("error" in house) return { error: house.error };
-  return { client: house, model: FALLBACK_MODEL, provider: "openai" };
+  if (!("error" in house)) {
+    engines.push({ client: house, model: FALLBACK_MODEL, provider: "openai" });
+  }
+  if (engines.length === 0) {
+    return { error: "The script assistant isn't available right now — write your own prompt." };
+  }
+  return engines;
+}
+
+/**
+ * Run a chat completion across the engines in order, falling back to the next on
+ * ANY error and metering whichever one actually answered. Throws only if every
+ * engine fails — so the feature works as long as Bedrock OR OpenAI is healthy.
+ */
+async function completeWithFallback(
+  engines: Engine[],
+  userId: string,
+  params: { temperature: number; max_tokens: number; messages: OpenAI.Chat.ChatCompletionMessageParam[] },
+): Promise<string> {
+  let lastErr: unknown;
+  for (const e of engines) {
+    try {
+      const res = await e.client.chat.completions.create({ model: e.model, ...params });
+      void recordAiUsage({ userId, tokens: res.usage?.total_tokens ?? 0, kind: "video_script", provider: e.provider, model: e.model });
+      return res.choices[0]?.message?.content ?? "";
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr ?? new Error("all engines failed");
 }
 
 export async function scriptAssistant(opts: {
@@ -72,12 +104,9 @@ export async function scriptAssistant(opts: {
   idea: string;
   answers?: Record<string, string>;
 }): Promise<ScriptResult> {
-  const engine = await assistantEngine(opts.userId, opts.email);
-  if ("error" in engine) return { error: engine.error };
-  const { client, model, provider } = engine;
+  const engines = await assistantEngines(opts.userId, opts.email);
+  if ("error" in engines) return { error: engines.error };
   const idea = opts.idea.trim().slice(0, 1500);
-  const meter = (tokens: number) =>
-    void recordAiUsage({ userId: opts.userId, tokens, kind: "video_script", provider, model });
 
   // Round 2 — synthesize the final prompt from the idea + answers.
   if (opts.answers && Object.keys(opts.answers).length > 0) {
@@ -86,8 +115,7 @@ export async function scriptAssistant(opts: {
         .filter(([, v]) => v?.trim() && v.trim().toLowerCase() !== "skip")
         .map(([k, v]) => `${k}: ${v.trim()}`)
         .join("\n");
-      const res = await client.chat.completions.create({
-        model,
+      const content = await completeWithFallback(engines, opts.userId, {
         temperature: 0.8,
         max_tokens: 320,
         messages: [
@@ -101,8 +129,7 @@ export async function scriptAssistant(opts: {
           { role: "user", content: `Idea: ${idea}\n${ans}` },
         ],
       });
-      meter(res.usage?.total_tokens ?? 0);
-      const script = res.choices[0]?.message?.content?.trim();
+      const script = content.trim();
       if (!script) return { error: "Couldn't draft a script. Try writing your own." };
       return { done: true, script: script.replace(/^["']|["']$/g, "").slice(0, 2000) };
     } catch {
@@ -112,8 +139,7 @@ export async function scriptAssistant(opts: {
 
   // Round 1 — ask a few concrete questions to fill the visual gaps.
   try {
-    const res = await client.chat.completions.create({
-      model,
+    const content = await completeWithFallback(engines, opts.userId, {
       temperature: 0.5,
       max_tokens: 320,
       messages: [
@@ -128,8 +154,7 @@ export async function scriptAssistant(opts: {
         { role: "user", content: `Idea: ${idea || "(not given yet — ask the most useful opening questions)"}` },
       ],
     });
-    meter(res.usage?.total_tokens ?? 0);
-    const raw = (res.choices[0]?.message?.content ?? "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+    const raw = content.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
     const parsed = JSON.parse(raw) as { questions?: ScriptQuestion[] };
     const questions = (parsed.questions ?? [])
       .filter((q) => q && typeof q.text === "string" && typeof q.key === "string")
