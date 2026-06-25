@@ -63,7 +63,8 @@ export async function composePreviewHtml(
   for (const m of links) {
     const css = await getFile(resolve(m[1]!));
     if (css !== null) {
-      html = html.replace(m[0], `<style>\n${css}\n</style>`);
+      // Escape any literal "</style" in the CSS so it can't close the tag early.
+      html = html.replace(m[0], `<style>\n${css.replace(/<\/style/gi, "<\\/style")}\n</style>`);
       inlined.push(m[1]!);
     }
   }
@@ -78,7 +79,12 @@ export async function composePreviewHtml(
     const js = await getFile(resolve(m[1]!));
     if (js !== null) {
       const isModule = /\btype\s*=\s*["']?module["']?/i.test(m[0]);
-      html = html.replace(m[0], `<script${isModule ? ' type="module"' : ""}>\n${js}\n</script>`);
+      // Escape any literal "</script" in the JS so a string/regex containing it
+      // can't close the tag early (the rest would leak as HTML → blank page).
+      html = html.replace(
+        m[0],
+        `<script${isModule ? ' type="module"' : ""}>\n${js.replace(/<\/script/gi, "<\\/script")}\n</script>`,
+      );
       inlined.push(m[1]!);
     }
   }

@@ -737,7 +737,10 @@ export function ChatPanel({
           } else if (evt.type === "delta") {
             realActivityStarted.current = true; // the reply is streaming — stop warm-up
             feedActive.current = false; // the real reply is here — stop the feed
-            turnDone.current = true;
+            // NOTE: do NOT mark the turn done here — on multi-hop turns the model
+            // can stream prose and then keep calling tools; marking done would
+            // freeze the live worklog (pushStep) for those later steps. Only
+            // `final`/`error` (and the finally) end the turn.
             setStreaming((s) => s + ((evt.text as string) ?? ""));
           } else if (evt.type === "final") {
             resolved = true;

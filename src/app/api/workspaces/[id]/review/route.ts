@@ -10,6 +10,7 @@ import { db } from "@/lib/db";
 import { getGitAuth, withGitAuth, getProvider } from "@/lib/git";
 import { getOverlay } from "@/lib/workspace";
 import { runReviewer, resolveAiPrefs } from "@/lib/ai-agent";
+import { brandProviderError } from "@/lib/ai/provider-errors";
 import { guardWorkspace } from "@/lib/route-helpers";
 import { checkTokenBudget } from "@/lib/token-budget";
 import { aiUsageOps } from "@/lib/ai-usage";
@@ -63,7 +64,7 @@ export async function POST(_req: Request, { params }: Params) {
     ...ai,
     diffText: diffText.slice(0, DIFF_TEXT_CAP + 2_000),
   });
-  if ("error" in result) return apiErrors.badRequest(result.error);
+  if ("error" in result) return apiErrors.badRequest(brandProviderError(result.error));
 
   // Into chat history so the review travels with the conversation.
   try {

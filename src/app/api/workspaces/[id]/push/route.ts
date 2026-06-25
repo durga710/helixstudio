@@ -172,7 +172,9 @@ export async function POST(req: Request, { params }: Params) {
     deletions: overlay.deletions,
   });
   if ("error" in pushed) {
-    return apiErrors.badRequest(pushed.error);
+    // A rebase conflict is distinct from a plain failure — return CONFLICT (409)
+    // so the client can offer a "pull & resolve" path instead of a generic error.
+    return pushed.conflict ? apiErrors.conflict(pushed.error) : apiErrors.badRequest(pushed.error);
   }
 
   let prUrl: string | null = null;

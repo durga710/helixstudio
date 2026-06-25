@@ -57,6 +57,32 @@ function authedCloneUrl(auth: GitAuth, repo: string): string | { error: string }
   }
 }
 
+/** Provider web URL for a pushed commit (the "commit" link in the success UI). */
+function commitWebUrl(auth: GitAuth, repo: string, sha: string): string {
+  switch (auth.provider) {
+    case "github":
+      return `https://github.com/${repo}/commit/${sha}`;
+    case "gitlab": {
+      const base = (auth.baseUrl ?? "https://gitlab.com").replace(/\/+$/, "");
+      return `${base}/${repo}/-/commit/${sha}`;
+    }
+    case "bitbucket":
+      return `https://bitbucket.org/${repo}/commits/${sha}`;
+    case "gitea": {
+      const base = (auth.baseUrl ?? "").replace(/\/+$/, "");
+      return base ? `${base}/${repo}/commit/${sha}` : "";
+    }
+    case "azure": {
+      const [org, project, name] = repo.split("/");
+      return org && project && name
+        ? `https://dev.azure.com/${org}/${project}/_git/${name}/commit/${sha}`
+        : "";
+    }
+    default:
+      return "";
+  }
+}
+
 /** Strip any embedded credentials from command output before surfacing it. */
 function redact(text: string): string {
   return text.replace(/https:\/\/[^@\s/]+@/g, "https://***@").replace(/:[^@\s/]+@/g, ":***@");
@@ -175,7 +201,7 @@ export async function gitPush(ws: Workspace, auth: GitAuth, opts: GitPushOpts): 
       return { error: `Push to ${opts.repo} failed — check your token has write access. ${tail}` };
     }
 
-    return { branch: opts.branch, commitSha: m[1], commitUrl: "" };
+    return { branch: opts.branch, commitSha: m[1]!, commitUrl: commitWebUrl(auth, opts.repo, m[1]!) };
   } catch (e) {
     return { error: `Git push failed in the cloud VM: ${e instanceof Error ? redact(e.message) : "unknown error"}` };
   }

@@ -262,6 +262,15 @@ export function WorkspacePanel({
   const dirtyCount = Object.keys(dirty).length;
   const dirtyPaths = useMemo(() => new Set(Object.keys(dirty)), [dirty]);
   const currentContent = selected ? (dirty[selected] ?? contents[selected] ?? "") : "";
+  // Always-current dirty map so callbacks (e.g. AI-overwrite detection) never
+  // capture a stale copy.
+  const dirtyRef = useRef<Record<string, string>>(dirty);
+  useEffect(() => {
+    dirtyRef.current = dirty;
+  }, [dirty]);
+  // Very large files make Monaco janky/freeze — show them read-only so a stray
+  // keystroke can't churn the editor (and the user can still read/copy).
+  const isHugeFile = currentContent.length > 500_000;
 
   // Approximate pending-change count for the tab badge — overlay files in the
   // tree (the diff fetch gives the authoritative number once the tab opens).
@@ -334,6 +343,11 @@ export function WorkspacePanel({
   // paths into the tree, invalidate their cached content, refresh the open
   // file, drop deleted paths.
   const applyChangesManifest = useCallback((written: string[], deleted: string[]) => {
+    // Files the user has UNSAVED edits in that the AI also rewrote: keep the
+    // user's version (don't drop the dirty buffer, don't force-reopen) so their
+    // work is never silently lost. They can Save to keep theirs, or undo to take
+    // the AI's. dirtyRef avoids capturing a stale dirty map here.
+    const conflicts = written.filter((p) => dirtyRef.current[p] !== undefined);
     setFiles((f) => {
       const next = f.filter((e) => !deleted.includes(e.path));
       for (const p of written) {
@@ -347,14 +361,18 @@ export function WorkspacePanel({
       return next;
     });
     setDirty((d) => {
-      // The AI rewrote these files — its version is now the truth.
       const next = { ...d };
-      for (const p of [...written, ...deleted]) delete next[p];
+      for (const p of [...written, ...deleted]) {
+        if (conflicts.includes(p)) continue; // preserve the user's unsaved edits
+        delete next[p];
+      }
       return next;
     });
     setSelected((sel) => {
       if (sel && deleted.includes(sel)) return null;
-      if (sel && written.includes(sel)) void openFile(sel, true);
+      // Refresh the open file to the AI's version — UNLESS the user has unsaved
+      // edits in it (then we keep their buffer untouched).
+      if (sel && written.includes(sel) && !conflicts.includes(sel)) void openFile(sel, true);
       return sel;
     });
     setPreviewNonce((n) => n + 1); // recompose the preview with fresh files
@@ -363,16 +381,23 @@ export function WorkspacePanel({
     setRecentTreePaths(new Set(written)); // highlight + float them in the tree
     setTurnChanges(written.length || deleted.length ? { written: written.length, deleted: deleted.length } : null);
     setPopover(null);
+    if (conflicts.length) {
+      toast(
+        `Kept your unsaved edits to ${conflicts.length} file${conflicts.length === 1 ? "" : "s"} the AI also changed — Save to keep yours, or undo to take the AI's.`,
+      );
+    }
     // Jump to the file that changed so the user SEES it instead of hunting — the
-    // page/entry first, else the first real (non-config) file the AI wrote.
+    // page/entry first, else the first real (non-config) file the AI wrote. Don't
+    // force-replace a buffer the user is still editing.
     if (written.length) {
       const isConfig = (p: string) =>
         /\.(json|lock|md|gitignore)$/i.test(p) ||
         /(^|\/)(package|tsconfig|next\.config|postcss\.config|eslint\.config|tailwind\.config|vite\.config)/i.test(p);
       const primary = pickPreviewEntry(written, null) ?? written.find((p) => !isConfig(p)) ?? written[0]!;
-      void openFile(primary, true);
+      if (conflicts.includes(primary)) void openFile(primary);
+      else void openFile(primary, true);
     }
-  }, [openFile]);
+  }, [openFile, toast]);
 
   useEffect(() => {
     if (!changes) return;
@@ -390,6 +415,7 @@ export function WorkspacePanel({
     const t = setTimeout(() => {
       setRecentTreePaths(new Set());
       setTurnChanges(null);
+      setRecentPaths([]); // also clear the Code-tab fresh-change highlight
     }, 12000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -579,8 +605,15 @@ export function WorkspacePanel({
   function createFile() {
     const path = newFilePath.trim().replace(/^\/+/, "");
     if (!path) return;
-    if (!/^[\w./ -]+$/.test(path) || path.split("/").some((s) => !s || s === "." || s === "..")) {
-      setNewFileError("Use a relative path like src/app.ts — no “..” or special characters.");
+    // Mirror the server's isSafeRepoPath so a name that passes here never fails
+    // the whole save batch later: same char allow-list, no "..", no ".git", ≤200.
+    const segs = path.split("/");
+    if (
+      path.length > 200 ||
+      !/^[\w./()[\] -]+$/.test(path) ||
+      segs.some((s) => !s || s === "." || s === ".." || s.toLowerCase() === ".git")
+    ) {
+      setNewFileError("Use a relative path like src/app.ts — no “..”, “.git”, or unusual characters (max 200).");
       return;
     }
     if (files.some((f) => f.path === path)) {
@@ -622,6 +655,8 @@ export function WorkspacePanel({
       setSelected((sel) => (sel === path ? null : sel));
       setNote(`Deleted ${path}`);
       setLedgerNonce((n) => n + 1);
+      setPreviewNonce((n) => n + 1); // a deleted asset can change the preview
+      if (tab === "diff") void loadDiff(); // keep an open Diff tab fresh
     } catch {
       setNote("Delete failed.");
     }
@@ -631,23 +666,33 @@ export function WorkspacePanel({
     if (!dirtyCount || saving) return;
     setSaving(true);
     setNote(null);
+    // Snapshot what we send — only these keys get cleared on success, so edits
+    // the user types WHILE the save is in flight aren't discarded.
+    const sent = { ...dirty };
     try {
       const res = await fetch(`/api/workspaces/${workspace.id}/files`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          files: Object.entries(dirty).map(([path, content]) => ({ path, content })),
+          files: Object.entries(sent).map(([path, content]) => ({ path, content })),
         }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
         setNote(json?.error?.message ?? "Save failed.");
       } else {
-        setContents((c) => ({ ...c, ...dirty }));
-        setDirty({});
+        setContents((c) => ({ ...c, ...sent }));
+        setDirty((d) => {
+          // Clear only the saved keys that haven't changed since the snapshot —
+          // preserve any further edits made during the request.
+          const next = { ...d };
+          for (const [p, v] of Object.entries(sent)) if (next[p] === v) delete next[p];
+          return next;
+        });
         setNote("Saved ✓");
         setPreviewNonce((n) => n + 1);
         setLedgerNonce((n) => n + 1); // the save is a new manual-edit intent
+        if (tab === "diff") void loadDiff(); // keep an open Diff tab fresh
       }
     } catch {
       setNote("Save failed.");
@@ -684,6 +729,7 @@ export function WorkspacePanel({
       setNameInput(name);
       return;
     }
+    const prev = name; // revert target = last good name, not the original prop
     setName(next); // optimistic
     try {
       const res = await fetch(`/api/workspaces/${workspace.id}`, {
@@ -692,14 +738,15 @@ export function WorkspacePanel({
         body: JSON.stringify({ name: next }),
       });
       if (!res.ok) {
-        setName(workspace.name);
-        setNameInput(workspace.name);
+        setName(prev);
+        setNameInput(prev);
         toast("Couldn't rename the project.");
       } else {
         router.refresh(); // keep the breadcrumb/list in sync
       }
     } catch {
-      setName(workspace.name);
+      setName(prev);
+      setNameInput(prev);
       toast("Couldn't rename the project.");
     }
   }
@@ -1098,6 +1145,11 @@ export function WorkspacePanel({
                 >
                   <ScrollText className="h-3 w-3" /> Ledger
                 </button>
+                {isHugeFile && (
+                  <span className="rounded border border-border2 bg-panel2 px-1.5 py-px text-[10px] text-txt3">
+                    Large file · read-only
+                  </span>
+                )}
               </div>
             )}
             <div className="flex min-h-0 flex-1">
@@ -1134,7 +1186,7 @@ export function WorkspacePanel({
                       });
                     }}
                     options={{
-                      readOnly: !isOwner,
+                      readOnly: !isOwner || isHugeFile,
                       fontSize: 13,
                       minimap: { enabled: false },
                       scrollBeyondLastLine: false,

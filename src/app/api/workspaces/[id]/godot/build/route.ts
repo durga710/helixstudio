@@ -7,6 +7,7 @@
 
 import { ok, apiErrors } from "@/lib/api-response";
 import { db, dbEnabled } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import { guardWorkspace } from "@/lib/route-helpers";
 import { blobEnabled } from "@/lib/blob";
 import { setProgress } from "@/lib/progress";
@@ -29,6 +30,12 @@ export async function POST(_req: Request, { params }: Params) {
   if ("response" in g) return g.response;
   if (!dbEnabled()) return apiErrors.badRequest("No database configured.");
   if (!blobEnabled()) return apiErrors.badRequest("Blob storage isn't configured for builds yet.");
+  // A Godot export is a paid ~300s cloud compile — gate it behind a real account
+  // like the cloud run/exec do, so a guest can't rack up build cost.
+  const session = await auth();
+  if (session?.user?.isGuest) {
+    return apiErrors.badRequest("Cloud builds need an account — sign in to compile and play Godot games.");
+  }
 
   const files = await readProjectFiles(g.ws);
   if (!isGodotProject(files.map((f) => f.path))) {

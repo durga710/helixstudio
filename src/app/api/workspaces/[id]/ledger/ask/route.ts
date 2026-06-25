@@ -15,6 +15,7 @@ import { getGitAuth, withGitAuth } from "@/lib/git";
 import { readWorkspaceFile } from "@/lib/workspace";
 import { computeLineLedger, normalizeEol } from "@/lib/intent-ledger";
 import { runOneShot, resolveAiPrefs } from "@/lib/ai-agent";
+import { brandProviderError } from "@/lib/ai/provider-errors";
 import { guardWorkspace } from "@/lib/route-helpers";
 import { checkTokenBudget } from "@/lib/token-budget";
 import { recordAiUsage } from "@/lib/ai-usage";
@@ -116,7 +117,7 @@ export async function POST(req: Request, { params }: Params) {
     system: question === "why" ? WHY_SYSTEM : IMPACT_SYSTEM,
     user: record.slice(0, 24_000),
   });
-  if ("error" in result) return apiErrors.badRequest(result.error);
+  if ("error" in result) return apiErrors.badRequest(brandProviderError(result.error));
 
   // Meter the spend like every other AI route.
   await recordAiUsage({
