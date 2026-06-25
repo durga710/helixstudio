@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Heart, GitFork, Eye, Play, AppWindow } from "lucide-react";
+import { Heart, GitFork, Eye, Play, AppWindow, Wand2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,13 @@ export function PostCard({
               {isVideo ? "Video" : "App"}
             </Pill>
           </div>
+          {post.remixable && (
+            <div className="absolute right-2 top-2">
+              <Pill tone="accent">
+                <Wand2 className="h-3 w-3" /> Remixable
+              </Pill>
+            </div>
+          )}
         </div>
         <div className="px-3.5 pt-3">
           <h3 className="line-clamp-1 text-[14px] font-semibold text-txt group-hover:text-accent">{post.title}</h3>

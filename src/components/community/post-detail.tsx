@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, GitFork, Eye, ArrowLeft, ExternalLink, Loader2, Trash2, Play, AppWindow } from "lucide-react";
+import { Heart, GitFork, Eye, ArrowLeft, ExternalLink, Loader2, Trash2, Play, AppWindow, Clapperboard, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
@@ -14,8 +14,23 @@ export function PostDetailView({ post }: { post: PostDetail }) {
   const [liked, setLiked] = useState(post.likedByViewer);
   const [likeCount, setLikeCount] = useState(post.likeCount);
   const [forkCount] = useState(post.forkCount);
-  const [busy, setBusy] = useState<null | "fork" | "delete">(null);
+  const [busy, setBusy] = useState<null | "fork" | "delete" | "remix">(null);
   const isVideo = post.kind === "video";
+
+  async function remix() {
+    setBusy("remix");
+    try {
+      const res = await fetch(`/api/community/${post.id}/remix`, { method: "POST" });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        router.push(`/video/editor?project=${json.data.projectId}`);
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
+    setBusy(null);
+  }
 
   async function like() {
     const next = !liked;
@@ -118,6 +133,11 @@ export function PostDetailView({ post }: { post: PostDetail }) {
               {busy === "fork" ? <Loader2 className="h-4 w-4 animate-spin" /> : <GitFork className="h-4 w-4" />} Fork
             </Button>
           )}
+          {isVideo && post.canRemix && (
+            <Button variant="glow" onClick={() => void remix()} disabled={busy === "remix"}>
+              {busy === "remix" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Remix
+            </Button>
+          )}
         </div>
       </div>
 
@@ -129,6 +149,65 @@ export function PostDetailView({ post }: { post: PostDetail }) {
       </div>
 
       {post.description && <p className="mt-4 whitespace-pre-wrap text-[14px] leading-relaxed text-txt2">{post.description}</p>}
+
+      {/* The creator's editing space — shown only when they opted to reveal it. */}
+      {post.recipe && (
+        <div className="mt-7">
+          <div className="mb-3 flex items-center gap-2">
+            <Clapperboard className="h-4 w-4 text-accent" />
+            <h2 className="text-h2">How it was made</h2>
+            {post.canRemix && <Pill tone="accent">Remixable</Pill>}
+          </div>
+
+          {post.recipe.idea && (
+            <div className="lit mb-3 rounded-card border border-border bg-panel p-4">
+              <div className="text-eyebrow mb-1.5">The idea</div>
+              <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-txt2">{post.recipe.idea}</p>
+            </div>
+          )}
+
+          {post.recipe.transcript && (
+            <div className="lit mb-3 rounded-card border border-border bg-panel p-4">
+              <div className="text-eyebrow mb-1.5">Transcript</div>
+              <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-txt2">{post.recipe.transcript}</p>
+            </div>
+          )}
+
+          {post.recipe.shots.length > 0 && (
+            <div>
+              <div className="text-eyebrow mb-2">Shot list · {post.recipe.shots.length}</div>
+              <ol className="space-y-2">
+                {post.recipe.shots.map((s, i) => (
+                  <li key={i} className="lit rounded-card border border-border bg-panel p-3">
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-panel2 font-mono text-[10.5px] text-txt3">
+                        {i + 1}
+                      </span>
+                      <span className="truncate text-[13px] font-semibold text-txt">{s.title || `Shot ${i + 1}`}</span>
+                      <span className="ml-auto shrink-0 font-mono text-[10.5px] text-txt3">{s.seconds}s</span>
+                    </div>
+                    {s.prompt && (
+                      <p className="whitespace-pre-wrap pl-7 text-[12.5px] leading-relaxed text-txt3">{s.prompt}</p>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {post.canRemix && (
+            <div className="mt-4">
+              <Button variant="glow" onClick={() => void remix()} disabled={busy === "remix"}>
+                {busy === "remix" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Remix into
+                my editor
+              </Button>
+              <p className="mt-1.5 text-[11px] text-txt3">
+                Forks this reel — idea, transcript &amp; shot prompts — into your own editor to tweak and regenerate.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {!isVideo && post.workspaceId && (
         <div className="mt-5">

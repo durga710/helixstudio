@@ -490,4 +490,34 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "CommunityLike" ADD CONSTRAINT "CommunityLike_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- 2026-06 · Video projects (saved HelixVideo "editing space": idea, transcript,
+-- shot recipe) + community remix link on CommunityPost. Lets a creator publish a
+-- video that others can view (recipe) and remix into their own editor.
+CREATE TABLE IF NOT EXISTS "VideoProject" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "kind" TEXT NOT NULL DEFAULT 'reel',
+    "title" TEXT NOT NULL DEFAULT 'Untitled reel',
+    "idea" TEXT NOT NULL DEFAULT '',
+    "transcript" TEXT NOT NULL DEFAULT '',
+    "size" TEXT NOT NULL DEFAULT '1280x720',
+    "secondsEach" INTEGER NOT NULL DEFAULT 8,
+    "shots" JSONB NOT NULL DEFAULT '[]',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "VideoProject_pkey" PRIMARY KEY ("id")
+);
+CREATE INDEX IF NOT EXISTS "VideoProject_userId_updatedAt_idx" ON "VideoProject"("userId", "updatedAt");
+DO $$ BEGIN
+  ALTER TABLE "VideoProject" ADD CONSTRAINT "VideoProject_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+ALTER TABLE "CommunityPost" ADD COLUMN IF NOT EXISTS "videoProjectId" TEXT;
+ALTER TABLE "CommunityPost" ADD COLUMN IF NOT EXISTS "revealRecipe" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "CommunityPost" ADD COLUMN IF NOT EXISTS "allowRemix" BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS "CommunityPost_videoProjectId_idx" ON "CommunityPost"("videoProjectId");
+DO $$ BEGIN
+  ALTER TABLE "CommunityPost" ADD CONSTRAINT "CommunityPost_videoProjectId_fkey" FOREIGN KEY ("videoProjectId") REFERENCES "VideoProject"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 `;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Loader2, Compass } from "lucide-react";
+import { X, Loader2, Compass, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
@@ -21,6 +21,12 @@ export function PublishModal({ onClose }: { onClose: (published?: boolean) => vo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Video tab: optionally link a saved reel (the "editing space") + opt-ins.
+  const [videoProjects, setVideoProjects] = useState<{ id: string; title: string }[] | null>(null);
+  const [videoProjectId, setVideoProjectId] = useState("");
+  const [revealRecipe, setRevealRecipe] = useState(true);
+  const [allowRemix, setAllowRemix] = useState(true);
+
   useEffect(() => {
     (async () => {
       try {
@@ -32,6 +38,15 @@ export function PublishModal({ onClose }: { onClose: (published?: boolean) => vo
         } else setWorkspaces([]);
       } catch {
         setWorkspaces([]);
+      }
+    })();
+    (async () => {
+      try {
+        const res = await fetch("/api/video/projects", { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        setVideoProjects(res.ok && json?.ok ? (json.data.projects as { id: string; title: string }[]) : []);
+      } catch {
+        setVideoProjects([]);
       }
     })();
   }, []);
@@ -46,7 +61,15 @@ export function PublishModal({ onClose }: { onClose: (published?: boolean) => vo
     const body =
       tab === "app"
         ? { kind: "app", workspaceId: wsId, title: title.trim() || undefined, description: description.trim() || undefined }
-        : { kind: "video", embedUrl: embedUrl.trim(), title: title.trim(), description: description.trim() || undefined };
+        : {
+            kind: "video",
+            embedUrl: embedUrl.trim(),
+            title: title.trim(),
+            description: description.trim() || undefined,
+            videoProjectId: videoProjectId || undefined,
+            revealRecipe: videoProjectId ? revealRecipe : undefined,
+            allowRemix: videoProjectId ? allowRemix : undefined,
+          };
     if (tab === "app" && !wsId) return setError("Pick a project to publish.");
     if (tab === "video" && !embedUrl.trim()) return setError("Paste a YouTube, Vimeo, or Loom link.");
     if (!title.trim()) return setError("Add a title.");
@@ -121,13 +144,78 @@ export function PublishModal({ onClose }: { onClose: (published?: boolean) => vo
             )}
           </div>
         ) : (
-          <div className="mb-3">
-            <label className="mb-1.5 block text-[12px] font-medium text-txt2">Video link</label>
-            <Input
-              value={embedUrl}
-              onChange={(e) => setEmbedUrl(e.target.value)}
-              placeholder="https://youtube.com/watch?v=…  (YouTube, Vimeo, or Loom)"
-            />
+          <div className="mb-3 space-y-3">
+            {/* We don't host the video file — the creator uploads it, then pastes
+                the link, which we embed. Make those steps unmistakable. */}
+            <div className="rounded-lg border border-border2 bg-panel2/50 p-3 text-[12px] leading-relaxed">
+              <p className="mb-1.5 font-medium text-txt">Made it in the HelixVideo editor?</p>
+              <ol className="list-inside list-decimal space-y-0.5 text-txt3">
+                <li>
+                  Export your reel and upload it to{" "}
+                  <span className="text-txt2">YouTube, Vimeo, or Loom</span>.
+                </li>
+                <li>Paste the share link below — it plays right here on the page.</li>
+                <li>Optionally link the saved reel so others can see (and remix) how you made it.</li>
+              </ol>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[12px] font-medium text-txt2">Video link</label>
+              <Input
+                value={embedUrl}
+                onChange={(e) => setEmbedUrl(e.target.value)}
+                placeholder="https://youtube.com/watch?v=…  (YouTube, Vimeo, or Loom)"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[12px] font-medium text-txt2">
+                Link a saved reel <span className="text-txt3">(optional)</span>
+              </label>
+              {videoProjects === null ? (
+                <div className="flex items-center gap-2 py-1.5 text-[12.5px] text-txt3">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading your reels…
+                </div>
+              ) : videoProjects.length === 0 ? (
+                <p className="text-[12px] text-txt3">
+                  No saved reels yet — open the Video Editor, build a reel, and hit Save.
+                </p>
+              ) : (
+                <select
+                  value={videoProjectId}
+                  onChange={(e) => {
+                    setVideoProjectId(e.target.value);
+                    const p = videoProjects.find((v) => v.id === e.target.value);
+                    if (p && !title.trim()) setTitle(p.title);
+                  }}
+                  className="w-full rounded-lg border border-border2 bg-panel2 px-2.5 py-2 text-[13px] text-txt outline-none focus:border-accent"
+                >
+                  <option value="">Don&apos;t link a reel — just show the video</option>
+                  {videoProjects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {videoProjectId && (
+              <div className="space-y-0.5 rounded-lg border border-border2 p-2">
+                <ToggleRow
+                  checked={revealRecipe}
+                  onChange={() => setRevealRecipe((v) => !v)}
+                  label="Reveal transcript & shot prompts"
+                  hint="Viewers see exactly how you made it."
+                />
+                <ToggleRow
+                  checked={allowRemix}
+                  onChange={() => setAllowRemix((v) => !v)}
+                  label="Allow remixing into others' editors"
+                  hint="One click forks your reel into their editor."
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -157,5 +245,40 @@ export function PublishModal({ onClose }: { onClose: (published?: boolean) => vo
         </div>
       </div>
     </div>
+  );
+}
+
+/** A compact checkbox row used for the video-share opt-ins. */
+function ToggleRow({
+  checked,
+  onChange,
+  label,
+  hint,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      aria-pressed={checked}
+      className="flex w-full items-start gap-2.5 rounded-md px-1.5 py-1.5 text-left transition-colors hover:bg-panel2"
+    >
+      <span
+        className={
+          "mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border transition-colors " +
+          (checked ? "border-accent bg-accent text-accent-ink" : "border-border2")
+        }
+      >
+        {checked && <Check className="h-3 w-3" strokeWidth={3} />}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[12.5px] font-medium text-txt">{label}</span>
+        <span className="block text-[11px] text-txt3">{hint}</span>
+      </span>
+    </button>
   );
 }
