@@ -186,8 +186,9 @@ export default function VideoGuidePage() {
           <Pitfall>Vague prompts give generic results. Add detail: subject, camera, light, mood.</Pitfall>
           <Pitfall>Lots of shots means longer waits and higher cost — start with 3–5.</Pitfall>
           <Pitfall>
-            A character won't look identical across shots yet — each shot is generated separately, so
-            faces and outfits drift. (Stronger consistency is on the way.)
+            A character won't look identical across shots — each shot is generated separately, so faces
+            and outfits drift. Attach a Character reference in the editor to nudge consistency
+            (best-effort, not perfect).
           </Pitfall>
           <Pitfall>
             Only make content you have the right to make — no real people without consent, and nothing
@@ -199,12 +200,13 @@ export default function VideoGuidePage() {
 
       {/* What's next */}
       <section className="mb-9">
-        <h2 className="text-h2 mb-3">New &amp; coming soon</h2>
+        <h2 className="text-h2 mb-3">What&rsquo;s new</h2>
         <p className="text-[14px] leading-relaxed text-txt2">
-          <strong className="text-txt">AI voice narration is here</strong> — once your reel is rendered,
-          scroll down in the editor to write a script, pick a voice, and download your reel with a spoken
-          voiceover. <strong className="text-txt">Stronger character consistency</strong> (keeping the same
-          character across shots) is coming next.
+          <strong className="text-txt">AI voice narration</strong> — once your reel is rendered, write a
+          script, pick a voice, and download your reel with a spoken voiceover.{" "}
+          <strong className="text-txt">Character consistency</strong> — attach a Character reference in the
+          editor and we&rsquo;ll use it on every shot to keep your character consistent (best-effort — AI
+          video can still drift between shots).
         </p>
       </section>
 

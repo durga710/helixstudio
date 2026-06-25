@@ -11,9 +11,10 @@
  *
  * A failed shot doesn't sink the reel — it's skipped and the rest still stitch.
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Clapperboard, Loader2, Sparkles, Check, X, Film, Download, Save } from "lucide-react";
 import { ReelStage } from "./ReelStage";
+import { CharacterPanel } from "./CharacterPanel";
 import { VoiceoverPanel } from "./VoiceoverPanel";
 import type { ReelClip } from "./HelixReel";
 import { exportReelMp4, type ExportStage } from "@/lib/reel-export";
@@ -42,12 +43,26 @@ async function renderShot(
   seconds: Sec,
   size: string,
   cancelled: { current: boolean },
+  /** Optional character reference — sent with every shot for consistency. */
+  character?: Blob | null,
 ): Promise<string> {
-  const r = await fetch("/api/video", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, seconds, size }),
-  });
+  // With a character reference, post multipart so the image rides along as
+  // Sora's input_reference (same path the single-clip studio uses).
+  let r: Response;
+  if (character) {
+    const fd = new FormData();
+    fd.append("prompt", prompt);
+    fd.append("seconds", seconds);
+    fd.append("size", size);
+    fd.append("image", character, "character.jpg");
+    r = await fetch("/api/video", { method: "POST", body: fd });
+  } else {
+    r = await fetch("/api/video", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, seconds, size }),
+    });
+  }
   const j = await r.json();
   if (!r.ok || !j?.data?.id) throw new Error(j?.error?.message || "Couldn't start a shot.");
   const id: string = j.data.id;
@@ -83,6 +98,12 @@ export function LongVideoComposer({ projectId = null }: { projectId?: string | n
   const [shots, setShots] = useState<Shot[]>([]);
   const [error, setError] = useState<string | null>(null);
   const cancelled = useRef(false);
+  // Optional character reference (resized to `size` by CharacterPanel), sent
+  // with every shot so the character stays consistent across the reel.
+  const characterImageRef = useRef<Blob | null>(null);
+  const setCharacterImage = useCallback((b: Blob | null) => {
+    characterImageRef.current = b;
+  }, []);
 
   // MP4 export (client-side ffmpeg.wasm).
   const [exporting, setExporting] = useState(false);
@@ -240,7 +261,7 @@ export function LongVideoComposer({ projectId = null }: { projectId?: string | n
       }
       setShots((prev) => prev.map((s, idx) => (idx === i ? { ...s, status: "rendering" } : s)));
       try {
-        const id = await renderShot(init[i].prompt, seconds, size, cancelled);
+        const id = await renderShot(init[i].prompt, seconds, size, cancelled, characterImageRef.current);
         setShots((prev) => prev.map((s, idx) => (idx === i ? { ...s, status: "done", id } : s)));
       } catch {
         if (cancelled.current) {
@@ -344,6 +365,8 @@ export function LongVideoComposer({ projectId = null }: { projectId?: string | n
         <p className="mt-2 text-[11px] text-txt3">
           ≈ {totalLabel} total · {shotCount} clips. Each clip is generated separately and stitched into one reel.
         </p>
+
+        <CharacterPanel size={size} onImage={setCharacterImage} />
 
         {!busy ? (
           <button
