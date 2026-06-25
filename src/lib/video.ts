@@ -10,7 +10,7 @@ import "server-only";
  * metering (kind: "video").
  */
 
-import OpenAI from "openai";
+import OpenAI, { type Uploadable } from "openai";
 import { isPremiumUser } from "@/lib/templates/select";
 import { db, dbEnabled } from "@/lib/db";
 import { brandVideoMessage, sanitizeVideoError } from "@/lib/video-errors";
@@ -102,7 +102,14 @@ export async function houseClient(
 export async function createVideo(
   userId: string,
   email: string | null,
-  opts: { prompt: string; seconds: HelixVideoSeconds; size: HelixVideoSize },
+  opts: {
+    prompt: string;
+    seconds: HelixVideoSeconds;
+    size: HelixVideoSize;
+    /** Optional reference image (image-to-video). Must already match `size` —
+     * the client resizes it before upload so Sora never rejects a mismatch. */
+    imageRef?: Uploadable;
+  },
 ): Promise<VideoJob | { error: string }> {
   const client = await houseClient(userId, email);
   if ("error" in client) return { error: client.error };
@@ -115,6 +122,7 @@ export async function createVideo(
       // HelixVideoSeconds reaches the provider; the request is valid at runtime.
       seconds: opts.seconds as "4" | "8" | "12",
       size: opts.size,
+      ...(opts.imageRef ? { input_reference: opts.imageRef } : {}),
     });
     // Record ownership BEFORE returning the id so a poll can't race ahead of it.
     await recordVideoOwnership(userId, v.id);
