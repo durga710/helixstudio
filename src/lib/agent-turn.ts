@@ -94,7 +94,7 @@ export interface TurnResult {
   verify?: { status: "passed" | "failed" | "skipped"; command?: string; log?: string };
 }
 
-export type TurnError = { error: string; code?: BudgetCode };
+export type TurnError = { error: string; code?: BudgetCode | "NO_KEY" };
 
 /**
  * OpenAI bills cached (re-referenced) input tokens at a fraction of the full
@@ -267,7 +267,7 @@ export async function runAgentTurn(opts: {
 
   const ai = aiProvider === "openai" && memberKey ? new OpenAI({ apiKey: memberKey }) : null;
   if (aiProvider === "openai" && !ai) {
-    return { error: "AI is not configured — add your own API key in Settings → AI model." };
+    return { error: "AI is not configured — add your own API key in Settings → AI model.", code: "NO_KEY" };
   }
 
   const gitAuth = await getGitAuth(userId, ws.provider);
@@ -738,6 +738,9 @@ export async function runAgentTurn(opts: {
           return {
             error:
               "OpenAI rejected the API key. Set a valid OPENAI_API_KEY on the server, or paste your own key in Settings → AI model.",
+            // The branded message strips provider names; the code lets the client
+            // show actionable "add your key" copy with a Settings link regardless.
+            code: "NO_KEY",
           };
         }
         if (status === 429) {

@@ -755,10 +755,13 @@ export function ChatPanel({
             feedActive.current = false;
             setStreaming("");
             if (evt.code === "GUEST_LIMIT") setGuestRemaining(0);
-            setMessages((m) => [
-              ...(m ?? []),
-              { role: "assistant", content: (evt.message as string) ?? "Something went wrong." },
-            ]);
+            // For a missing/rejected key, show actionable copy (with a Settings
+            // link) keyed on the code — the branded message can lose the hint.
+            const content =
+              evt.code === "NO_KEY"
+                ? "I can't build without an AI key. Add your own API key in **[Settings → AI](/settings)** to keep going — it stays on your account."
+                : ((evt.message as string) ?? "Something went wrong.");
+            setMessages((m) => [...(m ?? []), { role: "assistant", content }]);
           }
         };
 
