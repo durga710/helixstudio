@@ -150,7 +150,7 @@ export function FileTree({
       const isDirty = dirtyPaths.has(node.path);
       const isRecent = recent.has(node.path);
       return (
-        <li key={`f:${node.path}`} className="group/file relative">
+        <li key={`f:${node.path}`} className="tree-row group/file relative">
           <button
             type="button"
             onClick={() => onOpen(node.path)}
@@ -220,7 +220,7 @@ export function FileTree({
               const isDirty = dirtyPaths.has(f.path);
               const isRecent = recent.has(f.path);
               return (
-                <li key={`m:${f.path}`} className="group/file relative">
+                <li key={`m:${f.path}`} className="tree-row group/file relative">
                   <button
                     type="button"
                     onClick={() => onOpen(f.path)}

@@ -33,6 +33,7 @@ import {
   Lightbulb,
   Coins,
   Zap,
+  Square,
   type LucideIcon,
 } from "lucide-react";
 import { GAME_CATEGORIES } from "@/lib/templates/engines";
@@ -371,7 +372,10 @@ export function ChatPanel({
   // turn. This renders the live checklist; `milestoneRun` guards re-entry.
   const [milestones, setMilestones] = useState<{ title: string; detail: string; status: "pending" | "building" | "done" | "error" }[]>([]);
   const milestoneRun = useRef(false);
+  const milestoneCancel = useRef(false); // user hit Stop mid-chain
   const milestoneBriefPath = useRef<string | undefined>(undefined);
+  // The in-flight turn's AbortController, so Stop can halt the current build too.
+  const currentAbort = useRef<AbortController | null>(null);
 
   // Plan/Build is easy to lose track of, so a user toggle pops a brief toast
   // (auto-dismisses) on top of the always-on plan-mode banner.
@@ -666,6 +670,7 @@ export function ChatPanel({
     // (~300s) we abort so the UI resolves to a retry instead of an endless
     // spinner. Reset on the finally below.
     const ctl = new AbortController();
+    currentAbort.current = ctl; // expose for Stop
     const watchdog = setTimeout(() => ctl.abort(), 315_000);
     let resolved = false; // did we receive a final or error event?
     let turnOk = false; // did the turn SUCCEED (a final, not an error/abort)?
@@ -817,6 +822,7 @@ export function ChatPanel({
       ]);
     } finally {
       clearTimeout(watchdog);
+      currentAbort.current = null;
       turnDone.current = true;
       feedActive.current = false;
     }
@@ -881,10 +887,12 @@ export function ChatPanel({
     startIndex: number,
   ): Promise<void> {
     milestoneRun.current = true;
+    milestoneCancel.current = false;
     const briefRef = milestoneBriefPath.current
       ? ` The full spec is saved at \`${milestoneBriefPath.current}\` — read it for complete context.`
       : "";
     for (let i = startIndex; i < items.length; i++) {
+      if (milestoneCancel.current) break; // user stopped before this milestone
       setMilestones((ms) => ms.map((m, j) => (j === i ? { ...m, status: "building" } : m)));
       const m = items[i];
       const milestoneBrief =
@@ -893,6 +901,7 @@ export function ChatPanel({
         `THIS MILESTONE (${i + 1}/${items.length}): ${m.title} — ${m.detail}`;
       const ok = await send(`Milestone ${i + 1}/${items.length}: ${m.title}`, "build", verifyOn, milestoneBrief);
       setMilestones((ms) => ms.map((mm, j) => (j === i ? { ...mm, status: ok ? "done" : "error" } : mm)));
+      if (milestoneCancel.current) break; // stopped during/after this milestone
       if (!ok) {
         // A turn errored (e.g. quota, or a hang the watchdog aborted). Stop the
         // chain and tell the user where it left off, instead of charging on.
@@ -908,12 +917,26 @@ export function ChatPanel({
       }
     }
     milestoneRun.current = false;
+    if (milestoneCancel.current) {
+      setMessages((mm) => [
+        ...(mm ?? []),
+        { role: "assistant", content: `Stopped the build. Send "continue" anytime to pick up the remaining milestones.` },
+      ]);
+      return;
+    }
     if (items.length > 0) {
       setMessages((mm) => [
         ...(mm ?? []),
         { role: "assistant", content: `All ${items.length} milestones are done — your app is built. Want any changes?` },
       ]);
     }
+  }
+
+  /** Stop a running milestone chain: halt the in-flight build and don't start
+   *  the remaining milestones (they stay pending — "continue" resumes them). */
+  function stopMilestones() {
+    milestoneCancel.current = true;
+    currentAbort.current?.abort();
   }
 
   // "continue" after a paused/partial milestone run → resume from the first
@@ -1762,6 +1785,16 @@ export function ChatPanel({
           <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-txt3">
             <Map className="h-3.5 w-3.5" />
             Build plan · {milestones.filter((m) => m.status === "done").length}/{milestones.length}
+            {milestones.some((m) => m.status === "building") && (
+              <button
+                type="button"
+                onClick={stopMilestones}
+                title="Stop the build — remaining milestones won't run (send 'continue' to resume)"
+                className="ml-auto inline-flex items-center gap-1 rounded-md border border-[color-mix(in_srgb,var(--red)_40%,transparent)] px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-bad transition-colors hover:bg-[color-mix(in_srgb,var(--red)_10%,transparent)]"
+              >
+                <Square className="h-2.5 w-2.5 fill-current" /> Stop
+              </button>
+            )}
           </div>
           <ul className="space-y-1">
             {milestones.map((m, i) => (

@@ -303,6 +303,13 @@ input[type="range"] {
   box-shadow: var(--shadow);
 }
 
+/* File-tree rows: let the browser skip layout/paint for offscreen rows so a
+   huge repo's tree stays responsive without JS windowing. ~24px row height. */
+.tree-row {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 24px;
+}
+
 /* Small uppercase mono label. */
 .label-tactical {
   font-family: var(--font-mono);
