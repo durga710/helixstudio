@@ -55,8 +55,12 @@ export async function planReel(
             "the recurring main subject(s) described with a FIXED, repeatable appearance (face, hair, wardrobe, " +
             "colours). " +
             "THEN write the shot list. Every shot is ONE continuous take of at most 20 seconds that depicts the " +
-            "SAME world and the SAME subject (identical look) in that SAME style, and flows into the next shot " +
-            "(a match cut, continued motion, or the clear next beat of the story). " +
+            "SAME world and the SAME subject (identical look) in that SAME style. " +
+            "Treat the whole film as ONE UNBROKEN sequence: each shot must pick up exactly where the previous one " +
+            "left off — continue the action, hold the same camera direction, or cut on motion — progressing a " +
+            "single continuous timeline (location, time of day, weather). NEVER reset to an unrelated scene or " +
+            "teleport the subject; consecutive shots should connect like a seamless tracking move or a clean " +
+            "match cut. " +
             "Each shot prompt: subject + action + camera move + lighting + mood — concise, do NOT restate the " +
             "global style (it is added automatically). Return STRICT JSON only.",
         },

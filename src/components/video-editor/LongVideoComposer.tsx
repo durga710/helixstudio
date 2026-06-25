@@ -28,6 +28,12 @@ const SIZES = [
   { value: "720x1280", label: "Portrait" },
 ] as const;
 
+/** Prepended to a CHAINED shot's prompt so Sora actually continues from the
+ *  reference frame — passing the image alone doesn't guarantee it picks up from
+ *  there. Kept short; the combined prompt is capped at the API's 2000 chars. */
+const CONTINUE_DIRECTIVE =
+  "Continue seamlessly from the reference frame — same character, wardrobe, setting, lighting and colour grade — beginning exactly where the previous shot left off, with smooth, continuous motion. ";
+
 type ShotStatus = "pending" | "rendering" | "done" | "failed";
 interface Shot {
   title: string;
@@ -269,7 +275,11 @@ export function LongVideoComposer({ projectId = null }: { projectId?: string | n
       setShots((prev) => prev.map((s, idx) => (idx === i ? { ...s, status: "rendering" } : s)));
       try {
         const ref = chaining ? (prevFrame ?? characterImageRef.current) : characterImageRef.current;
-        const id = await renderShot(init[i].prompt, seconds, size, cancelled, ref);
+        // When this shot continues from the previous clip's frame, tell Sora to
+        // pick up from it exactly (the reference image alone doesn't guarantee it).
+        const shotPrompt =
+          chaining && prevFrame ? `${CONTINUE_DIRECTIVE}${init[i].prompt}`.slice(0, 2000) : init[i].prompt;
+        const id = await renderShot(shotPrompt, seconds, size, cancelled, ref);
         setShots((prev) => prev.map((s, idx) => (idx === i ? { ...s, status: "done", id } : s)));
         if (chaining && !cancelled.current && i < init.length - 1) {
           const [w, h] = size.split("x").map((x) => Number(x));
