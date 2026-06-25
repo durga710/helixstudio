@@ -13,11 +13,17 @@ import "server-only";
 import { houseClient } from "@/lib/video";
 import { brandProviderError } from "@/lib/ai/provider-errors";
 
-/** A planned shot: a title for the UI + a cinematic prompt for Sora. */
+/** A planned shot: a title for the UI + a cinematic prompt for Sora, plus the
+ *  AI-chosen transition INTO this shot from the previous one. */
 export interface ReelScene {
   title: string;
   prompt: string;
+  transition: ReelTransition;
 }
+
+/** The transition vocabulary — shared with the preview/export renderers. */
+export type ReelTransition = "cut" | "dissolve" | "fadeblack" | "slide" | "wipe";
+const TRANSITIONS = new Set<ReelTransition>(["cut", "dissolve", "fadeblack", "slide", "wipe"]);
 
 /** Helix model behind the planner (white-labeled; never shown to users). */
 const PLANNER_MODEL = "gpt-5.4-mini";
@@ -62,7 +68,12 @@ export async function planReel(
             "teleport the subject; consecutive shots should connect like a seamless tracking move or a clean " +
             "match cut. " +
             "Each shot prompt: subject + action + camera move + lighting + mood — concise, do NOT restate the " +
-            "global style (it is added automatically). Return STRICT JSON only.",
+            "global style (it is added automatically). " +
+            "For each shot from the SECOND onward, also choose the `transition` INTO it from the previous shot, " +
+            "picking the one that best fits that exact moment: 'cut' for a hard match cut or fast action, " +
+            "'dissolve' for a smooth continuation of the same scene, 'fadeblack' for a jump in time or location, " +
+            "'slide' or 'wipe' for an energetic change of angle or place. The first shot's transition is 'cut'. " +
+            "Return STRICT JSON only.",
         },
         {
           role: "user",
@@ -70,7 +81,8 @@ export async function planReel(
             `Idea: ${idea}\n\n` +
             `Return JSON with exactly ${n} scenes: ` +
             `{"style":"one vivid sentence describing the fixed look, recurring subject and world shared by EVERY shot",` +
-            `"scenes":[{"title":"short label","prompt":"this shot's subject, action, camera and mood"}]}`,
+            `"scenes":[{"title":"short label","prompt":"this shot's subject, action, camera and mood",` +
+            `"transition":"cut|dissolve|fadeblack|slide|wipe"}]}`,
         },
       ],
       response_format: { type: "json_object" },
@@ -92,9 +104,13 @@ export async function planReel(
       .map((s, i) => {
         const shot = (s.prompt as string).trim();
         const full = style ? `${style} ${shot}` : shot;
+        const t = (s as { transition?: unknown }).transition;
+        const transition: ReelTransition =
+          i === 0 ? "cut" : typeof t === "string" && TRANSITIONS.has(t as ReelTransition) ? (t as ReelTransition) : "dissolve";
         return {
           title: typeof s.title === "string" && s.title.trim() ? s.title.trim() : `Shot ${i + 1}`,
           prompt: full.slice(0, 2000),
+          transition,
         };
       });
 

@@ -17,7 +17,7 @@ import { ReelStage } from "./ReelStage";
 import { CharacterPanel } from "./CharacterPanel";
 import { VoiceoverPanel } from "./VoiceoverPanel";
 import { lastFrameOf } from "./last-frame";
-import type { ReelClip } from "./HelixReel";
+import type { ReelClip, ReelTransition } from "./HelixReel";
 import { exportReelMp4, type ExportStage } from "@/lib/reel-export";
 
 const SECONDS = ["4", "8", "12", "16", "20"] as const;
@@ -41,6 +41,8 @@ interface Shot {
   status: ShotStatus;
   id?: string;
   seconds: number;
+  /** AI-chosen transition into this shot (drives the preview/export stitch). */
+  transition?: ReelTransition;
 }
 
 /** Create one clip and poll it to completion. Mirrors the single-studio flow,
@@ -219,7 +221,7 @@ export function LongVideoComposer({ projectId = null }: { projectId?: string | n
   const busy = phase === "planning" || phase === "generating";
   const clips: ReelClip[] = shots
     .filter((s) => s.status === "done" && s.id)
-    .map((s) => ({ id: s.id as string, seconds: s.seconds }));
+    .map((s) => ({ id: s.id as string, seconds: s.seconds, transition: s.transition }));
   const totalSeconds = shotCount * Number(seconds);
   const totalLabel =
     totalSeconds >= 60 ? `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s` : `${totalSeconds}s`;
@@ -233,7 +235,7 @@ export function LongVideoComposer({ projectId = null }: { projectId?: string | n
     setPhase("planning");
 
     // 1. Plan the shot list.
-    let planned: { title: string; prompt: string }[];
+    let planned: { title: string; prompt: string; transition?: ReelTransition }[];
     try {
       const r = await fetch("/api/video/reel/plan", {
         method: "POST",
@@ -258,6 +260,7 @@ export function LongVideoComposer({ projectId = null }: { projectId?: string | n
       prompt: p.prompt,
       status: "pending",
       seconds: Number(seconds),
+      transition: p.transition,
     }));
     setShots(init);
     setPhase("generating");
