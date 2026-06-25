@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { Bot, FolderGit2, Lock, MessageSquare, FileCode2, Sparkles, Users, GraduationCap, ArrowRight, Rocket } from "lucide-react";
+import { Bot, FolderGit2, Lock, MessageSquare, FileCode2, Sparkles, Users, ArrowRight, Rocket } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db, dbEnabled, schemaReady } from "@/lib/db";
 import { getGitConnections } from "@/lib/git";
@@ -130,24 +130,8 @@ export default async function DashboardPage() {
         ]}
       />
 
-      {/* Quick entries — Learn AI + Deployments (Deployments has no nav tab) */}
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <Link
-          href="/academy"
-          className="gradient-border hover-lift group flex items-center gap-3.5 rounded-card-lg border border-[color-mix(in_srgb,var(--accent)_22%,var(--border-2))] bg-[color-mix(in_srgb,var(--accent)_8%,var(--panel))] px-5 py-4"
-        >
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl text-accent glow-accent">
-            <GraduationCap className="h-5 w-5" strokeWidth={1.8} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-h3 text-txt">AI Academy — learn AI by playing</span>
-            <span className="mt-0.5 block text-[12.5px] leading-relaxed text-txt2">
-              Hands-on game modules with an AI coach. No code — start from zero.
-            </span>
-          </span>
-          <ArrowRight className="h-4 w-4 shrink-0 text-accent transition-transform group-hover:translate-x-1" />
-        </Link>
-
+      {/* Quick entry — Deployments (no nav tab of its own) */}
+      <div className="mt-6">
         <Link
           href="/deployments"
           className="hover-lift lit group flex items-center gap-3.5 rounded-card-lg border border-border bg-panel px-5 py-4"
