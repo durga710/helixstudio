@@ -1,7 +1,36 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, Film, Download, Loader2, Lock, Wand2, Clapperboard } from "lucide-react";
+import { Sparkles, Film, Download, Loader2, Lock, Wand2, Clapperboard, ImagePlus, X } from "lucide-react";
+
+/** Cover-fit a reference image to the exact video size on the client, so Sora's
+ * input_reference never hits a dimension-mismatch error. Returns a PNG Blob. */
+async function resizeImageToSize(file: File, size: string): Promise<Blob> {
+  const [w, h] = size.split("x").map(Number);
+  const src = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = () => rej(new Error("bad image"));
+      im.src = src;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no canvas");
+    const scale = Math.max(w / img.width, h / img.height); // cover
+    const dw = img.width * scale;
+    const dh = img.height * scale;
+    ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    return await new Promise<Blob>((res, rej) =>
+      canvas.toBlob((b) => (b ? res(b) : rej(new Error("encode failed"))), "image/png"),
+    );
+  } finally {
+    URL.revokeObjectURL(src);
+  }
+}
 import { ScriptAssistant } from "@/components/video/script-assistant";
 
 type Status = "idle" | "queued" | "in_progress" | "completed" | "failed" | "error";
@@ -31,7 +60,17 @@ export function HelixVideoStudio() {
   const [videoId, setVideoId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recents, setRecents] = useState<Recent[]>([]);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const cancelled = useRef(false);
+
+  function attachImage(file: File | null) {
+    setImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return file ? URL.createObjectURL(file) : null;
+    });
+    setImageFile(file);
+  }
 
   useEffect(() => {
     // Surface the premium gate up front (the API enforces it regardless).
@@ -73,11 +112,25 @@ export function HelixVideoStudio() {
 
     let id: string;
     try {
-      const r = await fetch("/api/video", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: p, seconds, size }),
-      });
+      // With a reference image, send multipart (image-to-video); the image is
+      // resized to the exact video size first so Sora never rejects a mismatch.
+      // Otherwise send plain JSON (text-to-video).
+      let r: Response;
+      if (imageFile) {
+        const resized = await resizeImageToSize(imageFile, size).catch(() => null);
+        const fd = new FormData();
+        fd.append("prompt", p);
+        fd.append("seconds", seconds);
+        fd.append("size", size);
+        if (resized) fd.append("image", resized, "reference.png");
+        r = await fetch("/api/video", { method: "POST", body: fd });
+      } else {
+        r = await fetch("/api/video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: p, seconds, size }),
+        });
+      }
       const j = await r.json();
       if (!r.ok || !j?.data?.id) {
         setStatus("error");
@@ -202,6 +255,42 @@ export function HelixVideoStudio() {
             placeholder="A neon hummingbird sipping from a glowing flower, slow motion, cinematic depth of field…"
             className="w-full resize-none rounded-xl border border-border2 bg-panel2 px-3.5 py-3 text-sm text-txt outline-none transition focus:border-accent"
           />
+
+          {/* Reference image — optional image-to-video. */}
+          <div className="mt-3">
+            <label className="label-tactical mb-1.5 block">Reference image · optional</label>
+            {imagePreview ? (
+              <div className="relative inline-block">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imagePreview}
+                  alt="Reference"
+                  className="h-20 w-auto rounded-lg border border-border2 object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => attachImage(null)}
+                  aria-label="Remove reference image"
+                  className="absolute -right-2 -top-2 grid h-5 w-5 place-items-center rounded-full bg-bad text-white shadow-pop"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ) : (
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border2 px-3 py-2 text-[12px] text-txt2 transition hover:border-accent hover:text-txt">
+                <ImagePlus className="h-4 w-4" /> Attach a picture
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => attachImage(e.target.files?.[0] ?? null)}
+                />
+              </label>
+            )}
+            <p className="mt-1 text-[10.5px] text-txt3">
+              Guides the look and first frame of your video. Auto-cropped to the selected format.
+            </p>
+          </div>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div>
