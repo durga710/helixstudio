@@ -47,37 +47,52 @@ export async function planReel(
         {
           role: "system",
           content:
-            "You are a cinematic director. Break an idea into a numbered shot list for a short film. " +
-            "Each shot is ONE continuous camera take of at most 20 seconds — vivid, self-contained, and " +
-            "flowing into the next for visual continuity (consistent subject, style, lighting, palette). " +
-            "Write each prompt as a rich text-to-video prompt (subject, action, camera move, mood, lighting). " +
-            "Return STRICT JSON only.",
+            "You are a cinematic director shaping ONE cohesive short film from a single idea — NOT a set of " +
+            "unrelated clips. The clips will be generated independently and stitched, so continuity must be " +
+            "forced through the prompts. " +
+            "FIRST commit to one fixed visual identity for the WHOLE film and put it in `style`: a specific " +
+            "colour palette/grade, film stock & grain, lighting, lens/camera language, the world/setting, and " +
+            "the recurring main subject(s) described with a FIXED, repeatable appearance (face, hair, wardrobe, " +
+            "colours). " +
+            "THEN write the shot list. Every shot is ONE continuous take of at most 20 seconds that depicts the " +
+            "SAME world and the SAME subject (identical look) in that SAME style, and flows into the next shot " +
+            "(a match cut, continued motion, or the clear next beat of the story). " +
+            "Each shot prompt: subject + action + camera move + lighting + mood — concise, do NOT restate the " +
+            "global style (it is added automatically). Return STRICT JSON only.",
         },
         {
           role: "user",
           content:
             `Idea: ${idea}\n\n` +
-            `Return JSON of exactly ${n} shots: ` +
-            `{"scenes":[{"title":"short label","prompt":"detailed cinematic shot prompt"}]}`,
+            `Return JSON with exactly ${n} scenes: ` +
+            `{"style":"one vivid sentence describing the fixed look, recurring subject and world shared by EVERY shot",` +
+            `"scenes":[{"title":"short label","prompt":"this shot's subject, action, camera and mood"}]}`,
         },
       ],
       response_format: { type: "json_object" },
     });
 
     const raw = resp.choices[0]?.message?.content ?? "{}";
-    let parsed: { scenes?: { title?: unknown; prompt?: unknown }[] };
+    let parsed: { style?: unknown; scenes?: { title?: unknown; prompt?: unknown }[] };
     try {
       parsed = JSON.parse(raw);
     } catch {
       return { error: "Couldn't plan the shots — try a more descriptive idea." };
     }
+    // The shared anchor — prepended to EVERY shot prompt so the clips carry one
+    // consistent look/subject/world even though Sora renders each in isolation.
+    const style = typeof parsed.style === "string" ? parsed.style.trim() : "";
     const scenes: ReelScene[] = (parsed.scenes ?? [])
       .filter((s) => typeof s?.prompt === "string" && (s.prompt as string).trim().length > 0)
       .slice(0, n)
-      .map((s, i) => ({
-        title: typeof s.title === "string" && s.title.trim() ? s.title.trim() : `Shot ${i + 1}`,
-        prompt: (s.prompt as string).trim().slice(0, 2000),
-      }));
+      .map((s, i) => {
+        const shot = (s.prompt as string).trim();
+        const full = style ? `${style} ${shot}` : shot;
+        return {
+          title: typeof s.title === "string" && s.title.trim() ? s.title.trim() : `Shot ${i + 1}`,
+          prompt: full.slice(0, 2000),
+        };
+      });
 
     if (scenes.length === 0) return { error: "Couldn't plan the shots — try a more descriptive idea." };
     return scenes;

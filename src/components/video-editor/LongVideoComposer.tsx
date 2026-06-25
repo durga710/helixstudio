@@ -16,6 +16,7 @@ import { Clapperboard, Loader2, Sparkles, Check, X, Film, Download, Save } from 
 import { ReelStage } from "./ReelStage";
 import { CharacterPanel } from "./CharacterPanel";
 import { VoiceoverPanel } from "./VoiceoverPanel";
+import { lastFrameOf } from "./last-frame";
 import type { ReelClip } from "./HelixReel";
 import { exportReelMp4, type ExportStage } from "@/lib/reel-export";
 
@@ -95,6 +96,8 @@ export function LongVideoComposer({ projectId = null }: { projectId?: string | n
   const [seconds, setSeconds] = useState<Sec>("8");
   const [size, setSize] = useState<string>("1280x720");
   const [phase, setPhase] = useState<"idle" | "planning" | "generating" | "done" | "error">("idle");
+  // Seamless continuity: chain each shot from the previous clip's last frame.
+  const [chaining, setChaining] = useState(true);
   const [shots, setShots] = useState<Shot[]>([]);
   const [error, setError] = useState<string | null>(null);
   const cancelled = useRef(false);
@@ -253,7 +256,11 @@ export function LongVideoComposer({ projectId = null }: { projectId?: string | n
     setShots(init);
     setPhase("generating");
 
-    // 2. Render each shot in order (partial reel survives a failed shot).
+    // 2. Render each shot in order (partial reel survives a failed shot). With
+    //    "seamless continuity" on, each shot uses the previous clip's last frame
+    //    as its reference so the clips visually flow into one another (shot 0
+    //    falls back to the character reference, if any).
+    let prevFrame: Blob | null = null;
     for (let i = 0; i < init.length; i++) {
       if (cancelled.current) {
         setPhase("idle");
@@ -261,8 +268,13 @@ export function LongVideoComposer({ projectId = null }: { projectId?: string | n
       }
       setShots((prev) => prev.map((s, idx) => (idx === i ? { ...s, status: "rendering" } : s)));
       try {
-        const id = await renderShot(init[i].prompt, seconds, size, cancelled, characterImageRef.current);
+        const ref = chaining ? (prevFrame ?? characterImageRef.current) : characterImageRef.current;
+        const id = await renderShot(init[i].prompt, seconds, size, cancelled, ref);
         setShots((prev) => prev.map((s, idx) => (idx === i ? { ...s, status: "done", id } : s)));
+        if (chaining && !cancelled.current && i < init.length - 1) {
+          const [w, h] = size.split("x").map((x) => Number(x));
+          prevFrame = await lastFrameOf(id, w || 1280, h || 720);
+        }
       } catch {
         if (cancelled.current) {
           setPhase("idle");
@@ -367,6 +379,30 @@ export function LongVideoComposer({ projectId = null }: { projectId?: string | n
         </p>
 
         <CharacterPanel size={size} onImage={setCharacterImage} />
+
+        <button
+          type="button"
+          onClick={() => setChaining((v) => !v)}
+          disabled={busy}
+          aria-pressed={chaining}
+          className="mt-3 flex w-full items-start gap-2.5 rounded-xl border border-border2 bg-panel2 px-3 py-2.5 text-left transition-colors hover:border-accent disabled:opacity-60"
+        >
+          <span
+            className={
+              "mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border transition-colors " +
+              (chaining ? "border-accent bg-accent text-accent-ink" : "border-border2")
+            }
+          >
+            {chaining && <Check className="h-3 w-3" strokeWidth={3} />}
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[12.5px] font-medium text-txt">Seamless continuity</span>
+            <span className="block text-[11px] leading-relaxed text-txt3">
+              Each shot continues from the previous clip&rsquo;s last frame, so the reel flows instead of
+              jump-cutting. Slightly slower to render.
+            </span>
+          </span>
+        </button>
 
         {!busy ? (
           <button
