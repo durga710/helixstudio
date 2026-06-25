@@ -11,8 +11,8 @@
  *
  * A failed shot doesn't sink the reel — it's skipped and the rest still stitch.
  */
-import { useRef, useState } from "react";
-import { Clapperboard, Loader2, Sparkles, Check, X, Film } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Clapperboard, Loader2, Sparkles, Check, X, Film, Save } from "lucide-react";
 import { ReelStage } from "./ReelStage";
 import type { ReelClip } from "./HelixReel";
 
@@ -72,7 +72,7 @@ async function renderShot(
   }
 }
 
-export function LongVideoComposer() {
+export function LongVideoComposer({ projectId = null }: { projectId?: string | null }) {
   const [idea, setIdea] = useState("");
   const [shotCount, setShotCount] = useState(4);
   const [seconds, setSeconds] = useState<Sec>("8");
@@ -81,6 +81,81 @@ export function LongVideoComposer() {
   const [shots, setShots] = useState<Shot[]>([]);
   const [error, setError] = useState<string | null>(null);
   const cancelled = useRef(false);
+
+  // Saved project: title + id. A reel can be saved (so it survives a refresh,
+  // can be resumed, and — once published — viewed/remixed by others). The shot
+  // recipe is persisted; the rendered clips are regenerated on demand.
+  const [title, setTitle] = useState("Untitled reel");
+  const [savedId, setSavedId] = useState<string | null>(projectId);
+  const [saving, setSaving] = useState(false);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
+
+  // Resume a saved project (own project, or a community remix) from ?project=.
+  useEffect(() => {
+    if (!projectId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/video/projects/${projectId}`);
+        const j = await r.json();
+        if (!alive || !j?.data?.project) return;
+        const p = j.data.project;
+        setTitle(p.title || "Untitled reel");
+        setIdea(p.idea || "");
+        if (typeof p.size === "string") setSize(p.size);
+        const sec = String(p.secondsEach);
+        if ((SECONDS as readonly string[]).includes(sec)) setSeconds(sec as Sec);
+        const loaded: Shot[] = (Array.isArray(p.shots) ? p.shots : []).map(
+          (s: { title?: string; prompt?: string; seconds?: number }) => ({
+            title: s.title ?? "",
+            prompt: s.prompt ?? "",
+            seconds: Number(s.seconds) || Number(p.secondsEach) || 8,
+            status: "pending" as ShotStatus,
+          }),
+        );
+        setShots(loaded);
+        if (loaded.length) setShotCount(loaded.length);
+        setSavedId(p.id);
+      } catch {
+        /* ignore — a missing/forbidden project just starts a blank editor */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [projectId]);
+
+  async function save() {
+    if (saving) return;
+    setSaving(true);
+    setSaveNote(null);
+    try {
+      const r = await fetch("/api/video/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: savedId ?? undefined,
+          title: title.trim() || "Untitled reel",
+          idea: idea.trim(),
+          size,
+          secondsEach: Number(seconds),
+          shots: shots.map((s) => ({ title: s.title, prompt: s.prompt, seconds: s.seconds })),
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j?.data?.id) {
+        setSaveNote(j?.error?.message || "Couldn't save the project.");
+      } else {
+        setSavedId(j.data.id);
+        setSaveNote("Saved ✓");
+        // Reflect the id in the URL so a refresh resumes this exact project.
+        window.history.replaceState(null, "", `/video/editor?project=${j.data.id}`);
+      }
+    } catch {
+      setSaveNote("Couldn't save the project.");
+    }
+    setSaving(false);
+  }
 
   const busy = phase === "planning" || phase === "generating";
   const clips: ReelClip[] = shots
@@ -158,10 +233,28 @@ export function LongVideoComposer() {
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
       {/* Composer */}
       <div className="rounded-2xl border border-border2 bg-panel p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <Clapperboard className="h-4 w-4 text-accent" />
-          <h2 className="text-sm font-semibold text-txt">Long-form reel</h2>
+        <div className="mb-1 flex items-center gap-2">
+          <Clapperboard className="h-4 w-4 shrink-0 text-accent" />
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Untitled reel"
+            maxLength={120}
+            aria-label="Project title"
+            className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold text-txt outline-none transition-colors hover:border-border2 focus:border-accent"
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            title="Save this reel so you can resume it — and publish it to the community"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border2 bg-panel2 px-2.5 py-1 text-[11px] text-txt2 transition-colors hover:border-accent hover:text-txt disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+            Save
+          </button>
         </div>
+        {saveNote && <p className="mb-2 text-[11px] text-txt3">{saveNote}</p>}
 
         <label className="label-tactical mb-1.5 block">Your idea</label>
         <textarea

@@ -23,6 +23,9 @@ const Schema = z.discriminatedUnion("kind", [
     embedUrl: z.string().min(1).max(500),
     title: z.string().min(1).max(120),
     description: z.string().max(2000).optional(),
+    videoProjectId: z.string().min(1).max(64).optional(),
+    revealRecipe: z.boolean().optional(),
+    allowRemix: z.boolean().optional(),
   }),
 ]);
 

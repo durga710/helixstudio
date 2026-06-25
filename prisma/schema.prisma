@@ -64,6 +64,7 @@ model User {
   usageEvents      AiUsageEvent[]
   communityPosts   CommunityPost[]
   communityLikes   CommunityLike[]
+  videoProjects    VideoProject[]
 }
 
 // One row per AI call that spent tokens — powers the admin per-user usage
@@ -812,6 +813,13 @@ model CommunityPost {
   workspace     Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   embedUrl      String? // set iff kind == "video" (normalized embed URL)
   embedProvider String? // youtube | vimeo | loom
+  // A video post may also link a saved VideoProject (the "editing space"): its
+  // transcript + shot recipe, shown when revealRecipe and remixable when
+  // allowRemix. Both default off — the creator opts in per post.
+  videoProjectId String?
+  videoProject   VideoProject? @relation(fields: [videoProjectId], references: [id], onDelete: SetNull)
+  revealRecipe   Boolean       @default(false)
+  allowRemix     Boolean       @default(false)
   title         String
   description   String     @default("")
   likeCount     Int        @default(0)
@@ -825,6 +833,7 @@ model CommunityPost {
   @@index([hidden, createdAt])
   @@index([hidden, likeCount])
   @@index([workspaceId])
+  @@index([videoProjectId])
 }
 
 model CommunityLike {
@@ -837,4 +846,28 @@ model CommunityLike {
 
   @@unique([postId, userId])
   @@index([userId])
+}
+
+// A saved HelixVideo project — the persistent "editing space" for the long-form
+// reel builder. Stores the idea, the synthesized transcript/script, the
+// AI-authored shot list (title + prompt + seconds per shot) and render
+// settings, so a project survives refresh, can be resumed, and — when published
+// to the community with revealRecipe/allowRemix — viewed and remixed by others.
+model VideoProject {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind        String   @default("reel") // "reel" (long-form) — room for "single" later
+  title       String   @default("Untitled reel")
+  idea        String   @default("")
+  transcript  String   @default("") // synthesized script (optional)
+  size        String   @default("1280x720")
+  secondsEach Int      @default(8)
+  shots       Json     @default("[]") // [{ title, prompt, seconds }] — the recipe
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  posts CommunityPost[]
+
+  @@index([userId, updatedAt])
 }

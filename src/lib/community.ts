@@ -13,6 +13,26 @@ import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { getWorkspaceForUser, getWorkspaceForViewer, copyWorkspaceAsScratch } from "@/lib/workspace";
 import { normalizeEmbed } from "@/lib/embed";
+import { forkVideoProject } from "@/lib/video-project";
+
+export interface RecipeShot {
+  title: string;
+  prompt: string;
+  seconds: number;
+}
+
+/** Coerce a stored shot list into a bounded recipe for public display. */
+function recipeShots(input: unknown): RecipeShot[] {
+  if (!Array.isArray(input)) return [];
+  return input.slice(0, 30).map((s) => {
+    const o = (s ?? {}) as Record<string, unknown>;
+    return {
+      title: String(o.title ?? "").slice(0, 200),
+      prompt: String(o.prompt ?? "").slice(0, 4000),
+      seconds: Math.max(1, Math.min(60, Math.round(Number(o.seconds)) || 8)),
+    };
+  });
+}
 
 export type PostKind = "app" | "video";
 export type PostSort = "popular" | "recent";
@@ -34,6 +54,8 @@ export interface PostCard {
   embedProvider: string | null;
   thumbnailUrl: string | null;
   likedByViewer: boolean;
+  /** A video post that links a reel and allows remixing. */
+  remixable: boolean;
 }
 
 export interface PostDetail extends PostCard {
@@ -41,6 +63,11 @@ export interface PostDetail extends PostCard {
   workspaceId: string | null;
   workspaceName: string | null;
   isAuthor: boolean;
+  // Video sharing: the creator's "editing space". `recipe` is present only when
+  // the post links a saved reel AND the creator opted to reveal it. `canRemix`
+  // means a viewer can fork that reel into their own editor.
+  recipe: { idea: string; transcript: string; shots: RecipeShot[] } | null;
+  canRemix: boolean;
 }
 
 type AuthorSel = { name: string | null; email: string | null } | null;
@@ -70,6 +97,8 @@ type PostRow = {
   createdAt: Date;
   embedUrl: string | null;
   embedProvider: string | null;
+  allowRemix: boolean;
+  videoProjectId: string | null;
   author: AuthorSel;
 };
 
@@ -87,6 +116,7 @@ function toCard(r: PostRow, liked: boolean): PostCard {
     embedProvider: r.embedProvider,
     thumbnailUrl: thumbFor(r.kind, r.embedUrl, r.embedProvider),
     likedByViewer: liked,
+    remixable: Boolean(r.allowRemix && r.videoProjectId),
   };
 }
 
@@ -121,15 +151,49 @@ export async function publishApp(
 
 export async function publishVideo(
   userId: string,
-  opts: { embedUrl: string; title?: string; description?: string },
+  opts: {
+    embedUrl: string;
+    title?: string;
+    description?: string;
+    // Optionally attach a saved reel (the "editing space") so viewers can see
+    // the transcript/recipe (revealRecipe) and remix it (allowRemix).
+    videoProjectId?: string;
+    revealRecipe?: boolean;
+    allowRemix?: boolean;
+  },
 ): Promise<{ id: string } | { error: string }> {
   const norm = normalizeEmbed(opts.embedUrl);
   if (!norm) return { error: "Paste a valid YouTube, Vimeo, or Loom link." };
   const title = (opts.title ?? "").trim().slice(0, TITLE_MAX);
   if (!title) return { error: "A title is required." };
   const description = (opts.description ?? "").trim().slice(0, DESC_MAX);
+
+  // Only link a reel the caller actually owns; the recipe/remix toggles mean
+  // nothing without a linked project, so force them off in that case.
+  let videoProjectId: string | null = null;
+  if (opts.videoProjectId) {
+    const owned = await db().videoProject.findFirst({
+      where: { id: opts.videoProjectId, userId },
+      select: { id: true },
+    });
+    if (!owned) return { error: "That saved reel wasn't found." };
+    videoProjectId = owned.id;
+  }
+  const revealRecipe = videoProjectId ? Boolean(opts.revealRecipe) : false;
+  const allowRemix = videoProjectId ? Boolean(opts.allowRemix) : false;
+
   const post = await db().communityPost.create({
-    data: { authorId: userId, kind: "video", embedUrl: norm.embedUrl, embedProvider: norm.provider, title, description },
+    data: {
+      authorId: userId,
+      kind: "video",
+      embedUrl: norm.embedUrl,
+      embedProvider: norm.provider,
+      title,
+      description,
+      videoProjectId,
+      revealRecipe,
+      allowRemix,
+    },
     select: { id: true },
   });
   return { id: post.id };
@@ -155,6 +219,8 @@ const ROW_SELECT = {
   createdAt: true,
   embedUrl: true,
   embedProvider: true,
+  allowRemix: true,
+  videoProjectId: true,
   author: { select: { name: true, email: true } },
 } as const;
 
@@ -202,7 +268,17 @@ export async function listPosts(opts: {
 export async function getPostDetail(postId: string, viewerId: string | null): Promise<PostDetail | null> {
   const post = await db().communityPost.findFirst({
     where: { id: postId, hidden: false },
-    select: { ...ROW_SELECT, authorId: true, embedUrl: true, workspaceId: true, workspace: { select: { name: true } } },
+    select: {
+      ...ROW_SELECT,
+      authorId: true,
+      embedUrl: true,
+      workspaceId: true,
+      workspace: { select: { name: true } },
+      videoProjectId: true,
+      revealRecipe: true,
+      allowRemix: true,
+      videoProject: { select: { idea: true, transcript: true, shots: true } },
+    },
   });
   if (!post) return null;
   let liked = false;
@@ -214,13 +290,44 @@ export async function getPostDetail(postId: string, viewerId: string | null): Pr
       }),
     );
   }
+  const hasProject = Boolean(post.videoProjectId && post.videoProject);
+  const recipe =
+    post.revealRecipe && post.videoProject
+      ? {
+          idea: post.videoProject.idea,
+          transcript: post.videoProject.transcript,
+          shots: recipeShots(post.videoProject.shots),
+        }
+      : null;
   return {
     ...toCard(post, liked),
     embedUrl: post.kind === "video" ? post.embedUrl : null,
     workspaceId: post.workspaceId,
     workspaceName: post.workspace?.name ?? null,
     isAuthor: viewerId != null && post.authorId === viewerId,
+    recipe,
+    canRemix: Boolean(post.allowRemix && hasProject),
   };
+}
+
+/** Remix a shared video's reel into a fresh project the caller owns. Requires
+ * the post to be a video with allowRemix and a linked reel. */
+export async function remixVideoPost(
+  userId: string,
+  postId: string,
+): Promise<{ projectId: string } | { error: string }> {
+  const post = await db().communityPost.findFirst({
+    where: { id: postId, hidden: false },
+    select: { kind: true, allowRemix: true, videoProjectId: true },
+  });
+  if (!post) return { error: "Post not found." };
+  if (post.kind !== "video" || !post.allowRemix || !post.videoProjectId) {
+    return { error: "This video can't be remixed." };
+  }
+  const forked = await forkVideoProject(post.videoProjectId, userId);
+  if ("error" in forked) return forked;
+  await db().communityPost.update({ where: { id: postId }, data: { forkCount: { increment: 1 } } });
+  return { projectId: forked.id };
 }
 
 /* --------------------------- interactions -------------------------- */
