@@ -2,10 +2,11 @@
 
 export function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-card-lg border border-border bg-panel p-4">
+    <div className="glass hover-lift rounded-card-lg px-4 py-3.5">
       <div className="label-tactical text-[10px]">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-txt">{value}</div>
-      {sub && <div className="mt-0.5 text-[11px] text-txt3">{sub}</div>}
+      <div className="mt-1 text-2xl font-semibold tabular-nums text-txt">{value}</div>
+      <div className="mt-1.5 h-[3px] w-7 rounded-full brand-gradient-fill" />
+      {sub && <div className="mt-1.5 text-[11px] text-txt3">{sub}</div>}
     </div>
   );
 }

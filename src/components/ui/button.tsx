@@ -8,6 +8,8 @@ const buttonVariants = cva(
       variant: {
         solid:
           "rounded-lg border border-accent bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink hover:brightness-110",
+        glow:
+          "rounded-lg border border-accent bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink shadow-[0_6px_20px_-6px_color-mix(in_srgb,var(--accent)_75%,transparent)] hover:-translate-y-px hover:shadow-[0_10px_28px_-6px_color-mix(in_srgb,var(--accent)_90%,transparent)] active:translate-y-0",
         ghost:
           "rounded-lg border border-border2 bg-panel px-[11px] py-1.5 text-xs font-medium text-txt2 hover:border-accent hover:text-txt",
         mini: "rounded-card-sm border border-border2 bg-panel2 px-2.5 py-[5px] text-[11px] text-txt2 hover:text-txt",

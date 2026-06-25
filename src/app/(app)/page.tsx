@@ -134,40 +134,40 @@ export default async function DashboardPage() {
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <Link
           href="/academy"
-          className="group flex items-center gap-3.5 rounded-card-lg border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[color-mix(in_srgb,var(--accent)_7%,transparent)] px-5 py-4 transition-colors hover:border-accent"
+          className="gradient-border hover-lift group flex items-center gap-3.5 rounded-card-lg border border-[color-mix(in_srgb,var(--accent)_22%,var(--border-2))] bg-[color-mix(in_srgb,var(--accent)_8%,var(--panel))] px-5 py-4"
         >
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl">
-            <GraduationCap className="h-5 w-5 text-accent" strokeWidth={1.8} />
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl text-accent glow-accent">
+            <GraduationCap className="h-5 w-5" strokeWidth={1.8} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[14px] font-semibold text-txt">AI Academy — learn AI by playing</span>
-            <span className="block text-[12.5px] leading-relaxed text-txt2">
+            <span className="block text-h3 text-txt">AI Academy — learn AI by playing</span>
+            <span className="mt-0.5 block text-[12.5px] leading-relaxed text-txt2">
               Hands-on game modules with an AI coach. No code — start from zero.
             </span>
           </span>
-          <ArrowRight className="h-4 w-4 shrink-0 text-accent transition-transform group-hover:translate-x-0.5" />
+          <ArrowRight className="h-4 w-4 shrink-0 text-accent transition-transform group-hover:translate-x-1" />
         </Link>
 
         <Link
           href="/deployments"
-          className="group flex items-center gap-3.5 rounded-card-lg border border-border bg-panel px-5 py-4 transition-colors hover:border-accent"
+          className="hover-lift lit group flex items-center gap-3.5 rounded-card-lg border border-border bg-panel px-5 py-4"
         >
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border2 bg-panel2">
-            <Rocket className="h-5 w-5 text-accent" strokeWidth={1.8} />
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border2 bg-panel2 text-accent">
+            <Rocket className="h-5 w-5" strokeWidth={1.8} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[14px] font-semibold text-txt">Deployments</span>
-            <span className="block text-[12.5px] leading-relaxed text-txt2">
+            <span className="block text-h3 text-txt">Deployments</span>
+            <span className="mt-0.5 block text-[12.5px] leading-relaxed text-txt2">
               Ship your projects live and see their status.
             </span>
           </span>
-          <ArrowRight className="h-4 w-4 shrink-0 text-txt3 transition-transform group-hover:translate-x-0.5" />
+          <ArrowRight className="h-4 w-4 shrink-0 text-txt3 transition-transform group-hover:translate-x-1" />
         </Link>
       </div>
 
       {/* Workspaces */}
-      <div className="mb-3 mt-6 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Your workspaces</h3>
+      <div className="mb-3 mt-8 flex items-center justify-between">
+        <h3 className="text-h2">Your workspaces</h3>
         {workspaceCount > 0 && (
           <Link href="/editor" className="text-xs text-accent hover:underline">
             View all →
@@ -186,11 +186,16 @@ export default async function DashboardPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {workspaces.map((w) => {
+          {workspaces.map((w, i) => {
             const meta = PROVIDER_META[w.provider as GitProviderName];
             return (
-              <Link key={w.id} href={`/editor/${w.id}`} className="block">
-                <Card className="relative cursor-pointer p-4 transition-all duration-150 hover:-translate-y-px hover:border-accent">
+              <Link
+                key={w.id}
+                href={`/editor/${w.id}`}
+                className="rise block"
+                style={{ animationDelay: `${i * 55}ms` }}
+              >
+                <Card className="hover-lift lit relative h-full cursor-pointer p-4">
                   <WorkspaceCardMenu id={w.id} name={w.name} />
                   <div className="mb-2 flex items-center gap-2 pr-8">
                     {w.mode === "IMPORT" ? (
@@ -228,9 +233,9 @@ export default async function DashboardPage() {
       {/* Shared with you — teammates' workspaces shared via your Spaces */}
       {sharedWorkspaces.length > 0 && (
         <>
-          <div className="mb-3 mt-6 flex items-center justify-between">
+          <div className="mb-3 mt-8 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold">Shared with you</h3>
+              <h3 className="text-h2">Shared with you</h3>
               <Users className="h-3.5 w-3.5 text-txt3" strokeWidth={1.7} />
             </div>
             <Link href="/space" className="text-xs text-accent hover:underline">
@@ -238,11 +243,16 @@ export default async function DashboardPage() {
             </Link>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {sharedWorkspaces.map((w) => {
+            {sharedWorkspaces.map((w, i) => {
               const meta = PROVIDER_META[w.provider as GitProviderName];
               return (
-                <Link key={w.id} href={`/editor/${w.id}`} className="block">
-                  <Card className="relative cursor-pointer p-4 transition-all duration-150 hover:-translate-y-px hover:border-accent">
+                <Link
+                  key={w.id}
+                  href={`/editor/${w.id}`}
+                  className="rise block"
+                  style={{ animationDelay: `${i * 55}ms` }}
+                >
+                  <Card className="hover-lift lit relative h-full cursor-pointer p-4">
                     <WorkspaceCardMenu id={w.id} name={w.name} canManage={false} />
                     <div className="mb-1 flex items-center gap-2 pr-8">
                       {w.mode === "IMPORT" ? (
@@ -282,10 +292,10 @@ export default async function DashboardPage() {
       )}
 
       {/* AI activity */}
-      <div className="mb-3 mt-6 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Recent AI activity</h3>
+      <div className="mb-3 mt-8 flex items-center justify-between">
+        <h3 className="text-h2">Recent AI activity</h3>
       </div>
-      <Card>
+      <Card className="lit overflow-hidden">
         {recentTurns.length === 0 && (
           <div className="p-8 text-center text-sm text-txt3">
             No activity yet — open a workspace and ask Helix to build something.
@@ -326,28 +336,36 @@ function Hero({
   stats: { n: string; l: string }[] | null;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-card-lg border border-border bg-panel px-7 py-[26px] after:pointer-events-none after:absolute after:inset-0 after:bg-[radial-gradient(900px_240px_at_8%_-40%,color-mix(in_srgb,var(--accent)_16%,transparent),transparent)]">
-      <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Workspace</div>
-      <CircuitTraces className="pointer-events-none absolute -right-6 -top-8 h-[210px] w-[440px] text-[color-mix(in_srgb,var(--brand-cyan)_55%,var(--accent))] opacity-[0.08]" />
-      <h2 className="relative text-[23px] font-bold tracking-tight">
-        {greeting()}, <span className="brand-gradient-text">{firstName}</span>.
-      </h2>
-      <p className="relative mt-1.5 max-w-[560px] text-txt2">
-        Describe what you want built and watch it land in a live workspace — then run it in the cloud
-        and push it to your repos.
-      </p>
-      <DashboardActions />
-      {stats && (
-        <div className="relative mt-3.5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <div key={stat.l} className="rounded-card border border-border bg-panel px-4 py-3.5">
-              <div className="flex items-baseline gap-1.5 text-[21px] font-bold tracking-tight">{stat.n}</div>
-              <div className="mt-1 h-[2px] w-6 rounded-full brand-gradient-fill opacity-80" />
-              <div className="mt-1 text-[11.5px] text-txt2">{stat.l}</div>
-            </div>
-          ))}
-        </div>
-      )}
+    <div className="lit-2 relative overflow-hidden rounded-card-lg border border-border2 bg-panel px-7 py-8">
+      {/* Animated aurora wash + circuit traces sit behind the content. */}
+      <div className="aurora-bg" />
+      <CircuitTraces className="pointer-events-none absolute -right-6 -top-8 z-[1] h-[210px] w-[440px] text-[color-mix(in_srgb,var(--brand-cyan)_55%,var(--accent))] opacity-[0.1]" />
+      <div className="relative z-10">
+        <div className="text-eyebrow mb-2">Workspace</div>
+        <h2 className="text-display">
+          {greeting()}, <span className="brand-gradient-text">{firstName}</span>.
+        </h2>
+        <p className="mt-2.5 max-w-[560px] text-[15px] leading-relaxed text-txt2">
+          Describe what you want built and watch it land in a live workspace — then run it in the cloud
+          and push it to your repos.
+        </p>
+        <DashboardActions />
+        {stats && (
+          <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {stats.map((stat, i) => (
+              <div
+                key={stat.l}
+                className="rise glass hover-lift rounded-card px-4 py-3.5"
+                style={{ animationDelay: `${i * 70}ms` }}
+              >
+                <div className="text-h1 tabular-nums">{stat.n}</div>
+                <div className="mt-1.5 h-[3px] w-7 rounded-full brand-gradient-fill" />
+                <div className="mt-1.5 text-[11.5px] text-txt2">{stat.l}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

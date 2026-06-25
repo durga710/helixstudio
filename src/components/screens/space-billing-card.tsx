@@ -78,7 +78,7 @@ export function SpaceBillingCard({
   const memberPct = billing.memberCap > 0 ? Math.min(100, Math.round((billing.memberCount / billing.memberCap) * 100)) : 0;
 
   return (
-    <Card className="p-4">
+    <Card variant="lit" className="p-4">
       <div className="flex flex-wrap items-center gap-3">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border2 bg-panel2">
           <CreditCard className="h-4 w-4 text-txt2" />
@@ -115,7 +115,7 @@ export function SpaceBillingCard({
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Manage billing"}
             </Button>
           ) : (
-            <Button onClick={() => setDialogOpen(true)}>
+            <Button variant="glow" onClick={() => setDialogOpen(true)}>
               <Sparkles className="h-3.5 w-3.5" /> Upgrade
             </Button>
           )}

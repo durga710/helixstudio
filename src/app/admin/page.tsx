@@ -73,7 +73,10 @@ export default async function AdminPage() {
     <div className="mx-auto max-w-[1100px] px-6 py-8">
       <header className="mb-6">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-txt">Helix · Admin overview</h1>
+          <div>
+            <div className="text-eyebrow">Admin</div>
+            <h1 className="text-h1">Helix · Admin overview</h1>
+          </div>
           <AdminAutoRefresh intervalMs={30_000} />
         </div>
         <p className="mt-1 text-[13px] text-txt3">
@@ -84,7 +87,7 @@ export default async function AdminPage() {
 
       {/* Usage */}
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-txt">AI usage &amp; cost</h2>
+        <h2 className="text-h2 mb-3">AI usage &amp; cost</h2>
         {stats ? (
           <>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -98,7 +101,7 @@ export default async function AdminPage() {
               <Stat label="Chat messages" value={fmt(stats.messages)} sub={`${fmt(stats.intents)} ledger intents`} />
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <div className="rounded-card-lg border border-border bg-panel p-4">
+              <div className="rounded-card-lg border border-border2 bg-panel lit p-4">
                 <div className="label-tactical mb-2 text-[10px]">Top token users</div>
                 {stats.topUsers.length === 0 ? (
                   <p className="text-[12px] text-txt3">No usage yet.</p>
@@ -120,7 +123,7 @@ export default async function AdminPage() {
                   Cost is an estimate at {usd(TOKEN_COST_PER_MILLION_USD)}/1M blended tokens — not billing.
                 </p>
               </div>
-              <div className="rounded-card-lg border border-border bg-panel p-4">
+              <div className="rounded-card-lg border border-border2 bg-panel lit p-4">
                 <div className="label-tactical mb-2 text-[10px]">User management</div>
                 <Row k="Total users" v={fmt(stats.users)} />
                 <Row k="Custom token limits" v={fmt(stats.limited)} />
@@ -144,26 +147,26 @@ export default async function AdminPage() {
 
       {/* Test data */}
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-txt">Test data</h2>
+        <h2 className="text-h2 mb-3">Test data</h2>
         <SeedActions />
       </section>
 
       {/* Template builder (the refresh batch job) */}
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-txt">MVC template builder</h2>
+        <h2 className="text-h2 mb-3">MVC template builder</h2>
         <TemplateRefresh />
       </section>
 
       {/* Premium library freshness (weekly version bumps + build-check) */}
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-txt">Premium library freshness</h2>
+        <h2 className="text-h2 mb-3">Premium library freshness</h2>
         <TemplateFreshness />
       </section>
 
       {/* System architecture — living docs & diagrams, bundled from the repo */}
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-txt">System architecture</h2>
-        <div className="rounded-card-lg border border-border bg-panel p-4">
+        <h2 className="text-h2 mb-3">System architecture</h2>
+        <div className="rounded-card-lg border border-border2 bg-panel lit p-4">
           <p className="text-[12.5px] text-txt2">
             Living docs &amp; diagrams (how the intake engine, agent platform, context engine, etc. work) — bundled
             from <code className="rounded bg-panel2 px-1 text-[11px]">docs/</code> on every deploy and written to be
@@ -180,8 +183,8 @@ export default async function AdminPage() {
 
       {/* Move logic */}
       <section className="mb-8 grid gap-3 md:grid-cols-2">
-        <div className="rounded-card-lg border border-border bg-panel p-4">
-          <h2 className="mb-2 text-sm font-semibold text-txt">Agent move logic</h2>
+        <div className="rounded-card-lg border border-border2 bg-panel lit p-4">
+          <h2 className="text-h3 mb-2">Agent move logic</h2>
           <Row k="Max moves per turn (hops)" v={fmt(AGENT_LIMITS.maxHops)} />
           <Row k="Token ceiling per turn" v={fmt(AGENT_LIMITS.maxTurnTokens)} />
           <Row k="read_file cap (chars)" v={fmt(AGENT_LIMITS.readCap)} />
@@ -194,8 +197,8 @@ export default async function AdminPage() {
             search doesn&apos;t cost the same as reading a huge file.
           </p>
         </div>
-        <div className="rounded-card-lg border border-border bg-panel p-4">
-          <h2 className="mb-2 text-sm font-semibold text-txt">Models &amp; config</h2>
+        <div className="rounded-card-lg border border-border2 bg-panel lit p-4">
+          <h2 className="text-h3 mb-2">Models &amp; config</h2>
           <Row k="OpenAI default model" v={OPENAI_MODEL} />
           <Row k="Anthropic default" v={PROVIDER_DEFAULT_MODEL.anthropic} />
           <Row k="Local default" v={PROVIDER_DEFAULT_MODEL.local} />
@@ -214,8 +217,8 @@ export default async function AdminPage() {
 
       {/* Tools */}
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-txt">Agent tools ({toolList.length})</h2>
-        <div className="rounded-card-lg border border-border bg-panel p-4">
+        <h2 className="text-h2 mb-3">Agent tools ({toolList.length})</h2>
+        <div className="rounded-card-lg border border-border2 bg-panel lit p-4">
           {toolList.map((t) => (
             <div key={t.name} className="border-b border-border/60 py-2 last:border-0">
               <code className="text-[12px] font-semibold text-accent">{t.name}</code>
@@ -227,10 +230,10 @@ export default async function AdminPage() {
 
       {/* Prompts */}
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-txt">System prompts</h2>
+        <h2 className="text-h2 mb-3">System prompts</h2>
         <div className="space-y-2">
           {PROMPT_REGISTRY.map((p) => (
-            <details key={p.id} className="rounded-card-lg border border-border bg-panel p-4">
+            <details key={p.id} className="rounded-card-lg border border-border2 bg-panel lit p-4">
               <summary className="cursor-pointer select-none text-[13px] font-medium text-txt">
                 {p.title} <span className="ml-2 font-mono text-[11px] text-txt3">{p.where}</span>
               </summary>

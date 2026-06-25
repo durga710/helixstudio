@@ -3,7 +3,8 @@ import Link from "next/link";
 import { Rocket } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db, dbEnabled } from "@/lib/db";
-import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { DeploymentsClient, type DeployRow, type DeploySummary } from "./deployments-client";
 
 export const metadata: Metadata = { title: "Deployments" };
@@ -57,27 +58,28 @@ export default async function DeploymentsPage() {
 
   return (
     <div className="pad-screen">
-      <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Deployments</div>
+      <div className="text-eyebrow mb-[7px] text-accent">Deployments</div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-bold tracking-tight">Deployments</h1>
+          <h1 className="text-h1">Deployments</h1>
           <p className="mt-1 text-[13px] text-txt2">Live deployment records across all your workspaces.</p>
         </div>
       </div>
 
       {rows.length === 0 ? (
         <div className="mt-5">
-          <Card className="flex flex-col items-center gap-3 p-12 text-center">
-            <Rocket className="h-8 w-8 text-txt3" strokeWidth={1.3} />
-            <p className="text-sm text-txt3">No deployments yet.</p>
-            <p className="max-w-xs text-xs text-txt3">
-              Open a workspace in the{" "}
-              <Link href="/editor" className="text-accent transition-colors hover:brightness-110">
-                Editor
+          <EmptyState
+            icon={<Rocket className="h-6 w-6" strokeWidth={1.4} />}
+            title="No deployments yet."
+            description="Open a workspace in the Editor, then use the Deploy button to push to Vercel, Netlify, or another platform."
+            action={
+              <Link href="/editor">
+                <Button variant="glow">
+                  <Rocket className="h-4 w-4" /> Open the Editor
+                </Button>
               </Link>
-              , then use the Deploy button to push to Vercel, Netlify, or another platform.
-            </p>
-          </Card>
+            }
+          />
         </div>
       ) : (
         <DeploymentsClient rows={rows} summary={summary} />

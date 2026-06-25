@@ -14,6 +14,7 @@ import { ExternalLink, RefreshCw } from "lucide-react";
 import { timeAgo } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const STATE_TONE: Record<string, "green" | "accent" | "red" | "neutral"> = {
   READY: "green",
@@ -49,7 +50,7 @@ const ALL_STATES = ["READY", "BUILDING", "QUEUED", "ERROR", "CANCELED", "UNKNOWN
 
 function Stat({ label, value, tone }: { label: string; value: number; tone?: string }) {
   return (
-    <div className="rounded-card-lg border border-border bg-panel px-3.5 py-2.5">
+    <div className="rounded-card-lg border border-border2 bg-panel px-3.5 py-2.5 lit hover-lift">
       <div className={`text-[18px] font-bold tabular-nums ${tone ?? "text-txt"}`}>{value}</div>
       <div className="text-[11px] text-txt3">{label}</div>
     </div>
@@ -233,7 +234,11 @@ export function DeploymentsClient({ rows, summary }: { rows: DeployRow[]; summar
       {/* List */}
       <div className="mt-4">
         {filtered.length === 0 ? (
-          <Card className="p-8 text-center text-sm text-txt3">No deployments match these filters.</Card>
+          <EmptyState
+            icon={<RefreshCw className="h-6 w-6" strokeWidth={1.5} />}
+            title="No deployments match these filters."
+            description="Try clearing your search, provider, or state filters."
+          />
         ) : groups ? (
           <div className="space-y-4">
             {groups.map(([name, items]) => (
@@ -242,7 +247,7 @@ export function DeploymentsClient({ rows, summary }: { rows: DeployRow[]; summar
                   {name}
                   <span className="font-normal lowercase text-txt3">· {items.length}</span>
                 </div>
-                <Card>
+                <Card variant="lit">
                   {items.map((r, i) => (
                     <div key={r.id} className={i < items.length - 1 ? "border-b border-border" : ""}>
                       <DeployRowView row={r} />
@@ -253,7 +258,7 @@ export function DeploymentsClient({ rows, summary }: { rows: DeployRow[]; summar
             ))}
           </div>
         ) : (
-          <Card>
+          <Card variant="lit">
             {filtered.map((r, i) => (
               <div key={r.id} className={i < filtered.length - 1 ? "border-b border-border" : ""}>
                 <DeployRowView row={r} />

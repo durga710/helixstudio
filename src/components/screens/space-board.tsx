@@ -153,7 +153,7 @@ export function SpaceBoard({
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+        <h3 className="text-h2 flex items-center gap-1.5">
           <KanbanSquare className="h-4 w-4 text-txt3" /> Board
         </h3>
         <form
@@ -201,8 +201,8 @@ export function SpaceBoard({
                   setDragId(null);
                 }}
                 className={cn(
-                  "rounded-card border bg-panel p-2.5 transition-colors",
-                  dragOver === col.key ? "border-accent" : "border-border",
+                  "lit rounded-card border bg-panel p-2.5 transition-colors",
+                  dragOver === col.key ? "border-accent glow-accent" : "border-border2",
                 )}
               >
                 <div className="mb-2 flex items-center justify-between px-1">
@@ -210,7 +210,7 @@ export function SpaceBoard({
                   <span className="font-mono text-[10.5px] text-txt3">{colTasks.length}</span>
                 </div>
                 <ul className="space-y-2">
-                  {colTasks.map((t) => {
+                  {colTasks.map((t, i) => {
                     const canDelete = t.createdById === youId || isOwner;
                     return (
                       <li
@@ -218,8 +218,9 @@ export function SpaceBoard({
                         draggable
                         onDragStart={() => setDragId(t.id)}
                         onDragEnd={() => setDragId(null)}
+                        style={{ animationDelay: `${i * 55}ms` }}
                         className={cn(
-                          "group cursor-grab rounded-lg border border-border2 bg-panel2 p-2.5 active:cursor-grabbing",
+                          "group rise cursor-grab rounded-lg border border-border2 bg-panel2 p-2.5 transition-colors hover:border-accent/50 active:cursor-grabbing",
                           dragId === t.id && "opacity-50",
                         )}
                       >

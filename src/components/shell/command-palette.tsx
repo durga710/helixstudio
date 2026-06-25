@@ -96,7 +96,7 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
       <div
         role="dialog"
         aria-label="Command palette"
-        className="fade-up mx-auto mt-[16vh] w-[min(580px,92vw)] overflow-hidden rounded-card-lg border border-border2 bg-panel shadow-pop"
+        className="fade-up glass mx-auto mt-[16vh] w-[min(580px,92vw)] overflow-hidden rounded-card-lg shadow-pop"
       >
         <div className="flex items-center gap-2.5 border-b border-border px-3.5 py-3">
           <Search className="h-[15px] w-[15px] text-txt3" strokeWidth={1.7} />

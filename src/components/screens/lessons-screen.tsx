@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Sparkles, Brain, Boxes, GitBranch, LineChart, Globe, Joystick, Bot, Map, Wrench, Wand2, Scale, ThumbsUp, Gauge, Factory, ArrowLeft, ArrowRight, Clock, Check, GraduationCap } from "lucide-react";
 import type { LessonManifest } from "@/lib/lessons/types";
-import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Pill } from "@/components/ui/pill";
 
 /* The Lessons gallery: pick a guided lesson and learn AI by training a real
@@ -35,28 +35,34 @@ export function LessonsScreen({ lessons }: { lessons: LessonManifest[] }) {
         <Link href="/academy" className="mb-3 inline-flex items-center gap-1.5 text-[12px] text-txt3 transition-colors hover:text-txt">
           <ArrowLeft className="h-3.5 w-3.5" /> AI Academy
         </Link>
-        <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Learn</div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-[22px] font-bold tracking-tight">Modules</h1>
+        <div className="text-eyebrow text-accent">Learn</div>
+        <div className="mt-1.5 flex items-center gap-2">
+          <h1 className="text-h1">Modules</h1>
           <GraduationCap className="h-5 w-5 text-txt3" strokeWidth={1.7} />
         </div>
-        <p className="mt-1 max-w-[640px] text-[13px] text-txt2">
+        <p className="mt-1.5 max-w-[640px] text-[13px] text-txt2">
           Start from zero and learn how AI really works — <span className="text-txt">play-to-learn, one small step
           at a time</span>, no code. Each module is a little game, with an AI coach beside you.
         </p>
 
         {lessons.length === 0 ? (
-          <Card className="mt-6 p-8 text-center text-sm text-txt3">No lessons yet — check back soon.</Card>
+          <EmptyState
+            className="mt-6"
+            icon={<GraduationCap className="h-6 w-6" strokeWidth={1.7} />}
+            title="No modules yet"
+            description="Check back soon — new play-to-learn modules are on the way."
+          />
         ) : (
           <ul className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {lessons.map((l) => {
+            {lessons.map((l, i) => {
               const Icon = ICONS[l.icon] ?? Sparkles;
               const st = status[l.id];
               return (
                 <li key={l.id}>
                   <Link
                     href={`/academy/${l.id}`}
-                    className="block h-full rounded-card border border-border bg-panel p-5 shadow-card transition-all duration-150 hover:-translate-y-px hover:border-accent"
+                    style={{ animationDelay: `${i * 55}ms` }}
+                    className="rise block h-full rounded-card border border-border bg-panel p-5 lit hover-lift"
                   >
                     <div className="mb-3 flex items-center gap-2.5">
                       <span className="grid h-10 w-10 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-hl">

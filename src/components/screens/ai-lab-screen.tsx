@@ -50,19 +50,25 @@ export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
   return (
     <div className="pad-screen">
       <div className="mx-auto max-w-[1000px]">
-        <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Learn</div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-[22px] font-bold tracking-tight">AI Academy</h1>
-          <Brain className="h-5 w-5 text-txt3" strokeWidth={1.7} />
+        <div className="relative overflow-hidden rounded-card-lg border border-border2 bg-panel p-7 lit-2 sm:p-9">
+          <div className="aurora-bg" aria-hidden />
+          <div className="relative z-10">
+            <div className="text-eyebrow text-accent">Learn</div>
+            <div className="mt-2 flex items-center gap-2.5">
+              <h1 className="text-display brand-gradient-text">AI Academy</h1>
+              <Brain className="h-7 w-7 text-accent" strokeWidth={1.7} />
+            </div>
+            <p className="mt-2.5 max-w-[620px] text-[13.5px] leading-relaxed text-txt2">
+              Learn how AI really works — by playing, not reading. Pick a path: work through{" "}
+              <span className="text-txt">game modules</span> with an AI coach beside you, or jump in and{" "}
+              <span className="text-txt">build a model yourself</span>.
+            </p>
+          </div>
         </div>
-        <p className="mt-1 max-w-[620px] text-[13px] text-txt2">
-          Learn how AI really works — by playing, not reading. Pick a path: work through{" "}
-          <span className="text-txt">game modules</span> with an AI coach beside you, or jump in and{" "}
-          <span className="text-txt">build a model yourself</span>.
-        </p>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <SectionCard
+            index={0}
             href="/academy/lessons"
             icon={<GraduationCap className="h-5 w-5 text-accent" strokeWidth={1.8} />}
             title="Modules"
@@ -71,6 +77,7 @@ export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
             metaIcon={doneCount > 0 ? <Check className="h-3 w-3 text-ok" /> : undefined}
           />
           <SectionCard
+            index={1}
             href="/academy/studio"
             icon={<Hammer className="h-5 w-5 text-accent" strokeWidth={1.8} />}
             title="Studios"
@@ -87,6 +94,7 @@ export function AILabScreen({ lessons }: { lessons: LessonManifest[] }) {
 }
 
 function SectionCard({
+  index,
   href,
   icon,
   title,
@@ -95,6 +103,7 @@ function SectionCard({
   metaIcon,
   badge,
 }: {
+  index: number;
   href: string;
   icon: React.ReactNode;
   title: string;
@@ -106,7 +115,8 @@ function SectionCard({
   return (
     <Link
       href={href}
-      className="group flex h-full flex-col rounded-card border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] bg-gradient-to-b from-[color-mix(in_srgb,var(--accent)_9%,transparent)] to-transparent p-5 shadow-card transition-all duration-150 hover:-translate-y-px hover:border-accent"
+      style={{ animationDelay: `${index * 55}ms` }}
+      className="rise group flex h-full flex-col rounded-card border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] bg-gradient-to-b from-[color-mix(in_srgb,var(--accent)_9%,transparent)] to-transparent p-5 lit hover-lift"
     >
       <div className="mb-3 flex items-center gap-2.5">
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] bg-hl">
@@ -159,10 +169,10 @@ function BadgeRail({ doneCount, total }: { doneCount: number; total: number }) {
           return (
             <div
               key={b.key}
-              className="flex flex-col items-center gap-1.5 rounded-[12px] border p-3 text-center transition-colors"
+              className={`flex flex-col items-center gap-1.5 rounded-[12px] border p-3 text-center transition-colors ${unlocked ? "glass" : ""}`}
               style={
                 unlocked
-                  ? { borderColor: "color-mix(in srgb, var(--accent) 40%, transparent)", background: "color-mix(in srgb, var(--accent) 7%, transparent)" }
+                  ? { borderColor: "color-mix(in srgb, var(--accent) 40%, transparent)" }
                   : { borderColor: "var(--border)", opacity: 0.7 }
               }
             >

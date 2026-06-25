@@ -73,12 +73,12 @@ export default async function AdminUsersPage({
     <div className="mx-auto max-w-[1100px] px-6 py-8">
       <header className="mb-6">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-txt">
-            <Link href="/admin" className="text-txt3 hover:text-txt">
+          <div>
+            <Link href="/admin" className="text-eyebrow hover:text-accent">
               Admin
-            </Link>{" "}
-            / Users
-          </h1>
+            </Link>
+            <h1 className="text-h1">Users</h1>
+          </div>
           <AdminAutoRefresh intervalMs={30_000} />
         </div>
         <p className="mt-1 text-[13px] text-txt3">
@@ -134,7 +134,7 @@ export default async function AdminUsersPage({
       {!users ? (
         <p className="text-[13px] text-txt3">No database configured — user management unavailable (demo mode).</p>
       ) : (
-        <div className="overflow-x-auto rounded-card-lg border border-border bg-panel">
+        <div className="overflow-x-auto rounded-card-lg border border-border2 bg-panel lit">
           <table className="w-full text-left text-[12.5px]">
             <thead>
               <tr className="border-b border-border text-[10px]">

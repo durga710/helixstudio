@@ -37,9 +37,9 @@ export function Rail({ userInitials, userImage }: { userInitials: string; userIm
 
   const railBtn = (active: boolean) =>
     cn(
-      "relative grid h-[38px] w-10 cursor-pointer place-items-center rounded-[9px] border-none bg-transparent text-txt3 transition-colors",
+      "relative grid h-[38px] w-10 cursor-pointer place-items-center rounded-[9px] border-none bg-transparent text-txt3 transition-[transform,background-color,color,box-shadow] duration-150 hover:scale-[1.08] active:scale-95",
       active
-        ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-txt before:absolute before:-left-3 before:top-2 before:h-[22px] before:w-[2.5px] before:rounded-sm before:brand-gradient-fill before:[background:linear-gradient(180deg,var(--brand-cyan),var(--accent)_60%,var(--brand-violet))]"
+        ? "bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-txt shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_22%,transparent)] before:absolute before:-left-3 before:top-2 before:h-[22px] before:w-[2.5px] before:rounded-sm before:[background:linear-gradient(180deg,var(--brand-cyan),var(--accent)_60%,var(--brand-violet))] before:shadow-[0_0_10px_color-mix(in_srgb,var(--accent)_70%,transparent)]"
         : "hover:bg-panel2 hover:text-txt"
     );
 
@@ -48,7 +48,7 @@ export function Rail({ userInitials, userImage }: { userInitials: string; userIm
       <Link
         href="/"
         title="Helix Studio"
-        className="mb-3 grid h-[34px] w-[34px] cursor-pointer place-items-center overflow-hidden rounded-[9px] shadow-[0_4px_14px_rgba(0,0,0,0.45)]"
+        className="mb-3 grid h-[34px] w-[34px] cursor-pointer place-items-center overflow-hidden rounded-[9px] shadow-[0_4px_14px_rgba(0,0,0,0.45)] transition-transform duration-150 hover:scale-110 hover:rotate-3"
       >
         <BrandMark size={34} />
       </Link>
@@ -68,7 +68,7 @@ export function Rail({ userInitials, userImage }: { userInitials: string; userIm
         <Dropdown.Trigger asChild>
           <button
             title="Account"
-            className="mt-1 grid h-[30px] w-[30px] cursor-pointer place-items-center overflow-hidden rounded-lg border-none bg-gradient-to-br from-[#8b5cf6] to-accent text-[11px] font-semibold text-white"
+            className="mt-1 grid h-[30px] w-[30px] cursor-pointer place-items-center overflow-hidden rounded-lg border-none bg-gradient-to-br from-[#8b5cf6] to-accent text-[11px] font-semibold text-white ring-1 ring-white/10 transition-[transform,box-shadow] duration-150 hover:scale-110 hover:shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_55%,transparent),0_6px_18px_-4px_color-mix(in_srgb,var(--accent)_60%,transparent)]"
           >
             {userImage ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -83,7 +83,7 @@ export function Rail({ userInitials, userImage }: { userInitials: string; userIm
             side="right"
             align="end"
             sideOffset={8}
-            className="fade-up z-50 min-w-40 rounded-card border border-border2 bg-panel p-1 shadow-pop"
+            className="fade-up glass z-50 min-w-40 rounded-card p-1 shadow-pop"
           >
             <Dropdown.Item
               className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-txt2 outline-none data-highlighted:bg-panel2 data-highlighted:text-txt"

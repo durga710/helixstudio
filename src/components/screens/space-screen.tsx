@@ -26,6 +26,8 @@ import { cn, timeAgo } from "@/lib/utils";
 import { composePreviewHtml, pickPreviewEntry } from "@/lib/preview-html";
 import { isGodotProject } from "@/lib/templates/engines";
 import { Card } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/section-header";
+import { EmptyState as EmptyStateUI } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Input } from "@/components/ui/input";
@@ -222,11 +224,9 @@ export function SpaceScreen({ youName }: { youName?: string | null }) {
   return (
     <div className="pad-screen">
       <div className="mx-auto max-w-[1100px]">
-        <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">
-          Collaborate
-        </div>
+        <div className="text-eyebrow mb-[7px]">Collaborate</div>
         <div className="flex items-center gap-2">
-          <h1 className="text-[22px] font-bold tracking-tight">Spaces</h1>
+          <h1 className="text-h1">Spaces</h1>
           <Users className="h-5 w-5 text-txt3" strokeWidth={1.7} />
         </div>
         <p className="mt-1 text-[13px] text-txt2">
@@ -336,8 +336,8 @@ function EmptyState({
 }) {
   return (
     <div className="mt-6 grid gap-4 md:grid-cols-2">
-      <Card className="p-6">
-        <span className="mb-4 grid h-10 w-10 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-hl">
+      <Card variant="lit" className="rise p-6">
+        <span className="glow-accent mb-4 grid h-10 w-10 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-hl">
           <Plus className="h-5 w-5 text-accent" />
         </span>
         <h2 className="mb-1 text-base font-medium text-txt">Create a Space</h2>
@@ -359,14 +359,14 @@ function EmptyState({
               aria-label="Space name"
               className="text-[13px]"
             />
-            <Button type="submit" disabled={creating || !newName.trim()}>
+            <Button type="submit" variant="glow" disabled={creating || !newName.trim()}>
               {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Create"}
             </Button>
           </div>
         </form>
       </Card>
 
-      <Card className="p-6">
+      <Card variant="lit" className="rise p-6" style={{ animationDelay: "55ms" }}>
         <span className="mb-4 grid h-10 w-10 place-items-center rounded-xl border border-border2 bg-panel2">
           <Link2 className="h-5 w-5 text-txt2" />
         </span>
@@ -446,15 +446,15 @@ function SpaceList({
       </div>
 
       <ul className="space-y-1">
-        {spaces.map((s) => (
-          <li key={s.id}>
+        {spaces.map((s, i) => (
+          <li key={s.id} className="rise" style={{ animationDelay: `${i * 55}ms` }}>
             <button
               type="button"
               onClick={() => onSelect(s.id)}
               className={cn(
-                "flex w-full items-center gap-2 rounded-card border px-3 py-2.5 text-left transition-colors",
+                "hover-lift flex w-full items-center gap-2 rounded-card border px-3 py-2.5 text-left",
                 selectedId === s.id
-                  ? "border-accent bg-hl"
+                  ? "border-accent bg-hl lit"
                   : "border-border bg-panel hover:border-accent/50",
               )}
             >
@@ -690,7 +690,7 @@ function SpaceDetailPanel({
   return (
     <div className="min-w-0 space-y-5">
       {/* Header */}
-      <Card className="p-5">
+      <Card variant="lit" className="lit-2 p-5">
         <div className="flex flex-wrap items-center gap-2">
           {renaming ? (
             <form
@@ -716,7 +716,7 @@ function SpaceDetailPanel({
             </form>
           ) : (
             <>
-              <h2 className="truncate text-lg font-semibold text-txt">{detail.name}</h2>
+              <h2 className="text-h2 truncate text-txt">{detail.name}</h2>
               {detail.isOwner ? (
                 <Pill tone="accent">owner</Pill>
               ) : (
@@ -741,7 +741,7 @@ function SpaceDetailPanel({
 
           {!renaming && (
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <Button onClick={() => copyInvite(detail.joinCode)}>
+              <Button variant="glow" onClick={() => copyInvite(detail.joinCode)}>
                 <Link2 className="h-3.5 w-3.5" /> Invite
               </Button>
               {detail.isOwner ? (
@@ -805,26 +805,23 @@ function SpaceDetailPanel({
 
       {/* Shared workspaces */}
       <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Shared workspaces</h3>
-          <span className="text-[11px] text-txt3">{detail.workspaces.length} project(s)</span>
-        </div>
+        <SectionHeader
+          title="Shared workspaces"
+          action={<span className="text-[11px] text-txt3">{detail.workspaces.length} project(s)</span>}
+        />
 
         {detail.workspaces.length === 0 ? (
-          <Card className="p-8 text-center">
-            <Users className="mx-auto mb-3 h-8 w-8 text-txt3" />
-            <p className="text-sm text-txt2">No workspaces shared here yet.</p>
-            <p className="mx-auto mt-1 max-w-md text-xs text-txt3">
-              Open one of your workspaces in the editor and use the{" "}
-              <span className="text-txt2">Share</span> control to add it to this space.
-            </p>
-          </Card>
+          <EmptyStateUI
+            icon={<Users className="h-6 w-6" />}
+            title="No workspaces shared here yet."
+            description="Open one of your workspaces in the editor and use the Share control to add it to this space."
+          />
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {detail.workspaces.map((w) => {
+            {detail.workspaces.map((w, i) => {
               const meta = PROVIDER_META[w.provider as GitProviderName];
               return (
-                <li key={w.id} className="relative">
+                <li key={w.id} className="rise relative" style={{ animationDelay: `${i * 55}ms` }}>
                   {/* Play — runs the shared project read-only in a preview modal
                       (no editor, no owner access). Great for classmates' games. */}
                   <button
@@ -839,7 +836,7 @@ function SpaceDetailPanel({
                   <button
                     type="button"
                     onClick={() => router.push(`/editor/${w.id}`)}
-                    className="block w-full rounded-card border border-border bg-panel p-4 text-left shadow-card transition-all duration-150 hover:-translate-y-px hover:border-accent"
+                    className="hover-lift lit block w-full rounded-card border border-border bg-panel p-4 text-left"
                   >
                     <div className="mb-2 flex items-center gap-2 pr-16">
                       {w.mode === "IMPORT" ? (

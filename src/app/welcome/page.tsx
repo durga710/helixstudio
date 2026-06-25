@@ -153,7 +153,7 @@ export default async function WelcomePage() {
                   { big: "Parallel", small: "build engine" },
                   { big: "$0", small: "free tier — no card" },
                 ].map((s) => (
-                  <div key={s.small} className="rounded-xl border border-border2 bg-panel/60 px-3 py-2.5 text-center lg:text-left">
+                  <div key={s.small} className="glass hover-lift rounded-xl px-3 py-2.5 text-center lg:text-left">
                     <div className="text-[19px] font-bold tracking-tight text-accent">{s.big}</div>
                     <div className="text-[11.5px] leading-tight text-txt3">{s.small}</div>
                   </div>

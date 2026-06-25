@@ -222,10 +222,10 @@ export function AiSection() {
       {/* Helix-hosted models (Bedrock-backed) — no key needed, the default. */}
       {bedrockModels.length > 0 && (
         <>
-          <h3 className="mb-[11px] mt-6 text-sm font-semibold">
-            Free models <span className="font-normal text-txt3">· Gunner · no key needed</span>
+          <h3 className="text-h3 mb-[11px] mt-6">
+            Free models <span className="text-sm font-normal text-txt3">· Gunner · no key needed</span>
           </h3>
-          <Card className="p-[18px]">
+          <Card variant="lit" className="p-[18px]">
             <p className="mb-3 text-xs text-txt2">
               Run on Helix&apos;s hosted models — nothing to configure. Usage is billed against your
               monthly token quota.
@@ -240,7 +240,7 @@ export function AiSection() {
                     onClick={() => void selectBedrock(m.modelId)}
                     aria-pressed={active}
                     className={cn(
-                      "flex items-center gap-2 rounded-[11px] border px-3.5 py-2.5 text-left transition-colors",
+                      "hover-lift flex items-center gap-2 rounded-[11px] border px-3.5 py-2.5 text-left transition-colors",
                       active
                         ? "border-accent bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
                         : "border-border2 bg-panel2 hover:border-accent",
@@ -267,8 +267,8 @@ export function AiSection() {
       )}
 
       {/* Editor AI model (bring your own provider key) */}
-      <h3 className="mb-[11px] mt-6 text-sm font-semibold">Bring your own model</h3>
-      <Card className="p-[18px]">
+      <h3 className="text-h3 mb-[11px] mt-6">Bring your own model</h3>
+      <Card variant="lit" className="p-[18px]">
         <p className="mb-3 text-xs text-txt2">
           The brain behind the editor&apos;s workspace agent. Presets are shortcuts — any model id the
           provider supports works.
@@ -357,7 +357,7 @@ export function AiSection() {
           </p>
         )}
         <div className="mt-3 flex items-center gap-3">
-          <Button onClick={saveAi} disabled={aiSaving || prefs === null}>
+          <Button variant="glow" onClick={saveAi} disabled={aiSaving || prefs === null}>
             {aiSaving ? "Saving…" : "Save model"}
           </Button>
           <KeyStatusDot state={keyState} message={keyMsg} />
@@ -365,8 +365,8 @@ export function AiSection() {
       </Card>
 
       {/* Git connections */}
-      <h3 className="mb-[11px] mt-6 text-sm font-semibold">Git connections</h3>
-      <Card className="p-[18px]">
+      <h3 className="text-h3 mb-[11px] mt-6">Git connections</h3>
+      <Card variant="lit" className="p-[18px]">
         <div className="mb-3 flex items-center gap-2">
           <Pill tone={prefs?.githubOauthConnected || tokenSet ? "green" : "amber"}>
             {prefs === null
@@ -408,7 +408,7 @@ export function AiSection() {
               autoComplete="off"
               className="font-mono text-xs"
             />
-            <Button onClick={() => void saveGithub(false)} disabled={ghSaving || !token.trim()}>
+            <Button variant="glow" onClick={() => void saveGithub(false)} disabled={ghSaving || !token.trim()}>
               {ghSaving ? "Saving…" : "Save token"}
             </Button>
             {tokenSet && (
@@ -542,7 +542,7 @@ function GitHostRow({
             className="min-w-[10rem] flex-1 font-mono text-xs"
           />
         )}
-        <Button onClick={() => void save()} disabled={saving || (!token.trim() && !connected)}>
+        <Button variant="glow" onClick={() => void save()} disabled={saving || (!token.trim() && !connected)}>
           {saving ? "Saving…" : "Save"}
         </Button>
         {connected && (

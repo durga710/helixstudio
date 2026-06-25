@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Moon, Plus, Sun, Trash2, Upload, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/section-header";
 import { Pill } from "@/components/ui/pill";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -296,13 +297,13 @@ export function SettingsScreen({
   return (
     <div className="pad-screen">
       <div className="max-w-[760px]">
-        <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Workspace</div>
-        <h1 className="text-[22px] font-bold tracking-tight">Settings</h1>
+        <div className="text-eyebrow mb-[7px] text-accent">Workspace</div>
+        <h1 className="text-h1">Settings</h1>
         <p className="mt-1 text-[13px] text-txt2">Profile, appearance, model, agents, memory, and project guidance.</p>
 
         {/* Profile */}
-        <h3 className="mb-[11px] mt-6 text-sm font-semibold">Profile</h3>
-        <Card className="px-[18px] py-1">
+        <h3 className="text-h3 mb-[11px] mt-6">Profile</h3>
+        <Card variant="lit" className="px-[18px] py-1">
           <SettingRow
             label="Profile picture"
             description="Shown on your spaces, assignments, and the sidebar. PNG, JPEG, or WebP."
@@ -348,6 +349,7 @@ export function SettingsScreen({
                 className="w-48 text-[13px]"
               />
               <Button
+                variant="glow"
                 onClick={() => void saveName()}
                 disabled={savingProfile || !displayName.trim() || displayName.trim() === savedName}
               >
@@ -358,8 +360,8 @@ export function SettingsScreen({
         </Card>
 
         {/* Appearance */}
-        <h3 className="mb-[11px] mt-6 text-sm font-semibold">Appearance</h3>
-        <Card className="px-[18px] py-1">
+        <h3 className="text-h3 mb-[11px] mt-6">Appearance</h3>
+        <Card variant="lit" className="px-[18px] py-1">
           <SettingRow label="Theme" description="Switch between dark and light. Also in the top bar.">
             <Segmented<Theme>
               aria-label="Theme"
@@ -417,8 +419,8 @@ export function SettingsScreen({
         </Card>
 
         {/* AI provider (BYOK) */}
-        <h3 className="mb-[11px] mt-6 text-sm font-semibold">AI provider</h3>
-        <Card className="p-[18px]">
+        <h3 className="text-h3 mb-[11px] mt-6">AI provider</h3>
+        <Card variant="lit" className="p-[18px]">
           <div className="mb-3 flex items-center gap-2">
             <Pill tone={byok?.byok || byok?.platformKey ? "green" : "amber"}>
               {byok === null
@@ -448,7 +450,7 @@ export function SettingsScreen({
               autoComplete="off"
               className="font-mono text-xs"
             />
-            <Button onClick={saveKey} disabled={keySaving || keyInput.trim().length < 12}>
+            <Button variant="glow" onClick={saveKey} disabled={keySaving || keyInput.trim().length < 12}>
               {keySaving ? "Saving…" : byok?.byok ? "Replace key" : "Save key"}
             </Button>
             {byok?.byok && (
@@ -477,8 +479,8 @@ export function SettingsScreen({
         <PrReviewSection />
 
         {/* Model & reasoning */}
-        <h3 className="mb-[11px] mt-6 text-sm font-semibold">Model &amp; reasoning</h3>
-        <Card className="px-[18px] py-1">
+        <h3 className="text-h3 mb-[11px] mt-6">Model &amp; reasoning</h3>
+        <Card variant="lit" className="px-[18px] py-1">
           <SettingRow label="Default model" description="Used for code generation and agent reasoning.">
             <Segmented<ModelTier>
               aria-label="Default model"
@@ -516,8 +518,8 @@ export function SettingsScreen({
         </Card>
 
         {/* Agents */}
-        <h3 className="mb-[11px] mt-6 text-sm font-semibold">Agents</h3>
-        <Card className="px-[18px] py-1">
+        <h3 className="text-h3 mb-[11px] mt-6">Agents</h3>
+        <Card variant="lit" className="px-[18px] py-1">
           <SettingRow
             label="Full multi-agent workflow"
             description="Architect → Engineer → Reviewer → Security → Performance on each task."
@@ -542,14 +544,17 @@ export function SettingsScreen({
         </Card>
 
         {/* Memory (Phase 5) */}
-        <div className="mb-[11px] mt-6 flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Memory</h3>
-          <Button variant="ghost" onClick={() => setAdding((a) => !a)}>
-            <Plus className="h-[15px] w-[15px]" strokeWidth={1.7} />
-            Add memory
-          </Button>
-        </div>
-        <Card className="p-[18px]">
+        <SectionHeader
+          className="mb-[11px] mt-6"
+          title="Memory"
+          action={
+            <Button variant="ghost" onClick={() => setAdding((a) => !a)}>
+              <Plus className="h-[15px] w-[15px]" strokeWidth={1.7} />
+              Add memory
+            </Button>
+          }
+        />
+        <Card variant="lit" className="p-[18px]">
           <p className="mb-[13px] text-xs text-txt2">
             What Helix remembers across sessions — user preferences, project decisions, and agent task
             history.
@@ -587,7 +592,7 @@ export function SettingsScreen({
                 <Button variant="ghost" onClick={() => setAdding(false)}>
                   Cancel
                 </Button>
-                <Button onClick={addMemory} disabled={!newTitle.trim() || !newContent.trim()}>
+                <Button variant="glow" onClick={addMemory} disabled={!newTitle.trim() || !newContent.trim()}>
                   Save memory
                 </Button>
               </div>
@@ -633,8 +638,8 @@ export function SettingsScreen({
         </Card>
 
         {/* Project guidance */}
-        <h3 className="mb-[11px] mt-6 text-sm font-semibold">Project guidance files</h3>
-        <Card className="p-[18px]">
+        <h3 className="text-h3 mb-[11px] mt-6">Project guidance files</h3>
+        <Card variant="lit" className="p-[18px]">
           <p className="mb-[13px] text-xs text-txt2">Helix reads these at the repo root as project context.</p>
           <div className="flex flex-wrap gap-2">
             {GUIDANCE_FILES.map((file) => (

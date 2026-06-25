@@ -70,7 +70,7 @@ export function PostDetailView({ post }: { post: PostDetail }) {
       </Link>
 
       {/* Media */}
-      <div className="overflow-hidden rounded-xl border border-border2 bg-panel2">
+      <div className="overflow-hidden rounded-card-lg border border-border2 bg-panel2 lit">
         {isVideo && post.embedUrl ? (
           <div className="aspect-video w-full">
             <iframe
@@ -99,7 +99,7 @@ export function PostDetailView({ post }: { post: PostDetail }) {
             <Pill tone={isVideo ? "accent" : "neutral"}>{isVideo ? "Video" : "App"}</Pill>
             <span className="text-[12.5px] text-txt3">by {post.authorName}</span>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-txt">{post.title}</h1>
+          <h1 className="text-h1">{post.title}</h1>
         </div>
         <div className="flex items-center gap-2">
           <button

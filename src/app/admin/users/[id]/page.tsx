@@ -120,7 +120,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
     <div className="mx-auto max-w-[1100px] px-6 py-8">
       <header className="mb-6">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-txt">
+          <h1 className="text-h1">
             <Link href="/admin" className="text-txt3 hover:text-txt">
               Admin
             </Link>{" "}
@@ -160,8 +160,8 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
       </section>
 
       <section className="mb-6 grid gap-3 md:grid-cols-2">
-        <div className="rounded-card-lg border border-border bg-panel p-4">
-          <h2 className="mb-2 text-sm font-semibold text-txt">Profile</h2>
+        <div className="rounded-card-lg border border-border2 bg-panel lit p-4">
+          <h2 className="text-h3 mb-2">Profile</h2>
           <Row k="Email" v={user.email ?? "—"} />
           <Row k="Name" v={user.name ?? "—"} />
           <Row k="Joined" v={user.createdAt.toISOString().slice(0, 10)} />
@@ -177,7 +177,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
                   : "—"
             }
           />
-          <h2 className="mb-2 mt-5 text-sm font-semibold text-txt">AI config</h2>
+          <h2 className="text-h3 mb-2 mt-5">AI config</h2>
           <Row k="Provider / model" v={`${prefs?.aiProvider ?? "openai"} / ${prefs?.aiModel || "default"}`} />
           <Row
             k="Own API keys"
@@ -197,8 +197,8 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
       </section>
 
       <section className="mb-6 grid gap-3 md:grid-cols-2">
-        <div className="rounded-card-lg border border-border bg-panel p-4">
-          <h2 className="mb-2 text-sm font-semibold text-txt">Workspaces ({workspaces.length})</h2>
+        <div className="rounded-card-lg border border-border2 bg-panel lit p-4">
+          <h2 className="text-h3 mb-2">Workspaces ({workspaces.length})</h2>
           {workspaces.length === 0 ? (
             <p className="text-[12px] text-txt3">None.</p>
           ) : (
@@ -211,8 +211,8 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
             ))
           )}
         </div>
-        <div className="rounded-card-lg border border-border bg-panel p-4">
-          <h2 className="mb-2 text-sm font-semibold text-txt">
+        <div className="rounded-card-lg border border-border2 bg-panel lit p-4">
+          <h2 className="text-h3 mb-2">
             Spaces ({ownedSpaces.length + memberships.length})
           </h2>
           {ownedSpaces.length === 0 && memberships.length === 0 ? (
@@ -233,7 +233,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
       <section className="mb-8">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-txt">Recent AI usage (last {events.length})</h2>
+            <h2 className="text-h3">Recent AI usage (last {events.length})</h2>
             {anomaly.anomalous && (
               <span
                 title={anomaly.reason}
@@ -250,7 +250,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
             Download CSV
           </a>
         </div>
-        <div className="overflow-x-auto rounded-card-lg border border-border bg-panel">
+        <div className="overflow-x-auto rounded-card-lg border border-border2 bg-panel lit">
           <table className="w-full text-left text-[12px]">
             <thead>
               <tr className="border-b border-border text-[10px]">

@@ -63,8 +63,8 @@ export function PrReviewSection() {
 
   return (
     <>
-      <h3 className="mb-[11px] mt-6 text-sm font-semibold">Auto-review pull requests</h3>
-      <Card className="p-[18px]">
+      <h3 className="text-h3 mb-[11px] mt-6">Auto-review pull requests</h3>
+      <Card variant="lit" className="p-[18px]">
         <p className="mb-3 flex items-center gap-2 text-xs text-txt2">
           <GitPullRequest className="h-3.5 w-3.5 text-accent" />
           Turn this on for a GitHub repo and Helix reviews every new pull request — posting inline
@@ -91,7 +91,10 @@ export function PrReviewSection() {
             />
             <div className="scroll-area max-h-64 divide-y divide-border overflow-y-auto">
               {visible.map((r) => (
-                <div key={r.repo} className="flex items-center gap-2 py-2">
+                <div
+                  key={r.repo}
+                  className="-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-2 transition-colors hover:bg-panel2"
+                >
                   <span className="truncate font-mono text-[11.5px] text-txt2">{r.repo}</span>
                   {r.private && <Pill tone="neutral">private</Pill>}
                   {watched.has(r.repo) && <Pill tone="green">on</Pill>}

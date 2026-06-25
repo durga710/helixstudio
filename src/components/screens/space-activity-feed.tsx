@@ -77,7 +77,7 @@ export function SpaceActivityFeed({ spaceId }: { spaceId: string }) {
 
   return (
     <div>
-      <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold">
+      <h3 className="text-h2 mb-3 flex items-center gap-1.5">
         <Activity className="h-4 w-4 text-txt3" /> Activity
       </h3>
       {events === null ? (
@@ -87,7 +87,7 @@ export function SpaceActivityFeed({ spaceId }: { spaceId: string }) {
           </span>
         </Card>
       ) : (
-        <Card className="overflow-hidden">
+        <Card variant="lit" className="overflow-hidden">
           {visible.map((e, i) => {
             const meta = EVENT_META[e.action] ?? { icon: Activity, text: (ev: FeedEvent) => `${ev.actorName} · ${ev.target}` };
             const Icon = meta.icon;

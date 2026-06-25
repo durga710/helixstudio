@@ -22,7 +22,7 @@ export function PostCard({
 }) {
   const isVideo = post.kind === "video";
   return (
-    <Card className="flex flex-col overflow-hidden">
+    <Card variant="interactive" className="flex flex-col overflow-hidden">
       <Link href={`/community/${post.id}`} className="group block">
         <div className="relative aspect-video w-full overflow-hidden bg-panel2">
           {post.thumbnailUrl ? (

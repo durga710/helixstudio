@@ -57,11 +57,11 @@ export function Topbar() {
   }, [accentPopOpen, setAccentPopOpen]);
 
   return (
-    <header className="relative flex h-12 shrink-0 items-center gap-3 border-b border-border bg-bg2 px-3.5">
+    <header className="relative z-20 flex h-12 shrink-0 items-center gap-3 border-b border-border bg-[color-mix(in_srgb,var(--bg-2)_82%,transparent)] px-3.5 backdrop-blur-md">
       <div className="flex items-center gap-[7px] text-[12.5px] text-txt2">
         <b className="font-semibold text-txt">Helix</b>
         <span className="text-txt3">/</span>
-        <span>{title}</span>
+        <span className="text-txt">{title}</span>
       </div>
 
       {/* Redundant with the "New" button on the right — hide on small screens
@@ -114,7 +114,7 @@ export function Topbar() {
 
       <button
         onClick={() => router.push("/editor")}
-        className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-accent bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink transition hover:brightness-110"
+        className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-accent bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink shadow-[0_6px_20px_-6px_color-mix(in_srgb,var(--accent)_75%,transparent)] transition-[transform,box-shadow,filter] duration-150 hover:-translate-y-px hover:shadow-[0_10px_28px_-6px_color-mix(in_srgb,var(--accent)_90%,transparent)] hover:brightness-110 active:translate-y-0"
       >
         <Plus className="h-[15px] w-[15px]" strokeWidth={2} />
         New
@@ -124,7 +124,7 @@ export function Topbar() {
       {accentPopOpen && (
         <div
           ref={popRef}
-          className="fade-up absolute right-24 top-[46px] z-40 rounded-xl border border-border2 bg-panel p-3 shadow-pop"
+          className="fade-up glass absolute right-24 top-[46px] z-40 rounded-xl p-3 shadow-pop"
         >
           <div className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.1em] text-txt3">Accent</div>
           <div className="flex gap-2">

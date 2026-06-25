@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, Loader2, Plus, Compass } from "lucide-react";
 import { Segmented } from "@/components/ui/segmented";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PostCard } from "@/components/community/post-card";
 import { PublishModal } from "@/components/community/publish-modal";
 import type { PostCard as PostCardData } from "@/lib/community";
@@ -93,16 +94,20 @@ export function CommunityGallery() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-txt">
-            <Compass className="h-6 w-6 text-accent" /> Community
-          </h1>
-          <p className="mt-1 text-sm text-txt3">Discover what others built — open, like, and fork to make it yours.</p>
+      <div className="relative overflow-hidden rounded-card-lg border border-border2 bg-panel lit">
+        <div className="aurora-bg" />
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 p-6">
+          <div>
+            <div className="text-eyebrow flex items-center gap-1.5 text-accent">
+              <Compass className="h-3.5 w-3.5" /> Community
+            </div>
+            <h1 className="text-h1 mt-1.5 brand-gradient-text">Discover what the community built</h1>
+            <p className="mt-1.5 text-sm text-txt2">Open, like, and fork projects to make them yours.</p>
+          </div>
+          <Button variant="glow" onClick={() => setPublishOpen(true)}>
+            <Plus className="h-4 w-4" /> Publish a project
+          </Button>
         </div>
-        <Button onClick={() => setPublishOpen(true)}>
-          <Plus className="h-4 w-4" /> Publish a project
-        </Button>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -137,15 +142,22 @@ export function CommunityGallery() {
       </div>
 
       {posts.length === 0 && !loading ? (
-        <div className="grid place-items-center rounded-xl border border-dashed border-border2 py-20 text-center">
-          <Compass className="mb-3 h-8 w-8 text-txt3" />
-          <p className="text-sm text-txt2">No projects yet{q || type !== "all" ? " for this filter" : ""}.</p>
-          <p className="text-xs text-txt3">Be the first — publish one of your projects.</p>
-        </div>
+        <EmptyState
+          icon={<Compass className="h-6 w-6" />}
+          title={`No projects yet${q || type !== "all" ? " for this filter" : ""}.`}
+          description="Be the first — publish one of your projects for the community to discover."
+          action={
+            <Button variant="glow" onClick={() => setPublishOpen(true)}>
+              <Plus className="h-4 w-4" /> Publish a project
+            </Button>
+          }
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {posts.map((p) => (
-            <PostCard key={p.id} post={p} onLike={onLike} onFork={onFork} busy={busyId === p.id} />
+          {posts.map((p, i) => (
+            <div key={p.id} className="rise" style={{ animationDelay: `${i * 55}ms` }}>
+              <PostCard post={p} onLike={onLike} onFork={onFork} busy={busyId === p.id} />
+            </div>
           ))}
         </div>
       )}

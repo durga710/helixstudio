@@ -76,8 +76,8 @@ export function PlanSection() {
   if (unavailable) {
     return (
       <>
-        <h3 className="mb-[11px] mt-6 text-sm font-semibold">Plan &amp; usage</h3>
-        <Card className="px-[18px] py-[15px]">
+        <h3 className="text-h3 mb-[11px] mt-6">Plan &amp; usage</h3>
+        <Card variant="lit" className="px-[18px] py-[15px]">
           <p className="text-xs text-txt3">
             Plan &amp; billing is unavailable in this environment (no database / billing not configured).
           </p>
@@ -91,8 +91,8 @@ export function PlanSection() {
 
   return (
     <>
-      <h3 className="mb-[11px] mt-6 text-sm font-semibold">Plan &amp; usage</h3>
-      <Card className="px-[18px] py-[15px]">
+      <h3 className="text-h3 mb-[11px] mt-6">Plan &amp; usage</h3>
+      <Card variant="lit" className="px-[18px] py-[15px]">
         {!plan ? (
           <div className="flex items-center gap-2 py-2 text-xs text-txt3">
             <Loader2 size={13} className="animate-spin" /> Loading plan…
@@ -117,7 +117,7 @@ export function PlanSection() {
                 {plan.upgradesEnabled && plan.tier !== "team" && (
                   <>
                     {plan.tier !== "pro" && (
-                      <Button onClick={() => go("pro", "/api/billing/checkout", { tier: "pro" })} disabled={busy !== null}>
+                      <Button variant="glow" onClick={() => go("pro", "/api/billing/checkout", { tier: "pro" })} disabled={busy !== null}>
                         {busy === "pro" ? <Loader2 size={13} className="animate-spin" /> : "Upgrade to Pro"}
                       </Button>
                     )}

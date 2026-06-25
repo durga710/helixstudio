@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Hammer, GitBranch, LineChart, Network, Boxes, Sparkles, ArrowLeft, ArrowRight, Clock, Trophy, Target } from "lucide-react";
 import type { StudioMeta } from "@/lib/lessons/studios";
 import { studioProgressId } from "@/lib/lessons/studios";
-import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Pill } from "@/components/ui/pill";
 
 /* The Studios gallery: pick an ML concept and BUILD it on a workbench. Unlike
@@ -39,28 +39,34 @@ export function StudioGalleryScreen({ studios }: { studios: StudioMeta[] }) {
         <Link href="/academy" className="mb-3 inline-flex items-center gap-1.5 text-[12px] text-txt3 transition-colors hover:text-txt">
           <ArrowLeft className="h-3.5 w-3.5" /> AI Academy
         </Link>
-        <div className="mb-[7px] text-[10.5px] font-bold uppercase tracking-[0.13em] text-accent">Build</div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-[22px] font-bold tracking-tight">Studios</h1>
+        <div className="text-eyebrow text-accent">Build</div>
+        <div className="mt-1.5 flex items-center gap-2">
+          <h1 className="text-h1">Studios</h1>
           <Hammer className="h-5 w-5 text-txt3" strokeWidth={1.7} />
         </div>
-        <p className="mt-1 max-w-[640px] text-[13px] text-txt2">
+        <p className="mt-1.5 max-w-[640px] text-[13px] text-txt2">
           Pick a concept and <span className="text-txt">build it yourself</span> — grow it piece by piece on a
           workbench and watch your model get smarter. No reading, no quiz: you construct the real thing.
         </p>
 
         {studios.length === 0 ? (
-          <Card className="mt-6 p-8 text-center text-sm text-txt3">No studios yet — check back soon.</Card>
+          <EmptyState
+            className="mt-6"
+            icon={<Hammer className="h-6 w-6" strokeWidth={1.7} />}
+            title="No studios yet"
+            description="Check back soon — hands-on build workbenches are on the way."
+          />
         ) : (
           <ul className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {[...studios].sort((a, b) => a.order - b.order).map((s) => {
+            {[...studios].sort((a, b) => a.order - b.order).map((s, i) => {
               const Icon = ICONS[s.icon] ?? Hammer;
               const isBuilt = built[studioProgressId(s.id)];
               return (
                 <li key={s.id}>
                   <Link
                     href={`/academy/studio/${s.id}`}
-                    className="block h-full rounded-card border border-border bg-panel p-5 shadow-card transition-all duration-150 hover:-translate-y-px hover:border-accent"
+                    style={{ animationDelay: `${i * 55}ms` }}
+                    className="rise block h-full rounded-card border border-border bg-panel p-5 lit hover-lift"
                   >
                     <div className="mb-3 flex items-center gap-2.5">
                       <span className="grid h-10 w-10 place-items-center rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-hl">

@@ -104,6 +104,9 @@ export function AgentPipelinePanel({ phases, progress, progressLabel }: Props) {
                         ? "color-mix(in srgb, var(--accent) 16%, transparent)"
                         : "transparent",
                     color: done ? "var(--green)" : active ? "var(--accent)" : "var(--txt-3)",
+                    boxShadow: active
+                      ? "0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent), 0 0 16px -2px color-mix(in srgb,var(--accent) 60%,transparent)"
+                      : "none",
                   }}
                 >
                   <Icon className="h-3.5 w-3.5" strokeWidth={1.8} />

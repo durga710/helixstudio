@@ -34,10 +34,10 @@ export default async function AdminTemplatesPage() {
   return (
     <div className="mx-auto max-w-[1100px] px-6 py-8">
       <header className="mb-6">
-        <Link href="/admin" className="text-[12px] text-txt3 hover:text-accent">
+        <Link href="/admin" className="text-eyebrow hover:text-accent">
           ← Admin
         </Link>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-txt">Stored templates</h1>
+        <h1 className="text-h1 mt-1">Stored templates</h1>
         <p className="mt-1 text-[13px] text-txt3">
           The {ids.length} scaffold starters currently in the database (or the bundle fallback) — exactly what gets
           injected into new from-scratch projects. {totalFiles} files total.
@@ -50,9 +50,9 @@ export default async function AdminTemplatesPage() {
           const m = t.manifest;
           const md = meta[id];
           return (
-            <section key={id} className="rounded-card-lg border border-border bg-panel p-4">
+            <section key={id} className="rounded-card-lg border border-border2 bg-panel lit p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-sm font-semibold text-txt">{m.label}</h2>
+                <h2 className="text-h3">{m.label}</h2>
                 <code className="rounded bg-panel2 px-1.5 py-0.5 text-[11px] text-accent">{m.id}</code>
                 <span className="ml-auto text-[11px] text-txt3">
                   {(md?.source ?? "bundle") === "refresh" ? "refreshed" : "bundled"}

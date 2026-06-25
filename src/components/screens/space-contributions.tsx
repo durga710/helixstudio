@@ -65,9 +65,9 @@ export function SpaceContributions({ spaceId }: { spaceId: string }) {
   });
 
   return (
-    <Card className="mt-4 p-[18px]">
+    <Card variant="lit" className="mt-4 p-[18px]">
       <div className="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <h3 className="text-sm font-semibold text-txt">Contributions</h3>
+        <h3 className="text-h3 text-txt">Contributions</h3>
         <span className="text-[11.5px] text-txt3">
           {s.activeThisWeek} active this week · {s.pushes} pushes · {s.aiBuilds} AI builds · {s.workspaces} workspaces
         </span>

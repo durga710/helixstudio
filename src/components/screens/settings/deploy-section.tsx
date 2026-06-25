@@ -70,10 +70,10 @@ export function DeploySection() {
 
   return (
     <>
-      <h3 className="mb-[11px] mt-6 flex items-center gap-2 text-sm font-semibold">
+      <h3 className="text-h3 mb-[11px] mt-6 flex items-center gap-2">
         <Rocket className="h-4 w-4 text-accent" /> Deployments
       </h3>
-      <Card className="p-[18px]">
+      <Card variant="lit" className="p-[18px]">
         <p className="mb-3 text-xs text-txt2">
           Connect a hosting platform, then deploy any workspace from the editor. Helix links your GitHub repo to a
           project on the platform — after that, <b>every push auto-deploys</b>.
@@ -176,7 +176,7 @@ function DeployRow({
           </div>
           {meta?.hint && <p className="mt-2 text-[11px] text-txt3">{meta.hint}</p>}
           <div className="mt-3 flex gap-2">
-            <Button onClick={() => void save(false)} disabled={saving || !token.trim() || extraMissing}>
+            <Button variant="glow" onClick={() => void save(false)} disabled={saving || !token.trim() || extraMissing}>
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
               {connected ? "Update" : "Connect"}
             </Button>
