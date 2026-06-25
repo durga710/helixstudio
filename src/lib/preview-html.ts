@@ -55,6 +55,83 @@ export async function composePreviewHtml(
 
   const inlined: string[] = [];
 
+  // --- ES module bundling for the preview --------------------------------------
+  // A `<script type="module">` doing `import "./util.js"` would 404 inside the
+  // srcDoc iframe (no real files behind it), blanking any multi-module static app.
+  // We follow the import graph, give each module a stable bare key, rewrite its
+  // relative imports to those keys, and serve every module as a data: URL through
+  // ONE `<script type="importmap">`. Flat (no nested data-URL blowup); shared
+  // modules (diamonds) and cycles resolve naturally via the map.
+  const joinFrom = (fromPath: string, rel: string): string => {
+    if (rel.startsWith("/")) return normalize(rel.slice(1));
+    const dir = fromPath.includes("/") ? fromPath.slice(0, fromPath.lastIndexOf("/") + 1) : "";
+    return normalize(dir + rel);
+  };
+  const SPEC_RES = [
+    /\b(?:import|export)\b[^"']*?\bfrom\s*["']([^"']+)["']/g, // import/export … from "x"
+    /\bimport\s+["']([^"']+)["']/g, // side-effect import "x"
+    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g, // dynamic import("x")
+  ];
+  const isRelSpec = (s: string) => s.startsWith("./") || s.startsWith("../") || s.startsWith("/");
+  const moduleKey = (p: string) => `@helixmod/${p}`;
+
+  async function bundleModuleGraph(
+    entryPath: string,
+    entrySource: string,
+  ): Promise<{ entryRewritten: string; importMap: Record<string, string> }> {
+    const MAX = 200;
+    const sources = new Map<string, string>([[entryPath, entrySource]]);
+    const links = new Map<string, Map<string, string>>(); // module → (spec → resolved target)
+    const queue = [entryPath];
+    while (queue.length) {
+      const p = queue.shift()!;
+      const src = sources.get(p)!;
+      const specMap = new Map<string, string>();
+      const specs = new Set<string>();
+      for (const re of SPEC_RES) {
+        re.lastIndex = 0;
+        let mm: RegExpExecArray | null;
+        while ((mm = re.exec(src))) if (mm[1] && isRelSpec(mm[1])) specs.add(mm[1]);
+      }
+      for (const spec of specs) {
+        const base = joinFrom(p, spec);
+        let target: string | null = null;
+        for (const cand of [base, `${base}.js`, `${base}/index.js`]) {
+          if (sources.has(cand)) {
+            target = cand;
+            break;
+          }
+          if (sources.size >= MAX) break;
+          const s = await getFile(cand);
+          if (s !== null) {
+            sources.set(cand, s);
+            queue.push(cand);
+            target = cand;
+            break;
+          }
+        }
+        if (target) specMap.set(spec, target); // else leave the import as-is
+      }
+      links.set(p, specMap);
+    }
+    const rewrite = (p: string): string => {
+      let out = sources.get(p)!;
+      for (const [spec, target] of links.get(p) ?? []) {
+        const k = moduleKey(target);
+        out = out.split(`"${spec}"`).join(`"${k}"`).split(`'${spec}'`).join(`'${k}'`);
+      }
+      return out;
+    };
+    const importMap: Record<string, string> = {};
+    for (const p of sources.keys()) {
+      if (p === entryPath) continue;
+      importMap[moduleKey(p)] = `data:text/javascript;charset=utf-8,${encodeURIComponent(rewrite(p))}`;
+    }
+    return { entryRewritten: rewrite(entryPath), importMap };
+  }
+
+  const moduleImportMap: Record<string, string> = {};
+
   // <link rel="stylesheet" href="style.css"> → <style>…</style>
   const linkRe = /<link\b[^>]*href=["']([^"']+)["'][^>]*>/gi;
   const links = Array.from(html.matchAll(linkRe)).filter(
@@ -76,17 +153,32 @@ export async function composePreviewHtml(
   const scriptRe = /<script\b[^>]*src=["']([^"']+)["'][^>]*>\s*<\/script>/gi;
   const scripts = Array.from(html.matchAll(scriptRe)).filter((m) => isLocalRef(m[1]!));
   for (const m of scripts) {
-    const js = await getFile(resolve(m[1]!));
-    if (js !== null) {
-      const isModule = /\btype\s*=\s*["']?module["']?/i.test(m[0]);
-      // Escape any literal "</script" in the JS so a string/regex containing it
-      // can't close the tag early (the rest would leak as HTML → blank page).
-      html = html.replace(
-        m[0],
-        `<script${isModule ? ' type="module"' : ""}>\n${js.replace(/<\/script/gi, "<\\/script")}\n</script>`,
-      );
-      inlined.push(m[1]!);
+    const scriptPath = resolve(m[1]!);
+    const js = await getFile(scriptPath);
+    if (js === null) continue;
+    const isModule = /\btype\s*=\s*["']?module["']?/i.test(m[0]);
+    let body = js;
+    if (isModule) {
+      // Bundle this module's whole import graph and merge its import map.
+      const bundled = await bundleModuleGraph(scriptPath, js);
+      body = bundled.entryRewritten;
+      Object.assign(moduleImportMap, bundled.importMap);
     }
+    // Escape any literal "</script" in the JS so a string/regex containing it
+    // can't close the tag early (the rest would leak as HTML → blank page).
+    html = html.replace(
+      m[0],
+      `<script${isModule ? ' type="module"' : ""}>\n${body.replace(/<\/script/gi, "<\\/script")}\n</script>`,
+    );
+    inlined.push(m[1]!);
+  }
+
+  // One import map for every bundled module — injected into <head> so it precedes
+  // the (body) module scripts that resolve their imports through it.
+  if (Object.keys(moduleImportMap).length) {
+    const mapJson = JSON.stringify({ imports: moduleImportMap }).replace(/<\/script/gi, "<\\/script");
+    const mapTag = `<script type="importmap">${mapJson}</script>`;
+    html = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (h) => h + mapTag) : mapTag + html;
   }
 
   // The preview iframe is sandboxed to a unique opaque origin, where touching
