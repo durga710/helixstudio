@@ -52,6 +52,9 @@ export type ExportStage = "loading" | "fetching" | "stitching" | "done";
 export async function exportReelMp4(
   clips: ExportClip[],
   onProgress?: (stage: ExportStage, pct: number) => void,
+  /** Optional AI voiceover (MP3 bytes) — muxed onto the reel as its audio track
+   * (Sora clips are silent, so nothing is lost). */
+  voiceover?: Uint8Array,
 ): Promise<Blob> {
   if (clips.length === 0) throw new Error("Nothing to export yet.");
   onProgress?.("loading", 4);
@@ -73,9 +76,25 @@ export async function exportReelMp4(
       onProgress?.("fetching", 4 + Math.round(((i + 1) / clips.length) * 76));
     }
 
-    // 2. Concatenate the TS streams back into one MP4 (stream copy).
+    // 2. Concatenate the TS streams back into one MP4 (stream copy). With a
+    //    voiceover, mux it in as the audio track (copy video, encode audio).
     onProgress?.("stitching", 84);
-    await ff.exec(["-i", `concat:${tsNames.join("|")}`, "-c", "copy", "-bsf:a", "aac_adtstoasc", "out.mp4"]);
+    if (voiceover) {
+      await ff.writeFile("voice.mp3", voiceover);
+      scratch.push("voice.mp3");
+      await ff.exec([
+        "-i", `concat:${tsNames.join("|")}`,
+        "-i", "voice.mp3",
+        "-map", "0:v:0",
+        "-map", "1:a:0",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-shortest",
+        "out.mp4",
+      ]);
+    } else {
+      await ff.exec(["-i", `concat:${tsNames.join("|")}`, "-c", "copy", "-bsf:a", "aac_adtstoasc", "out.mp4"]);
+    }
     const out = (await ff.readFile("out.mp4")) as Uint8Array;
     onProgress?.("done", 100);
     // Copy into a fresh ArrayBuffer-backed view — the wasm output may be backed

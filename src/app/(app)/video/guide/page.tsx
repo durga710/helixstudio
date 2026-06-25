@@ -199,11 +199,12 @@ export default function VideoGuidePage() {
 
       {/* What's next */}
       <section className="mb-9">
-        <h2 className="text-h2 mb-3">Coming soon</h2>
+        <h2 className="text-h2 mb-3">New &amp; coming soon</h2>
         <p className="text-[14px] leading-relaxed text-txt2">
-          <strong className="text-txt">AI voice narration</strong> (lay a spoken voiceover over your
-          reel) and <strong className="text-txt">stronger character consistency</strong> (keep the same
-          character across shots) are on the way.
+          <strong className="text-txt">AI voice narration is here</strong> — once your reel is rendered,
+          scroll down in the editor to write a script, pick a voice, and download your reel with a spoken
+          voiceover. <strong className="text-txt">Stronger character consistency</strong> (keeping the same
+          character across shots) is coming next.
         </p>
       </section>
 

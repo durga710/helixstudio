@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Clapperboard, Loader2, Sparkles, Check, X, Film, Download, Save } from "lucide-react";
 import { ReelStage } from "./ReelStage";
+import { VoiceoverPanel } from "./VoiceoverPanel";
 import type { ReelClip } from "./HelixReel";
 import { exportReelMp4, type ExportStage } from "@/lib/reel-export";
 
@@ -433,6 +434,13 @@ export function LongVideoComposer({ projectId = null }: { projectId?: string | n
           </div>
         )}
       </div>
+
+      {/* Voiceover — add an AI narration track to the finished reel. */}
+      {clips.length > 0 && (
+        <div className="lg:col-span-2">
+          <VoiceoverPanel clips={clips} />
+        </div>
+      )}
     </div>
   );
 }
