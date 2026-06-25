@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, Loader2, Plus, Compass } from "lucide-react";
+import { Search, Loader2, Plus, Compass, BookOpen } from "lucide-react";
 import { Segmented } from "@/components/ui/segmented";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -104,9 +105,17 @@ export function CommunityGallery() {
             <h1 className="text-h1 mt-1.5 brand-gradient-text">Discover what the community built</h1>
             <p className="mt-1.5 text-sm text-txt2">Open, like, and fork projects to make them yours.</p>
           </div>
-          <Button variant="glow" onClick={() => setPublishOpen(true)}>
-            <Plus className="h-4 w-4" /> Publish a project
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/community/learn"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-panel px-3 py-2 text-[13px] font-medium text-txt2 transition-colors hover:border-accent hover:text-txt"
+            >
+              <BookOpen className="h-4 w-4 text-accent" /> Learn to make videos
+            </Link>
+            <Button variant="glow" onClick={() => setPublishOpen(true)}>
+              <Plus className="h-4 w-4" /> Publish a project
+            </Button>
+          </div>
         </div>
       </div>
 
