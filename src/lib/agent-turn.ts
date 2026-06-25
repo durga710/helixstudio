@@ -162,7 +162,33 @@ export async function runAgentTurn(opts: {
   // Token budget: suspension, admin per-user limits, tier monthly quotas and
   // the guest allowance — all checked in one place before any AI spend.
   const budget = await checkTokenBudget(userId);
-  if (!budget.ok) return { code: budget.code, error: budget.error };
+  if (!budget.ok) {
+    // The AI step can't run (suspended / out of quota / no key). For a brand-new
+    // project, still inject the deterministic starter skeleton so the user gets
+    // real files and a renderable preview instead of an empty workspace + a bare
+    // error. Best-effort and idempotent — ensureScaffold no-ops unless this is
+    // the first build of an empty SCRATCH workspace, and resolveTemplateId is
+    // rules-first (~0-token), so this is safe to run past the quota gate.
+    if (mode === "build") {
+      try {
+        const gitAuth0 = await getGitAuth(userId, ws.provider);
+        const tree0 = await withGitAuth(gitAuth0, () => listWorkspaceFiles(ws)).catch(() => []);
+        if (ws.mode === "SCRATCH" && tree0.length === 0) emit("setting up your project…");
+        await ensureScaffold({
+          ws,
+          userId,
+          userMessage,
+          currentFiles: tree0,
+          emit,
+          onScaffold: (files, stack) => onEvent?.({ type: "scaffold", files, stack }),
+          relist: () => withGitAuth(gitAuth0, () => listWorkspaceFiles(ws)),
+        });
+      } catch (e) {
+        console.error("[scaffold] starter injection past the quota gate failed:", e);
+      }
+    }
+    return { code: budget.code, error: budget.error };
+  }
   const dbUser = budget.user;
 
   const prefs = await db().userPreferences.findUnique({
