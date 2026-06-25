@@ -12,9 +12,10 @@
  * A failed shot doesn't sink the reel — it's skipped and the rest still stitch.
  */
 import { useRef, useState } from "react";
-import { Clapperboard, Loader2, Sparkles, Check, X, Film } from "lucide-react";
+import { Clapperboard, Loader2, Sparkles, Check, X, Film, Download } from "lucide-react";
 import { ReelStage } from "./ReelStage";
 import type { ReelClip } from "./HelixReel";
+import { exportReelMp4, type ExportStage } from "@/lib/reel-export";
 
 const SECONDS = ["4", "8", "12", "16", "20"] as const;
 type Sec = (typeof SECONDS)[number];
@@ -81,6 +82,33 @@ export function LongVideoComposer() {
   const [shots, setShots] = useState<Shot[]>([]);
   const [error, setError] = useState<string | null>(null);
   const cancelled = useRef(false);
+
+  // MP4 export (client-side ffmpeg.wasm).
+  const [exporting, setExporting] = useState(false);
+  const [exportPct, setExportPct] = useState(0);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  async function exportMp4(reel: ReelClip[]) {
+    if (exporting || reel.length === 0) return;
+    setExporting(true);
+    setExportError(null);
+    setExportPct(0);
+    try {
+      const blob = await exportReelMp4(reel, (_stage: ExportStage, pct) => setExportPct(pct));
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `helixvideo-reel-${reel.length}clips.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : "Export failed — try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const busy = phase === "planning" || phase === "generating";
   const clips: ReelClip[] = shots
@@ -287,10 +315,29 @@ export function LongVideoComposer() {
             </div>
           </div>
         )}
-        {clips.length > 0 && phase === "done" && (
-          <p className="mt-3 text-[11px] text-txt3">
-            Stitched {clips.length} clip{clips.length === 1 ? "" : "s"} into one continuous reel. Single-file MP4 export is next.
-          </p>
+        {clips.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <button
+              type="button"
+              onClick={() => exportMp4(clips)}
+              disabled={exporting || busy}
+              className="inline-flex items-center gap-2 rounded-[11px] border border-border2 px-4 py-2 text-sm font-semibold text-txt2 transition hover:border-accent hover:text-txt disabled:opacity-50"
+            >
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {exporting ? `Exporting… ${exportPct}%` : `Download MP4 · ${clips.length} clip${clips.length === 1 ? "" : "s"}`}
+            </button>
+            {exporting && (
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-border2">
+                <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${Math.max(4, exportPct)}%` }} />
+              </div>
+            )}
+            <p className="text-[11px] text-txt3">
+              {exporting
+                ? "Stitching the clips into one MP4 in your browser…"
+                : `Flattens the ${clips.length} clip${clips.length === 1 ? "" : "s"} into one downloadable file (first export loads ~30 MB of tooling).`}
+            </p>
+            {exportError && <p className="text-[11px] text-warn">{exportError}</p>}
+          </div>
         )}
       </div>
     </div>
