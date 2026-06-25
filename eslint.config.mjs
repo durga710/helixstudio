@@ -21,6 +21,9 @@ const eslintConfig = defineConfig([
     // Scaffold starters — templates for OTHER projects, each with its own
     // framework/conventions; Helix's lint rules don't apply to them.
     "templates/**",
+    // Vendored ffmpeg.wasm bundle (self-hosted for the reel MP4 export) —
+    // third-party minified code, not ours to lint.
+    "public/ffmpeg/**",
   ]),
 ]);
 
